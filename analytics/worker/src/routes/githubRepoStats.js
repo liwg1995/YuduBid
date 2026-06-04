@@ -108,7 +108,7 @@ function buildGitHubHeaders(env) {
   const token = String(env.GITHUB_API_TOKEN || env.GITHUB_TOKEN || '').trim();
   return {
     Accept: 'application/vnd.github+json',
-    'User-Agent': 'OpenBidKit-Yibiao-Analytics',
+    'User-Agent': 'YuDuBid-Analytics',
     'X-GitHub-Api-Version': '2022-11-28',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
@@ -171,7 +171,7 @@ async function fetchRepoStatsFromHtml() {
   const response = await fetch(GITHUB_REPO_HTML_URL, {
     headers: {
       Accept: 'text/html',
-      'User-Agent': 'OpenBidKit-Yibiao-Analytics',
+      'User-Agent': 'YuDuBid-Analytics',
     },
   });
 
