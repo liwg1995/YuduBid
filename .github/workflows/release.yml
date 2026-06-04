@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'V*'
   workflow_dispatch:
     inputs:
       tag_name:
@@ -112,7 +113,7 @@ jobs:
         env:
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
         run: |
-          VERSION="${TAG_NAME#v}"
+          VERSION="${TAG_NAME#[vV]}"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Generate macOS icon
