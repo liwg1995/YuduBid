@@ -21,6 +21,7 @@ const {
   Paragraph,
   PageNumber,
   ShadingType,
+  SimpleField,
   Table,
   TableCell,
   TableLayoutType,
@@ -39,6 +40,9 @@ const MERMAID_EXPORT_RETRY_ATTEMPTS = 1;
 const MERMAID_EXPORT_RETRY_DELAY_MS = 1000;
 const WORD_OPTIMIZATION_HEADING_REFERENCE = 'word-optimization-heading-numbering';
 const WORD_OPTIMIZATION_IMAGE_MAX_WIDTH = 520;
+const WORD_OPTIMIZATION_IMAGE_MAX_HEIGHT = 620;
+const WORD_OPTIMIZATION_TABLE_SEQ_ID = 'YDBTable';
+const WORD_OPTIMIZATION_FIGURE_SEQ_ID = 'YDBFigure';
 
 function encodeMermaidForInk(code) {
   const state = JSON.stringify({
@@ -222,6 +226,7 @@ function paragraph(children, options = {}) {
     outlineLevel: options.outlineLevel,
     style: options.style,
     tabStops: options.tabStops,
+    run: options.run,
   });
 }
 
@@ -459,34 +464,95 @@ function isNumberedBodyParagraph(value) {
   return /^\s*(?:\d+[、.)．]|[（(]\d+[）)]|[一二三四五六七八九十]+[、.)．])\s*/.test(String(value || ''));
 }
 
+function isManualFigureCaptionText(value) {
+  return /^\s*图\s*(?:\d+\s*)?[：:、.．]\s*\S+/.test(String(value || '').trim())
+    || /^\s*图\s+\d+\s+\S+/.test(String(value || '').trim());
+}
+
+function isManualTableCaptionText(value) {
+  return /^\s*表\s*(?:\d+\s*)?[：:、.．]\s*\S+/.test(String(value || '').trim())
+    || /^\s*表\s+\d+\s+\S+/.test(String(value || '').trim());
+}
+
 function captionTextRun(value) {
   return textRun(value, { font: '黑体', size: 21, color: '000000' });
 }
 
-function createCaptionParagraph(label, name) {
-  const caption = `${label}${name ? ` ${name}` : ''}`;
-  return paragraph([captionTextRun(caption)], {
+function summarizeCaptionName(value, fallback = '') {
+  const cleaned = stripLeadingNumbering(value)
+    .replace(/^(?:图|表)\s*\d*\s*[：:、.．]?\s*/g, '')
+    .replace(/\[[^\]]*]/g, '')
+    .replace(/【[^】]*】/g, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/（[^）]*）/g, '')
+    .replace(/\s+/g, '')
+    .replace(/[，,。；;：:、.．]+$/g, '')
+    .trim();
+  const source = cleaned || fallback;
+  if (!source) return '';
+
+  const sentence = source.split(/[，,。；;：:、.．]/).find((part) => part.trim()) || source;
+  const compact = sentence
+    .replace(/^(?:关于|针对|用于|展示|说明|体现|呈现)/, '')
+    .replace(/(?:示意图|架构图|拓扑图|流程图|统计表|汇总表|清单表|明细表)$/, '')
+    .trim() || sentence;
+  const maxLength = 14;
+  return compact.length > maxLength ? `${compact.slice(0, maxLength)}...` : compact;
+}
+
+function nextCaptionSequence(context, type) {
+  if (type === 'table') {
+    context.tableCaptionIndex = (context.tableCaptionIndex || 0) + 1;
+    return {
+      label: '表',
+      identifier: WORD_OPTIMIZATION_TABLE_SEQ_ID,
+      cachedValue: String(context.tableCaptionIndex),
+    };
+  }
+
+  context.figureCaptionIndex = (context.figureCaptionIndex || 0) + 1;
+  return {
+    label: '图',
+    identifier: WORD_OPTIMIZATION_FIGURE_SEQ_ID,
+    cachedValue: String(context.figureCaptionIndex),
+  };
+}
+
+function createCaptionParagraph(context, type, name, fallback = '') {
+  const sequence = nextCaptionSequence(context, type);
+  const captionName = summarizeCaptionName(name, fallback);
+  return paragraph([
+    captionTextRun(`${sequence.label} `),
+    new SimpleField(`SEQ ${sequence.identifier} \\* ARABIC`, sequence.cachedValue),
+    ...(captionName ? [captionTextRun(` ${captionName}`)] : []),
+  ], {
     optimized: true,
     alignment: AlignmentType.CENTER,
     indent: { left: 0, right: 0 },
+    run: { font: '黑体', size: 21, color: '000000' },
   });
-}
-
-function nextCaptionLabel(context, type) {
-  if (type === 'table') {
-    context.tableCaptionIndex = (context.tableCaptionIndex || 0) + 1;
-    return `表 ${context.tableCaptionIndex}`;
-  }
-  context.figureCaptionIndex = (context.figureCaptionIndex || 0) + 1;
-  return `图 ${context.figureCaptionIndex}`;
 }
 
 function inferTableCaptionName(context) {
   const text = compactText(context.lastParagraphText || '', 48);
   if (text && /表|清单|列表|汇总|参数|指标|配置|明细|统计/.test(text)) {
-    return stripLeadingNumbering(text).replace(/^表\s*\d+\s*[：:、.]?\s*/, '').trim();
+    return summarizeCaptionName(text, '数据表');
   }
   return '数据表';
+}
+
+function inferMarkdownTableCaptionName(node, context) {
+  const contextualName = inferTableCaptionName(context);
+  if (contextualName !== '数据表') {
+    return contextualName;
+  }
+
+  const firstRow = node.children?.[0];
+  const headerText = (firstRow?.children || [])
+    .map((cell) => nodeText(cell))
+    .filter(Boolean)
+    .join(' ');
+  return summarizeCaptionName(headerText, '数据表') || '数据表';
 }
 
 function imageTypeFromMime(mime) {
@@ -653,9 +719,10 @@ async function imageRunFromNode(node, context, options = {}) {
     return textRun(`[${message}]`, { color: 'C83220' });
   }
   const maxImageWidth = context.wordOptimizationEnabled ? WORD_OPTIMIZATION_IMAGE_MAX_WIDTH : MAX_IMAGE_WIDTH;
+  const maxImageHeight = context.wordOptimizationEnabled ? WORD_OPTIMIZATION_IMAGE_MAX_HEIGHT : Number.POSITIVE_INFINITY;
   const sourceWidth = size.width || maxImageWidth;
   const sourceHeight = size.height || Math.round(maxImageWidth * 0.62);
-  const ratio = Math.min(1, maxImageWidth / sourceWidth);
+  const ratio = Math.min(1, maxImageWidth / sourceWidth, maxImageHeight / sourceHeight);
   const width = Math.round(sourceWidth * ratio);
   const height = Math.round(sourceHeight * ratio);
 
@@ -822,7 +889,7 @@ async function htmlTableToDocx($, tableNode, context) {
 
   const blocks = [];
   if (optimized) {
-    blocks.push(createCaptionParagraph(nextCaptionLabel(context, 'table'), inferTableCaptionName(context)));
+    blocks.push(createCaptionParagraph(context, 'table', inferTableCaptionName(context), '数据表'));
   }
   blocks.push(createDocxTable(rows, maxColumns, { optimized }));
   return blocks;
@@ -866,7 +933,7 @@ async function htmlNodeToDocxBlocks($, node, context, options = {}) {
     const alt = $(node).attr('alt') || 'HTML 图片';
     const blocks = [await imageParagraphFromSource($(node).attr('src'), alt, context)];
     if (context.wordOptimizationEnabled) {
-      blocks.push(createCaptionParagraph(nextCaptionLabel(context, 'figure'), stripLeadingNumbering(alt) || '图片'));
+      blocks.push(createCaptionParagraph(context, 'figure', alt, '图片'));
     }
     return blocks;
   }
@@ -944,7 +1011,14 @@ async function tableCellParagraphs(cell, context, isHeader = false) {
   }
 
   const blocks = await markdownNodesToDocx(cell.children || [], context, { inTable: true });
-  if (!blocks.length) return [paragraph([textRun('', { optimized })], { after: optimized ? 0 : 80, optimized })];
+  if (!blocks.length) {
+    return [paragraph([textRun('', { optimized })], {
+      after: optimized ? 0 : 80,
+      optimized,
+      alignment: optimized ? AlignmentType.CENTER : undefined,
+      indent: optimized ? { left: 0, right: 0 } : undefined,
+    })];
+  }
   return blocks.filter((block) => block instanceof Paragraph);
 }
 
@@ -970,13 +1044,17 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
       if (!options.inTable && optimized && isImageOnlyParagraph(node)) {
         const imageNode = (node.children || []).find((child) => child.type === 'image');
         blocks.push(await imageParagraphFromSource(imageNode?.url, imageNode?.alt || '图片', context));
-        blocks.push(createCaptionParagraph(nextCaptionLabel(context, 'figure'), stripLeadingNumbering(imageNode?.alt || '') || '图片'));
+        blocks.push(createCaptionParagraph(context, 'figure', imageNode?.alt || '', '图片'));
+        context.lastParagraphText = '';
+      } else if (!options.inTable && optimized && (isManualFigureCaptionText(text) || isManualTableCaptionText(text))) {
         context.lastParagraphText = '';
       } else {
         blocks.push(paragraph(await inlineRuns(node.children, context, optimized ? { optimized } : {}), {
           after: options.inTable ? 80 : 160,
           optimized,
-          alignment: !options.inTable && (isImageOnlyParagraph(node) || isFigureCaptionParagraph(node)) ? AlignmentType.CENTER : undefined,
+          alignment: options.inTable && optimized
+            ? AlignmentType.CENTER
+            : !options.inTable && (isImageOnlyParagraph(node) || isFigureCaptionParagraph(node)) ? AlignmentType.CENTER : undefined,
           indent: optimized
             ? options.inTable
               ? { left: 0, right: 0 }
@@ -1026,7 +1104,7 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
       }
       if (rows.length) {
         if (optimized) {
-          blocks.push(createCaptionParagraph(nextCaptionLabel(context, 'table'), inferTableCaptionName(context)));
+          blocks.push(createCaptionParagraph(context, 'table', inferMarkdownTableCaptionName(node, context), '数据表'));
         }
         blocks.push(createDocxTable(rows, maxColumns, { optimized }));
       }
@@ -1058,7 +1136,7 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
           },
         }));
         if (optimized) {
-          blocks.push(createCaptionParagraph(nextCaptionLabel(context, 'figure'), `Mermaid 图 ${nextIndex}`));
+          blocks.push(createCaptionParagraph(context, 'figure', `Mermaid 图 ${nextIndex}`, 'Mermaid 图'));
         }
         context.convertedMermaidCount = nextIndex;
         reportConversionProgress(context, `Mermaid 图 ${nextIndex}/${total} 已处理。`);
@@ -1238,6 +1316,7 @@ async function buildDocxResult(payload, options = {}) {
     : undefined;
   const doc = new Document({
     ...(numbering ? { numbering } : {}),
+    ...(wordOptimizationEnabled ? { features: { updateFields: true } } : {}),
     styles: {
       default: {
         document: {
