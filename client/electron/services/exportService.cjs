@@ -11,11 +11,15 @@ const {
   BorderStyle,
   Document,
   ExternalHyperlink,
+  Footer,
   HeadingLevel,
   ImageRun,
   LevelFormat,
+  LevelSuffix,
+  LineRuleType,
   Packer,
   Paragraph,
+  PageNumber,
   ShadingType,
   Table,
   TableCell,
@@ -33,6 +37,8 @@ const REMOTE_IMAGE_FETCH_TIMEOUT_MS = 12000;
 const MERMAID_EXPORT_FETCH_TIMEOUT_MS = 8000;
 const MERMAID_EXPORT_RETRY_ATTEMPTS = 1;
 const MERMAID_EXPORT_RETRY_DELAY_MS = 1000;
+const WORD_OPTIMIZATION_HEADING_REFERENCE = 'word-optimization-heading-numbering';
+const WORD_OPTIMIZATION_IMAGE_MAX_WIDTH = 520;
 
 function encodeMermaidForInk(code) {
   const state = JSON.stringify({
@@ -156,15 +162,19 @@ function cleanText(value) {
   return String(value || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 }
 
+function isWordOptimizationEnabled(config) {
+  return Boolean(config?.skill_settings?.skills?.['word-optimization']?.enabled);
+}
+
 function textRun(text, options = {}) {
   return new TextRun({
     text: cleanText(text),
-    font: '宋体',
+    font: options.font || '宋体',
     size: options.size || 24,
     bold: options.bold,
     italics: options.italics,
     strike: options.strike,
-    color: options.color,
+    color: options.color || (options.optimized ? '000000' : undefined),
     underline: options.underline ? { type: UnderlineType.SINGLE } : undefined,
   });
 }
@@ -190,20 +200,43 @@ function textRunsWithBreaks(value, options = {}) {
 }
 
 function paragraph(children, options = {}) {
+  const optimized = Boolean(options.optimized);
+  const spacing = optimized
+    ? { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY }
+    : { before: options.before || 0, after: options.after ?? 160, line: 360 };
+  const indent = optimized && options.indent === undefined
+    ? { left: 0, right: 0, firstLine: 480 }
+    : options.indent;
+
   return new Paragraph({
     children: children?.length ? children : [textRun('')],
     heading: options.heading,
-    alignment: options.alignment,
+    alignment: options.alignment || (optimized ? AlignmentType.JUSTIFIED : undefined),
     bullet: options.bullet,
     numbering: options.numbering,
-    spacing: { before: options.before || 0, after: options.after ?? 160, line: 360 },
-    indent: options.indent,
+    spacing,
+    indent,
     border: options.border,
     shading: options.shading,
+    keepNext: options.keepNext,
+    outlineLevel: options.outlineLevel,
+    style: options.style,
+    tabStops: options.tabStops,
   });
 }
 
-function tableBorders() {
+function tableBorders(optimized = false) {
+  if (optimized) {
+    return {
+      top: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+      bottom: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+      left: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+      right: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+      insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+      insideVertical: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+    };
+  }
+
   return {
     top: { style: BorderStyle.SINGLE, size: 1, color: 'DCDFF6' },
     bottom: { style: BorderStyle.SINGLE, size: 1, color: 'DCDFF6' },
@@ -228,24 +261,25 @@ function tableCellWidth(columnSpan, totalColumns) {
   return Math.round((DOCX_TABLE_WIDTH_TWIPS * safeSpan) / safeTotal);
 }
 
-function createTableCell({ children, isHeader = false, columnSpan = 1, totalColumns = 1 }) {
+function createTableCell({ children, isHeader = false, columnSpan = 1, totalColumns = 1, optimized = false }) {
   const safeSpan = Math.max(1, columnSpan || 1);
   return new TableCell({
     children,
-    shading: isHeader ? { type: ShadingType.CLEAR, fill: 'F1F6FF' } : undefined,
+    shading: isHeader && !optimized ? { type: ShadingType.CLEAR, fill: 'F1F6FF' } : undefined,
     margins: { top: 120, bottom: 120, left: 140, right: 140 },
     columnSpan: safeSpan > 1 ? safeSpan : undefined,
     width: { size: tableCellWidth(safeSpan, totalColumns), type: WidthType.DXA },
   });
 }
 
-function createDocxTable(rows, columnCount) {
+function createDocxTable(rows, columnCount, options = {}) {
+  const optimized = Boolean(options.optimized);
   return new Table({
     rows,
     width: { size: 100, type: WidthType.PERCENTAGE },
     columnWidths: tableColumnWidths(columnCount),
-    layout: TableLayoutType.FIXED,
-    borders: tableBorders(),
+    layout: optimized ? TableLayoutType.AUTOFIT : TableLayoutType.FIXED,
+    borders: tableBorders(optimized),
   });
 }
 
@@ -411,6 +445,50 @@ function headingLevel(level) {
   return HeadingLevel.HEADING_4;
 }
 
+function headingNumberingLevel(level) {
+  return Math.max(0, Math.min(8, (Number(level) || 1) - 1));
+}
+
+function stripLeadingNumbering(value) {
+  return String(value || '')
+    .replace(/^\s*(?:\d+(?:\.\d+)*|[（(]?\d+[）)]|[一二三四五六七八九十]+)[、.)．]?\s*/, '')
+    .trim();
+}
+
+function isNumberedBodyParagraph(value) {
+  return /^\s*(?:\d+[、.)．]|[（(]\d+[）)]|[一二三四五六七八九十]+[、.)．])\s*/.test(String(value || ''));
+}
+
+function captionTextRun(value) {
+  return textRun(value, { font: '黑体', size: 21, color: '000000' });
+}
+
+function createCaptionParagraph(label, name) {
+  const caption = `${label}${name ? ` ${name}` : ''}`;
+  return paragraph([captionTextRun(caption)], {
+    optimized: true,
+    alignment: AlignmentType.CENTER,
+    indent: { left: 0, right: 0 },
+  });
+}
+
+function nextCaptionLabel(context, type) {
+  if (type === 'table') {
+    context.tableCaptionIndex = (context.tableCaptionIndex || 0) + 1;
+    return `表 ${context.tableCaptionIndex}`;
+  }
+  context.figureCaptionIndex = (context.figureCaptionIndex || 0) + 1;
+  return `图 ${context.figureCaptionIndex}`;
+}
+
+function inferTableCaptionName(context) {
+  const text = compactText(context.lastParagraphText || '', 48);
+  if (text && /表|清单|列表|汇总|参数|指标|配置|明细|统计/.test(text)) {
+    return stripLeadingNumbering(text).replace(/^表\s*\d+\s*[：:、.]?\s*/, '').trim();
+  }
+  return '数据表';
+}
+
 function imageTypeFromMime(mime) {
   if (!mime) return null;
   if (mime.includes('png')) return 'png';
@@ -574,9 +652,10 @@ async function imageRunFromNode(node, context, options = {}) {
     addWarning(context, message);
     return textRun(`[${message}]`, { color: 'C83220' });
   }
-  const sourceWidth = size.width || MAX_IMAGE_WIDTH;
-  const sourceHeight = size.height || Math.round(MAX_IMAGE_WIDTH * 0.62);
-  const ratio = Math.min(1, MAX_IMAGE_WIDTH / sourceWidth);
+  const maxImageWidth = context.wordOptimizationEnabled ? WORD_OPTIMIZATION_IMAGE_MAX_WIDTH : MAX_IMAGE_WIDTH;
+  const sourceWidth = size.width || maxImageWidth;
+  const sourceHeight = size.height || Math.round(maxImageWidth * 0.62);
+  const ratio = Math.min(1, maxImageWidth / sourceWidth);
   const width = Math.round(sourceWidth * ratio);
   const height = Math.round(sourceHeight * ratio);
 
@@ -698,6 +777,7 @@ async function htmlInlineRuns($, nodes = [], context = {}, marks = {}) {
 
 async function htmlTableToDocx($, tableNode, context) {
   const rows = [];
+  const optimized = Boolean(context.wordOptimizationEnabled);
   const rowDescriptors = $(tableNode).find('tr').toArray().map((rowNode) => {
     const cells = $(rowNode).children('th,td').toArray().map((cellNode) => ({
       node: cellNode,
@@ -717,20 +797,35 @@ async function htmlTableToDocx($, tableNode, context) {
       const isHeader = htmlTagName(cellNode) === 'th';
       const remainingSpan = cellIndex === row.cells.length - 1 ? maxColumns - row.columnCount : 0;
       cells.push(createTableCell({
-        children: [paragraph(await htmlInlineRuns($, $(cellNode).contents().toArray(), context, { bold: isHeader }), { after: 80 })],
+        children: [paragraph(await htmlInlineRuns($, $(cellNode).contents().toArray(), context, {
+          bold: isHeader,
+          font: optimized && isHeader ? '黑体' : undefined,
+          optimized,
+        }), {
+          after: optimized ? 0 : 80,
+          optimized,
+          alignment: optimized ? AlignmentType.CENTER : undefined,
+          indent: optimized ? { left: 0, right: 0 } : undefined,
+        })],
         isHeader,
         columnSpan: cell.columnSpan + Math.max(0, remainingSpan),
         totalColumns: maxColumns,
+        optimized,
       }));
     }
-    rows.push(new TableRow({ children: cells }));
+    rows.push(new TableRow({ children: cells, tableHeader: optimized && rows.length === 0 }));
   }
 
   if (!rows.length) {
     return [];
   }
 
-  return [createDocxTable(rows, maxColumns)];
+  const blocks = [];
+  if (optimized) {
+    blocks.push(createCaptionParagraph(nextCaptionLabel(context, 'table'), inferTableCaptionName(context)));
+  }
+  blocks.push(createDocxTable(rows, maxColumns, { optimized }));
+  return blocks;
 }
 
 async function htmlListToDocx($, listNode, context, options = {}) {
@@ -768,7 +863,12 @@ async function htmlNodeToDocxBlocks($, node, context, options = {}) {
     return htmlTableToDocx($, node, context);
   }
   if (tag === 'img') {
-    return [await imageParagraphFromSource($(node).attr('src'), $(node).attr('alt') || 'HTML 图片', context)];
+    const alt = $(node).attr('alt') || 'HTML 图片';
+    const blocks = [await imageParagraphFromSource($(node).attr('src'), alt, context)];
+    if (context.wordOptimizationEnabled) {
+      blocks.push(createCaptionParagraph(nextCaptionLabel(context, 'figure'), stripLeadingNumbering(alt) || '图片'));
+    }
+    return blocks;
   }
   if (tag === 'ul' || tag === 'ol') {
     return htmlListToDocx($, node, context, options);
@@ -828,31 +928,67 @@ async function htmlToDocxBlocks(html, context = {}, options = {}) {
 }
 
 async function tableCellParagraphs(cell, context, isHeader = false) {
+  const optimized = Boolean(context.wordOptimizationEnabled);
   const phrasingNodes = (cell.children || []).filter((child) => child.type !== 'paragraph');
   if (phrasingNodes.length) {
-    return [paragraph(await inlineRuns(phrasingNodes, context, { bold: isHeader }), { after: 80 })];
+    return [paragraph(await inlineRuns(phrasingNodes, context, {
+      bold: isHeader,
+      font: optimized && isHeader ? '黑体' : undefined,
+      optimized,
+    }), {
+      after: optimized ? 0 : 80,
+      optimized,
+      alignment: optimized ? AlignmentType.CENTER : undefined,
+      indent: optimized ? { left: 0, right: 0 } : undefined,
+    })];
   }
 
   const blocks = await markdownNodesToDocx(cell.children || [], context, { inTable: true });
-  if (!blocks.length) return [paragraph([textRun('')], { after: 80 })];
+  if (!blocks.length) return [paragraph([textRun('', { optimized })], { after: optimized ? 0 : 80, optimized })];
   return blocks.filter((block) => block instanceof Paragraph);
 }
 
 async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
   const blocks = [];
+  const optimized = Boolean(context.wordOptimizationEnabled);
 
   for (const node of nodes) {
     if (node.type === 'heading') {
-      blocks.push(paragraph(await inlineRuns(node.children, context), {
+      const headingDepth = headingNumberingLevel(node.depth);
+      blocks.push(paragraph(await inlineRuns(node.children, context, optimized ? { font: '黑体', color: '000000', optimized } : {}), {
         heading: headingLevel(node.depth),
-        before: node.depth === 1 ? 280 : 180,
-        after: 120,
+        before: optimized ? 0 : node.depth === 1 ? 280 : 180,
+        after: optimized ? 0 : 120,
+        optimized,
+        keepNext: optimized ? true : undefined,
+        numbering: optimized ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
+        indent: optimized ? { left: 0, right: 0 } : undefined,
       }));
+      context.lastParagraphText = nodeText(node);
     } else if (node.type === 'paragraph') {
-      blocks.push(paragraph(await inlineRuns(node.children, context), {
-        after: options.inTable ? 80 : 160,
-        alignment: !options.inTable && (isImageOnlyParagraph(node) || isFigureCaptionParagraph(node)) ? AlignmentType.CENTER : undefined,
-      }));
+      const text = nodeText(node).trim();
+      if (!options.inTable && optimized && isImageOnlyParagraph(node)) {
+        const imageNode = (node.children || []).find((child) => child.type === 'image');
+        blocks.push(await imageParagraphFromSource(imageNode?.url, imageNode?.alt || '图片', context));
+        blocks.push(createCaptionParagraph(nextCaptionLabel(context, 'figure'), stripLeadingNumbering(imageNode?.alt || '') || '图片'));
+        context.lastParagraphText = '';
+      } else {
+        blocks.push(paragraph(await inlineRuns(node.children, context, optimized ? { optimized } : {}), {
+          after: options.inTable ? 80 : 160,
+          optimized,
+          alignment: !options.inTable && (isImageOnlyParagraph(node) || isFigureCaptionParagraph(node)) ? AlignmentType.CENTER : undefined,
+          indent: optimized
+            ? options.inTable
+              ? { left: 0, right: 0 }
+              : isNumberedBodyParagraph(text)
+                ? { left: 482, right: 0, hanging: 442 }
+                : undefined
+            : undefined,
+        }));
+        if (!options.inTable && text) {
+          context.lastParagraphText = text;
+        }
+      }
     } else if (node.type === 'list') {
       const numberingReference = node.ordered ? createOrderedListReference(context) : null;
       for (const item of node.children || []) {
@@ -861,7 +997,11 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         const listOptions = node.ordered
           ? { numbering: { reference: numberingReference, level: Math.min(options.listLevel || 0, 2) } }
           : { bullet: { level: Math.min(options.listLevel || 0, 2) } };
-        blocks.push(paragraph(await inlineRuns(firstParagraph?.children || [], context), listOptions));
+        blocks.push(paragraph(await inlineRuns(firstParagraph?.children || [], context, optimized ? { optimized } : {}), {
+          ...listOptions,
+          optimized,
+          indent: optimized ? { left: 482, right: 0, hanging: 442 } : undefined,
+        }));
         blocks.push(...await markdownNodesToDocx(restChildren, context, { ...options, listLevel: (options.listLevel || 0) + 1 }));
       }
     } else if (node.type === 'table') {
@@ -879,12 +1019,16 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
             isHeader: rowIndex === 0,
             columnSpan,
             totalColumns: maxColumns,
+            optimized,
           }));
         }
-        rows.push(new TableRow({ children: cells }));
+        rows.push(new TableRow({ children: cells, tableHeader: optimized && rowIndex === 0 }));
       }
       if (rows.length) {
-        blocks.push(createDocxTable(rows, maxColumns));
+        if (optimized) {
+          blocks.push(createCaptionParagraph(nextCaptionLabel(context, 'table'), inferTableCaptionName(context)));
+        }
+        blocks.push(createDocxTable(rows, maxColumns, { optimized }));
       }
     } else if (node.type === 'blockquote') {
       for (const child of node.children || []) {
@@ -913,6 +1057,9 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
             },
           },
         }));
+        if (optimized) {
+          blocks.push(createCaptionParagraph(nextCaptionLabel(context, 'figure'), `Mermaid 图 ${nextIndex}`));
+        }
         context.convertedMermaidCount = nextIndex;
         reportConversionProgress(context, `Mermaid 图 ${nextIndex}/${total} 已处理。`);
       } else {
@@ -952,13 +1099,26 @@ async function addMarkdownContent(children, content, context) {
 }
 
 async function addOutlineItems(children, items, context, level = 1) {
+  const optimized = Boolean(context.wordOptimizationEnabled);
   for (const item of items || []) {
-    const title = `${item.id || ''} ${item.title || '未命名章节'}`.trim();
-    children.push(paragraph([textRun(title, { bold: true })], {
+    const rawTitle = item.title || '未命名章节';
+    const title = optimized
+      ? stripLeadingNumbering(rawTitle) || rawTitle
+      : `${item.id || ''} ${rawTitle}`.trim();
+    children.push(paragraph([textRun(title, {
+      bold: true,
+      font: optimized ? '黑体' : undefined,
+      color: optimized ? '000000' : undefined,
+    })], {
       heading: headingLevel(level),
-      before: level === 1 ? 320 : 200,
-      after: 120,
+      before: optimized ? 0 : level === 1 ? 320 : 200,
+      after: optimized ? 0 : 120,
+      optimized,
+      keepNext: optimized ? true : undefined,
+      numbering: optimized ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) } : undefined,
+      indent: optimized ? { left: 0, right: 0 } : undefined,
     }));
+    context.lastParagraphText = title;
 
     if (!item.children?.length) {
       if (String(item.content || '').trim()) {
@@ -975,45 +1135,78 @@ async function addOutlineItems(children, items, context, level = 1) {
 
 function createNumberingConfig(context) {
   const references = context.numberingReferences || [];
-  if (!references.length) {
+  const optimized = Boolean(context.wordOptimizationEnabled);
+  if (!references.length && !optimized) {
     return undefined;
   }
 
   return {
-    config: references.map((reference) => ({
-      reference,
-      levels: [0, 1, 2].map((level) => ({
-        level,
-        format: LevelFormat.DECIMAL,
-        text: `%${level + 1}.`,
-        alignment: AlignmentType.START,
-        style: {
-          paragraph: {
-            indent: { left: 720 + level * 420, hanging: 260 },
+    config: [
+      ...(optimized ? [{
+        reference: WORD_OPTIMIZATION_HEADING_REFERENCE,
+        levels: Array.from({ length: 9 }, (_item, level) => ({
+          level,
+          format: LevelFormat.DECIMAL,
+          text: Array.from({ length: level + 1 }, (_part, index) => `%${index + 1}`).join('.'),
+          alignment: AlignmentType.START,
+          suffix: LevelSuffix.SPACE,
+          style: {
+            paragraph: {
+              indent: { left: 0, hanging: 0 },
+              spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
+            },
+            run: { font: '黑体', size: 24, bold: true, color: '000000' },
           },
-        },
+        })),
+      }] : []),
+      ...references.map((reference) => ({
+        reference,
+        levels: [0, 1, 2].map((level) => ({
+          level,
+          format: LevelFormat.DECIMAL,
+          text: `%${level + 1}.`,
+          alignment: AlignmentType.START,
+          style: {
+            paragraph: {
+              indent: optimized ? { left: 482, hanging: 442 } : { left: 720 + level * 420, hanging: 260 },
+            },
+          },
+        })),
       })),
-    })),
+    ],
   };
 }
 
 async function buildDocxResult(payload, options = {}) {
   const stats = countOutlineStats(payload.outline || []);
+  const wordOptimizationEnabled = isWordOptimizationEnabled(options.config);
   const context = {
     baseDir: payload.base_dir || payload.baseDir,
     onProgress: options.onProgress,
     warnings: options.warnings || [],
     stats,
+    wordOptimizationEnabled,
     convertedLeafCount: 0,
     convertedMermaidCount: 0,
     numberingReferences: [],
     numberingIndex: 0,
     unsupportedHtmlTags: new Set(),
+    figureCaptionIndex: 0,
+    tableCaptionIndex: 0,
+    lastParagraphText: '',
   };
-  const children = [
-    paragraph([textRun('内容由 AI 生成', { italics: true, size: 18 })], { alignment: AlignmentType.CENTER, after: 120 }),
-    paragraph([textRun(payload.project_name || '投标技术文件', { bold: true, size: 34 })], { alignment: AlignmentType.CENTER, after: 300 }),
-  ];
+  const children = wordOptimizationEnabled
+    ? [
+        paragraph([textRun(payload.project_name || '投标技术文件', { bold: true, size: 34, font: '黑体', color: '000000' })], {
+          alignment: AlignmentType.CENTER,
+          after: 300,
+          indent: { left: 0, right: 0 },
+        }),
+      ]
+    : [
+        paragraph([textRun('内容由 AI 生成', { italics: true, size: 18 })], { alignment: AlignmentType.CENTER, after: 120 }),
+        paragraph([textRun(payload.project_name || '投标技术文件', { bold: true, size: 34 })], { alignment: AlignmentType.CENTER, after: 300 }),
+      ];
 
   reportProgress(context, 10, stats.mermaidCount
     ? `准备导出正文，并转换 ${stats.mermaidCount} 张 Mermaid 图。`
@@ -1022,15 +1215,43 @@ async function buildDocxResult(payload, options = {}) {
   reportProgress(context, 90, '正在生成 Word 文件。');
 
   const numbering = createNumberingConfig(context);
+  const defaultParagraphStyle = wordOptimizationEnabled
+    ? {
+        spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
+        alignment: AlignmentType.JUSTIFIED,
+        indent: { left: 0, right: 0, firstLine: 480 },
+      }
+    : { spacing: { line: 360, after: 160 } };
+  const optimizedHeadingStyle = wordOptimizationEnabled
+    ? {
+        basedOn: 'Normal',
+        next: 'Normal',
+        quickFormat: true,
+        run: { font: '黑体', size: 24, bold: true, color: '000000' },
+        paragraph: {
+          spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
+          alignment: AlignmentType.JUSTIFIED,
+          indent: { left: 0, right: 0 },
+          tabStops: [],
+        },
+      }
+    : undefined;
   const doc = new Document({
     ...(numbering ? { numbering } : {}),
     styles: {
       default: {
         document: {
-          run: { font: '宋体', size: 24 },
-          paragraph: { spacing: { line: 360, after: 160 } },
+          run: { font: '宋体', size: 24, color: wordOptimizationEnabled ? '000000' : undefined },
+          paragraph: defaultParagraphStyle,
         },
       },
+      ...(wordOptimizationEnabled ? {
+        paragraphStyles: [1, 2, 3, 4, 5].map((level) => ({
+          id: `Heading${level}`,
+          name: `Heading ${level}`,
+          ...optimizedHeadingStyle,
+        })),
+      } : {}),
     },
     sections: [{
       properties: {
@@ -1038,6 +1259,18 @@ async function buildDocxResult(payload, options = {}) {
           margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
         },
       },
+      footers: wordOptimizationEnabled ? {
+        default: new Footer({
+          children: [
+            paragraph([new TextRun({ children: [PageNumber.CURRENT], font: 'Times New Roman', size: 18, color: '000000' })], {
+              alignment: AlignmentType.CENTER,
+              indent: { left: 0, right: 0 },
+              before: 0,
+              after: 0,
+            }),
+          ],
+        }),
+      } : undefined,
       children,
     }],
   });
@@ -1050,7 +1283,7 @@ async function buildDocxBuffer(payload, options = {}) {
   return result.buffer;
 }
 
-function createExportService() {
+function createExportService({ configStore } = {}) {
   return {
     async exportWord(payload = {}, onProgress) {
       if (!Array.isArray(payload.outline) || !payload.outline.length) {
@@ -1076,7 +1309,8 @@ function createExportService() {
       }
 
       const warnings = [];
-      const buildResult = await buildDocxResult(payload, { onProgress, warnings });
+      const config = configStore ? configStore.load() : null;
+      const buildResult = await buildDocxResult(payload, { onProgress, warnings, config });
       reportProgress({ onProgress, warnings: buildResult.warnings, stats: buildResult.stats }, 96, '正在写入 Word 文件。');
       fs.writeFileSync(result.filePath, buildResult.buffer);
       const message = buildResult.warnings.length

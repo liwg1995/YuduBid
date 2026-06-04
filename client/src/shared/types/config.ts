@@ -55,10 +55,22 @@ export interface FileParserConfig {
   mineru_token?: string;
 }
 
+export type SkillId = 'word-optimization';
+
+export interface SkillConfig {
+  id: SkillId;
+  enabled: boolean;
+}
+
+export interface SkillSettings {
+  skills: Record<SkillId, SkillConfig>;
+}
+
 export interface ClientConfig extends AiConfig {
   image_model: ImageModelConfig;
   image_model_profiles: ImageModelProfiles;
   file_parser: FileParserConfig;
+  skill_settings?: SkillSettings;
   developer_mode?: boolean;
   analytics_client_id?: string;
   analytics_created_at?: string;

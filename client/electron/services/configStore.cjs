@@ -102,6 +102,14 @@ const defaultConfig = {
     provider: 'local',
     mineru_token: '',
   },
+  skill_settings: {
+    skills: {
+      'word-optimization': {
+        id: 'word-optimization',
+        enabled: false,
+      },
+    },
+  },
   developer_mode: false,
   analytics_client_id: '',
   analytics_created_at: '',
@@ -185,6 +193,24 @@ function normalizeImageModelProfiles(sourceProfiles) {
   return profiles;
 }
 
+function normalizeSkillSettings(sourceSettings) {
+  const sourceSkills = sourceSettings && typeof sourceSettings === 'object' && sourceSettings.skills && typeof sourceSettings.skills === 'object'
+    ? sourceSettings.skills
+    : {};
+  const wordOptimization = sourceSkills['word-optimization'] && typeof sourceSkills['word-optimization'] === 'object'
+    ? sourceSkills['word-optimization']
+    : {};
+
+  return {
+    skills: {
+      'word-optimization': {
+        id: 'word-optimization',
+        enabled: Boolean(wordOptimization.enabled),
+      },
+    },
+  };
+}
+
 function normalizeConfig(config) {
   const source = config || {};
   const fileParser = source.file_parser ? source.file_parser : {};
@@ -215,6 +241,7 @@ function normalizeConfig(config) {
       provider: fileParser.provider || defaultConfig.file_parser.provider,
       mineru_token: fileParser.mineru_token || defaultConfig.file_parser.mineru_token,
     },
+    skill_settings: normalizeSkillSettings(source.skill_settings),
     developer_mode: source.developer_mode === undefined ? defaultConfig.developer_mode : Boolean(source.developer_mode),
     analytics_client_id: source.analytics_client_id || defaultConfig.analytics_client_id,
     analytics_created_at: source.analytics_created_at || defaultConfig.analytics_created_at,

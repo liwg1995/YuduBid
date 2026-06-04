@@ -3,10 +3,10 @@ import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, InputWithAction, useToast } from '../../../shared/ui';
 import { showUpdateReadyToast } from '../../../shared/updateToast';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { ClientConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, TextModelConfig, TextModelProfiles, TextModelProvider } from '../../../shared/types';
+import type { ClientConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 
-type SettingsTab = 'general' | 'text-model' | 'image-model' | 'file-parser' | 'about';
+type SettingsTab = 'general' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'about';
 type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'error' | 'disabled';
 
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
@@ -14,6 +14,7 @@ const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'text-model', label: '文本模型' },
   { id: 'image-model', label: '生图模型' },
   { id: 'file-parser', label: '文件解析' },
+  { id: 'skills', label: '技能管理' },
   { id: 'about', label: '关于' },
 ];
 
@@ -306,10 +307,29 @@ const initialState: SettingsPageState = {
     provider: 'local',
     mineru_token: '',
   },
+  skillSettings: {
+    skills: {
+      'word-optimization': {
+        id: 'word-optimization',
+        enabled: false,
+      },
+    },
+  },
   general: {
     developer_mode: false,
   },
 };
+
+function normalizeSkillSettings(settings?: Partial<SkillSettings>): SkillSettings {
+  return {
+    skills: {
+      'word-optimization': {
+        id: 'word-optimization',
+        enabled: Boolean(settings?.skills?.['word-optimization']?.enabled),
+      },
+    },
+  };
+}
 
 interface SettingsPageProps {
   onDeveloperModeChange?: (developerMode: boolean) => void;
@@ -387,6 +407,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
           provider: config.file_parser.provider,
           mineru_token: config.file_parser.mineru_token || '',
         },
+        skillSettings: normalizeSkillSettings(config.skill_settings),
         general: {
           developer_mode: Boolean(config.developer_mode),
         },
@@ -427,6 +448,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
         provider: state.fileParser.provider,
         mineru_token: state.fileParser.mineru_token || '',
       },
+      skill_settings: normalizeSkillSettings(state.skillSettings),
       developer_mode: state.general.developer_mode,
     };
   };
@@ -714,6 +736,21 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     await saveClientConfig(createClientConfig());
   };
 
+  const updateWordOptimizationSkill = (enabled: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      skillSettings: {
+        skills: {
+          ...prev.skillSettings.skills,
+          'word-optimization': {
+            id: 'word-optimization',
+            enabled,
+          },
+        },
+      },
+    }));
+  };
+
   const openConfigFolder = async () => {
     try {
       await window.yibiao?.config.openConfigFolder();
@@ -877,6 +914,10 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       return JSON.stringify(state.fileParser) !== JSON.stringify(savedConfig.file_parser);
     }
 
+    if (activeTab === 'skills') {
+      return JSON.stringify(normalizeSkillSettings(state.skillSettings)) !== JSON.stringify(normalizeSkillSettings(savedConfig.skill_settings));
+    }
+
     return false;
   };
 
@@ -895,10 +936,14 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     }
     if (activeTab === 'file-parser') {
       await saveFileParserConfig();
+      return;
+    }
+    if (activeTab === 'skills') {
+      await saveClientConfig(createClientConfig());
     }
   };
 
-  const canSaveActiveTab = activeTab === 'general' || activeTab === 'text-model' || activeTab === 'image-model' || activeTab === 'file-parser';
+  const canSaveActiveTab = activeTab === 'general' || activeTab === 'text-model' || activeTab === 'image-model' || activeTab === 'file-parser' || activeTab === 'skills';
   const activeTabDirty = isActiveTabDirty();
   const currentTextProviderDefault = textProviderDefaults[state.textModel.provider];
   const imageModelStatus: ImageModelStatus = state.imageModel.status || 'untested';
@@ -1295,6 +1340,49 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
           </div>
           <div className="parser-note">
             招标文件大多数是 Word 或 Word 导出的带文字层 PDF，本地解析可以适应 95% 以上的情况；如果解析失败，再尝试 MinerU 精准解析 API。
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'skills' && (
+        <section className="settings-page-section">
+          <div className="settings-section-title">
+            <span />
+            <strong>技能管理</strong>
+          </div>
+          <div className="skill-manager">
+            <article className={`skill-card ${state.skillSettings.skills['word-optimization'].enabled ? 'is-enabled' : ''}`}>
+              <div className="skill-card-main">
+                <div className="skill-card-head">
+                  <div>
+                    <strong>word-optimization</strong>
+                    <span>优化标书生成完成后的 Word 导出版式</span>
+                  </div>
+                  <em>{state.skillSettings.skills['word-optimization'].enabled ? '已启用' : '默认关闭'}</em>
+                </div>
+                <p>启用后，导出 Word 会统一正文、标题、表格、图片、题注、页码和常见编号缩进，便于后续直接制作目录和交付排版。</p>
+                <div className="skill-capability-grid">
+                  <span>正文两端对齐、首行缩进、固定 28 磅行距</span>
+                  <span>表格黑色边框、表头重复、按窗口自适应</span>
+                  <span>图片居中嵌入，并限制在页边距内</span>
+                  <span>自动生成图表题注和居中页码</span>
+                  <span>常见编号段落应用悬挂缩进</span>
+                  <span>标题应用黑体并接入多级编号</span>
+                </div>
+              </div>
+              <label className="skill-toggle">
+                <span className="settings-switch-control">
+                  <input
+                    type="checkbox"
+                    checked={state.skillSettings.skills['word-optimization'].enabled}
+                    onChange={(event) => updateWordOptimizationSkill(event.target.checked)}
+                  />
+                  <span className="settings-switch-track" aria-hidden="true">
+                    <span className="settings-switch-thumb" />
+                  </span>
+                </span>
+              </label>
+            </article>
           </div>
         </section>
       )}
