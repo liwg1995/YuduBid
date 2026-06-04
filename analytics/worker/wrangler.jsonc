@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "agnet-analytics-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-05-14",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "keep_vars": true,
+  "routes": [
+    {
+      "pattern": "analytics.agnet.top",
+      "custom_domain": true
+    }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "ANALYTICS",
+      "dataset": "agnet_analytics"
+    }
+  ]
+}

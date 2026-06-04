@@ -1,0 +1,233 @@
+name: Release Client
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: '要发布的 tag，例如 v2.0.1'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag_name || github.ref }}
+
+      - name: Create release notes from commits
+        env:
+          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || true)"
+          if [ -n "$PREVIOUS_TAG" ]; then
+            RANGE="$PREVIOUS_TAG..$TAG_NAME"
+            COMPARE_URL="https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${TAG_NAME}"
+          else
+            RANGE="$TAG_NAME"
+            COMPARE_URL="https://github.com/${{ github.repository }}/commits/${TAG_NAME}"
+          fi
+
+          {
+            echo "## 更新内容"
+            echo
+            git log "$RANGE" --no-merges --pretty=format:'- %s (%h)' || true
+            echo
+            echo
+            echo "**Full Changelog**: $COMPARE_URL"
+          } > release_notes.md
+
+      - name: Create or update GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release edit "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md
+          else
+            gh release create "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md
+          fi
+
+  build:
+    name: Build ${{ matrix.os }}
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    defaults:
+      run:
+        working-directory: client
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Cache Electron build downloads
+        if: runner.os == 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: ${{ runner.os }}-electron-${{ hashFiles('client/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install build type dependencies
+        run: npm install --no-save @types/plist
+
+      - name: Rebuild Electron native dependencies
+        run: npm run postinstall
+
+      - name: Smoke test Electron native dependencies
+        run: npm run smoke:electron-native
+
+      - name: Sync package version from tag
+        env:
+          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          VERSION="${TAG_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Generate macOS icon
+        if: runner.os == 'macOS'
+        run: |
+          rm -rf assets/icon.iconset
+          mkdir -p assets/icon.iconset
+          sips -z 16 16 assets/icon_256.png --out assets/icon.iconset/icon_16x16.png
+          sips -z 32 32 assets/icon_256.png --out assets/icon.iconset/icon_16x16@2x.png
+          sips -z 32 32 assets/icon_256.png --out assets/icon.iconset/icon_32x32.png
+          sips -z 64 64 assets/icon_256.png --out assets/icon.iconset/icon_32x32@2x.png
+          sips -z 128 128 assets/icon_256.png --out assets/icon.iconset/icon_128x128.png
+          sips -z 256 256 assets/icon_256.png --out assets/icon.iconset/icon_128x128@2x.png
+          sips -z 256 256 assets/icon_256.png --out assets/icon.iconset/icon_256x256.png
+          sips -z 512 512 assets/icon_256.png --out assets/icon.iconset/icon_256x256@2x.png
+          sips -z 512 512 assets/icon_256.png --out assets/icon.iconset/icon_512x512.png
+          sips -z 1024 1024 assets/icon_256.png --out assets/icon.iconset/icon_512x512@2x.png
+          iconutil -c icns assets/icon.iconset -o assets/icon.icns
+
+      - name: Build renderer
+        run: npm run build
+
+      - name: Preload Electron macOS runtimes
+        if: runner.os == 'macOS'
+        run: |
+          export ELECTRON_CACHE="$HOME/Library/Caches/electron"
+          ELECTRON_VERSION="$(node -p "require('./node_modules/electron/package.json').version")"
+          cache_dir="$ELECTRON_CACHE"
+          mkdir -p "$cache_dir"
+
+          for arch in x64 arm64; do
+            file="$cache_dir/electron-v${ELECTRON_VERSION}-darwin-${arch}.zip"
+            if [ -f "$file" ] && unzip -tq "$file" >/dev/null 2>&1; then
+              echo "Electron ${ELECTRON_VERSION} darwin-${arch} already cached."
+              continue
+            fi
+
+            tmp="${file}.tmp"
+            rm -f "$file" "$tmp"
+            curl --fail --location --retry 5 --retry-all-errors --retry-delay 10 \
+              "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-darwin-${arch}.zip" \
+              --output "$tmp"
+            unzip -tq "$tmp" >/dev/null
+            mv "$tmp" "$file"
+          done
+
+      - name: Build Windows NSIS and ZIP artifacts
+        if: runner.os == 'Windows'
+        run: npx electron-builder --win nsis zip --publish never
+
+      - name: Build Windows MSI artifact
+        if: runner.os == 'Windows'
+        run: npx electron-builder --win msi --publish never
+
+      - name: Build and publish macOS artifacts
+        if: runner.os == 'macOS'
+        run: |
+          export ELECTRON_CACHE="$HOME/Library/Caches/electron"
+          export ELECTRON_BUILDER_CACHE="$HOME/Library/Caches/electron-builder"
+
+          for attempt in 1 2 3; do
+            echo "Build macOS artifacts, attempt ${attempt}/3."
+            if npx electron-builder --mac --publish never; then
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+
+            sleep $((attempt * 20))
+          done
+
+      - name: Package macOS DMG with instructions
+        if: runner.os == 'macOS'
+        run: |
+          shopt -s nullglob
+          for dmg in release/*.dmg; do
+            base="$(basename "$dmg" .dmg)"
+            package_dir="release/${base}-package"
+            rm -rf "$package_dir"
+            mkdir -p "$package_dir"
+            cp "$dmg" "$package_dir/"
+            cat > "$package_dir/macOS使用说明.txt" <<'EOF'
+          macOS 使用说明
+
+          如果双击 App 提示“已损坏，无法打开”或“无法验证开发者”，这是因为本软件未进行 Apple 官方签名和公证，并不代表文件真的损坏。
+
+          使用步骤：
+
+          1. 双击 dmg 文件。
+          2. 将“禹都AI投标助手.app”拖到“应用程序”文件夹。
+          3. 打开“终端”App。
+          4. 执行下面命令：
+
+          xattr -dr com.apple.quarantine /Applications/禹都AI投标助手.app
+
+          5. 再从“应用程序”中打开“禹都AI投标助手”。
+
+          如果仍无法打开，请右键点击 App，选择“打开”，再确认打开。
+          EOF
+            (cd release && ditto -c -k --sequesterRsrc --keepParent "$(basename "$package_dir")" "${base}-package.zip")
+            rm -rf "$package_dir"
+            rm -f "$dmg"
+          done
+
+      - name: Upload release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          shopt -s nullglob
+          files=(release/*.exe release/*.msi release/*.zip release/*.blockmap release/latest*.yml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No release assets found."
+            exit 1
+          fi
+          gh release upload "$TAG_NAME" "${files[@]}" --clobber
