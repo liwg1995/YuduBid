@@ -164,10 +164,6 @@ jobs:
         if: runner.os == 'Windows'
         run: npx electron-builder --win nsis zip --publish never
 
-      - name: Build Windows MSI artifact
-        if: runner.os == 'Windows'
-        run: npx electron-builder --win msi --publish never
-
       - name: Build and publish macOS artifacts
         if: runner.os == 'macOS'
         run: |
