@@ -28,6 +28,7 @@ const {
   TableRow,
   TextRun,
   UnderlineType,
+  VerticalAlign,
   WidthType,
 } = require('docx');
 
@@ -43,6 +44,7 @@ const WORD_OPTIMIZATION_IMAGE_MAX_WIDTH = 520;
 const WORD_OPTIMIZATION_IMAGE_MAX_HEIGHT = 620;
 const WORD_OPTIMIZATION_TABLE_SEQ_ID = 'YDBTable';
 const WORD_OPTIMIZATION_FIGURE_SEQ_ID = 'YDBFigure';
+const WORD_TWO_CHARS_TWIPS = 480;
 
 function encodeMermaidForInk(code) {
   const state = JSON.stringify({
@@ -209,7 +211,7 @@ function paragraph(children, options = {}) {
     ? { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY }
     : { before: options.before || 0, after: options.after ?? 160, line: 360 };
   const indent = optimized && options.indent === undefined
-    ? { left: 0, right: 0, firstLine: 480 }
+    ? { left: 0, right: 0, firstLine: WORD_TWO_CHARS_TWIPS }
     : options.indent;
 
   return new Paragraph({
@@ -228,6 +230,29 @@ function paragraph(children, options = {}) {
     tabStops: options.tabStops,
     run: options.run,
   });
+}
+
+function optimizedBodyIndent() {
+  return { left: 0, right: 0, firstLine: WORD_TWO_CHARS_TWIPS };
+}
+
+function optimizedNumberedBodyIndent() {
+  return { left: WORD_TWO_CHARS_TWIPS, right: 0, hanging: WORD_TWO_CHARS_TWIPS };
+}
+
+function optimizedTableCellIndent() {
+  return { left: 0, right: 0, firstLine: 0, hanging: 0 };
+}
+
+function optimizedTableCellParagraphOptions(optimized) {
+  return optimized
+    ? {
+        optimized: true,
+        alignment: AlignmentType.CENTER,
+        indent: optimizedTableCellIndent(),
+        tabStops: [],
+      }
+    : {};
 }
 
 function tableBorders(optimized = false) {
@@ -274,6 +299,7 @@ function createTableCell({ children, isHeader = false, columnSpan = 1, totalColu
     margins: { top: 120, bottom: 120, left: 140, right: 140 },
     columnSpan: safeSpan > 1 ? safeSpan : undefined,
     width: { size: tableCellWidth(safeSpan, totalColumns), type: WidthType.DXA },
+    verticalAlign: optimized ? VerticalAlign.CENTER : undefined,
   });
 }
 
@@ -461,7 +487,7 @@ function stripLeadingNumbering(value) {
 }
 
 function isNumberedBodyParagraph(value) {
-  return /^\s*(?:\d+[、.)．]|[（(]\d+[）)]|[一二三四五六七八九十]+[、.)．])\s*/.test(String(value || ''));
+  return /^\s*(?:\d+[、.)．]|[（(]\d+[）)]|[一二三四五六七八九十]+[、.)．]|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]|[-–—•·●◆◇■□])\s*/.test(String(value || ''));
 }
 
 function isManualFigureCaptionText(value) {
@@ -500,6 +526,63 @@ function summarizeCaptionName(value, fallback = '') {
   return compact.length > maxLength ? `${compact.slice(0, maxLength)}...` : compact;
 }
 
+function normalizeCaptionSource(value) {
+  return stripLeadingNumbering(value)
+    .replace(/^(?:图|表)\s*\d*\s*[：:、.．]?\s*/g, '')
+    .replace(/\[[^\]]*]/g, '')
+    .replace(/【[^】]*】/g, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/（[^）]*）/g, '')
+    .replace(/[“”"']/g, '')
+    .replace(/\s+/g, '')
+    .replace(/[，,。；;：:、.．]+$/g, '')
+    .trim();
+}
+
+function simplifyTableCaptionCandidate(value) {
+  let text = normalizeCaptionSource(value);
+  if (!text) return '';
+
+  text = text
+    .replace(/^(?:以下|下面|本文|本节|本章|此处|通过|针对|关于|用于|展示|说明|体现|呈现|列出|梳理)/, '')
+    .replace(/(?:如下表所示|如下表|见下表|如下|所示|如下：|见表.*)$/g, '')
+    .replace(/(?:的)?(?:主要)?(?:内容|情况|信息|数据|列表|清单)$/g, '')
+    .replace(/(?:进行|用于|采用|包括|包含|提供|如下)$/g, '')
+    .replace(/^的+/, '')
+    .trim();
+
+  const phraseMatches = [
+    /([\u4e00-\u9fa5A-Za-z0-9]{2,18}(?:网络区域|资源配置|区域参数|技术参数|功能参数|性能指标|服务清单|配置清单|参数配置|指标统计|明细汇总|对比分析))/,
+    /([\u4e00-\u9fa5A-Za-z0-9]{2,18}(?:参数|指标|配置|清单|明细|统计|汇总|对比|列表))/,
+  ];
+  for (const matcher of phraseMatches) {
+    const match = matcher.exec(text);
+    if (match?.[1]) {
+      text = match[1];
+      break;
+    }
+  }
+
+  text = text
+    .replace(/(?:表格|表单|表)$/g, '')
+    .replace(/(?:如下表|见下表).*$/g, '')
+    .trim();
+
+  if (!text) return '';
+  const maxLength = 12;
+  const compact = text.length > maxLength ? text.slice(0, maxLength) : text;
+  return /(?:表|清单|列表)$/.test(compact) ? compact : `${compact}表`;
+}
+
+function rememberParagraphText(context, value) {
+  const text = compactText(value || '', 90);
+  if (!text) return;
+  context.lastParagraphText = text;
+  const recent = Array.isArray(context.recentParagraphTexts) ? context.recentParagraphTexts : [];
+  recent.push(text);
+  context.recentParagraphTexts = recent.slice(-5);
+}
+
 function nextCaptionSequence(context, type) {
   if (type === 'table') {
     context.tableCaptionIndex = (context.tableCaptionIndex || 0) + 1;
@@ -529,14 +612,23 @@ function createCaptionParagraph(context, type, name, fallback = '') {
     optimized: true,
     alignment: AlignmentType.CENTER,
     indent: { left: 0, right: 0 },
+    tabStops: [],
     run: { font: '黑体', size: 21, color: '000000' },
   });
 }
 
 function inferTableCaptionName(context) {
-  const text = compactText(context.lastParagraphText || '', 48);
-  if (text && /表|清单|列表|汇总|参数|指标|配置|明细|统计/.test(text)) {
-    return summarizeCaptionName(text, '数据表');
+  const recentTexts = [
+    ...(Array.isArray(context.recentParagraphTexts) ? context.recentParagraphTexts : []),
+    context.lastParagraphText || '',
+  ].filter(Boolean);
+  for (const text of recentTexts.slice(-5).reverse()) {
+    if (/表|清单|列表|汇总|参数|指标|配置|明细|统计|对比|区域|网络/.test(text)) {
+      const captionName = simplifyTableCaptionCandidate(text);
+      if (captionName) {
+        return captionName;
+      }
+    }
   }
   return '数据表';
 }
@@ -552,7 +644,7 @@ function inferMarkdownTableCaptionName(node, context) {
     .map((cell) => nodeText(cell))
     .filter(Boolean)
     .join(' ');
-  return summarizeCaptionName(headerText, '数据表') || '数据表';
+  return simplifyTableCaptionCandidate(headerText) || summarizeCaptionName(headerText, '数据表') || '数据表';
 }
 
 function imageTypeFromMime(mime) {
@@ -861,7 +953,7 @@ async function htmlTableToDocx($, tableNode, context) {
     const cells = [];
     for (const [cellIndex, cell] of row.cells.entries()) {
       const cellNode = cell.node;
-      const isHeader = htmlTagName(cellNode) === 'th';
+      const isHeader = htmlTagName(cellNode) === 'th' || (optimized && rows.length === 0);
       const remainingSpan = cellIndex === row.cells.length - 1 ? maxColumns - row.columnCount : 0;
       cells.push(createTableCell({
         children: [paragraph(await htmlInlineRuns($, $(cellNode).contents().toArray(), context, {
@@ -870,9 +962,7 @@ async function htmlTableToDocx($, tableNode, context) {
           optimized,
         }), {
           after: optimized ? 0 : 80,
-          optimized,
-          alignment: optimized ? AlignmentType.CENTER : undefined,
-          indent: optimized ? { left: 0, right: 0 } : undefined,
+          ...optimizedTableCellParagraphOptions(optimized),
         })],
         isHeader,
         columnSpan: cell.columnSpan + Math.max(0, remainingSpan),
@@ -1004,19 +1094,26 @@ async function tableCellParagraphs(cell, context, isHeader = false) {
       optimized,
     }), {
       after: optimized ? 0 : 80,
-      optimized,
-      alignment: optimized ? AlignmentType.CENTER : undefined,
-      indent: optimized ? { left: 0, right: 0 } : undefined,
+      ...optimizedTableCellParagraphOptions(optimized),
     })];
+  }
+
+  const paragraphNodes = (cell.children || []).filter((child) => child.type === 'paragraph');
+  if (optimized && paragraphNodes.length) {
+    return Promise.all(paragraphNodes.map(async (node) => paragraph(await inlineRuns(node.children || [], context, {
+      bold: isHeader,
+      font: isHeader ? '黑体' : '宋体',
+      optimized,
+    }), {
+      ...optimizedTableCellParagraphOptions(true),
+    })));
   }
 
   const blocks = await markdownNodesToDocx(cell.children || [], context, { inTable: true });
   if (!blocks.length) {
     return [paragraph([textRun('', { optimized })], {
       after: optimized ? 0 : 80,
-      optimized,
-      alignment: optimized ? AlignmentType.CENTER : undefined,
-      indent: optimized ? { left: 0, right: 0 } : undefined,
+      ...optimizedTableCellParagraphOptions(optimized),
     })];
   }
   return blocks.filter((block) => block instanceof Paragraph);
@@ -1037,8 +1134,9 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         keepNext: optimized ? true : undefined,
         numbering: optimized ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
         indent: optimized ? { left: 0, right: 0 } : undefined,
+        tabStops: optimized ? [] : undefined,
       }));
-      context.lastParagraphText = nodeText(node);
+      rememberParagraphText(context, nodeText(node));
     } else if (node.type === 'paragraph') {
       const text = nodeText(node).trim();
       if (!options.inTable && optimized && isImageOnlyParagraph(node)) {
@@ -1057,14 +1155,15 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
             : !options.inTable && (isImageOnlyParagraph(node) || isFigureCaptionParagraph(node)) ? AlignmentType.CENTER : undefined,
           indent: optimized
             ? options.inTable
-              ? { left: 0, right: 0 }
+              ? optimizedTableCellIndent()
               : isNumberedBodyParagraph(text)
-                ? { left: 482, right: 0, hanging: 442 }
+                ? optimizedNumberedBodyIndent()
                 : undefined
             : undefined,
+          tabStops: optimized ? [] : undefined,
         }));
         if (!options.inTable && text) {
-          context.lastParagraphText = text;
+          rememberParagraphText(context, text);
         }
       }
     } else if (node.type === 'list') {
@@ -1078,7 +1177,8 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         blocks.push(paragraph(await inlineRuns(firstParagraph?.children || [], context, optimized ? { optimized } : {}), {
           ...listOptions,
           optimized,
-          indent: optimized ? { left: 482, right: 0, hanging: 442 } : undefined,
+          indent: optimized ? optimizedNumberedBodyIndent() : undefined,
+          tabStops: optimized ? [] : undefined,
         }));
         blocks.push(...await markdownNodesToDocx(restChildren, context, { ...options, listLevel: (options.listLevel || 0) + 1 }));
       }
@@ -1195,8 +1295,9 @@ async function addOutlineItems(children, items, context, level = 1) {
       keepNext: optimized ? true : undefined,
       numbering: optimized ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) } : undefined,
       indent: optimized ? { left: 0, right: 0 } : undefined,
+      tabStops: optimized ? [] : undefined,
     }));
-    context.lastParagraphText = title;
+    rememberParagraphText(context, title);
 
     if (!item.children?.length) {
       if (String(item.content || '').trim()) {
@@ -1246,7 +1347,7 @@ function createNumberingConfig(context) {
           alignment: AlignmentType.START,
           style: {
             paragraph: {
-              indent: optimized ? { left: 482, hanging: 442 } : { left: 720 + level * 420, hanging: 260 },
+              indent: optimized ? optimizedNumberedBodyIndent() : { left: 720 + level * 420, hanging: 260 },
             },
           },
         })),
@@ -1272,6 +1373,7 @@ async function buildDocxResult(payload, options = {}) {
     figureCaptionIndex: 0,
     tableCaptionIndex: 0,
     lastParagraphText: '',
+    recentParagraphTexts: [],
   };
   const children = wordOptimizationEnabled
     ? [
@@ -1279,6 +1381,7 @@ async function buildDocxResult(payload, options = {}) {
           alignment: AlignmentType.CENTER,
           after: 300,
           indent: { left: 0, right: 0 },
+          tabStops: [],
         }),
       ]
     : [
@@ -1297,7 +1400,7 @@ async function buildDocxResult(payload, options = {}) {
     ? {
         spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
         alignment: AlignmentType.JUSTIFIED,
-        indent: { left: 0, right: 0, firstLine: 480 },
+        indent: optimizedBodyIndent(),
       }
     : { spacing: { line: 360, after: 160 } };
   const optimizedHeadingStyle = wordOptimizationEnabled
@@ -1317,6 +1420,7 @@ async function buildDocxResult(payload, options = {}) {
   const doc = new Document({
     ...(numbering ? { numbering } : {}),
     ...(wordOptimizationEnabled ? { features: { updateFields: true } } : {}),
+    ...(wordOptimizationEnabled ? { defaultTabStop: 0 } : {}),
     styles: {
       default: {
         document: {
@@ -1344,6 +1448,7 @@ async function buildDocxResult(payload, options = {}) {
             paragraph([new TextRun({ children: [PageNumber.CURRENT], font: 'Times New Roman', size: 18, color: '000000' })], {
               alignment: AlignmentType.CENTER,
               indent: { left: 0, right: 0 },
+              tabStops: [],
               before: 0,
               after: 0,
             }),

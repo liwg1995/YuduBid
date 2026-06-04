@@ -42,9 +42,27 @@
 - 企业知识库资料沉淀、复用和匹配
 - 标书查重与重复表达检测
 - 废标项检查与响应完整性检查
+- 技能管理与 Word 导出排版优化能力
 - 文本模型、生图模型和文件解析方式独立配置
 - Mermaid、图片、表格等 Markdown 内容导出为 Word
 - Electron 本地工作区存储，流程状态可恢复
+
+## 版本更新
+
+### V0.1.1
+
+本版本重点优化标书正文生成后的 Word 导出体验，新增并完善 `word-optimization` 技能。该技能默认不开启，用户可在技能管理中按需启用，用于对导出的 Word 文档进行投标文件常用排版处理。
+
+- 表题注支持结合上文自动提炼短名称，例如生成 `表 1 网络区域参数表`，并使用 Word `SEQ` 域保持编号可更新。
+- 图题注、表题注支持自动编号更新，减少后续增删图表后的手动维护成本。
+- 正文段落统一两端对齐、宋体小四、黑色、首行缩进 2 字符、固定 28 磅行距。
+- 编号或符号类正文段落统一左缩进 2 字符、悬挂缩进 2 字符。
+- 表格外框、内框、表头、表内容、段落缩进、固定行距、水平居中和垂直居中规则进一步统一。
+- 图片导出时限制在页边距内，避免大图占满整页后溢出。
+
+### V0.1.0
+
+首个公开定版版本，完成桌面客户端基础能力、项目品牌化、图标替换、本地开发配置、Windows/macOS 本地打包和 GitHub Release 发布流程。
 
 ## 项目结构
 
@@ -109,8 +127,8 @@ npm run dev
 
 GitHub Actions 发布流程位于 `.github/workflows/release.yml`。推送 `v*` 或 `V*` tag 后，会在 `client/` 下安装依赖、同步版本号，并使用 `electron-builder` 构建 Windows/macOS 产物。
 
-当前版本为 `V0.1.0`：
+当前版本为 `V0.1.1`：
 
-[https://github.com/liwg1995/YuduBid/releases/tag/V0.1.0](https://github.com/liwg1995/YuduBid/releases/tag/V0.1.0)
+[https://github.com/liwg1995/YuduBid/releases/tag/V0.1.1](https://github.com/liwg1995/YuduBid/releases/tag/V0.1.1)
 
 当前未接入正式代码签名，Windows/macOS 可能出现未签名应用提示。
