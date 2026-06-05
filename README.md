@@ -49,6 +49,18 @@
 
 ## 版本更新
 
+### V0.1.2
+
+本版本重点优化客户端界面体验和发布产物管理，围绕主题风格、侧边栏操作、应用图标与构建目录做了整理。
+
+- 新增页面风格切换入口，当前提供 `经典` 与 `柔光` 两种风格，右上角可快速切换。
+- 暂时隐藏暗黑风格入口，避免未完成的暗黑适配影响正式使用体验。
+- 优化柔光风格下按钮、工具栏和主题切换器的显示，修复柔光按钮右侧漏色问题。
+- 左侧菜单栏支持折叠，折叠后仅显示图标，释放更多工作区空间。
+- 优化窗口左上角品牌图标容器，图标四周改为圆角并适配不同主题视觉。
+- Windows 和 macOS 应用图标统一使用圆角图标资源。
+- 本地构建产物按 `Windows/<version>/` 与 `macOS/<version>/` 目录归档，便于区分平台和版本。
+
 ### V0.1.1
 
 本版本重点优化标书正文生成后的 Word 导出体验，新增并完善 `word-optimization` 技能。该技能默认不开启，用户可在技能管理中按需启用，用于对导出的 Word 文档进行投标文件常用排版处理。
@@ -101,7 +113,7 @@ npm run dist:win
 npm run dist:mac
 ```
 
-打包产物输出到 `client/release/`，该目录不会提交到 Git。
+打包产物输出到 `client/release/`。本地构建后可按平台和版本归档为 `client/release/Windows/<version>/` 与 `client/release/macOS/<version>/`，该目录不会提交到 Git。
 
 ## Analytics
 
@@ -127,8 +139,8 @@ npm run dev
 
 GitHub Actions 发布流程位于 `.github/workflows/release.yml`。推送 `v*` 或 `V*` tag 后，会在 `client/` 下安装依赖、同步版本号，并使用 `electron-builder` 构建 Windows/macOS 产物。
 
-当前版本为 `V0.1.1`：
+当前版本为 `V0.1.2`：
 
-[https://github.com/liwg1995/YuduBid/releases/tag/V0.1.1](https://github.com/liwg1995/YuduBid/releases/tag/V0.1.1)
+[https://github.com/liwg1995/YuduBid/releases/tag/V0.1.2](https://github.com/liwg1995/YuduBid/releases/tag/V0.1.2)
 
 当前未接入正式代码签名，Windows/macOS 可能出现未签名应用提示。

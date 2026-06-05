@@ -2,6 +2,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import type { ReactNode } from 'react';
 import type { SectionId } from '../shared/types/navigation';
 import Sidebar from './Sidebar';
+import ThemeSwitcher from './ThemeSwitcher';
 
 interface AppShellProps {
   activeSection: SectionId;
@@ -20,6 +21,7 @@ function AppShell({ activeSection, children, developerMode, onSectionChange }: A
         <Sidebar activeSection={activeSection} developerMode={developerMode} onSectionChange={onSectionChange} />
 
         <main className="main-area">
+          <ThemeSwitcher />
           <section className="content-shell" aria-label="主内容">
             {children}
           </section>

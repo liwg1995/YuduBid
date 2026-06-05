@@ -1,5 +1,5 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { useState, type ComponentType, type ReactElement, type SVGProps } from 'react';
+import { useEffect, useState, type ComponentType, type ReactElement, type SVGProps } from 'react';
 import { getAppMenuItems } from '../app/menuConfig';
 import type { SectionId } from '../shared/types/navigation';
 import logoUrl from '../../assets/icon_256.png';
@@ -21,12 +21,23 @@ const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>>
   settings: GearIcon,
 };
 
+const SIDEBAR_COLLAPSED_KEY = 'yudubid-sidebar-collapsed';
+
+function loadInitialCollapsed() {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+}
+
 function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(loadInitialCollapsed);
   const menuItems = getAppMenuItems(developerMode);
 
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  }, [collapsed]);
+
   return (
-    <aside className={`sidebar ${collapsed ? 'is-collapsed' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'is-collapsed' : ''}`} data-collapsed={collapsed}>
       <div className="sidebar-surface" />
 
       <div className="brand-block">
@@ -43,6 +54,7 @@ function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps
         type="button"
         className="collapse-button"
         onClick={() => setCollapsed((value) => !value)}
+        aria-expanded={!collapsed}
         aria-label={collapsed ? '展开菜单' : '收起菜单'}
       >
         <ChevronIcon className={collapsed ? 'rotate-180' : ''} />
