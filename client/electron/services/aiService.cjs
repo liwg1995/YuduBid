@@ -9,10 +9,10 @@ const IMAGE_MODEL_TEST_TIMEOUT_MESSAGE = '生图模型测试超时，请检查 B
 const ANALYTICS_ENDPOINT = 'https://analytics.agnet.top/track';
 const ANALYTICS_PROJECT_NAME = 'yudubid-client';
 const OPENAI_IMAGE_PROVIDER_META = {
-  jinlong: {
-    label: '金龙中转站',
-    defaultBaseUrl: 'https://jlaudeapi.com/v1',
-    logProvider: 'jinlong',
+  'agnes-ai': {
+    label: 'agnes-ai',
+    defaultBaseUrl: 'https://apihub.agnes-ai.com/v1',
+    logProvider: 'agnes-ai',
     modelLabel: '生图模型名称',
   },
   volcengine: {
@@ -1103,7 +1103,7 @@ async function generateImageWithConfig(app, config, request) {
     throw new Error(availability.message);
   }
 
-  if (config.image_model?.provider === 'jinlong' || config.image_model?.provider === 'volcengine' || config.image_model?.provider === 'custom') {
+  if (config.image_model?.provider === 'agnes-ai' || config.image_model?.provider === 'volcengine' || config.image_model?.provider === 'custom') {
     return generateOpenAICompatibleImage(app, config, request, config.image_model.provider);
   }
 
@@ -1144,7 +1144,7 @@ function createAiService({ app, configStore }) {
         analytics_created_at: config.analytics_created_at || currentConfig.analytics_created_at,
       };
 
-      if (trackedConfig.image_model?.provider === 'jinlong' || trackedConfig.image_model?.provider === 'volcengine' || trackedConfig.image_model?.provider === 'custom') {
+      if (trackedConfig.image_model?.provider === 'agnes-ai' || trackedConfig.image_model?.provider === 'volcengine' || trackedConfig.image_model?.provider === 'custom') {
         return testOpenAICompatibleImageModel(app, trackedConfig, trackedConfig.image_model.provider);
       }
 

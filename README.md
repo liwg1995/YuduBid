@@ -49,6 +49,17 @@
 
 ## 版本更新
 
+### V0.1.3
+
+本版本重点调整模型服务配置和关于页版本检测体验，让默认配置更贴近 agnes-ai 服务，并让版本状态提示更直观。
+
+- 文本模型服务商推荐项切换为 `agnes-ai`，默认模型名称为 `agnes-2.0-flash`。
+- 生图模型服务商推荐项切换为 `agnes-ai`，默认模型名称为 `agnes-image-2.1-flash`。
+- 文本模型和生图模型的 agnes-ai Base URL 固定为 `https://apihub.agnes-ai.com/v1`，并在配置页展示注册地址 `https://agnes-ai.com`。
+- 移除金龙中转站相关配置和展示文案。
+- 关于页去掉自动更新和运行模式信息框，改为手动检测 GitHub Release 最新版本。
+- 检测版本后，本地已是最新版时显示绿色 `已是最新版`；存在新版时显示橙色 `最新版本为：x.x.x`，并可查看更新详情和跳转下载当前系统对应安装包。
+
 ### V0.1.2
 
 本版本重点优化客户端界面体验和发布产物管理，围绕主题风格、侧边栏操作、应用图标与构建目录做了整理。
@@ -139,8 +150,8 @@ npm run dev
 
 GitHub Actions 发布流程位于 `.github/workflows/release.yml`。推送 `v*` 或 `V*` tag 后，会在 `client/` 下安装依赖、同步版本号，并使用 `electron-builder` 构建 Windows/macOS 产物。
 
-当前版本为 `V0.1.2`：
+当前版本为 `V0.1.3`：
 
-[https://github.com/liwg1995/YuduBid/releases/tag/V0.1.2](https://github.com/liwg1995/YuduBid/releases/tag/V0.1.2)
+[https://github.com/liwg1995/YuduBid/releases/tag/V0.1.3](https://github.com/liwg1995/YuduBid/releases/tag/V0.1.3)
 
 当前未接入正式代码签名，Windows/macOS 可能出现未签名应用提示。

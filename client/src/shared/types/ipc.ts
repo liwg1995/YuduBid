@@ -41,6 +41,15 @@ export interface LatestReleaseInfo {
   body: string;
   published_at: string;
   html_url: string;
+  download_url?: string;
+  download_name?: string;
+  platform?: string;
+  arch?: string;
+  assets?: Array<{
+    name: string;
+    browser_download_url: string;
+    size: number;
+  }>;
 }
 
 export interface UpdateCheckResult {

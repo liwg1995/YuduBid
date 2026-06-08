@@ -1,4 +1,4 @@
-export type TextModelProvider = 'jinlong' | 'volcengine' | 'xiaomi' | 'deepseek' | 'longcat' | 'custom';
+export type TextModelProvider = 'agnes-ai' | 'volcengine' | 'xiaomi' | 'deepseek' | 'longcat' | 'custom';
 
 export interface TextModelConfig {
   api_key: string;
@@ -33,7 +33,7 @@ export interface ImageModelTestResult {
   mime_type?: string;
 }
 
-export type ImageModelProvider = 'jinlong' | 'volcengine' | 'google-ai-studio' | 'custom';
+export type ImageModelProvider = 'agnes-ai' | 'volcengine' | 'google-ai-studio' | 'custom';
 export type ImageModelStatus = 'untested' | 'available' | 'unavailable';
 
 export interface ImageModelConfig {

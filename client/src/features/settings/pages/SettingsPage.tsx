@@ -1,13 +1,12 @@
+import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
 import { trackConfigUsage } from '../../../shared/analytics/analytics';
-import { FloatingToolbar, InputWithAction, useToast } from '../../../shared/ui';
-import { showUpdateReadyToast } from '../../../shared/updateToast';
+import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { ClientConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider } from '../../../shared/types';
+import type { ClientConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 
 type SettingsTab = 'general' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'about';
-type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'error' | 'disabled';
 
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'general', label: '通用' },
@@ -19,7 +18,7 @@ const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
 ];
 
 const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
-  { value: 'jinlong', label: '金龙中转站【推荐】' },
+  { value: 'agnes-ai', label: 'agnes-ai【推荐】' },
   { value: 'volcengine', label: '火山方舟' },
   { value: 'xiaomi', label: '小米 token plan' },
   { value: 'deepseek', label: 'DeepSeek' },
@@ -28,9 +27,11 @@ const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
 ];
 
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
+const agnesAiRegisterUrl = 'https://agnes-ai.com';
+const agnesAiBaseUrl = 'https://apihub.agnes-ai.com/v1';
 
 const textProviderDefaults: TextModelProfiles = {
-  jinlong: { api_key: '', base_url: 'https://jlaudeapi.com/v1', model_name: 'gpt-3.5-turbo' },
+  'agnes-ai': { api_key: '', base_url: agnesAiBaseUrl, model_name: 'agnes-2.0-flash' },
   volcengine: { api_key: '', base_url: 'https://ark.cn-beijing.volces.com/api/v3', model_name: '' },
   xiaomi: { api_key: '', base_url: 'https://token-plan-cn.xiaomimimo.com/v1', model_name: '' },
   deepseek: { api_key: '', base_url: 'https://api.deepseek.com', model_name: '' },
@@ -39,7 +40,7 @@ const textProviderDefaults: TextModelProfiles = {
 };
 
 const textProviderApiKeyUrls: Partial<Record<TextModelProvider, string>> = {
-  jinlong: 'https://jlaudeapi.com/keys',
+  'agnes-ai': agnesAiRegisterUrl,
   volcengine: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
   xiaomi: 'https://platform.xiaomimimo.com/console/api-keys',
   deepseek: 'https://platform.deepseek.com/api_keys',
@@ -59,7 +60,7 @@ function normalizeTextModelProfile(provider: TextModelProvider, profile?: Partia
   return {
     api_key: profile?.api_key ?? defaults.api_key,
     base_url: provider === 'xiaomi' && baseUrl === oldXiaomiBaseUrl ? defaults.base_url : baseUrl,
-    model_name: profile?.model_name ?? defaults.model_name,
+    model_name: provider === 'agnes-ai' && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
   };
 }
 
@@ -79,18 +80,18 @@ function textProfileFromState(textModel: SettingsPageState['textModel']): TextMo
 }
 
 const imageProviders: Array<{ value: ImageModelProvider; label: string }> = [
-  { value: 'jinlong', label: '金龙中转站【推荐】' },
+  { value: 'agnes-ai', label: 'agnes-ai【推荐】' },
   { value: 'volcengine', label: '火山方舟' },
   { value: 'google-ai-studio', label: 'Google AI Studio' },
   { value: 'custom', label: '自定义 OpenAI-like' },
 ];
 
 const imageProviderDefaults: ImageModelProfiles = {
-  jinlong: {
-    provider: 'jinlong',
-    base_url: 'https://jlaudeapi.com/v1',
+  'agnes-ai': {
+    provider: 'agnes-ai',
+    base_url: agnesAiBaseUrl,
     api_key: '',
-    model_name: '',
+    model_name: 'agnes-image-2.1-flash',
     status: 'untested',
     tested_at: '',
     last_error: '',
@@ -125,45 +126,62 @@ const imageProviderDefaults: ImageModelProfiles = {
 };
 
 const imageProviderApiKeyUrls: Record<ImageModelProvider, string> = {
-  jinlong: 'https://jlaudeapi.com/keys',
+  'agnes-ai': agnesAiRegisterUrl,
   volcengine: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
   'google-ai-studio': 'https://aistudio.google.com/api-keys',
   custom: '',
 };
 
 const imageProviderLabels: Record<ImageModelProvider, string> = {
-  jinlong: '金龙中转站',
+  'agnes-ai': 'agnes-ai',
   volcengine: '火山方舟',
   'google-ai-studio': 'Google AI Studio',
   custom: '自定义生图服务',
 };
 
 function getImageBaseUrlDescription(provider: ImageModelProvider) {
-  if (provider === 'jinlong') return '金龙中转站 OpenAI 兼容接口地址';
+  if (provider === 'agnes-ai') return 'agnes-ai OpenAI 兼容接口地址';
   if (provider === 'volcengine') return '火山方舟 OpenAI 兼容接口地址';
   if (provider === 'custom') return '填写兼容 OpenAI /images/generations 的接口地址';
   return 'Google Gemini API REST 地址';
 }
 
 function getImageApiKeyDescription(provider: ImageModelProvider) {
-  if (provider === 'jinlong') return '用于调用金龙中转站图片生成 API';
+  if (provider === 'agnes-ai') return '用于调用 agnes-ai 图片生成 API';
   if (provider === 'volcengine') return '用于调用火山方舟图片生成 API';
   if (provider === 'custom') return '用于调用自定义 OpenAI-like 生图接口';
   return '用于调用 Google AI Studio Gemini API';
 }
 
 function getImageModelDescription(provider: ImageModelProvider) {
-  if (provider === 'jinlong') return '填写金龙中转站已开通的生图模型名称';
+  if (provider === 'agnes-ai') return '填写 agnes-ai 已开通的生图模型名称';
   if (provider === 'volcengine') return '填写火山方舟控制台中已开通的模型或推理接入点 ID';
   if (provider === 'custom') return '填写自定义接口支持的生图模型名称';
   return '选择或填写支持图片生成的 Gemini 模型';
 }
 
 function getImageModelPlaceholder(provider: ImageModelProvider) {
-  if (provider === 'jinlong') return '请输入已开通的生图模型名称';
+  if (provider === 'agnes-ai') return '请输入已开通的生图模型名称';
   if (provider === 'volcengine') return '请输入已开通的模型或推理接入点 ID';
   if (provider === 'custom') return '请输入 OpenAI-like 生图模型名称';
   return 'gemini-3.1-flash-image-preview';
+}
+
+function normalizeVersionText(version: string) {
+  return String(version || '').trim().replace(/^v/i, '');
+}
+
+function compareVersions(left: string, right: string) {
+  const leftParts = normalizeVersionText(left).split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
+  const rightParts = normalizeVersionText(right).split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const delta = (leftParts[index] || 0) - (rightParts[index] || 0);
+    if (delta !== 0) return delta;
+  }
+
+  return 0;
 }
 
 function createDefaultImageModelProfiles(): ImageModelProfiles {
@@ -179,7 +197,7 @@ function normalizeImageModelProfile(provider: ImageModelProvider, profile?: Part
     provider,
     base_url: provider === 'custom' ? profile?.base_url ?? defaults.base_url : defaults.base_url,
     api_key: profile?.api_key ?? defaults.api_key,
-    model_name: profile?.model_name ?? defaults.model_name,
+    model_name: provider === 'agnes-ai' && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
     status: profile?.status ?? defaults.status,
     tested_at: profile?.tested_at ?? defaults.tested_at,
     last_error: profile?.last_error ?? defaults.last_error,
@@ -295,12 +313,12 @@ const parserOptions = [
 
 const initialState: SettingsPageState = {
   textModel: {
-    provider: 'jinlong',
-    ...textProviderDefaults.jinlong,
+    provider: 'agnes-ai',
+    ...textProviderDefaults['agnes-ai'],
   },
   textModelProfiles: createDefaultTextModelProfiles(),
   imageModel: {
-    ...imageProviderDefaults.jinlong,
+    ...imageProviderDefaults['agnes-ai'],
   },
   imageModelProfiles: createDefaultImageModelProfiles(),
   fileParser: {
@@ -346,39 +364,14 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   const [testingImageModel, setTestingImageModel] = useState(false);
   const [imageTestPreview, setImageTestPreview] = useState<{ src: string; title: string } | null>(null);
   const [appVersion, setAppVersion] = useState('');
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('disabled');
-  const [updatePercent, setUpdatePercent] = useState(0);
-  const [updateVersion, setUpdateVersion] = useState('');
-  const [updateError, setUpdateError] = useState('');
+  const [checkingLatestRelease, setCheckingLatestRelease] = useState(false);
+  const [latestRelease, setLatestRelease] = useState<LatestReleaseInfo | null>(null);
+  const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
     void loadTextConfig();
     void window.yibiao?.getVersion().then(setAppVersion);
-
-    const unsubs: Array<() => void> = [];
-    unsubs.push(
-      window.yibiao?.onUpdateProgress(({ percent }) => {
-        setUpdateStatus('downloading');
-        setUpdatePercent(Math.round(percent));
-      }) ?? (() => {})
-    );
-    unsubs.push(
-      window.yibiao?.onUpdateDownloaded(({ version }) => {
-        if (version) {
-          setUpdateVersion(version);
-        }
-        setUpdateStatus('downloaded');
-      }) ?? (() => {})
-    );
-    unsubs.push(
-      window.yibiao?.onUpdateError(({ message }) => {
-        setUpdateStatus('error');
-        setUpdateError(message);
-      }) ?? (() => {})
-    );
-
-    return () => { unsubs.forEach((unsub) => unsub()); };
   }, []);
 
   const loadTextConfig = async () => {
@@ -453,49 +446,47 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     };
   };
 
-  const checkForUpdates = async () => {
-    if (updateStatus === 'checking' || updateStatus === 'downloading') {
+  const checkLatestRelease = async () => {
+    if (checkingLatestRelease) {
       return;
     }
 
     try {
-      setUpdateStatus('checking');
-      setUpdatePercent(0);
-      setUpdateError('');
-      const result = await window.yibiao?.checkUpdate();
-      if (!result?.enabled) {
-        setUpdateStatus('disabled');
-        showToast(result?.message || '本地开发模式已关闭远程更新检查', 'info');
-        return;
-      }
-      if (result.failed) {
-        const message = result.message || '检查更新失败';
-        setUpdateStatus('error');
-        setUpdateError(message);
-        showToast(message, 'error');
-        return;
-      }
-      if (!result.updateAvailable) {
-        setUpdateStatus('idle');
-        showToast('已是最新版本', 'success');
+      setCheckingLatestRelease(true);
+      const release = await window.yibiao?.getLatestVersion();
+      if (!release?.version) {
+        showToast('未获取到最新版本号', 'error');
         return;
       }
 
-      const version = result.version || updateVersion;
-      setUpdateVersion(version);
-      if (result.downloaded) {
-        setUpdateStatus('downloaded');
-        showUpdateReadyToast(showToast, version);
+      setLatestRelease(release);
+      if (compareVersions(release.version, appVersion) > 0) {
+        showToast(`发现新版本 ${release.version}`, 'info');
         return;
       }
 
-      setUpdateStatus('idle');
-      showToast('发现新版本，但更新包尚未下载完成，请稍后重试', 'info');
+      showToast('当前已是最新版本', 'success');
     } catch (error) {
-      const message = error instanceof Error ? error.message : '检查更新失败';
-      setUpdateStatus('error');
-      setUpdateError(message);
-      showToast(message, 'error');
+      showToast(error instanceof Error ? error.message : '检测版本失败', 'error');
+    } finally {
+      setCheckingLatestRelease(false);
+    }
+  };
+
+  const openLatestDownload = async () => {
+    const url = latestRelease?.download_url || latestRelease?.html_url;
+    if (!url) {
+      showToast('未获取到最新版下载链接', 'error');
+      return;
+    }
+
+    try {
+      const result = await window.yibiao?.openExternal(url);
+      if (result && !result.success) {
+        showToast(result.message || '打开最新版下载链接失败', 'error');
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '打开最新版下载链接失败', 'error');
     }
   };
 
@@ -627,6 +618,17 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : '打开生图服务 API Key 获取页面失败', 'error');
+    }
+  };
+
+  const openAgnesAiRegisterPage = async () => {
+    try {
+      const result = await window.yibiao?.openExternal(agnesAiRegisterUrl);
+      if (result && !result.success) {
+        showToast(result.message || '打开 agnes-ai 注册页面失败', 'error');
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '打开 agnes-ai 注册页面失败', 'error');
     }
   };
 
@@ -794,7 +796,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   const fetchImageModels = async () => {
     try {
       setLoadingModels('image');
-      if (state.imageModel.provider === 'jinlong' || state.imageModel.provider === 'custom') {
+      if (state.imageModel.provider === 'agnes-ai' || state.imageModel.provider === 'custom') {
         const providerLabel = imageProviderLabels[state.imageModel.provider];
         const baseUrl = state.imageModel.provider === 'custom'
           ? state.imageModel.base_url || ''
@@ -979,15 +981,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       ]
     : [];
 
-  const updateBusy = updateStatus === 'checking' || updateStatus === 'downloading';
-  const updateStatusText = (() => {
-    if (updateStatus === 'checking') return '正在检查更新...';
-    if (updateStatus === 'downloading') return `正在下载 ${updatePercent}%`;
-    if (updateStatus === 'downloaded') return updateVersion ? `新版本 ${updateVersion} 已准备好` : '更新已准备好';
-    if (updateStatus === 'error') return `更新失败：${updateError || '未知错误'}`;
-    if (updateStatus === 'disabled') return '本地开发模式已关闭远程更新检查';
-    return '本地开发模式已关闭远程更新检查';
-  })();
+  const hasNewRelease = Boolean(latestRelease?.version && compareVersions(latestRelease.version, appVersion) > 0);
 
   return (
     <div className="settings-page">
@@ -1085,6 +1079,22 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
               <div className="settings-row-copy">
                 <strong>服务提供商</strong>
                 <span>选择服务商会自动使用预置 Base URL；只有自定义服务商允许修改</span>
+                {state.textModel.provider === 'agnes-ai' && (
+                  <span>
+                    注册地址：
+                    <button
+                      type="button"
+                      className="settings-inline-link"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void openAgnesAiRegisterPage();
+                      }}
+                    >
+                      {agnesAiRegisterUrl}
+                    </button>
+                  </span>
+                )}
               </div>
               <select
                 value={state.textModel.provider}
@@ -1184,6 +1194,22 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
               <div className="settings-row-copy">
                 <strong>服务提供商</strong>
                 <span>各家生图接口不统一，先选择服务商再配置模型</span>
+                {state.imageModel.provider === 'agnes-ai' && (
+                  <span>
+                    注册地址：
+                    <button
+                      type="button"
+                      className="settings-inline-link"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void openAgnesAiRegisterPage();
+                      }}
+                    >
+                      {agnesAiRegisterUrl}
+                    </button>
+                  </span>
+                )}
               </div>
               <select
                 value={state.imageModel.provider}
@@ -1394,28 +1420,68 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
             <strong>关于</strong>
           </div>
           <div className="about-grid">
-            <div><span>当前版本</span><strong>{appVersion || '...'}</strong></div>
-            <div><span>项目代号</span><strong>YuDuBid</strong></div>
-            <div>
-              <span>自动更新</span>
-              <strong>{updateStatusText}</strong>
+            <div className="about-version-card">
               <button
                 type="button"
-                className="update-button"
-                disabled={updateBusy || updateStatus === 'disabled'}
-                onClick={() => {
-                  if (updateStatus === 'downloaded') {
-                    void window.yibiao?.quitAndInstall();
-                    return;
-                  }
-                  void checkForUpdates();
-                }}
+                className="about-version-check"
+                disabled={checkingLatestRelease}
+                onClick={() => { void checkLatestRelease(); }}
               >
-                {updateStatus === 'downloaded' ? '安装并重启' : updateBusy ? '检查中...' : updateStatus === 'disabled' ? '已关闭' : '检查更新'}
+                {checkingLatestRelease ? '检测中...' : '检测版本'}
               </button>
+              <span>当前版本</span>
+              <strong>
+                {appVersion || '...'}
+                {hasNewRelease && (
+                  <button
+                    type="button"
+                    className="version-new-badge"
+                    onClick={() => setReleaseDialogOpen(true)}
+                    aria-label="查看新版更新详情"
+                  >
+                    NEW
+                  </button>
+                )}
+              </strong>
+              {latestRelease?.version && (
+                <small className={`about-version-state ${hasNewRelease ? 'has-update' : 'is-latest'}`}>
+                  {hasNewRelease ? `最新版本为：${latestRelease.version}` : '已是最新版'}
+                </small>
+              )}
             </div>
-            <div><span>运行模式</span><strong>独立 Electron 客户端</strong></div>
+            <div><span>项目代号</span><strong>YuDuBid</strong></div>
           </div>
+          <Dialog.Root open={releaseDialogOpen} onOpenChange={setReleaseDialogOpen}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="content-regenerate-modal" />
+              <Dialog.Content className="release-detail-card">
+                <div className="release-detail-head">
+                  <span>NEW</span>
+                  <Dialog.Title>{latestRelease?.name || `新版 ${latestRelease?.version || ''}`}</Dialog.Title>
+                  <Dialog.Description>
+                    当前版本 {appVersion || '...'}，最新版本 {latestRelease?.version || '...'}
+                  </Dialog.Description>
+                  <Dialog.Close className="release-detail-close" type="button" aria-label="关闭更新详情">×</Dialog.Close>
+                </div>
+                <div className="release-detail-body">
+                  {latestRelease?.body ? (
+                    <MarkdownRenderer allowRawHtml={false}>{latestRelease.body}</MarkdownRenderer>
+                  ) : (
+                    <p>该版本暂未填写更新详情。</p>
+                  )}
+                </div>
+                {latestRelease?.download_name && (
+                  <div className="release-detail-download-name">已匹配当前系统安装包：{latestRelease.download_name}</div>
+                )}
+                <div className="release-detail-actions">
+                  <Dialog.Close className="secondary-action" type="button">稍后再说</Dialog.Close>
+                  <button type="button" className="primary-action" onClick={() => { void openLatestDownload(); }}>
+                    获取最新版
+                  </button>
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
           <div className="privacy-statement">
             <div className="privacy-statement-head">
               <span>Privacy</span>

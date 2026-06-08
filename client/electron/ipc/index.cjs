@@ -21,6 +21,8 @@ const { createSqliteDatabase } = require('../services/sqliteDatabase.cjs');
 const { createTaskService } = require('../services/taskService.cjs');
 const { createTechnicalPlanStore } = require('../services/technicalPlanStore.cjs');
 
+const latestReleaseApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases/latest';
+
 function normalizeExternalUrl(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -31,6 +33,78 @@ function normalizeExternalUrl(value) {
     return ['http:', 'https:'].includes(url.protocol) ? url.toString() : null;
   } catch {
     return null;
+  }
+}
+
+function normalizeVersion(value) {
+  return String(value || '').trim().replace(/^v/i, '');
+}
+
+function pickReleaseDownloadAsset(assets = []) {
+  const candidates = Array.isArray(assets) ? assets : [];
+  const arch = process.arch;
+  const platform = process.platform;
+  const byName = (predicate) => candidates.find((asset) => predicate(String(asset?.name || '').toLowerCase()));
+
+  if (platform === 'win32') {
+    return (
+      byName((name) => name.endsWith('.exe') && name.includes('win')) ||
+      byName((name) => name.endsWith('.exe')) ||
+      byName((name) => name.endsWith('.zip') && name.includes('win'))
+    );
+  }
+
+  if (platform === 'darwin') {
+    const archKeyword = arch === 'arm64' ? 'arm64' : 'x64';
+    return (
+      byName((name) => name.endsWith('.dmg') && name.includes(archKeyword)) ||
+      byName((name) => name.endsWith('.dmg') && name.includes('mac')) ||
+      byName((name) => name.endsWith('.dmg'))
+    );
+  }
+
+  return candidates[0];
+}
+
+async function fetchLatestReleaseInfo() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const response = await fetch(latestReleaseApiUrl, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'YuDuBid-Client',
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub 返回 ${response.status}`);
+    }
+
+    const release = await response.json();
+    const assets = Array.isArray(release.assets) ? release.assets : [];
+    const downloadAsset = pickReleaseDownloadAsset(assets);
+
+    return {
+      version: normalizeVersion(release.tag_name || release.name || ''),
+      name: String(release.name || release.tag_name || ''),
+      body: String(release.body || ''),
+      published_at: String(release.published_at || ''),
+      html_url: String(release.html_url || 'https://github.com/liwg1995/YuduBid/releases/latest'),
+      download_url: String(downloadAsset?.browser_download_url || release.html_url || 'https://github.com/liwg1995/YuduBid/releases/latest'),
+      download_name: String(downloadAsset?.name || ''),
+      platform: process.platform,
+      arch: process.arch,
+      assets: assets.map((asset) => ({
+        name: String(asset?.name || ''),
+        browser_download_url: String(asset?.browser_download_url || ''),
+        size: Number(asset?.size || 0),
+      })),
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -135,13 +209,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     }
   });
 
-  ipcMain.handle('app:get-latest-version', () => ({
-    version: '',
-    name: '',
-    body: '',
-    published_at: '',
-    html_url: '',
-  }));
+  ipcMain.handle('app:get-latest-version', () => fetchLatestReleaseInfo());
   ipcMain.handle('app:quit-and-install', () => {
     quitAndInstall();
   });

@@ -3,12 +3,13 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { getConfigFilePath } = require('../utils/paths.cjs');
 
-const textModelProviders = ['jinlong', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
-const imageModelProviders = ['jinlong', 'volcengine', 'google-ai-studio', 'custom'];
+const textModelProviders = ['agnes-ai', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
+const imageModelProviders = ['agnes-ai', 'volcengine', 'google-ai-studio', 'custom'];
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
+const agnesAiBaseUrl = 'https://apihub.agnes-ai.com/v1';
 
 const textProviderBaseUrls = {
-  jinlong: 'https://jlaudeapi.com/v1',
+  'agnes-ai': agnesAiBaseUrl,
   volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
   xiaomi: 'https://token-plan-cn.xiaomimimo.com/v1',
   deepseek: 'https://api.deepseek.com',
@@ -17,10 +18,10 @@ const textProviderBaseUrls = {
 };
 
 const defaultTextModelProfiles = {
-  jinlong: {
+  'agnes-ai': {
     api_key: '',
-    base_url: textProviderBaseUrls.jinlong,
-    model_name: 'gpt-3.5-turbo',
+    base_url: textProviderBaseUrls['agnes-ai'],
+    model_name: 'agnes-2.0-flash',
   },
   volcengine: {
     api_key: '',
@@ -50,11 +51,11 @@ const defaultTextModelProfiles = {
 };
 
 const defaultImageModelProfiles = {
-  jinlong: {
-    provider: 'jinlong',
-    base_url: 'https://jlaudeapi.com/v1',
+  'agnes-ai': {
+    provider: 'agnes-ai',
+    base_url: agnesAiBaseUrl,
     api_key: '',
-    model_name: '',
+    model_name: 'agnes-image-2.1-flash',
     status: 'untested',
     tested_at: '',
     last_error: '',
@@ -89,13 +90,13 @@ const defaultImageModelProfiles = {
 };
 
 const defaultConfig = {
-  text_model_provider: 'jinlong',
+  text_model_provider: 'agnes-ai',
   text_model_profiles: defaultTextModelProfiles,
   api_key: '',
-  base_url: textProviderBaseUrls.jinlong,
-  model_name: 'gpt-3.5-turbo',
+  base_url: textProviderBaseUrls['agnes-ai'],
+  model_name: defaultTextModelProfiles['agnes-ai'].model_name,
   image_model: {
-    ...defaultImageModelProfiles.jinlong,
+    ...defaultImageModelProfiles['agnes-ai'],
   },
   image_model_profiles: defaultImageModelProfiles,
   file_parser: {
@@ -140,7 +141,9 @@ function normalizeTextModelProfile(provider, profile) {
   return {
     api_key: source.api_key !== undefined ? source.api_key : defaults.api_key,
     base_url: provider === 'xiaomi' && sourceBaseUrl === oldXiaomiBaseUrl ? defaults.base_url : sourceBaseUrl,
-    model_name: source.model_name !== undefined ? source.model_name : defaults.model_name,
+    model_name: provider === 'agnes-ai' && !source.model_name
+      ? defaults.model_name
+      : source.model_name !== undefined ? source.model_name : defaults.model_name,
   };
 }
 
@@ -162,7 +165,9 @@ function textProfileFromFlatConfig(source, fallback, provider) {
   return {
     api_key: source.api_key !== undefined ? source.api_key : fallback.api_key,
     base_url: provider === 'xiaomi' && sourceBaseUrl === oldXiaomiBaseUrl ? fallback.base_url : sourceBaseUrl,
-    model_name: source.model_name !== undefined ? source.model_name : fallback.model_name,
+    model_name: provider === 'agnes-ai' && !source.model_name
+      ? fallback.model_name
+      : source.model_name !== undefined ? source.model_name : fallback.model_name,
   };
 }
 
@@ -175,7 +180,9 @@ function normalizeImageModelProfile(provider, profile) {
       ? source.base_url !== undefined ? source.base_url : defaults.base_url
       : defaults.base_url,
     api_key: source.api_key !== undefined ? source.api_key : defaults.api_key,
-    model_name: source.model_name !== undefined ? source.model_name : defaults.model_name,
+    model_name: provider === 'agnes-ai' && !source.model_name
+      ? defaults.model_name
+      : source.model_name !== undefined ? source.model_name : defaults.model_name,
     status: source.status !== undefined ? source.status : defaults.status,
     tested_at: source.tested_at !== undefined ? source.tested_at : defaults.tested_at,
     last_error: source.last_error !== undefined ? source.last_error : defaults.last_error,
