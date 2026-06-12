@@ -53,6 +53,14 @@ function getKnowledgeBaseDir(app) {
   return path.join(getWorkspaceDir(app), 'knowledge-base');
 }
 
+function getSoftwareCopyrightDir(app) {
+  return path.join(getWorkspaceDir(app), 'software-copyright');
+}
+
+function getCodeGenerationDir(app) {
+  return path.join(getWorkspaceDir(app), 'code-generation');
+}
+
 function getAiLogsDir(app) {
   return path.join(getUserDataPath(app), 'logs', 'ai');
 }
@@ -65,6 +73,8 @@ module.exports = {
   getGeneratedImagesDir,
   getImportedImagesDir,
   getKnowledgeBaseDir,
+  getCodeGenerationDir,
+  getSoftwareCopyrightDir,
   getRejectionCheckDir,
   getRejectionCheckDocumentMarkdownPath,
   getTechnicalPlanDir,

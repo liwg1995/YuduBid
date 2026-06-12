@@ -15,6 +15,7 @@
     "postinstall": "electron-builder install-app-deps",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "smoke:electron-native": "electron scripts/electron-native-smoke.cjs",
+    "verify:software-copyright": "node scripts/verify-software-copyright.cjs",
     "start": "electron ."
   },
   "build": {

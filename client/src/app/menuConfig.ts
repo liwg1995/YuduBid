@@ -1,4 +1,4 @@
-import type { AppMenuItem, SectionId } from '../shared/types/navigation';
+import type { AppMenuGroup, AppMenuItem, SectionId } from '../shared/types/navigation';
 
 export const appMenuItems: AppMenuItem[] = [
   {
@@ -33,6 +33,19 @@ export const appMenuItems: AppMenuItem[] = [
   },
 ];
 
+const softwareCopyrightMenuItems: AppMenuItem[] = [
+  {
+    id: 'code-generation',
+    label: '代码生成',
+    description: '软著源码材料准备',
+  },
+  {
+    id: 'software-copyright',
+    label: '软著生成',
+    description: '申请表、手册与代码材料',
+  },
+];
+
 const developerMenuItems: AppMenuItem[] = [
   {
     id: 'developer-test',
@@ -41,8 +54,36 @@ const developerMenuItems: AppMenuItem[] = [
   },
 ];
 
+export function getAppMenuGroups(developerMode: boolean): AppMenuGroup[] {
+  const groups: AppMenuGroup[] = [
+    {
+      id: 'bid',
+      label: '招投标',
+      items: appMenuItems,
+    },
+    {
+      id: 'copyright',
+      label: '软件著作',
+      items: softwareCopyrightMenuItems,
+    },
+  ];
+
+  if (!developerMode) {
+    return groups;
+  }
+
+  return [
+    ...groups,
+    {
+      id: 'developer',
+      label: '开发调试',
+      items: developerMenuItems,
+    },
+  ];
+}
+
 export function getAppMenuItems(developerMode: boolean): AppMenuItem[] {
-  return developerMode ? [...appMenuItems, ...developerMenuItems] : appMenuItems;
+  return getAppMenuGroups(developerMode).flatMap((group) => group.items);
 }
 
 export function getSectionOrder(developerMode: boolean): SectionId[] {

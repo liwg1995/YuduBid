@@ -38,6 +38,13 @@ const bridge = {
   file: {
     selectDuplicateCheckFiles: (options) => ipcRenderer.invoke('file:select-duplicate-check-files', options),
   },
+  codeGeneration: {
+    loadState: () => ipcRenderer.invoke('code-generation:load-state'),
+    selectProject: () => ipcRenderer.invoke('code-generation:select-project'),
+    updateSelection: (payload) => ipcRenderer.invoke('code-generation:update-selection', payload),
+    confirmSelection: () => ipcRenderer.invoke('code-generation:confirm-selection'),
+    clear: () => ipcRenderer.invoke('code-generation:clear'),
+  },
   knowledgeBase: {
     getMigrationStatus: () => ipcRenderer.invoke('knowledge-base:get-migration-status'),
     migrateLegacy: () => ipcRenderer.invoke('knowledge-base:migrate-legacy'),
@@ -84,6 +91,28 @@ const bridge = {
     saveUiState: (payload) => ipcRenderer.invoke('rejection-check:save-ui-state', payload),
     updateState: (partial) => ipcRenderer.invoke('rejection-check:update-state', partial),
     clear: () => ipcRenderer.invoke('rejection-check:clear'),
+  },
+  softwareCopyright: {
+    loadState: () => ipcRenderer.invoke('software-copyright:load-state'),
+    selectProject: () => ipcRenderer.invoke('software-copyright:select-project'),
+    saveFields: (fields) => ipcRenderer.invoke('software-copyright:save-fields', fields),
+    saveOptions: (options) => ipcRenderer.invoke('software-copyright:save-options', options),
+    readDraft: (draftKey) => ipcRenderer.invoke('software-copyright:read-draft', draftKey),
+    readCodeManifest: () => ipcRenderer.invoke('software-copyright:read-code-manifest'),
+    regenerateCodeMaterial: (payload) => ipcRenderer.invoke('software-copyright:regenerate-code-material', payload),
+    saveDraft: (payload) => ipcRenderer.invoke('software-copyright:save-draft', payload),
+    validateDraft: () => ipcRenderer.invoke('software-copyright:validate-draft'),
+    startGeneration: (payload) => ipcRenderer.invoke('software-copyright:start-generation', payload),
+    confirmDraft: () => ipcRenderer.invoke('software-copyright:confirm-draft'),
+    exportFinal: (payload) => ipcRenderer.invoke('software-copyright:export-final', payload),
+    clear: () => ipcRenderer.invoke('software-copyright:clear'),
+    openOutputDir: () => ipcRenderer.invoke('software-copyright:open-output-dir'),
+    onEvent: (callback) => {
+      ipcRenderer.send('software-copyright:subscribe');
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('software-copyright:event', listener);
+      return () => ipcRenderer.removeListener('software-copyright:event', listener);
+    },
   },
   tasks: {
     startBidAnalysis: (payload) => ipcRenderer.invoke('tasks:start-bid-analysis', payload),

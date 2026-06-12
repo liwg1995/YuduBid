@@ -1,14 +1,17 @@
 const { ipcMain, shell } = require('electron');
 const { registerAiIpc } = require('./aiIpc.cjs');
+const { registerCodeGenerationIpc } = require('./codeGenerationIpc.cjs');
 const { registerConfigIpc } = require('./configIpc.cjs');
 const { registerDuplicateCheckIpc } = require('./duplicateCheckIpc.cjs');
 const { registerExportIpc } = require('./exportIpc.cjs');
 const { registerFileIpc } = require('./fileIpc.cjs');
 const { registerKnowledgeBaseIpc } = require('./knowledgeBaseIpc.cjs');
 const { registerRejectionCheckIpc } = require('./rejectionCheckIpc.cjs');
+const { registerSoftwareCopyrightIpc } = require('./softwareCopyrightIpc.cjs');
 const { registerTaskIpc } = require('./taskIpc.cjs');
 const { registerTechnicalPlanIpc } = require('./technicalPlanIpc.cjs');
 const { createAiService } = require('../services/aiService.cjs');
+const { createCodeGenerationService } = require('../services/codeGenerationService.cjs');
 const { createConfigStore } = require('../services/configStore.cjs');
 const { createDuplicateCheckService } = require('../services/duplicateCheckService.cjs');
 const { createDuplicateCheckStore } = require('../services/duplicateCheckStore.cjs');
@@ -17,6 +20,7 @@ const { createFileService } = require('../services/fileService.cjs');
 const { createKnowledgeBaseService } = require('../services/knowledgeBaseService.cjs');
 const { createKnowledgeBaseStore } = require('../services/knowledgeBaseStore.cjs');
 const { createRejectionCheckStore } = require('../services/rejectionCheckStore.cjs');
+const { createSoftwareCopyrightService } = require('../services/softwareCopyrightService.cjs');
 const { createSqliteDatabase } = require('../services/sqliteDatabase.cjs');
 const { createTaskService } = require('../services/taskService.cjs');
 const { createTechnicalPlanStore } = require('../services/technicalPlanStore.cjs');
@@ -168,11 +172,14 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const aiService = createAiService({ app, configStore });
   const fileService = createFileService({ app, configStore });
   const exportService = createExportService({ configStore });
+  const codeGenerationService = createCodeGenerationService({ app });
 
   registerConfigIpc({ configStore, aiService });
   registerAiIpc({ aiService });
   registerFileIpc({ fileService });
   registerExportIpc({ exportService });
+  registerCodeGenerationIpc({ codeGenerationService });
+  registerSoftwareCopyrightIpc({ softwareCopyrightService: createSoftwareCopyrightService({ app, aiService, configStore, codeGenerationService }) });
 
   try {
     const sqliteDatabase = createSqliteDatabase(app);

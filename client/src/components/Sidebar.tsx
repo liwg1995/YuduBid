@@ -1,6 +1,6 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useEffect, useState, type ComponentType, type ReactElement, type SVGProps } from 'react';
-import { getAppMenuItems } from '../app/menuConfig';
+import { getAppMenuGroups } from '../app/menuConfig';
 import type { SectionId } from '../shared/types/navigation';
 import logoUrl from '../../assets/icon_256.png';
 
@@ -13,6 +13,8 @@ interface SidebarProps {
 const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>> = {
   'technical-plan': DocumentIcon,
   'business-bid': BriefcaseIcon,
+  'code-generation': CodeIcon,
+  'software-copyright': CertificateIcon,
   'knowledge-base': ArchiveIcon,
   'duplicate-check': CompareIcon,
   'rejection-check': ShieldIcon,
@@ -22,19 +24,38 @@ const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>>
 };
 
 const SIDEBAR_COLLAPSED_KEY = 'yudubid-sidebar-collapsed';
+const SIDEBAR_GROUPS_COLLAPSED_KEY = 'yudubid-sidebar-groups-collapsed';
 
 function loadInitialCollapsed() {
   if (typeof window === 'undefined') return false;
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
 }
 
+function loadInitialCollapsedGroups() {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(SIDEBAR_GROUPS_COLLAPSED_KEY) || '{}') as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
 function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(loadInitialCollapsed);
-  const menuItems = getAppMenuItems(developerMode);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(loadInitialCollapsedGroups);
+  const menuGroups = getAppMenuGroups(developerMode);
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_GROUPS_COLLAPSED_KEY, JSON.stringify(collapsedGroups));
+  }, [collapsedGroups]);
+
+  function toggleGroup(groupId: string) {
+    setCollapsedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+  }
 
   return (
     <aside className={`sidebar ${collapsed ? 'is-collapsed' : ''}`} data-collapsed={collapsed}>
@@ -61,29 +82,54 @@ function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps
       </button>
 
       <nav className="sidebar-nav" aria-label="主菜单">
-        {menuItems.map((item) => {
-          const Icon = navigationIcons[item.id];
-          const isActive = item.id === activeSection;
-          const button = (
-            <button
-              key={item.id}
-              type="button"
-              className={`nav-item ${isActive ? 'is-active' : ''}`}
-              onClick={() => onSectionChange(item.id)}
-              aria-label={item.label}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <span className="nav-icon" aria-hidden="true">
-                <Icon />
-              </span>
-              <span className="nav-copy">
-                <strong>{item.label}</strong>
-                <small>{item.description}</small>
-              </span>
-            </button>
-          );
+        {menuGroups.map((group) => {
+          const isGroupCollapsed = Boolean(collapsedGroups[group.id]);
+          const isActiveGroup = group.items.some((item) => item.id === activeSection);
 
-          return collapsed ? wrapTooltip(item.label, button) : button;
+          return (
+            <div className={`nav-group ${isGroupCollapsed ? 'is-folded' : ''}${isActiveGroup ? ' has-active' : ''}`} key={group.id}>
+              {!collapsed && (
+                <button
+                  type="button"
+                  className="nav-group-trigger"
+                  onClick={() => toggleGroup(group.id)}
+                  aria-expanded={!isGroupCollapsed}
+                  aria-controls={`nav-group-${group.id}`}
+                >
+                  <span>{group.label}</span>
+                  <ChevronIcon className={isGroupCollapsed ? 'rotate-270' : 'rotate-90'} />
+                </button>
+              )}
+              {(!isGroupCollapsed || collapsed) && (
+                <div className="nav-group-items" id={`nav-group-${group.id}`}>
+                  {group.items.map((item) => {
+                    const Icon = navigationIcons[item.id];
+                    const isActive = item.id === activeSection;
+                    const button = (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`nav-item ${isActive ? 'is-active' : ''}`}
+                        onClick={() => onSectionChange(item.id)}
+                        aria-label={item.label}
+                        aria-current={isActive ? 'page' : undefined}
+                      >
+                        <span className="nav-icon" aria-hidden="true">
+                          <Icon />
+                        </span>
+                        <span className="nav-copy">
+                          <strong>{item.label}</strong>
+                          <small>{item.description}</small>
+                        </span>
+                      </button>
+                    );
+
+                    return collapsed ? wrapTooltip(item.label, button) : button;
+                  })}
+                </div>
+              )}
+            </div>
+          );
         })}
       </nav>
 
@@ -158,6 +204,28 @@ function ArchiveIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M5 7.5h14v12H5z" />
       <path d="M4 4.5h16v3H4z" />
       <path d="M9 11.2h6" />
+    </svg>
+  );
+}
+
+function CertificateIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6.5 4.5h11v15h-11z" />
+      <path d="M9 8h6" />
+      <path d="M9 11h6" />
+      <path d="M9 14h3.5" />
+      <path d="m15.2 16.2 1.1 1.1 2-2.3" />
+    </svg>
+  );
+}
+
+function CodeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="m9 8-4 4 4 4" />
+      <path d="m15 8 4 4-4 4" />
+      <path d="m13 5-2 14" />
     </svg>
   );
 }
