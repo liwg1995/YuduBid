@@ -1,5 +1,13 @@
 export type { ChatCompletionRequest, ChatMessage, JsonCompletionRequest } from './ai';
 export type {
+  CodeGenerationAnalysis,
+  CodeGenerationFile,
+  CodeGenerationProject,
+  CodeGenerationSelectResult,
+  CodeGenerationState,
+  CodeGenerationSummary,
+} from '../../features/code-generation/types';
+export type {
   DuplicateAnalysisTabId,
   DuplicateAnalysisStatus,
   DuplicateCheckStep,
@@ -45,9 +53,21 @@ export type {
   TextModelProvider,
   TextModelProfiles,
 } from './config';
-export type { AppMenuItem, SectionId } from './navigation';
+export type { AppMenuGroup, AppMenuItem, SectionId } from './navigation';
 export type { OutlineData, OutlineItem, OutlineMode, TechnicalRequirementGroup } from './outline';
 export type { LatestReleaseInfo, UpdateCheckResult, WordExportProgressEvent, WordExportResult, YuDuBidBridge } from './ipc';
+export type {
+  SoftwareCopyrightAnalysis,
+  SoftwareCopyrightAnalysisFile,
+  SoftwareCopyrightFields,
+  SoftwareCopyrightOptions,
+  SoftwareCopyrightOutput,
+  SoftwareCopyrightProject,
+  SoftwareCopyrightSelectResult,
+  SoftwareCopyrightState,
+  SoftwareCopyrightStep,
+  SoftwareCopyrightTask,
+} from '../../features/software-copyright/types';
 export type {
   RejectionCheckFinding,
   RejectionCheckResultState,

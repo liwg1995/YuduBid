@@ -1,8 +1,10 @@
 import type { ChatCompletionRequest, JsonCompletionRequest } from './ai';
 import type { DuplicateCheckWorkspaceState, FileSelectionResult } from './bid';
 import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelListResult } from './config';
+import type { CodeGenerationSelectResult, CodeGenerationState } from '../../features/code-generation/types';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeItem } from '../../features/knowledge-base/types';
 import type { RejectionCheckWorkspaceState, RejectionDocumentRole } from '../../features/rejection-check/types';
+import type { SoftwareCopyrightCodeManifest, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightFields, SoftwareCopyrightOptions, SoftwareCopyrightSelectResult, SoftwareCopyrightState } from '../../features/software-copyright/types';
 import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanState, TechnicalPlanStep } from '../../features/technical-plan/types';
 import type { OutlineData, OutlineMode } from './outline';
 
@@ -87,6 +89,13 @@ export interface YuDuBidBridge {
   file: {
     selectDuplicateCheckFiles: (options?: { multiple?: boolean }) => Promise<FileSelectionResult>;
   };
+  codeGeneration: {
+    loadState: () => Promise<CodeGenerationState>;
+    selectProject: () => Promise<CodeGenerationSelectResult>;
+    updateSelection: (payload: { selectedPaths: string[] }) => Promise<CodeGenerationState>;
+    confirmSelection: () => Promise<CodeGenerationState>;
+    clear: () => Promise<{ success: boolean; state: CodeGenerationState }>;
+  };
   knowledgeBase: {
     getMigrationStatus: () => Promise<KnowledgeBaseMigrationStatus>;
     migrateLegacy: () => Promise<KnowledgeBaseMigrationResult>;
@@ -129,6 +138,23 @@ export interface YuDuBidBridge {
     saveUiState: (payload: Partial<Pick<RejectionCheckWorkspaceState, 'step' | 'activeDocumentTab' | 'activeResultTab' | 'activeCheckResultTab' | 'customCheckItems' | 'checkOptions'>>) => Promise<RejectionCheckWorkspaceState>;
     updateState: (partial: Partial<RejectionCheckWorkspaceState>) => Promise<RejectionCheckWorkspaceState>;
     clear: () => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
+  };
+  softwareCopyright: {
+    loadState: () => Promise<SoftwareCopyrightState>;
+    selectProject: () => Promise<SoftwareCopyrightSelectResult>;
+    saveFields: (fields: Partial<SoftwareCopyrightFields>) => Promise<SoftwareCopyrightState>;
+    saveOptions: (options: Partial<SoftwareCopyrightOptions>) => Promise<SoftwareCopyrightState>;
+    readDraft: (draftKey: string) => Promise<SoftwareCopyrightDraftFile>;
+    readCodeManifest: () => Promise<SoftwareCopyrightCodeManifest | null>;
+    regenerateCodeMaterial: (payload?: { fields?: Partial<SoftwareCopyrightFields>; sourceMode?: 'project' | 'code-generation'; codeExcludedPaths?: string[]; codeIncludedPaths?: string[] }) => Promise<{ state: SoftwareCopyrightState; manifest: SoftwareCopyrightCodeManifest }>;
+    saveDraft: (payload: { key: string; content: string }) => Promise<SoftwareCopyrightDraftSaveResult>;
+    validateDraft: () => Promise<SoftwareCopyrightDraftValidationResult>;
+    startGeneration: (payload?: { fields?: Partial<SoftwareCopyrightFields>; useAiImages?: boolean; sourceMode?: 'project' | 'code-generation'; codeExcludedPaths?: string[]; codeIncludedPaths?: string[] }) => Promise<unknown>;
+    confirmDraft: () => Promise<SoftwareCopyrightState>;
+    exportFinal: (payload?: { exportItems?: SoftwareCopyrightOptions['exportItems'] }) => Promise<unknown>;
+    clear: () => Promise<{ success: boolean; message?: string; state: SoftwareCopyrightState }>;
+    openOutputDir: () => Promise<{ success: boolean; path: string }>;
+    onEvent: (callback: (event: SoftwareCopyrightState) => void) => () => void;
   };
   tasks: {
     startBidAnalysis: (payload: unknown) => Promise<unknown>;
