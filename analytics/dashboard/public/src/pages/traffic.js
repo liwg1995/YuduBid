@@ -11,6 +11,8 @@ const pageLabels = {
   'technical-plan/content-edit': '技术方案 - 生成正文',
   'technical-plan/expand': '技术方案 - 扩写改写',
   'business-bid': '商务标',
+  'code-generation': '代码生成',
+  'software-copyright': '软著生成',
   'knowledge-base': '知识库',
   'knowledge-base/library': '知识库 - 文档列表',
   'knowledge-base/viewer/items': '知识库 - 知识条目',
