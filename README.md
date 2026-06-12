@@ -106,12 +106,6 @@ npm run dev
 
 `tools/` 用于放置独立文档解析、MinerU 验证、排查脚本等不直接进入客户端包体的工具。
 
-## 发布
+## 🙏 致谢
 
-GitHub Actions 发布流程位于 `.github/workflows/release.yml`。推送 `v*` 或 `V*` tag 后，会在 `client/` 下安装依赖、同步版本号，并使用 `electron-builder` 构建 Windows/macOS 产物。
-
-当前版本为 `V0.1.3`：
-
-[https://github.com/liwg1995/YuduBid/releases/tag/V0.1.3](https://github.com/liwg1995/YuduBid/releases/tag/V0.1.3)
-
-当前未接入正式代码签名，Windows/macOS 可能出现未签名应用提示。
+本项目基于 [FB208/OpenBidKit_Yibiao](https://github.com/FB208/OpenBidKit_Yibiao) 进行二开，遵从 [GNU Affero General Public License v3.0](https://github.com/FB208/OpenBidKit_Yibiao/blob/main/LICENSE) 开源协议。
