@@ -57,7 +57,7 @@
 - 技术团队从项目成果中提炼创新点并生成专利交底书。
 - 组织沉淀历史案例、模板、素材和知识条目，提升后续交付效率。
 
-## 本地体验
+## 开发者用户
 
 客户端源码位于 `client/`。安装依赖、构建和本地打包都在该目录下执行。
 
@@ -82,6 +82,7 @@ npm run dist:win
 npm run dist:mac
 ```
 
-## 致谢
+## 🙏致谢
 
-本项目基于 [FB208/OpenBidKit_Yibiao](https://github.com/FB208/OpenBidKit_Yibiao) 进行二开，遵从 [GNU Affero General Public License v3.0](https://github.com/FB208/OpenBidKit_Yibiao/blob/main/LICENSE) 开源协议。
+本项目基于 [FB208/OpenBidKit_Yibiao](https://github.com/FB208/OpenBidKit_Yibiao) 进行二开，感谢作者提供肩膀！
+遵从 [GNU Affero General Public License v3.0](https://github.com/FB208/OpenBidKit_Yibiao/blob/main/LICENSE) 开源协议。
