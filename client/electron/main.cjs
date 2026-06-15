@@ -9,6 +9,7 @@ const { getGeneratedImagesDir, getImportedImagesDir } = require('./utils/paths.c
 const rendererUrl = process.env.ELECTRON_RENDERER_URL;
 const iconPath = path.join(__dirname, '../assets/icon.ico');
 const packagedIndexUrl = pathToFileURL(path.join(__dirname, '../dist/index.html')).toString();
+const legacyUserDataNames = ['禹都AI投标助手', 'yudubid-client'];
 
 protocol.registerSchemesAsPrivileged([{
   scheme: 'yibiao-asset',
@@ -88,6 +89,42 @@ async function openExternalUrl(value) {
   }
 }
 
+function copyIfMissing(sourcePath, targetPath) {
+  if (!fs.existsSync(sourcePath) || fs.existsSync(targetPath)) return false;
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.cpSync(sourcePath, targetPath, { recursive: true });
+  return true;
+}
+
+function migrateLegacyUserData() {
+  try {
+    const currentUserData = app.getPath('userData');
+    const supportDir = path.dirname(currentUserData);
+    const currentConfigPath = path.join(currentUserData, 'user_config.json');
+    const currentWorkspacePath = path.join(currentUserData, 'workspace');
+
+    for (const legacyName of legacyUserDataNames) {
+      const legacyUserData = path.join(supportDir, legacyName);
+      if (legacyUserData === currentUserData || !fs.existsSync(legacyUserData)) {
+        continue;
+      }
+
+      const copiedConfig = copyIfMissing(path.join(legacyUserData, 'user_config.json'), currentConfigPath);
+      const copiedWorkspace = copyIfMissing(path.join(legacyUserData, 'workspace'), currentWorkspacePath);
+      if (copiedConfig || copiedWorkspace) {
+        console.info('[electron] 已兼容迁移旧版用户数据', {
+          from: legacyUserData,
+          to: currentUserData,
+          copiedConfig,
+          copiedWorkspace,
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('[electron] 迁移旧版用户数据失败', error);
+  }
+}
+
 function createMainWindow() {
   const mainWindow = new BrowserWindow({
     width: 1440,
@@ -95,7 +132,7 @@ function createMainWindow() {
     minWidth: 1040,
     minHeight: 720,
     backgroundColor: '#f8fafd',
-    title: '禹都AI投标助手',
+    title: '禹都AI解决方案助手',
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
@@ -133,6 +170,7 @@ function createMainWindow() {
 
 app.whenReady().then(() => {
   nativeTheme.themeSource = 'light';
+  migrateLegacyUserData();
   registerAssetProtocol();
   const mainWindow = createMainWindow();
   registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, quitAndInstall });

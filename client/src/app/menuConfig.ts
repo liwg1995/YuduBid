@@ -46,6 +46,29 @@ const softwareCopyrightMenuItems: AppMenuItem[] = [
   },
 ];
 
+const patentMenuItems: AppMenuItem[] = [
+  {
+    id: 'patent-mining',
+    label: '专利挖掘',
+    description: '项目扫描与专利点分析',
+  },
+  {
+    id: 'patent-disclosure',
+    label: '交底书生成',
+    description: '技术交底书撰写与导出',
+  },
+  {
+    id: 'patent-prior-art',
+    label: '查新分析',
+    description: '现有技术检索与差异分析',
+  },
+  {
+    id: 'patent-iteration',
+    label: '修订迭代',
+    description: '补充材料、纠错和版本留档',
+  },
+];
+
 const developerMenuItems: AppMenuItem[] = [
   {
     id: 'developer-test',
@@ -57,6 +80,15 @@ const developerMenuItems: AppMenuItem[] = [
 export function getAppMenuGroups(developerMode: boolean): AppMenuGroup[] {
   const groups: AppMenuGroup[] = [
     {
+      id: 'workspace',
+      label: '工作台',
+      items: [{
+        id: 'home',
+        label: '首页',
+        description: '产品概览与能力统计',
+      }],
+    },
+    {
       id: 'bid',
       label: '招投标',
       items: appMenuItems,
@@ -65,6 +97,11 @@ export function getAppMenuGroups(developerMode: boolean): AppMenuGroup[] {
       id: 'copyright',
       label: '软件著作',
       items: softwareCopyrightMenuItems,
+    },
+    {
+      id: 'patent',
+      label: '专利生成',
+      items: patentMenuItems,
     },
   ];
 

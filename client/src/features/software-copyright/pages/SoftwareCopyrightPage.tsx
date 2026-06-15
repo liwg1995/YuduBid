@@ -49,7 +49,7 @@ const requiredFields: Array<keyof SoftwareCopyrightFields> = [
 ];
 
 const basicFieldRows: Array<{ key: keyof SoftwareCopyrightFields; label: string; placeholder?: string }> = [
-  { key: 'softwareName', label: '软件全称', placeholder: '例如：禹都AI投标助手软件' },
+  { key: 'softwareName', label: '软件全称', placeholder: '例如：禹都AI解决方案助手软件' },
   { key: 'shortName', label: '软件简称', placeholder: '可选' },
   { key: 'version', label: '版本号', placeholder: 'V1.0' },
   { key: 'category', label: '软件分类', placeholder: '应用软件' },

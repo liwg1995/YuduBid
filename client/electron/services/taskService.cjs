@@ -335,13 +335,17 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
   }
 
   function subscribe(webContents) {
+    if (!webContents || webContents.isDestroyed()) return;
+    const isNewSubscriber = !subscribers.has(webContents);
     subscribers.add(webContents);
     for (const task of activeTasks.values()) {
       if (!webContents.isDestroyed()) {
         webContents.send('tasks:event', { task, ...getSnapshotForTask(task) });
       }
     }
-    webContents.once('destroyed', () => subscribers.delete(webContents));
+    if (isNewSubscriber) {
+      webContents.once('destroyed', () => subscribers.delete(webContents));
+    }
   }
 
   function getTaskField(type) {

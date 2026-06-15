@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const bridge = {
-  appName: '禹都AI投标助手',
+  appName: '禹都AI解决方案助手',
   platform: process.platform,
   getVersion: () => ipcRenderer.invoke('app:get-version'),
   getLatestVersion: () => ipcRenderer.invoke('app:get-latest-version'),
@@ -112,6 +112,26 @@ const bridge = {
       const listener = (_event, payload) => callback(payload);
       ipcRenderer.on('software-copyright:event', listener);
       return () => ipcRenderer.removeListener('software-copyright:event', listener);
+    },
+  },
+  patentGeneration: {
+    loadState: () => ipcRenderer.invoke('patent-generation:load-state'),
+    saveCaseInfo: (payload) => ipcRenderer.invoke('patent-generation:save-case-info', payload),
+    selectPatentPoint: (pointId) => ipcRenderer.invoke('patent-generation:select-patent-point', pointId),
+    selectProject: () => ipcRenderer.invoke('patent-generation:select-project'),
+    startMining: () => ipcRenderer.invoke('patent-generation:start-mining'),
+    generateDisclosureDraft: () => ipcRenderer.invoke('patent-generation:generate-disclosure-draft'),
+    readDisclosureDraft: (draftId) => ipcRenderer.invoke('patent-generation:read-disclosure-draft', draftId),
+    saveDisclosureDraft: (payload) => ipcRenderer.invoke('patent-generation:save-disclosure-draft', payload),
+    generatePriorArtAnalysis: (payload) => ipcRenderer.invoke('patent-generation:generate-prior-art-analysis', payload),
+    savePriorArtMarkdown: (markdown) => ipcRenderer.invoke('patent-generation:save-prior-art-markdown', markdown),
+    generateRevision: (payload) => ipcRenderer.invoke('patent-generation:generate-revision', payload),
+    clear: () => ipcRenderer.invoke('patent-generation:clear'),
+    onEvent: (callback) => {
+      ipcRenderer.send('patent-generation:subscribe');
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('patent-generation:event', listener);
+      return () => ipcRenderer.removeListener('patent-generation:event', listener);
     },
   },
   tasks: {

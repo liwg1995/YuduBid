@@ -3,6 +3,7 @@ import { renderTable } from '../render.js';
 import { state } from '../state.js';
 
 const pageLabels = {
+  home: '首页',
   'technical-plan': '技术方案',
   'technical-plan/document-analysis': '技术方案 - 上传招标文件',
   'technical-plan/bid-analysis': '技术方案 - 招标文件解析',
@@ -13,6 +14,10 @@ const pageLabels = {
   'business-bid': '商务标',
   'code-generation': '代码生成',
   'software-copyright': '软著生成',
+  'patent-mining': '专利生成 - 专利挖掘',
+  'patent-disclosure': '专利生成 - 交底书生成',
+  'patent-prior-art': '专利生成 - 查新分析',
+  'patent-iteration': '专利生成 - 修订迭代',
   'knowledge-base': '知识库',
   'knowledge-base/library': '知识库 - 文档列表',
   'knowledge-base/viewer/items': '知识库 - 知识条目',

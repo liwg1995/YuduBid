@@ -25,6 +25,7 @@ function AppShell({ activeSection, children, developerMode, onSectionChange }: A
           <section className="content-shell" aria-label="主内容">
             {children}
           </section>
+          <div className="app-copyright" aria-label="版权信息">Copyright © 2026 禹都一只猫</div>
         </main>
       </div>
     </Tooltip.Provider>

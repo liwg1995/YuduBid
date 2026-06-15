@@ -5,9 +5,9 @@ import { requestOutlineGeneration } from '../../technical-plan/services/outlineW
 
 type RunningMode = 'text' | 'json' | null;
 
-const sampleTenderContent = `# 禹都AI投标助手测试项目招标文件
+const sampleTenderContent = `# 禹都AI解决方案助手测试项目招标文件
 
-项目名称：禹都AI投标助手测试项目。
+项目名称：禹都AI解决方案助手测试项目。
 项目编号：YB-TEST-001。
 项目类型：软件服务。
 项目预算：100 万元。
@@ -19,7 +19,7 @@ const sampleTenderContent = `# 禹都AI投标助手测试项目招标文件
 3. 运维服务能力，满分 15 分，要求说明响应时效和服务保障。`;
 
 const sampleOutlineInput = {
-  overview: '禹都AI投标助手测试项目，软件服务类采购，预算 100 万元，实施地点北京市海淀区。',
+  overview: '禹都AI解决方案助手测试项目，软件服务类采购，预算 100 万元，实施地点北京市海淀区。',
   requirements: '技术方案完整性 30 分；项目实施计划 20 分；运维服务能力 15 分。',
   mode: 'free' as const,
 };

@@ -1,8 +1,13 @@
 export type SectionId =
+  | 'home'
   | 'technical-plan'
   | 'business-bid'
   | 'code-generation'
   | 'software-copyright'
+  | 'patent-mining'
+  | 'patent-disclosure'
+  | 'patent-prior-art'
+  | 'patent-iteration'
   | 'knowledge-base'
   | 'duplicate-check'
   | 'rejection-check'

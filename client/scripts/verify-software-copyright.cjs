@@ -114,8 +114,8 @@ function createMockAiService(fields) {
 
 function createVerifyFields() {
   return {
-    softwareName: '禹都AI投标助手软件',
-    shortName: '禹都AI投标助手',
+    softwareName: '禹都AI解决方案助手软件',
+    shortName: '禹都AI解决方案助手',
     version: 'V1.0',
     category: '应用软件',
     developmentCompletedDate: '2026-06-08',

@@ -1,5 +1,5 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { useEffect, useState, type ComponentType, type ReactElement, type SVGProps } from 'react';
+import { useEffect, useRef, useState, type ComponentType, type ReactElement, type SVGProps } from 'react';
 import { getAppMenuGroups } from '../app/menuConfig';
 import type { SectionId } from '../shared/types/navigation';
 import logoUrl from '../../assets/icon_256.png';
@@ -11,10 +11,15 @@ interface SidebarProps {
 }
 
 const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>> = {
+  home: HomeIcon,
   'technical-plan': DocumentIcon,
   'business-bid': BriefcaseIcon,
   'code-generation': CodeIcon,
   'software-copyright': CertificateIcon,
+  'patent-mining': PatentIdeaIcon,
+  'patent-disclosure': PatentDocumentIcon,
+  'patent-prior-art': SearchDocumentIcon,
+  'patent-iteration': IterationIcon,
   'knowledge-base': ArchiveIcon,
   'duplicate-check': CompareIcon,
   'rejection-check': ShieldIcon,
@@ -43,6 +48,7 @@ function loadInitialCollapsedGroups() {
 function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(loadInitialCollapsed);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(loadInitialCollapsedGroups);
+  const navRef = useRef<HTMLElement | null>(null);
   const menuGroups = getAppMenuGroups(developerMode);
 
   useEffect(() => {
@@ -52,6 +58,20 @@ function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_GROUPS_COLLAPSED_KEY, JSON.stringify(collapsedGroups));
   }, [collapsedGroups]);
+
+  useEffect(() => {
+    const activeGroup = menuGroups.find((group) => group.items.some((item) => item.id === activeSection));
+    if (!activeGroup || activeGroup.id === 'workspace') return;
+    setCollapsedGroups((prev) => prev[activeGroup.id] ? { ...prev, [activeGroup.id]: false } : prev);
+  }, [activeSection, menuGroups]);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      const activeItem = navRef.current?.querySelector<HTMLElement>(`[data-section-id="${activeSection}"]`);
+      activeItem?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeSection, collapsedGroups]);
 
   function toggleGroup(groupId: string) {
     setCollapsedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
@@ -67,7 +87,7 @@ function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps
         </div>
         <div className="brand-copy">
           <span>禹都</span>
-          <strong>AI投标助手</strong>
+          <strong>AI解决方案助手</strong>
         </div>
       </div>
 
@@ -81,14 +101,15 @@ function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps
         <ChevronIcon className={collapsed ? 'rotate-180' : ''} />
       </button>
 
-      <nav className="sidebar-nav" aria-label="主菜单">
+      <nav className="sidebar-nav" aria-label="主菜单" ref={navRef}>
         {menuGroups.map((group) => {
-          const isGroupCollapsed = Boolean(collapsedGroups[group.id]);
+          const isWorkspaceGroup = group.id === 'workspace';
+          const isGroupCollapsed = isWorkspaceGroup ? false : Boolean(collapsedGroups[group.id]);
           const isActiveGroup = group.items.some((item) => item.id === activeSection);
 
           return (
             <div className={`nav-group ${isGroupCollapsed ? 'is-folded' : ''}${isActiveGroup ? ' has-active' : ''}`} key={group.id}>
-              {!collapsed && (
+              {!collapsed && !isWorkspaceGroup && (
                 <button
                   type="button"
                   className="nav-group-trigger"
@@ -110,6 +131,7 @@ function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps
                         key={item.id}
                         type="button"
                         className={`nav-item ${isActive ? 'is-active' : ''}`}
+                        data-section-id={item.id}
                         onClick={() => onSectionChange(item.id)}
                         aria-label={item.label}
                         aria-current={isActive ? 'page' : undefined}
@@ -176,6 +198,16 @@ function wrapTooltip(label: string, child: ReactElement) {
   );
 }
 
+function HomeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M4.5 11.3 12 4.8l7.5 6.5" />
+      <path d="M6.8 10.2v9h10.4v-9" />
+      <path d="M10 19.2v-5.1h4v5.1" />
+    </svg>
+  );
+}
+
 function DocumentIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
@@ -226,6 +258,55 @@ function CodeIcon(props: SVGProps<SVGSVGElement>) {
       <path d="m9 8-4 4 4 4" />
       <path d="m15 8 4 4-4 4" />
       <path d="m13 5-2 14" />
+    </svg>
+  );
+}
+
+function PatentIdeaIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M9.2 18.5h5.6" />
+      <path d="M10 21h4" />
+      <path d="M8.3 14.8c-1.4-1.05-2.3-2.72-2.3-4.6a6 6 0 0 1 12 0c0 1.88-.9 3.55-2.3 4.6-.66.5-.9.9-.9 1.7H9.2c0-.8-.24-1.2-.9-1.7Z" />
+      <path d="M10.2 10.1 11.5 12l2.5-3.5" />
+    </svg>
+  );
+}
+
+function PatentDocumentIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6.5 3.8h7.2L18 8.1v12.1H6.5z" />
+      <path d="M13.5 4.1v4.2h4.1" />
+      <path d="M9 12h6" />
+      <path d="M9 15h6" />
+      <path d="M9 18h3.8" />
+      <path d="m16 16.8 2.2 2.2 3-4.2" />
+    </svg>
+  );
+}
+
+function SearchDocumentIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6.5 4h8.2L18 7.3v4.2" />
+      <path d="M6.5 4v16h6" />
+      <path d="M14.5 4.2v3.4h3.2" />
+      <path d="M9 11h4" />
+      <path d="M9 14h2.8" />
+      <path d="M16.2 18.4a3.1 3.1 0 1 0 0-6.2 3.1 3.1 0 0 0 0 6.2Z" />
+      <path d="m18.5 18.5 2.1 2.1" />
+    </svg>
+  );
+}
+
+function IterationIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M7.2 7.5h8.1a4.2 4.2 0 0 1 0 8.4H6" />
+      <path d="m8.8 4.8-3 2.7 3 2.7" />
+      <path d="m15.2 19.2 3-2.7-3-2.7" />
+      <path d="M10 12h4" />
     </svg>
   );
 }

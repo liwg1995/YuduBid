@@ -57,6 +57,10 @@ function getSoftwareCopyrightDir(app) {
   return path.join(getWorkspaceDir(app), 'software-copyright');
 }
 
+function getPatentGenerationDir(app) {
+  return path.join(getWorkspaceDir(app), 'patent-generation');
+}
+
 function getCodeGenerationDir(app) {
   return path.join(getWorkspaceDir(app), 'code-generation');
 }
@@ -74,6 +78,7 @@ module.exports = {
   getImportedImagesDir,
   getKnowledgeBaseDir,
   getCodeGenerationDir,
+  getPatentGenerationDir,
   getSoftwareCopyrightDir,
   getRejectionCheckDir,
   getRejectionCheckDocumentMarkdownPath,

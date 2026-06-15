@@ -2,7 +2,7 @@
   "name": "yudubid-client",
   "version": "0.2.0",
   "private": true,
-  "description": "禹都AI投标助手客户端",
+  "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
   "main": "electron/main.cjs",
   "type": "module",
@@ -16,11 +16,13 @@
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "smoke:electron-native": "electron scripts/electron-native-smoke.cjs",
     "verify:software-copyright": "node scripts/verify-software-copyright.cjs",
+    "verify:patent-generation": "node scripts/verify-patent-generation.cjs",
+    "verify:patent-generation:live": "node scripts/verify-patent-generation-live.cjs",
     "start": "electron ."
   },
   "build": {
     "appId": "me.olei.bidkit",
-    "productName": "禹都AI投标助手",
+    "productName": "禹都AI解决方案助手",
     "copyright": "Copyright © 2026 禹都一只猫",
     "asar": true,
     "directories": {
@@ -56,7 +58,9 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "perMachine": false
+      "perMachine": false,
+      "installerSidebar": "installer-assets/sidebar.bmp",
+      "uninstallerSidebar": "installer-assets/sidebar.bmp"
     },
     "msi": {
       "oneClick": false,

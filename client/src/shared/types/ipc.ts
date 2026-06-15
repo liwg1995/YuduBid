@@ -3,6 +3,7 @@ import type { DuplicateCheckWorkspaceState, FileSelectionResult } from './bid';
 import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelListResult } from './config';
 import type { CodeGenerationSelectResult, CodeGenerationState } from '../../features/code-generation/types';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeItem } from '../../features/knowledge-base/types';
+import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentRevisionResult } from '../../features/patent-generation/types';
 import type { RejectionCheckWorkspaceState, RejectionDocumentRole } from '../../features/rejection-check/types';
 import type { SoftwareCopyrightCodeManifest, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightFields, SoftwareCopyrightOptions, SoftwareCopyrightSelectResult, SoftwareCopyrightState } from '../../features/software-copyright/types';
 import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanState, TechnicalPlanStep } from '../../features/technical-plan/types';
@@ -155,6 +156,21 @@ export interface YuDuBidBridge {
     clear: () => Promise<{ success: boolean; message?: string; state: SoftwareCopyrightState }>;
     openOutputDir: () => Promise<{ success: boolean; path: string }>;
     onEvent: (callback: (event: SoftwareCopyrightState) => void) => () => void;
+  };
+  patentGeneration: {
+    loadState: () => Promise<PatentGenerationState>;
+    saveCaseInfo: (payload: Partial<PatentCaseInfo>) => Promise<PatentGenerationState>;
+    selectPatentPoint: (pointId: string) => Promise<PatentGenerationState>;
+    selectProject: () => Promise<PatentGenerationSelectProjectResult>;
+    startMining: () => Promise<PatentGenerationState>;
+    generateDisclosureDraft: () => Promise<PatentGenerationState>;
+    readDisclosureDraft: (draftId?: string) => Promise<PatentDisclosureDraftFile>;
+    saveDisclosureDraft: (payload: { id: string; content: string }) => Promise<PatentGenerationState>;
+    generatePriorArtAnalysis: (payload: { sourceText: string }) => Promise<PatentGenerationState>;
+    savePriorArtMarkdown: (markdown: string) => Promise<PatentGenerationState>;
+    generateRevision: (payload: { kind: 'merge' | 'correct'; instruction: string }) => Promise<PatentRevisionResult>;
+    clear: () => Promise<{ success: boolean; state: PatentGenerationState }>;
+    onEvent: (callback: (event: PatentGenerationState) => void) => () => void;
   };
   tasks: {
     startBidAnalysis: (payload: unknown) => Promise<unknown>;

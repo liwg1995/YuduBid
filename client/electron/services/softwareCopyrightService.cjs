@@ -1181,13 +1181,16 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
 
   function emit(state) {
     for (const webContents of subscribers) {
-      if (!webContents.isDestroyed()) {
+      if (webContents.isDestroyed()) {
+        subscribers.delete(webContents);
+      } else {
         webContents.send('software-copyright:event', state);
       }
     }
   }
 
   function subscribe(webContents) {
+    if (!webContents || webContents.isDestroyed() || subscribers.has(webContents)) return;
     subscribers.add(webContents);
     webContents.once('destroyed', () => subscribers.delete(webContents));
   }

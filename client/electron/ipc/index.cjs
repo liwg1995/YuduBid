@@ -6,6 +6,7 @@ const { registerDuplicateCheckIpc } = require('./duplicateCheckIpc.cjs');
 const { registerExportIpc } = require('./exportIpc.cjs');
 const { registerFileIpc } = require('./fileIpc.cjs');
 const { registerKnowledgeBaseIpc } = require('./knowledgeBaseIpc.cjs');
+const { registerPatentGenerationIpc } = require('./patentGenerationIpc.cjs');
 const { registerRejectionCheckIpc } = require('./rejectionCheckIpc.cjs');
 const { registerSoftwareCopyrightIpc } = require('./softwareCopyrightIpc.cjs');
 const { registerTaskIpc } = require('./taskIpc.cjs');
@@ -19,6 +20,7 @@ const { createExportService } = require('../services/exportService.cjs');
 const { createFileService } = require('../services/fileService.cjs');
 const { createKnowledgeBaseService } = require('../services/knowledgeBaseService.cjs');
 const { createKnowledgeBaseStore } = require('../services/knowledgeBaseStore.cjs');
+const { createPatentGenerationService } = require('../services/patentGenerationService.cjs');
 const { createRejectionCheckStore } = require('../services/rejectionCheckStore.cjs');
 const { createSoftwareCopyrightService } = require('../services/softwareCopyrightService.cjs');
 const { createSqliteDatabase } = require('../services/sqliteDatabase.cjs');
@@ -173,6 +175,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const fileService = createFileService({ app, configStore });
   const exportService = createExportService({ configStore });
   const codeGenerationService = createCodeGenerationService({ app });
+  const patentGenerationService = createPatentGenerationService({ app, aiService });
 
   registerConfigIpc({ configStore, aiService });
   registerAiIpc({ aiService });
@@ -180,6 +183,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   registerExportIpc({ exportService });
   registerCodeGenerationIpc({ codeGenerationService });
   registerSoftwareCopyrightIpc({ softwareCopyrightService: createSoftwareCopyrightService({ app, aiService, configStore, codeGenerationService }) });
+  registerPatentGenerationIpc({ patentGenerationService });
 
   try {
     const sqliteDatabase = createSqliteDatabase(app);
