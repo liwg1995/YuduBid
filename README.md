@@ -4,7 +4,7 @@
 
 # 禹都AI解决方案助手
 
-禹都AI解决方案助手是一款面向招投标、软件著作、国家专利和技术文档场景的本地 AI 工作台。它把资料导入、内容解析、方案生成、交底书编写、查重检查、修订留档和 Word 导出整合到同一套桌面流程中，帮助团队把分散的文档、代码、方案和经验沉淀成可复用、可交付的成果。
+🚀 禹都AI解决方案助手是一款面向招投标、软件著作、国家专利和场景的本地 AI 工作台。它把资料导入、内容解析、方案生成、交底书编写、查重检查、修订留档和 Word 导出整合到同一套桌面流程中，帮助团队把分散的文档、代码、方案和经验沉淀成可复用、可交付的成果。
 
 <p align="center">
   <img src="https://img.shields.io/badge/Desktop-Electron-47848f.svg" alt="Electron Desktop" />
@@ -85,4 +85,6 @@ npm run dist:mac
 ## 🙏致谢
 
 本项目基于 [FB208/OpenBidKit_Yibiao](https://github.com/FB208/OpenBidKit_Yibiao) 进行二开，感谢作者提供肩膀！
+
+## 📄 许可证
 遵从 [GNU Affero General Public License v3.0](https://github.com/FB208/OpenBidKit_Yibiao/blob/main/LICENSE) 开源协议。
