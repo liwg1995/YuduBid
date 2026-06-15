@@ -15,13 +15,14 @@
 
 ## 宣传图册
 
-![国家专利交底书智能编写](./client/installer-assets/promo-1.png)
-
-![软件著作材料智能生成](./client/installer-assets/promo-2.png)
+![一站式智能文档编写解决方案](./client/installer-assets/promo-4.png)
 
 ![技术标书智能编写](./client/installer-assets/promo-3.png)
 
-![一站式智能文档编写解决方案](./client/installer-assets/promo-4.png)
+![软件著作材料智能生成](./client/installer-assets/promo-2.png)
+
+![国家专利交底书智能编写](./client/installer-assets/promo-1.png)
+
 
 ## 客户端下载
 
