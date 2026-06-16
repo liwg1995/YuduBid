@@ -6,6 +6,7 @@ import DeveloperTestPage from '../features/developer/pages/DeveloperTestPage';
 import DuplicateCheckPage from '../features/duplicate-check/pages/DuplicateCheckPage';
 import HomePage from '../features/home/pages/HomePage';
 import KnowledgeBasePage from '../features/knowledge-base/pages/KnowledgeBasePage';
+import OfficialDocumentDraftingPage from '../features/official-document/pages/OfficialDocumentDraftingPage';
 import PatentDisclosurePage from '../features/patent-generation/pages/PatentDisclosurePage';
 import PatentIterationPage from '../features/patent-generation/pages/PatentIterationPage';
 import PatentMiningPage from '../features/patent-generation/pages/PatentMiningPage';
@@ -29,6 +30,14 @@ function AppRouter({ activeSection, onSectionChange, onDeveloperModeChange }: Ap
       return <TechnicalPlanHome />;
     case 'business-bid':
       return <BusinessBidPage />;
+    case 'official-document-drafting':
+      return <OfficialDocumentDraftingPage initialPanel="drafting" onNavigate={onSectionChange} />;
+    case 'official-document-check':
+      return <OfficialDocumentDraftingPage initialPanel="check" onNavigate={onSectionChange} />;
+    case 'official-document-polish':
+      return <OfficialDocumentDraftingPage initialPanel="polish" onNavigate={onSectionChange} />;
+    case 'official-document-templates':
+      return <OfficialDocumentDraftingPage initialPanel="templates" onNavigate={onSectionChange} />;
     case 'code-generation':
       return <CodeGenerationPage />;
     case 'software-copyright':

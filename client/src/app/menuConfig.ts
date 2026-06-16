@@ -46,6 +46,29 @@ const softwareCopyrightMenuItems: AppMenuItem[] = [
   },
 ];
 
+const officialDocumentMenuItems: AppMenuItem[] = [
+  {
+    id: 'official-document-drafting',
+    label: '智能起草',
+    description: '通知、请示、报告等公文材料',
+  },
+  {
+    id: 'official-document-check',
+    label: '格式检查',
+    description: '文种、结构和降 AI 味检查',
+  },
+  {
+    id: 'official-document-polish',
+    label: '润色改写',
+    description: '公文草稿优化与定向改写',
+  },
+  {
+    id: 'official-document-templates',
+    label: '模板库',
+    description: '常用公文场景模板',
+  },
+];
+
 const patentMenuItems: AppMenuItem[] = [
   {
     id: 'patent-mining',
@@ -92,6 +115,11 @@ export function getAppMenuGroups(developerMode: boolean): AppMenuGroup[] {
       id: 'bid',
       label: '招投标',
       items: appMenuItems,
+    },
+    {
+      id: 'official-document',
+      label: '公文写作',
+      items: officialDocumentMenuItems,
     },
     {
       id: 'copyright',

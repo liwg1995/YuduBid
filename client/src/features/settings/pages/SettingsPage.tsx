@@ -7,6 +7,7 @@ import type { ClientConfig, FileParserProvider, ImageModelConfig, ImageModelProf
 import type { SettingsPageState } from '../types';
 
 type SettingsTab = 'general' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'about';
+const SETTINGS_ACTIVE_TAB_KEY = 'yibiao-settings-active-tab';
 
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'general', label: '通用' },
@@ -353,9 +354,16 @@ interface SettingsPageProps {
   onDeveloperModeChange?: (developerMode: boolean) => void;
 }
 
+function getInitialSettingsTab(): SettingsTab {
+  if (typeof window === 'undefined') return 'general';
+  const storedTab = window.localStorage.getItem(SETTINGS_ACTIVE_TAB_KEY) as SettingsTab | null;
+  if (storedTab && settingsTabs.some((tab) => tab.id === storedTab)) return storedTab;
+  return 'general';
+}
+
 function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   const [state, setState] = useState<SettingsPageState>(initialState);
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialSettingsTab);
   const [savedConfig, setSavedConfig] = useState<ClientConfig | null>(null);
   const [textModels, setTextModels] = useState<string[]>([]);
   const [imageModels, setImageModels] = useState<string[]>([]);
@@ -992,7 +1000,10 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
               key={tab.id}
               type="button"
               className={`settings-tab ${activeTab === tab.id ? 'is-active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                window.localStorage.setItem(SETTINGS_ACTIVE_TAB_KEY, tab.id);
+                setActiveTab(tab.id);
+              }}
               role="tab"
               aria-selected={activeTab === tab.id}
             >

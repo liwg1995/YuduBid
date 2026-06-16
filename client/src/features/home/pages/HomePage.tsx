@@ -4,10 +4,10 @@ interface HomePageProps {
   onNavigate: (section: SectionId) => void;
 }
 
-type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' | 'book' | 'check';
+type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' | 'book' | 'document' | 'check';
 
 const overviewStats: Array<{ label: string; value: string; detail: string; tone: string; icon: HomeIconName }> = [
-  { label: '核心工作区', value: '4组', detail: '招投标、软著、专利、知识资产', tone: 'blue', icon: 'flow' },
+  { label: '核心工作区', value: '4组', detail: '招投标、公文、软著、专利', tone: 'blue', icon: 'flow' },
   { label: 'AI生成链路', value: '8类', detail: '方案、正文、代码、交底书等', tone: 'violet', icon: 'spark' },
   { label: '本地能力', value: '多项', detail: '文件解析、Word导出、SQLite工作区', tone: 'cyan', icon: 'archive' },
   { label: '专利流程', value: '4步', detail: '挖掘、交底、查新、修订', tone: 'green', icon: 'patent' },
@@ -22,6 +22,15 @@ const featureCards: Array<{ title: string; text: string; action: string; section
     tone: 'blue',
     icon: 'flow',
     tags: ['解析', '生成', '检查'],
+  },
+  {
+    title: '公文写作',
+    text: '支持公文草稿导入、要素提取、智能起草、格式检查、降 AI 味润色和 Word 导出。',
+    action: '进入智能起草',
+    section: 'official-document-drafting',
+    tone: 'green',
+    icon: 'document',
+    tags: ['公文', '润色', '导出'],
   },
   {
     title: '软件著作材料',
@@ -40,15 +49,6 @@ const featureCards: Array<{ title: string; text: string; action: string; section
     tone: 'violet',
     icon: 'patent',
     tags: ['挖掘', '交底', '查新'],
-  },
-  {
-    title: '知识库资产',
-    text: '沉淀历史文档、案例素材、Markdown原文和结构化知识条目，便于后续复用。',
-    action: '进入知识库',
-    section: 'knowledge-base',
-    tone: 'amber',
-    icon: 'book',
-    tags: ['素材', '模板', '复用'],
   },
 ];
 
@@ -72,7 +72,7 @@ function HomePage({ onNavigate }: HomePageProps) {
         <div>
           <span className="section-kicker">首页</span>
           <h2>禹都 AI 解决方案助手</h2>
-          <p>一个面向投标资料、软著材料、专利交底书和技术文档的本地 AI 工作台，把资料解析、生成、检查、修订和导出收拢到同一套桌面流程里。</p>
+          <p>一个面向投标资料、公文材料、软著材料、专利交底书和技术文档的本地 AI 工作台，把资料解析、生成、检查、修订和导出收拢到同一套桌面流程里。</p>
           <div className="home-signal-row" aria-label="工作台状态">
             {quickSignals.map((item) => (
               <span className={`home-signal is-${item.tone}`} key={item.label}>
@@ -203,6 +203,16 @@ function HomeIcon({ name }: { name: HomeIconName }) {
           <path d="M6 4.8h8.2a3.8 3.8 0 0 1 3.8 3.8v10.6H9.8A3.8 3.8 0 0 0 6 15.4z" />
           <path d="M6 15.4a3.8 3.8 0 0 1 3.8-3.8H18" />
           <path d="M9 8h5.2" />
+        </svg>
+      );
+    case 'document':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6.5 3.8h8.1L18.5 7.7v12.5h-12z" />
+          <path d="M14.4 4.1v3.8h3.8" />
+          <path d="M9 11h6" />
+          <path d="M9 14.2h6" />
+          <path d="M9 17.4h3.7" />
         </svg>
       );
     case 'check':

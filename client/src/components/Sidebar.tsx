@@ -14,6 +14,10 @@ const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>>
   home: HomeIcon,
   'technical-plan': DocumentIcon,
   'business-bid': BriefcaseIcon,
+  'official-document-drafting': OfficialDocumentIcon,
+  'official-document-check': OfficialDocumentIcon,
+  'official-document-polish': OfficialDocumentIcon,
+  'official-document-templates': OfficialDocumentIcon,
   'code-generation': CodeIcon,
   'software-copyright': CertificateIcon,
   'patent-mining': PatentIdeaIcon,
@@ -226,6 +230,20 @@ function BriefcaseIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M9 8V5.5h6V8" />
       <path d="M5 12.5h14" />
       <path d="M10.5 12.5v2h3v-2" />
+    </svg>
+  );
+}
+
+function OfficialDocumentIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6.5 3.8h8.1L18.5 7.7v12.5h-12z" />
+      <path d="M14.4 4.1v3.8h3.8" />
+      <path d="M9 11h6" />
+      <path d="M9 14.2h6" />
+      <path d="M9 17.4h3.7" />
+      <path d="M5 7.5h-1.2v11.2h1.2" />
+      <path d="M20.2 8.8v10h-1.2" />
     </svg>
   );
 }
