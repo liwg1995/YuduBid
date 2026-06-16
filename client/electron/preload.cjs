@@ -45,6 +45,25 @@ const bridge = {
     confirmSelection: () => ipcRenderer.invoke('code-generation:confirm-selection'),
     clear: () => ipcRenderer.invoke('code-generation:clear'),
   },
+  officialDocument: {
+    loadState: () => ipcRenderer.invoke('official-document:load-state'),
+    saveInput: (input) => ipcRenderer.invoke('official-document:save-input', input),
+    saveDraft: (draft) => ipcRenderer.invoke('official-document:save-draft', draft),
+    saveRevision: (payload) => ipcRenderer.invoke('official-document:save-revision', payload),
+    importDraft: () => ipcRenderer.invoke('official-document:import-draft'),
+    extractInput: (payload) => ipcRenderer.invoke('official-document:extract-input', payload),
+    generateDraft: (payload) => ipcRenderer.invoke('official-document:generate-draft', payload),
+    checkDraft: (payload) => ipcRenderer.invoke('official-document:check-draft', payload),
+    polishDraft: (payload) => ipcRenderer.invoke('official-document:polish-draft', payload),
+    rewriteDraft: (payload) => ipcRenderer.invoke('official-document:rewrite-draft', payload),
+    clear: () => ipcRenderer.invoke('official-document:clear'),
+    onEvent: (callback) => {
+      ipcRenderer.send('official-document:subscribe');
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('official-document:event', listener);
+      return () => ipcRenderer.removeListener('official-document:event', listener);
+    },
+  },
   knowledgeBase: {
     getMigrationStatus: () => ipcRenderer.invoke('knowledge-base:get-migration-status'),
     migrateLegacy: () => ipcRenderer.invoke('knowledge-base:migrate-legacy'),

@@ -207,17 +207,20 @@ function textRunsWithBreaks(value, options = {}) {
 
 function paragraph(children, options = {}) {
   const optimized = Boolean(options.optimized);
+  const officialDocument = Boolean(options.officialDocument);
   const spacing = optimized
     ? { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY }
+    : officialDocument
+      ? { before: options.before || 0, after: options.after ?? 0, line: 560, lineRule: LineRuleType.EXACTLY }
     : { before: options.before || 0, after: options.after ?? 160, line: 360 };
-  const indent = optimized && options.indent === undefined
+  const indent = (optimized || officialDocument) && options.indent === undefined
     ? { left: 0, right: 0, firstLine: WORD_TWO_CHARS_TWIPS }
     : options.indent;
 
   return new Paragraph({
     children: children?.length ? children : [textRun('')],
     heading: options.heading,
-    alignment: options.alignment || (optimized ? AlignmentType.JUSTIFIED : undefined),
+    alignment: options.alignment || (optimized || officialDocument ? AlignmentType.JUSTIFIED : undefined),
     bullet: options.bullet,
     numbering: options.numbering,
     spacing,
@@ -1122,19 +1125,31 @@ async function tableCellParagraphs(cell, context, isHeader = false) {
 async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
   const blocks = [];
   const optimized = Boolean(context.wordOptimizationEnabled);
+  const officialDocument = Boolean(context.officialDocumentEnabled);
 
   for (const node of nodes) {
     if (node.type === 'heading') {
       const headingDepth = headingNumberingLevel(node.depth);
-      blocks.push(paragraph(await inlineRuns(node.children, context, optimized ? { font: '黑体', color: '000000', optimized } : {}), {
+      const officialHeadingFont = node.depth === 1 ? '小标宋体' : node.depth === 2 ? '黑体' : '楷体_GB2312';
+      blocks.push(paragraph(await inlineRuns(
+        node.children,
+        context,
+        optimized
+          ? { font: '黑体', color: '000000', optimized }
+          : officialDocument
+            ? { font: officialHeadingFont, color: '000000', size: node.depth === 1 ? 44 : 32 }
+            : {},
+      ), {
         heading: headingLevel(node.depth),
-        before: optimized ? 0 : node.depth === 1 ? 280 : 180,
-        after: optimized ? 0 : 120,
+        before: optimized || officialDocument ? 0 : node.depth === 1 ? 280 : 180,
+        after: optimized || officialDocument ? 0 : 120,
         optimized,
-        keepNext: optimized ? true : undefined,
+        officialDocument,
+        keepNext: optimized || officialDocument ? true : undefined,
         numbering: optimized ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
-        indent: optimized ? { left: 0, right: 0 } : undefined,
-        tabStops: optimized ? [] : undefined,
+        indent: optimized || officialDocument ? { left: 0, right: 0 } : undefined,
+        tabStops: optimized || officialDocument ? [] : undefined,
+        alignment: officialDocument && node.depth === 1 ? AlignmentType.CENTER : undefined,
       }));
       rememberParagraphText(context, nodeText(node));
     } else if (node.type === 'paragraph') {
@@ -1147,20 +1162,27 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
       } else if (!options.inTable && optimized && (isManualFigureCaptionText(text) || isManualTableCaptionText(text))) {
         context.lastParagraphText = '';
       } else {
-        blocks.push(paragraph(await inlineRuns(node.children, context, optimized ? { optimized } : {}), {
-          after: options.inTable ? 80 : 160,
+        blocks.push(paragraph(await inlineRuns(node.children, context, optimized
+          ? { optimized }
+          : officialDocument
+            ? { font: '仿宋_GB2312', size: 32, color: '000000' }
+            : {}), {
+          after: officialDocument ? 0 : options.inTable ? 80 : 160,
           optimized,
+          officialDocument,
           alignment: options.inTable && optimized
             ? AlignmentType.CENTER
             : !options.inTable && (isImageOnlyParagraph(node) || isFigureCaptionParagraph(node)) ? AlignmentType.CENTER : undefined,
-          indent: optimized
+          indent: officialDocument
+            ? { left: 0, right: 0, firstLine: WORD_TWO_CHARS_TWIPS }
+            : optimized
             ? options.inTable
               ? optimizedTableCellIndent()
               : isNumberedBodyParagraph(text)
                 ? optimizedNumberedBodyIndent()
                 : undefined
             : undefined,
-          tabStops: optimized ? [] : undefined,
+          tabStops: optimized || officialDocument ? [] : undefined,
         }));
         if (!options.inTable && text) {
           rememberParagraphText(context, text);
@@ -1278,26 +1300,32 @@ async function addMarkdownContent(children, content, context) {
 
 async function addOutlineItems(children, items, context, level = 1) {
   const optimized = Boolean(context.wordOptimizationEnabled);
+  const officialDocument = Boolean(context.officialDocumentEnabled);
   for (const item of items || []) {
     const rawTitle = item.title || '未命名章节';
     const title = optimized
       ? stripLeadingNumbering(rawTitle) || rawTitle
       : `${item.id || ''} ${rawTitle}`.trim();
-    children.push(paragraph([textRun(title, {
-      bold: true,
-      font: optimized ? '黑体' : undefined,
-      color: optimized ? '000000' : undefined,
-    })], {
-      heading: headingLevel(level),
-      before: optimized ? 0 : level === 1 ? 320 : 200,
-      after: optimized ? 0 : 120,
-      optimized,
-      keepNext: optimized ? true : undefined,
-      numbering: optimized ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) } : undefined,
-      indent: optimized ? { left: 0, right: 0 } : undefined,
-      tabStops: optimized ? [] : undefined,
-    }));
-    rememberParagraphText(context, title);
+    const shouldRenderTitle = !(officialDocument && item.hideTitle);
+    if (shouldRenderTitle) {
+      children.push(paragraph([textRun(title, {
+        bold: true,
+        font: optimized || officialDocument ? '黑体' : undefined,
+        color: optimized || officialDocument ? '000000' : undefined,
+        size: officialDocument ? 32 : undefined,
+      })], {
+        heading: headingLevel(level),
+        before: optimized || officialDocument ? 0 : level === 1 ? 320 : 200,
+        after: optimized || officialDocument ? 0 : 120,
+        optimized,
+        officialDocument,
+        keepNext: optimized || officialDocument ? true : undefined,
+        numbering: optimized ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) } : undefined,
+        indent: optimized || officialDocument ? { left: 0, right: 0 } : undefined,
+        tabStops: optimized || officialDocument ? [] : undefined,
+      }));
+      rememberParagraphText(context, title);
+    }
 
     if (!item.children?.length) {
       if (String(item.content || '').trim()) {
@@ -1358,12 +1386,14 @@ function createNumberingConfig(context) {
 
 async function buildDocxResult(payload, options = {}) {
   const stats = countOutlineStats(payload.outline || []);
-  const wordOptimizationEnabled = isWordOptimizationEnabled(options.config);
+  const officialDocumentEnabled = payload.document_profile === 'official-document' || payload.documentProfile === 'official-document';
+  const wordOptimizationEnabled = !officialDocumentEnabled && isWordOptimizationEnabled(options.config);
   const context = {
     baseDir: payload.base_dir || payload.baseDir,
     onProgress: options.onProgress,
     warnings: options.warnings || [],
     stats,
+    officialDocumentEnabled,
     wordOptimizationEnabled,
     convertedLeafCount: 0,
     convertedMermaidCount: 0,
@@ -1375,7 +1405,9 @@ async function buildDocxResult(payload, options = {}) {
     lastParagraphText: '',
     recentParagraphTexts: [],
   };
-  const children = wordOptimizationEnabled
+  const children = officialDocumentEnabled
+    ? []
+    : wordOptimizationEnabled
     ? [
         paragraph([textRun(payload.project_name || '投标技术文件', { bold: true, size: 34, font: '黑体', color: '000000' })], {
           alignment: AlignmentType.CENTER,
@@ -1396,7 +1428,13 @@ async function buildDocxResult(payload, options = {}) {
   reportProgress(context, 90, '正在生成 Word 文件。');
 
   const numbering = createNumberingConfig(context);
-  const defaultParagraphStyle = wordOptimizationEnabled
+  const defaultParagraphStyle = officialDocumentEnabled
+    ? {
+        spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
+        alignment: AlignmentType.JUSTIFIED,
+        indent: { firstLine: WORD_TWO_CHARS_TWIPS },
+      }
+    : wordOptimizationEnabled
     ? {
         spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
         alignment: AlignmentType.JUSTIFIED,
@@ -1424,7 +1462,9 @@ async function buildDocxResult(payload, options = {}) {
     styles: {
       default: {
         document: {
-          run: { font: '宋体', size: 24, color: wordOptimizationEnabled ? '000000' : undefined },
+          run: officialDocumentEnabled
+            ? { font: '仿宋_GB2312', size: 32, color: '000000' }
+            : { font: '宋体', size: 24, color: wordOptimizationEnabled ? '000000' : undefined },
           paragraph: defaultParagraphStyle,
         },
       },
@@ -1439,7 +1479,9 @@ async function buildDocxResult(payload, options = {}) {
     sections: [{
       properties: {
         page: {
-          margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+          margin: officialDocumentEnabled
+            ? { top: 2098, right: 1475, bottom: 1890, left: 1587 }
+            : { top: 1440, right: 1440, bottom: 1440, left: 1440 },
         },
       },
       footers: wordOptimizationEnabled ? {

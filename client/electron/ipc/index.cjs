@@ -6,6 +6,7 @@ const { registerDuplicateCheckIpc } = require('./duplicateCheckIpc.cjs');
 const { registerExportIpc } = require('./exportIpc.cjs');
 const { registerFileIpc } = require('./fileIpc.cjs');
 const { registerKnowledgeBaseIpc } = require('./knowledgeBaseIpc.cjs');
+const { registerOfficialDocumentIpc } = require('./officialDocumentIpc.cjs');
 const { registerPatentGenerationIpc } = require('./patentGenerationIpc.cjs');
 const { registerRejectionCheckIpc } = require('./rejectionCheckIpc.cjs');
 const { registerSoftwareCopyrightIpc } = require('./softwareCopyrightIpc.cjs');
@@ -20,6 +21,7 @@ const { createExportService } = require('../services/exportService.cjs');
 const { createFileService } = require('../services/fileService.cjs');
 const { createKnowledgeBaseService } = require('../services/knowledgeBaseService.cjs');
 const { createKnowledgeBaseStore } = require('../services/knowledgeBaseStore.cjs');
+const { createOfficialDocumentService } = require('../services/officialDocumentService.cjs');
 const { createPatentGenerationService } = require('../services/patentGenerationService.cjs');
 const { createRejectionCheckStore } = require('../services/rejectionCheckStore.cjs');
 const { createSoftwareCopyrightService } = require('../services/softwareCopyrightService.cjs');
@@ -175,6 +177,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const fileService = createFileService({ app, configStore });
   const exportService = createExportService({ configStore });
   const codeGenerationService = createCodeGenerationService({ app });
+  const officialDocumentService = createOfficialDocumentService({ app, aiService, configStore });
   const patentGenerationService = createPatentGenerationService({ app, aiService });
 
   registerConfigIpc({ configStore, aiService });
@@ -182,6 +185,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   registerFileIpc({ fileService });
   registerExportIpc({ exportService });
   registerCodeGenerationIpc({ codeGenerationService });
+  registerOfficialDocumentIpc({ officialDocumentService });
   registerSoftwareCopyrightIpc({ softwareCopyrightService: createSoftwareCopyrightService({ app, aiService, configStore, codeGenerationService }) });
   registerPatentGenerationIpc({ patentGenerationService });
 

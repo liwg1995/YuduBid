@@ -61,6 +61,10 @@ function getPatentGenerationDir(app) {
   return path.join(getWorkspaceDir(app), 'patent-generation');
 }
 
+function getOfficialDocumentDir(app) {
+  return path.join(getWorkspaceDir(app), 'official-document');
+}
+
 function getCodeGenerationDir(app) {
   return path.join(getWorkspaceDir(app), 'code-generation');
 }
@@ -78,6 +82,7 @@ module.exports = {
   getImportedImagesDir,
   getKnowledgeBaseDir,
   getCodeGenerationDir,
+  getOfficialDocumentDir,
   getPatentGenerationDir,
   getSoftwareCopyrightDir,
   getRejectionCheckDir,

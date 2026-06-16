@@ -3,6 +3,8 @@ import type { DuplicateCheckWorkspaceState, FileSelectionResult } from './bid';
 import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelListResult } from './config';
 import type { CodeGenerationSelectResult, CodeGenerationState } from '../../features/code-generation/types';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeItem } from '../../features/knowledge-base/types';
+import type { OfficialDocumentPromptInput } from '../prompts/officialDocument';
+import type { OfficialDocumentImportResult, OfficialDocumentState } from '../../features/official-document/types';
 import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentRevisionResult } from '../../features/patent-generation/types';
 import type { RejectionCheckWorkspaceState, RejectionDocumentRole } from '../../features/rejection-check/types';
 import type { SoftwareCopyrightCodeManifest, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightFields, SoftwareCopyrightOptions, SoftwareCopyrightSelectResult, SoftwareCopyrightState } from '../../features/software-copyright/types';
@@ -96,6 +98,20 @@ export interface YuDuBidBridge {
     updateSelection: (payload: { selectedPaths: string[] }) => Promise<CodeGenerationState>;
     confirmSelection: () => Promise<CodeGenerationState>;
     clear: () => Promise<{ success: boolean; state: CodeGenerationState }>;
+  };
+  officialDocument: {
+    loadState: () => Promise<OfficialDocumentState>;
+    saveInput: (input: OfficialDocumentPromptInput) => Promise<OfficialDocumentState>;
+    saveDraft: (draft: string) => Promise<OfficialDocumentState>;
+    saveRevision: (payload: { input: OfficialDocumentPromptInput; content: string }) => Promise<OfficialDocumentState>;
+    importDraft: () => Promise<OfficialDocumentImportResult>;
+    extractInput: (payload: { input: OfficialDocumentPromptInput; draft: string }) => Promise<OfficialDocumentState>;
+    generateDraft: (payload: { input: OfficialDocumentPromptInput }) => Promise<OfficialDocumentState>;
+    checkDraft: (payload: { input: OfficialDocumentPromptInput; draft: string }) => Promise<OfficialDocumentState>;
+    polishDraft: (payload: { input: OfficialDocumentPromptInput; draft: string }) => Promise<OfficialDocumentState>;
+    rewriteDraft: (payload: { input: OfficialDocumentPromptInput; draft: string; instruction: string }) => Promise<OfficialDocumentState>;
+    clear: () => Promise<{ success: boolean; state: OfficialDocumentState }>;
+    onEvent: (callback: (event: OfficialDocumentState) => void) => () => void;
   };
   knowledgeBase: {
     getMigrationStatus: () => Promise<KnowledgeBaseMigrationStatus>;
