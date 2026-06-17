@@ -30,6 +30,12 @@ jobs:
         env:
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
         run: |
+          CURATED_NOTES=".github/release-notes/${TAG_NAME}.md"
+          if [ -f "$CURATED_NOTES" ]; then
+            cp "$CURATED_NOTES" release_notes.md
+            exit 0
+          fi
+
           PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || true)"
           if [ -n "$PREVIOUS_TAG" ]; then
             RANGE="$PREVIOUS_TAG..$TAG_NAME"
@@ -41,6 +47,11 @@ jobs:
 
           {
             echo "## 更新内容"
+            echo
+            git log "$RANGE" --no-merges --pretty=format:'- %s (%h)' || true
+            echo
+            echo
+            echo "## What's Changed"
             echo
             git log "$RANGE" --no-merges --pretty=format:'- %s (%h)' || true
             echo
