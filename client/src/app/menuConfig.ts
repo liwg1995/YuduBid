@@ -7,6 +7,11 @@ export const appMenuItems: AppMenuItem[] = [
     description: '方案生成与正文编排',
   },
   {
+    id: 'existing-plan-expansion',
+    label: '已有方案扩写',
+    description: '基于已有方案优化扩充',
+  },
+  {
     id: 'business-bid',
     label: '商务标',
     description: '商务响应与报价材料',

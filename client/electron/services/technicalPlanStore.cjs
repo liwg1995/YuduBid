@@ -2,14 +2,18 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { getBidAnalysisTasks } = require('./bidAnalysisTask.cjs');
-const { getTechnicalPlanTenderMarkdownPath } = require('../utils/paths.cjs');
+const { getTechnicalPlanOriginalPlanMarkdownPath, getTechnicalPlanOriginalPlanSourceDir, getTechnicalPlanTenderMarkdownPath } = require('../utils/paths.cjs');
 const { deleteImportedImageBatches } = require('../utils/importedImages.cjs');
 
 const tenderMarkdownRelativePath = path.join('technical-plan', 'tender.md').replace(/\\/g, '/');
+const originalPlanMarkdownRelativePath = path.join('technical-plan', 'original-plan.md').replace(/\\/g, '/');
+const originalPlanSourceRelativeDir = path.join('technical-plan', 'original-source').replace(/\\/g, '/');
 
 const initialState = {
+  workflowKind: 'technical-plan',
   step: 'document-analysis',
   tenderFile: null,
+  originalPlanFile: null,
   projectOverview: '',
   techRequirements: '',
   bidAnalysisMode: 'key',
@@ -79,6 +83,10 @@ function isValidStep(value) {
   return ['document-analysis', 'bid-analysis', 'outline-generation', 'global-facts', 'content-edit', 'expand'].includes(value);
 }
 
+function normalizeWorkflowKind(value) {
+  return value === 'existing-plan-expansion' ? 'existing-plan-expansion' : 'technical-plan';
+}
+
 function normalizeGlobalFactId(value, index) {
   const id = String(value || '')
     .trim()
@@ -138,14 +146,16 @@ function clearOutlineDataContent(outlineData) {
 
 function createTechnicalPlanStore({ app, db, fileService }) {
   const tenderMarkdownPath = getTechnicalPlanTenderMarkdownPath(app);
+  const originalPlanMarkdownPath = getTechnicalPlanOriginalPlanMarkdownPath(app);
+  const originalPlanSourceDir = getTechnicalPlanOriginalPlanSourceDir(app);
 
   function ensureMetaRow() {
     const existing = db.prepare('SELECT * FROM technical_plan_meta WHERE id = 1').get();
     if (existing) return existing;
     const timestamp = now();
     db.prepare(`
-      INSERT INTO technical_plan_meta (id, step, bid_analysis_mode, outline_mode, created_at, updated_at)
-      VALUES (1, 'document-analysis', 'key', 'aligned', @timestamp, @timestamp)
+      INSERT INTO technical_plan_meta (id, workflow_kind, step, bid_analysis_mode, outline_mode, created_at, updated_at)
+      VALUES (1, 'technical-plan', 'document-analysis', 'key', 'aligned', @timestamp, @timestamp)
     `).run({ timestamp });
     return db.prepare('SELECT * FROM technical_plan_meta WHERE id = 1').get();
   }
@@ -167,10 +177,25 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     return path.isAbsolute(value) ? value : path.join(path.dirname(path.dirname(tenderMarkdownPath)), value);
   }
 
+  function resolveWorkspacePath(relativeOrAbsolutePath) {
+    const value = String(relativeOrAbsolutePath || '').trim();
+    if (!value) return '';
+    return path.isAbsolute(value) ? value : path.join(path.dirname(path.dirname(tenderMarkdownPath)), value);
+  }
+
   function readTenderMarkdown() {
     const meta = ensureMetaRow();
     const filePath = resolveMarkdownPath(meta.tender_markdown_path || tenderMarkdownRelativePath);
     if (!meta.tender_markdown_path || !fs.existsSync(filePath)) {
+      return '';
+    }
+    return fs.readFileSync(filePath, 'utf-8');
+  }
+
+  function readOriginalPlanMarkdown() {
+    const meta = ensureMetaRow();
+    const filePath = resolveMarkdownPath(meta.original_plan_markdown_path || originalPlanMarkdownRelativePath);
+    if (!meta.original_plan_markdown_path || !fs.existsSync(filePath)) {
       return '';
     }
     return fs.readFileSync(filePath, 'utf-8');
@@ -609,6 +634,22 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     });
   }
 
+  function clearWorkflowSpecificState(workflowKind) {
+    db.prepare("DELETE FROM technical_plan_tasks WHERE type IN ('outline-generation', 'global-facts-generation', 'content-generation')").run();
+    db.prepare('DELETE FROM technical_plan_reference_docs').run();
+    db.prepare('DELETE FROM technical_plan_outline_nodes').run();
+    db.prepare('DELETE FROM technical_plan_global_fact_groups').run();
+    updateMeta({
+      workflow_kind: normalizeWorkflowKind(workflowKind),
+      step: 'document-analysis',
+      outline_mode: 'aligned',
+      outline_project_name: null,
+      outline_project_overview: null,
+      content_generation_options_json: null,
+      content_generation_runtime_json: null,
+    });
+  }
+
   function clearContentGenerationState() {
     db.prepare("UPDATE technical_plan_outline_nodes SET content = '', updated_at = ?").run(now());
     db.prepare('DELETE FROM technical_plan_content_sections').run();
@@ -627,6 +668,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     const meta = ensureMetaRow();
     const metaUpdates = {};
 
+    if (hasOwn(partial, 'workflowKind')) metaUpdates.workflow_kind = normalizeWorkflowKind(partial.workflowKind);
     if (hasOwn(partial, 'step') && isValidStep(partial.step)) metaUpdates.step = partial.step;
     if (hasOwn(partial, 'bidAnalysisMode') && isValidBidMode(partial.bidAnalysisMode)) metaUpdates.bid_analysis_mode = partial.bidAnalysisMode;
     if (hasOwn(partial, 'outlineMode') && isValidOutlineMode(partial.outlineMode)) metaUpdates.outline_mode = partial.outlineMode;
@@ -677,11 +719,24 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       importedAt: meta.tender_imported_at || undefined,
       updatedAt: meta.updated_at,
     } : null;
+    const originalPlanFile = meta.original_plan_markdown_path ? {
+      fileName: meta.original_plan_file_name || '原方案',
+      markdownPath: meta.original_plan_markdown_path,
+      markdownChars: Number(meta.original_plan_markdown_chars || 0),
+      contentHash: meta.original_plan_markdown_hash || '',
+      sourcePath: meta.original_plan_source_path ? resolveWorkspacePath(meta.original_plan_source_path) : undefined,
+      sourceExt: meta.original_plan_source_ext || undefined,
+      parserLabel: meta.original_plan_parser_label || undefined,
+      importedAt: meta.original_plan_imported_at || undefined,
+      updatedAt: meta.updated_at,
+    } : null;
 
     return {
       ...initialState,
+      workflowKind: normalizeWorkflowKind(meta.workflow_kind),
       step: isValidStep(meta.step) ? meta.step : 'document-analysis',
       tenderFile,
+      originalPlanFile,
       projectOverview: bidAnalysisTasks.projectOverview?.status === 'success' ? bidAnalysisTasks.projectOverview.content : '',
       techRequirements: bidAnalysisTasks.techRequirements?.status === 'success' ? bidAnalysisTasks.techRequirements.content : '',
       bidAnalysisMode,
@@ -710,6 +765,43 @@ function createTechnicalPlanStore({ app, db, fileService }) {
 
   function updateStep(step) {
     return updateTechnicalPlan({ step });
+  }
+
+  function switchWorkflowKind(workflowKind) {
+    const nextWorkflowKind = normalizeWorkflowKind(workflowKind);
+    const meta = ensureMetaRow();
+    if (normalizeWorkflowKind(meta.workflow_kind) === nextWorkflowKind) {
+      return loadTechnicalPlan();
+    }
+
+    const originalPlanFilePath = meta.original_plan_markdown_path
+      ? resolveMarkdownPath(meta.original_plan_markdown_path)
+      : originalPlanMarkdownPath;
+    const transaction = db.transaction(() => {
+      clearWorkflowSpecificState(nextWorkflowKind);
+      if (nextWorkflowKind === 'technical-plan') {
+        updateMeta({
+          original_plan_file_name: null,
+          original_plan_markdown_path: null,
+          original_plan_markdown_hash: null,
+          original_plan_markdown_chars: 0,
+          original_plan_source_path: null,
+          original_plan_source_ext: null,
+          original_plan_parser_label: null,
+          original_plan_imported_at: null,
+        });
+      }
+    });
+    transaction();
+    if (nextWorkflowKind === 'technical-plan') {
+      if (fs.existsSync(originalPlanFilePath)) {
+        fs.rmSync(originalPlanFilePath, { force: true });
+      }
+      if (fs.existsSync(originalPlanSourceDir)) {
+        fs.rmSync(originalPlanSourceDir, { recursive: true, force: true });
+      }
+    }
+    return loadTechnicalPlan();
   }
 
   function saveOutlineConfig({ outlineMode, referenceKnowledgeDocumentIds } = {}) {
@@ -813,7 +905,69 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     }
   }
 
+  async function importOriginalPlanDocument() {
+    if (!fileService?.importDocument) {
+      throw new Error('文件导入服务尚未初始化');
+    }
+
+    const result = await fileService.importDocument({ title: '选择已有技术方案', filterName: '已有技术方案' });
+    if (!result?.success || !result.file_content) {
+      return {
+        success: false,
+        message: result?.message || '未导入文件',
+        state: loadTechnicalPlan(),
+        markdown: '',
+      };
+    }
+
+    const markdown = String(result.file_content || '').trim();
+    const targetDir = path.dirname(originalPlanMarkdownPath);
+    const tempPath = path.join(targetDir, `original-plan-${Date.now()}.tmp.md`);
+    const sourceExt = String(result.file_ext || path.extname(result.file_path || result.file_name || '') || '').toLowerCase();
+    const sourceRelativePath = sourceExt
+      ? path.join(originalPlanSourceRelativeDir, `original-plan${sourceExt}`).replace(/\\/g, '/')
+      : null;
+    const sourceTargetPath = sourceRelativePath ? resolveWorkspacePath(sourceRelativePath) : null;
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(tempPath, `${markdown}\n`, 'utf-8');
+    if (sourceTargetPath && result.file_path && fs.existsSync(result.file_path)) {
+      fs.mkdirSync(path.dirname(sourceTargetPath), { recursive: true });
+      fs.copyFileSync(result.file_path, sourceTargetPath);
+    }
+
+    try {
+      fs.renameSync(tempPath, originalPlanMarkdownPath);
+      const timestamp = now();
+      const transaction = db.transaction(() => {
+        clearGlobalFactsAndContentState();
+        updateMeta({
+          workflow_kind: 'existing-plan-expansion',
+          original_plan_file_name: result.file_name || '未命名文件',
+          original_plan_markdown_path: originalPlanMarkdownRelativePath,
+          original_plan_markdown_hash: stableHash(markdown),
+          original_plan_markdown_chars: markdown.length,
+          original_plan_source_path: sourceTargetPath ? sourceRelativePath : null,
+          original_plan_source_ext: sourceTargetPath ? sourceExt : null,
+          original_plan_parser_label: result.parser_label || null,
+          original_plan_imported_at: timestamp,
+          step: 'document-analysis',
+        });
+      });
+      transaction();
+      return {
+        success: true,
+        message: result.message || '原方案已导入',
+        state: loadTechnicalPlan(),
+        markdown,
+      };
+    } catch (error) {
+      if (fs.existsSync(tempPath)) fs.rmSync(tempPath, { force: true });
+      throw error;
+    }
+  }
+
   function clearTechnicalPlan() {
+    const workflowKind = normalizeWorkflowKind(ensureMetaRow().workflow_kind);
     const transaction = db.transaction(() => {
       db.prepare('DELETE FROM technical_plan_tasks').run();
       db.prepare('DELETE FROM technical_plan_bid_items').run();
@@ -822,10 +976,17 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       db.prepare('DELETE FROM technical_plan_global_fact_groups').run();
       db.prepare('DELETE FROM technical_plan_meta').run();
       ensureMetaRow();
+      updateMeta({ workflow_kind: workflowKind });
     });
     transaction();
     if (fs.existsSync(tenderMarkdownPath)) {
       fs.rmSync(tenderMarkdownPath, { force: true });
+    }
+    if (fs.existsSync(originalPlanMarkdownPath)) {
+      fs.rmSync(originalPlanMarkdownPath, { force: true });
+    }
+    if (fs.existsSync(originalPlanSourceDir)) {
+      fs.rmSync(originalPlanSourceDir, { recursive: true, force: true });
     }
     deleteImportedImageBatches(app, 'technical-plan');
     return { success: true, message: '技术方案缓存已清空', state: loadTechnicalPlan() };
@@ -836,8 +997,11 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     updateTechnicalPlan,
     clearTechnicalPlan,
     importTenderDocument,
+    importOriginalPlanDocument,
     readTenderMarkdown,
+    readOriginalPlanMarkdown,
     updateStep,
+    switchWorkflowKind,
     saveOutlineConfig,
     saveOutline,
     saveGlobalFacts,

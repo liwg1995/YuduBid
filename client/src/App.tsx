@@ -6,8 +6,36 @@ import AppShell from './components/AppShell';
 import { trackAppOpen, trackConfigUsage, trackPageView } from './shared/analytics/analytics';
 import type { SectionId } from './shared/types/navigation';
 
+const sectionIds = new Set<SectionId>([
+  'home',
+  'technical-plan',
+  'existing-plan-expansion',
+  'business-bid',
+  'official-document-drafting',
+  'official-document-check',
+  'official-document-polish',
+  'official-document-templates',
+  'code-generation',
+  'software-copyright',
+  'patent-mining',
+  'patent-disclosure',
+  'patent-prior-art',
+  'patent-iteration',
+  'knowledge-base',
+  'duplicate-check',
+  'rejection-check',
+  'bid-opportunity',
+  'developer-test',
+  'settings',
+]);
+
+function initialSectionFromUrl(): SectionId {
+  const section = new URLSearchParams(window.location.search).get('section') as SectionId | null;
+  return section && sectionIds.has(section) ? section : 'home';
+}
+
 function App() {
-  const [activeSection, setActiveSection] = useState<SectionId>('home');
+  const [activeSection, setActiveSection] = useState<SectionId>(initialSectionFromUrl);
   const [developerMode, setDeveloperMode] = useState(false);
   const [startupProgress, setStartupProgress] = useState(6);
   const [startupMessage, setStartupMessage] = useState('正在初始化本地配置...');

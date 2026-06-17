@@ -3,12 +3,13 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const { getWorkspaceDatabasePath } = require('../utils/paths.cjs');
 
-const schemaVersion = 4;
+const schemaVersion = 6;
 
 function createInitialSchema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS technical_plan_meta (
       id INTEGER PRIMARY KEY CHECK (id = 1),
+      workflow_kind TEXT NOT NULL DEFAULT 'technical-plan',
       step TEXT NOT NULL DEFAULT 'document-analysis',
       tender_file_name TEXT,
       tender_markdown_path TEXT,
@@ -16,6 +17,14 @@ function createInitialSchema(db) {
       tender_markdown_chars INTEGER NOT NULL DEFAULT 0,
       tender_parser_label TEXT,
       tender_imported_at TEXT,
+      original_plan_file_name TEXT,
+      original_plan_markdown_path TEXT,
+      original_plan_markdown_hash TEXT,
+      original_plan_markdown_chars INTEGER NOT NULL DEFAULT 0,
+      original_plan_source_path TEXT,
+      original_plan_source_ext TEXT,
+      original_plan_parser_label TEXT,
+      original_plan_imported_at TEXT,
       bid_analysis_mode TEXT NOT NULL DEFAULT 'key',
       outline_mode TEXT NOT NULL DEFAULT 'aligned',
       outline_project_name TEXT,
@@ -622,6 +631,30 @@ function createKnowledgeBaseSchema(db) {
   `);
 }
 
+function addColumnIfMissing(db, tableName, columnName, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+  if (!columns.some((column) => column.name === columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
+function createTechnicalPlanExpansionSchema(db) {
+  addColumnIfMissing(db, 'technical_plan_meta', 'workflow_kind', "TEXT NOT NULL DEFAULT 'technical-plan'");
+  addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_file_name', 'TEXT');
+  addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_markdown_path', 'TEXT');
+  addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_markdown_hash', 'TEXT');
+  addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_markdown_chars', 'INTEGER NOT NULL DEFAULT 0');
+  addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_source_path', 'TEXT');
+  addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_source_ext', 'TEXT');
+  addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_parser_label', 'TEXT');
+  addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_imported_at', 'TEXT');
+}
+
+function createTechnicalPlanOriginalSourceSchema(db) {
+  addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_source_path', 'TEXT');
+  addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_source_ext', 'TEXT');
+}
+
 const migrations = [
   {
     version: 1,
@@ -642,6 +675,16 @@ const migrations = [
     version: 4,
     description: '新增技术方案全局事实表结构',
     up: createTechnicalPlanGlobalFactsSchema,
+  },
+  {
+    version: 5,
+    description: '新增已有方案扩写原方案元数据',
+    up: createTechnicalPlanExpansionSchema,
+  },
+  {
+    version: 6,
+    description: '新增已有方案扩写原方案源文件模板元数据',
+    up: createTechnicalPlanOriginalSourceSchema,
   },
 ];
 

@@ -24,6 +24,14 @@ function getTechnicalPlanTenderMarkdownPath(app) {
   return path.join(getTechnicalPlanDir(app), 'tender.md');
 }
 
+function getTechnicalPlanOriginalPlanMarkdownPath(app) {
+  return path.join(getTechnicalPlanDir(app), 'original-plan.md');
+}
+
+function getTechnicalPlanOriginalPlanSourceDir(app) {
+  return path.join(getTechnicalPlanDir(app), 'original-source');
+}
+
 function getDuplicateCheckDir(app) {
   return path.join(getWorkspaceDir(app), 'duplicate-check');
 }
@@ -88,6 +96,8 @@ module.exports = {
   getRejectionCheckDir,
   getRejectionCheckDocumentMarkdownPath,
   getTechnicalPlanDir,
+  getTechnicalPlanOriginalPlanMarkdownPath,
+  getTechnicalPlanOriginalPlanSourceDir,
   getTechnicalPlanTenderMarkdownPath,
   getWorkspaceDir,
   getWorkspaceDatabasePath,

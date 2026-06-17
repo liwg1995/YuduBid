@@ -3,6 +3,7 @@ const path = require('node:path');
 const zlib = require('node:zlib');
 const { fileURLToPath } = require('node:url');
 const { app, dialog, nativeImage } = require('electron');
+const AdmZip = require('adm-zip');
 const cheerio = require('cheerio');
 const { imageSize } = require('image-size');
 const { getGeneratedImagesDir, getImportedImagesDir } = require('../utils/paths.cjs');
@@ -166,6 +167,355 @@ function sanitizeFilename(value) {
 
 function cleanText(value) {
   return String(value || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+}
+
+function escapeXml(value) {
+  return cleanText(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function stripInlineMarkdown(value) {
+  return String(value || '')
+    .replace(/!\[([^\]]*)]\([^)]+\)/g, '$1')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .trim();
+}
+
+function markdownToPlainBlocks(content) {
+  const blocks = [];
+  const lines = String(content || '').replace(/\r\n?/g, '\n').split('\n');
+  let paragraphLines = [];
+  let inFence = false;
+  let fenceLines = [];
+
+  const flushParagraph = () => {
+    const text = stripInlineMarkdown(paragraphLines.join(' ').replace(/\s+/g, ' '));
+    if (text) blocks.push({ type: 'paragraph', text });
+    paragraphLines = [];
+  };
+
+  const flushFence = () => {
+    const text = fenceLines.join('\n').trim();
+    if (text) blocks.push({ type: 'paragraph', text });
+    fenceLines = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (/^```/.test(line.trim())) {
+      if (inFence) {
+        flushFence();
+        inFence = false;
+      } else {
+        flushParagraph();
+        inFence = true;
+      }
+      continue;
+    }
+    if (inFence) {
+      fenceLines.push(line);
+      continue;
+    }
+    if (!line.trim()) {
+      flushParagraph();
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.+)$/.exec(line.trim());
+    if (heading) {
+      flushParagraph();
+      blocks.push({ type: 'heading', level: heading[1].length, text: stripInlineMarkdown(heading[2]) });
+      continue;
+    }
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      flushParagraph();
+      const text = splitMarkdownTableCells(line).join('\t');
+      if (text && !/^:?-{3,}:?(\t:?-{3,}:?)+$/.test(text)) {
+        blocks.push({ type: 'paragraph', text });
+      }
+      continue;
+    }
+    paragraphLines.push(line.replace(/^\s*(?:[-*+]|\d+[.)、])\s+/, ''));
+  }
+
+  flushParagraph();
+  if (inFence) flushFence();
+  return blocks;
+}
+
+function outlineToMarkdown(items = [], level = 1, lines = []) {
+  for (const item of items || []) {
+    const title = String(item?.title || '').trim();
+    if (title) lines.push(`${'#'.repeat(Math.max(1, Math.min(6, level)))} ${title}`);
+    if (item?.content?.trim()) {
+      lines.push('', String(item.content).trim(), '');
+    }
+    if (item?.children?.length) {
+      outlineToMarkdown(item.children, level + 1, lines);
+    }
+  }
+  return lines.join('\n');
+}
+
+function outlineItemToMarkdown(item, level = 1, includeTitle = true, lines = []) {
+  const title = String(item?.title || '').trim();
+  if (includeTitle && title) lines.push(`${'#'.repeat(Math.max(1, Math.min(6, level)))} ${title}`);
+  if (item?.content?.trim()) {
+    lines.push('', String(item.content).trim(), '');
+  }
+  if (item?.children?.length) {
+    for (const child of item.children) {
+      outlineItemToMarkdown(child, includeTitle ? level + 1 : level, true, lines);
+    }
+  }
+  return lines.join('\n');
+}
+
+function wordParagraphXml(text, options = {}) {
+  const chunks = String(text || '').split('\n');
+  const runPropertiesXml = options.runPropertiesXml || '';
+  const runs = chunks.map((chunk, index) => {
+    const breakXml = index > 0 ? '<w:br/>' : '';
+    return `${breakXml}<w:t xml:space="preserve">${escapeXml(chunk)}</w:t>`;
+  }).join('');
+  const paragraphPropertiesXml = options.paragraphPropertiesXml
+    || (options.style ? `<w:pPr><w:pStyle w:val="${escapeXml(options.style)}"/></w:pPr>` : '');
+  return `<w:p>${paragraphPropertiesXml}<w:r>${runPropertiesXml}${runs || '<w:t></w:t>'}</w:r></w:p>`;
+}
+
+function originalTemplateContentXml(outline = [], options = {}) {
+  const markdown = outlineToMarkdown(outline);
+  return originalTemplateMarkdownXml(markdown, options);
+}
+
+function originalTemplateMarkdownXml(markdown, options = {}) {
+  const blocks = markdownToPlainBlocks(markdown);
+  if (!blocks.length) {
+    return '';
+  }
+  return blocks.map((block) => {
+    if (block.type === 'heading') {
+      const level = Math.max(1, Math.min(6, Number(block.level) || 1));
+      return wordParagraphXml(block.text, { style: `Heading${level}` });
+    }
+    return wordParagraphXml(block.text, {
+      paragraphPropertiesXml: options.paragraphPropertiesXml,
+      runPropertiesXml: options.runPropertiesXml,
+    });
+  }).join('');
+}
+
+function normalizeTemplateHeadingText(value) {
+  return stripLeadingNumbering(stripInlineMarkdown(value))
+    .replace(/^[第\s]*[一二三四五六七八九十百千万\d]+[章节部分篇项条、.．\s]+/, '')
+    .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function isTemplateHeadingMatch(paragraphText, title) {
+  const paragraph = normalizeTemplateHeadingText(paragraphText);
+  const target = normalizeTemplateHeadingText(title);
+  if (!paragraph || !target) return false;
+  return templateHeadingMatchScore(paragraph, target) >= 0.66;
+}
+
+function titleBigramSet(value) {
+  const text = String(value || '');
+  if (text.length <= 1) return new Set(text ? [text] : []);
+  const grams = [];
+  for (let index = 0; index < text.length - 1; index += 1) {
+    grams.push(text.slice(index, index + 2));
+  }
+  return new Set(grams);
+}
+
+function diceCoefficient(leftValue, rightValue) {
+  const left = titleBigramSet(leftValue);
+  const right = titleBigramSet(rightValue);
+  if (!left.size || !right.size) return 0;
+  let intersection = 0;
+  for (const item of left) {
+    if (right.has(item)) intersection += 1;
+  }
+  return (2 * intersection) / (left.size + right.size);
+}
+
+function templateHeadingMatchScore(paragraph, target) {
+  if (!paragraph || !target) return 0;
+  if (paragraph === target) return 1;
+  if (paragraph.endsWith(target) || target.endsWith(paragraph)) return 0.92;
+  if (paragraph.includes(target) || target.includes(paragraph)) return 0.84;
+  return diceCoefficient(paragraph, target);
+}
+
+function findBestTemplateHeadingMatch($, paragraphElements, title, usedIndexes) {
+  const target = normalizeTemplateHeadingText(title);
+  if (!target) return null;
+
+  let best = null;
+  for (let index = 0; index < paragraphElements.length; index += 1) {
+    if (usedIndexes.has(index)) continue;
+    const text = wordParagraphVisibleText($, paragraphElements[index]);
+    if (!text || text.length > 80) continue;
+    const paragraph = normalizeTemplateHeadingText(text);
+    const score = templateHeadingMatchScore(paragraph, target);
+    if (score >= 0.66 && (!best || score > best.score)) {
+      best = { paragraph: paragraphElements[index], index, score, text };
+    }
+  }
+  return best;
+}
+
+function wordParagraphVisibleText($, paragraphElement) {
+  return $(paragraphElement).find('w\\:t').toArray().map((node) => $(node).text()).join('').replace(/\s+/g, ' ').trim();
+}
+
+function sanitizeParagraphPropertiesXml(value) {
+  return String(value || '')
+    .replace(/<w:sectPr[\s\S]*?<\/w:sectPr>/g, '')
+    .replace(/<w:pageBreakBefore\/>/g, '')
+    .replace(/<w:keepNext\/>/g, '')
+    .trim();
+}
+
+function paragraphPropertiesXml($, paragraphElement) {
+  const properties = $(paragraphElement).children('w\\:pPr').first();
+  if (!properties.length) return '';
+  return sanitizeParagraphPropertiesXml($.xml(properties));
+}
+
+function sanitizeRunPropertiesXml(value) {
+  return String(value || '')
+    .replace(/<w:br\/>/g, '')
+    .replace(/<w:t[\s\S]*?<\/w:t>/g, '')
+    .replace(/<w:drawing[\s\S]*?<\/w:drawing>/g, '')
+    .trim();
+}
+
+function runPropertiesXml($, paragraphElement) {
+  const properties = $(paragraphElement).find('w\\:rPr').first();
+  if (!properties.length) return '';
+  return sanitizeRunPropertiesXml($.xml(properties));
+}
+
+function isLikelyHeadingParagraph($, paragraphElement) {
+  const style = $(paragraphElement).children('w\\:pPr').find('w\\:pStyle').attr('w:val') || '';
+  if (/heading|title|标题/i.test(style)) return true;
+  const text = wordParagraphVisibleText($, paragraphElement);
+  return text.length > 0 && text.length <= 40 && /^(?:第?[一二三四五六七八九十百千万\d]+[章节部分篇项条、.．\s]|[一二三四五六七八九十]+[、.．\s]|\d+(?:\.\d+)*[、.．\s])/.test(text);
+}
+
+function findSectionBodyStyle($, paragraphElements, startIndex, endIndex) {
+  for (let index = startIndex + 1; index < endIndex; index += 1) {
+    const paragraph = paragraphElements[index];
+    if (!paragraph) continue;
+    const text = wordParagraphVisibleText($, paragraph);
+    if (!text || isLikelyHeadingParagraph($, paragraph)) continue;
+    const propertiesXml = paragraphPropertiesXml($, paragraph);
+    const textRunPropertiesXml = runPropertiesXml($, paragraph);
+    if (propertiesXml || textRunPropertiesXml) {
+      return { paragraphPropertiesXml: propertiesXml, runPropertiesXml: textRunPropertiesXml };
+    }
+  }
+  return { paragraphPropertiesXml: '', runPropertiesXml: '' };
+}
+
+function findDefaultBodyStyle($, paragraphElements) {
+  for (const paragraph of paragraphElements) {
+    const text = wordParagraphVisibleText($, paragraph);
+    if (!text || isLikelyHeadingParagraph($, paragraph)) continue;
+    const propertiesXml = paragraphPropertiesXml($, paragraph);
+    const textRunPropertiesXml = runPropertiesXml($, paragraph);
+    if (propertiesXml || textRunPropertiesXml) {
+      return { paragraphPropertiesXml: propertiesXml, runPropertiesXml: textRunPropertiesXml };
+    }
+  }
+  return { paragraphPropertiesXml: '', runPropertiesXml: '' };
+}
+
+function injectOriginalTemplateContent(documentXml, outline = []) {
+  const $ = cheerio.load(documentXml, { xmlMode: true, decodeEntities: false });
+  const body = $('w\\:body').first();
+  if (!body.length) {
+    return { xml: documentXml, matchedCount: 0, unmatchedCount: outline.length };
+  }
+
+  const paragraphElements = body.children('w\\:p').toArray();
+  const matchedParagraphIndexes = new Set();
+  const matches = [];
+  const unmatched = [];
+
+  for (const item of outline || []) {
+    const title = String(item?.title || '').trim();
+    const match = title ? findBestTemplateHeadingMatch($, paragraphElements, title, matchedParagraphIndexes) : null;
+    if (match) {
+      matches.push({ item, ...match });
+      matchedParagraphIndexes.add(match.index);
+    } else {
+      unmatched.push(item);
+    }
+  }
+
+  const sortedMatches = matches.sort((a, b) => a.index - b.index);
+  const defaultBodyStyle = findDefaultBodyStyle($, paragraphElements);
+  for (let index = sortedMatches.length - 1; index >= 0; index -= 1) {
+    const match = sortedMatches[index];
+    const nextMatch = sortedMatches[index + 1];
+    const markdown = outlineItemToMarkdown(match.item, 2, false);
+    const sectionBodyStyle = findSectionBodyStyle(
+      $,
+      paragraphElements,
+      match.index,
+      nextMatch?.index ?? paragraphElements.length,
+    );
+    const xml = originalTemplateMarkdownXml(markdown, {
+      paragraphPropertiesXml: sectionBodyStyle.paragraphPropertiesXml || defaultBodyStyle.paragraphPropertiesXml,
+      runPropertiesXml: sectionBodyStyle.runPropertiesXml || defaultBodyStyle.runPropertiesXml,
+    });
+    if (!xml) continue;
+    if (nextMatch?.paragraph) {
+      $(nextMatch.paragraph).before(xml);
+    } else {
+      const sectPr = body.children('w\\:sectPr').last();
+      if (sectPr.length) {
+        sectPr.before(xml);
+      } else {
+        body.append(xml);
+      }
+    }
+  }
+
+  if (unmatched.length) {
+    const xml = originalTemplateContentXml(unmatched, defaultBodyStyle);
+    if (xml) {
+      const sectPr = body.children('w\\:sectPr').last();
+      if (sectPr.length) {
+        sectPr.before(xml);
+      } else {
+        body.append(xml);
+      }
+    }
+  }
+
+  return { xml: $.xml(), matchedCount: sortedMatches.length, unmatchedCount: unmatched.length };
+}
+
+function resolveTemplatePath(templatePath) {
+  const value = String(templatePath || '').trim();
+  if (!value) return '';
+  if (path.isAbsolute(value)) return value;
+  const workspaceDir = app?.getPath ? path.join(app.getPath('userData'), 'workspace') : process.cwd();
+  return path.join(workspaceDir, value);
 }
 
 function isWordOptimizationEnabled(config) {
@@ -1509,9 +1859,68 @@ async function buildDocxBuffer(payload, options = {}) {
   return result.buffer;
 }
 
+async function exportOriginalTemplateWord(payload = {}, onProgress) {
+  if (!Array.isArray(payload.outline) || !payload.outline.length) {
+    throw new Error('没有可导出的目录内容');
+  }
+
+  const templatePath = resolveTemplatePath(payload.originalTemplatePath || payload.templatePath);
+  if (!templatePath || !fs.existsSync(templatePath)) {
+    throw new Error('未找到原方案 DOCX 模板，请重新导入原方案后再试');
+  }
+  if (path.extname(templatePath).toLowerCase() !== '.docx') {
+    throw new Error('原格式导出当前仅支持 DOCX 原方案，请使用 DOCX 原方案重新导入，或改用优化格式导出');
+  }
+
+  const progressContext = { onProgress, warnings: [], stats: countOutlineStats(payload.outline || []) };
+  reportProgress(progressContext, 5, '正在读取原方案 DOCX 模板。');
+
+  const defaultFilename = `${sanitizeFilename(payload.project_name || '已有方案扩写')}-原格式.docx`;
+  const defaultDir = app?.getPath ? app.getPath('documents') : process.env.USERPROFILE || process.cwd();
+  const result = await dialog.showSaveDialog({
+    title: '原格式导出 Word 文档',
+    defaultPath: path.join(defaultDir, defaultFilename),
+    filters: [{ name: 'Word 文档', extensions: ['docx'] }],
+  });
+
+  if (result.canceled || !result.filePath) {
+    reportProgress(progressContext, 0, '已取消导出。', { phase: 'canceled' });
+    return { success: false, canceled: true, message: '已取消导出' };
+  }
+
+  const zip = new AdmZip(templatePath);
+  const documentEntry = zip.getEntry('word/document.xml');
+  if (!documentEntry) {
+    throw new Error('原方案 DOCX 结构异常，未找到 word/document.xml');
+  }
+
+  reportProgress(progressContext, 45, '正在将扩写正文写入原方案结构。');
+  const documentXml = documentEntry.getData().toString('utf-8');
+  const injection = injectOriginalTemplateContent(documentXml, payload.outline || []);
+  if (!injection.matchedCount && injection.unmatchedCount) {
+    addWarning(progressContext, '未匹配到原方案章节标题，扩写内容已追加到文档末尾。');
+  } else if (injection.unmatchedCount) {
+    addWarning(progressContext, `${injection.unmatchedCount} 个章节未匹配到原方案标题，已追加到文档末尾。`);
+  }
+
+  zip.updateFile('word/document.xml', Buffer.from(injection.xml, 'utf-8'));
+  reportProgress(progressContext, 88, '正在写入原格式 Word 文件。');
+  zip.writeZip(result.filePath);
+
+  const message = injection.matchedCount
+    ? `Word 已按原方案格式导出，已匹配 ${injection.matchedCount} 个原方案章节，请打开文档核对扩写内容位置和分页。`
+    : 'Word 已按原方案格式导出，请打开文档核对扩写内容位置和分页。';
+  reportProgress(progressContext, 100, message, { phase: 'success' });
+  return { success: true, path: result.filePath, message, warnings: progressContext.warnings };
+}
+
 function createExportService({ configStore } = {}) {
   return {
     async exportWord(payload = {}, onProgress) {
+      if (payload.exportMode === 'original-template') {
+        return exportOriginalTemplateWord(payload, onProgress);
+      }
+
       if (!Array.isArray(payload.outline) || !payload.outline.length) {
         throw new Error('没有可导出的目录内容');
       }

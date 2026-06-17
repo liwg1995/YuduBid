@@ -496,15 +496,15 @@ async function parseDocumentWithConfig(app, filePath, config, options = {}) {
 
 function createFileService({ app, configStore } = {}) {
   return {
-    async importDocument() {
+    async importDocument(options = {}) {
       const config = configStore ? configStore.load() : { file_parser: { provider: 'local' } };
       const provider = config.file_parser?.provider || 'local';
       const supportedExtensions = getSelectableExtensions(provider);
       const result = await dialog.showOpenDialog({
-        title: '选择招标文件',
+        title: options.title || '选择招标文件',
         properties: ['openFile'],
         filters: [
-          { name: parserLabels[provider] || '招标文件', extensions: [...supportedExtensions].map((item) => item.slice(1)) },
+          { name: options.filterName || parserLabels[provider] || '招标文件', extensions: [...supportedExtensions].map((item) => item.slice(1)) },
           { name: '所有文件', extensions: ['*'] },
         ],
       });
@@ -543,6 +543,8 @@ function createFileService({ app, configStore } = {}) {
         message: parser.fallbackToLocal ? '文件解析完成，当前格式已自动使用本地解析' : '文件解析完成',
         file_content: fileContent,
         file_name: path.basename(filePath),
+        file_path: filePath,
+        file_ext: ext,
         parser_provider: parser.provider,
         parser_label: parserLabels[parser.provider] || '本地解析',
       };

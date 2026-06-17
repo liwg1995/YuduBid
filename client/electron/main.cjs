@@ -7,9 +7,14 @@ const { setupAutoUpdate, checkAndDownloadUpdate, triggerUpdateDownload, quitAndI
 const { getGeneratedImagesDir, getImportedImagesDir } = require('./utils/paths.cjs');
 
 const rendererUrl = process.env.ELECTRON_RENDERER_URL;
+const userDataDir = process.env.YIBIAO_USER_DATA_DIR;
 const iconPath = path.join(__dirname, '../assets/icon.ico');
 const packagedIndexUrl = pathToFileURL(path.join(__dirname, '../dist/index.html')).toString();
 const legacyUserDataNames = ['禹都AI投标助手', 'yudubid-client'];
+
+if (userDataDir) {
+  app.setPath('userData', path.resolve(userDataDir));
+}
 
 protocol.registerSchemesAsPrivileged([{
   scheme: 'yibiao-asset',

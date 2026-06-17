@@ -1,6 +1,7 @@
 export type SectionId =
   | 'home'
   | 'technical-plan'
+  | 'existing-plan-expansion'
   | 'business-bid'
   | 'official-document-drafting'
   | 'official-document-check'

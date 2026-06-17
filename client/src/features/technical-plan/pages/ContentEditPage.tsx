@@ -7,9 +7,11 @@ import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { DetailHelpLink, MarkdownEditor, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { ClientConfig, ImageModelStatus, OutlineData, OutlineItem } from '../../../shared/types';
 import { countReadableWords } from '../../../shared/utils/wordCount';
-import type { BackgroundTaskState, ContentGenerationOptions, ContentGenerationSectionStatus, ContentGenerationSections, ContentImageStats, ContentTableRequirement } from '../types';
+import type { BackgroundTaskState, ContentGenerationOptions, ContentGenerationSectionStatus, ContentGenerationSections, ContentImageStats, ContentTableRequirement, TechnicalPlanWorkflowKind } from '../types';
 
 interface ContentEditPageProps {
+  workflowKind?: TechnicalPlanWorkflowKind;
+  originalPlanMarkdown?: string;
   outlineData: OutlineData | null;
   task?: BackgroundTaskState;
   contentGenerationOptions?: ContentGenerationOptions;
@@ -66,6 +68,7 @@ const defaultContentGenerationOptions: ContentGenerationOptions = {
   minimumWords: 0,
   contentConcurrency: 5,
   enableConsistencyAudit: true,
+  enableOriginalPlanCoverageAudit: false,
 };
 
 function isContentTableRequirement(value: unknown): value is ContentTableRequirement {
@@ -80,7 +83,7 @@ function buildDefaultGenerationOptions(imageModelAvailable: boolean, leafCount: 
   };
 }
 
-function normalizeGenerationOptions(options: ContentGenerationOptions | undefined, imageModelAvailable: boolean, leafCount: number): ContentGenerationOptions {
+function normalizeGenerationOptions(options: ContentGenerationOptions | undefined, imageModelAvailable: boolean, leafCount: number, isExpansionWorkflow = false): ContentGenerationOptions {
   const fallback = buildDefaultGenerationOptions(imageModelAvailable, leafCount);
   const maxAiImagesLimit = Math.max(1, leafCount);
   const requestedMaxAiImages = Number(options?.maxAiImages ?? fallback.maxAiImages);
@@ -96,6 +99,7 @@ function normalizeGenerationOptions(options: ContentGenerationOptions | undefine
     minimumWords: Math.max(0, Number.isFinite(requestedMinimumWords) ? Math.round(requestedMinimumWords) : fallback.minimumWords),
     contentConcurrency: Math.max(1, Number.isFinite(requestedContentConcurrency) ? Math.round(requestedContentConcurrency) : fallback.contentConcurrency),
     enableConsistencyAudit: Boolean(options?.enableConsistencyAudit ?? fallback.enableConsistencyAudit),
+    enableOriginalPlanCoverageAudit: isExpansionWorkflow ? Boolean(options?.enableOriginalPlanCoverageAudit ?? fallback.enableOriginalPlanCoverageAudit) : false,
   };
 }
 
@@ -141,6 +145,10 @@ function getLeafStatus(item: OutlineItem, sections: ContentGenerationSections): 
   }
 
   return getLeafContent(item, sections).trim() ? 'success' : 'idle';
+}
+
+function displayOutlineTitle(item: OutlineItem | null | undefined) {
+  return String(item?.title || item?.id || '未命名小节').trim() || '未命名小节';
 }
 
 function getTreeStatus(item: OutlineItem, sections: ContentGenerationSections): TreeStatus {
@@ -314,6 +322,8 @@ const MarkdownContent = memo(function MarkdownContent({ content, onPreviewImage 
 });
 
 function ContentEditPage({
+  workflowKind = 'technical-plan',
+  originalPlanMarkdown = '',
   outlineData,
   task,
   contentGenerationOptions,
@@ -322,6 +332,7 @@ function ContentEditPage({
   onContentSaved,
 }: ContentEditPageProps) {
   const { showToast } = useToast();
+  const isExpansionWorkflow = workflowKind === 'existing-plan-expansion';
   const leaves = useMemo(() => outlineData?.outline ? collectLeafItems(outlineData.outline) : [], [outlineData]);
   const [selectedItemId, setSelectedItemId] = useState('');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -517,7 +528,7 @@ function ContentEditPage({
       const nextStatus = config?.image_model?.status || 'untested';
       const available = nextStatus === 'available';
       setImageModelStatus(nextStatus);
-      setDraftGenerationOptions(normalizeGenerationOptions(contentGenerationOptions, available, leaves.length));
+      setDraftGenerationOptions(normalizeGenerationOptions(contentGenerationOptions, available, leaves.length, isExpansionWorkflow));
       setGenerationDialogOpen(true);
     } catch (error) {
       showToast(error instanceof Error ? error.message : '读取生成配置失败', 'error');
@@ -525,15 +536,15 @@ function ContentEditPage({
   };
 
   const saveDraftGenerationOptions = async (showSuccess: boolean, imageAvailable = imageModelAvailable) => {
-    const normalizedDraftOptions = normalizeGenerationOptions(draftGenerationOptions, imageAvailable, leaves.length);
+    const normalizedDraftOptions = normalizeGenerationOptions(draftGenerationOptions, imageAvailable, leaves.length, isExpansionWorkflow);
     const currentOptions = contentGenerationOptions
       ? { ...defaultContentGenerationOptions, ...contentGenerationOptions }
-      : normalizeGenerationOptions(undefined, imageAvailable, leaves.length);
+      : normalizeGenerationOptions(undefined, imageAvailable, leaves.length, isExpansionWorkflow);
     const nextOptions = paused
       ? { ...currentOptions, contentConcurrency: normalizedDraftOptions.contentConcurrency }
       : normalizedDraftOptions;
     await onContentGenerationOptionsChange(nextOptions);
-    setDraftGenerationOptions(normalizeGenerationOptions(nextOptions, imageAvailable, leaves.length));
+    setDraftGenerationOptions(normalizeGenerationOptions(nextOptions, imageAvailable, leaves.length, isExpansionWorkflow));
 
     if (showSuccess) {
       setGenerationDialogOpen(false);
@@ -571,7 +582,7 @@ function ContentEditPage({
       const config = await window.yibiao?.config.load();
       const nextStatus = config?.image_model?.status || 'untested';
       const available = nextStatus === 'available';
-      const savedOptions = normalizeGenerationOptions(contentGenerationOptions, available, leaves.length);
+      const savedOptions = normalizeGenerationOptions(contentGenerationOptions, available, leaves.length, isExpansionWorkflow);
       setImageModelStatus(nextStatus);
       if (shouldAskMinimumWordsChoice(savedOptions)) {
         setPendingMinimumWordsChoice({
@@ -598,7 +609,7 @@ function ContentEditPage({
 
     setPausePending(true);
     try {
-      await window.yibiao?.tasks.pauseContentGeneration();
+      await window.yibiao?.tasks.pauseContentGeneration({ workflowKind });
       showToast('正在暂停正文生成，当前 AI 请求完成后会停止调度新任务', 'info');
     } catch (error) {
       setPausePending(false);
@@ -612,7 +623,7 @@ function ContentEditPage({
     }
 
     try {
-      await window.yibiao?.tasks.startContentGeneration({ resume: true });
+      await window.yibiao?.tasks.startContentGeneration({ workflowKind, resume: true });
       showToast('已继续正文生成任务', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '继续正文生成失败', 'error');
@@ -660,6 +671,7 @@ function ContentEditPage({
     }
 
     await window.yibiao?.tasks.startContentGeneration({
+      workflowKind,
       regenerate,
       generationOptions: {
         useAiImages: nextImageModelAvailable && savedGenerationOptions.useAiImages,
@@ -669,6 +681,7 @@ function ContentEditPage({
         minimumWords: savedGenerationOptions.minimumWords,
         contentConcurrency: savedGenerationOptions.contentConcurrency,
         enableConsistencyAudit: savedGenerationOptions.enableConsistencyAudit,
+        enableOriginalPlanCoverageAudit: isExpansionWorkflow && savedGenerationOptions.enableOriginalPlanCoverageAudit,
       },
     });
     trackConfigUsage({
@@ -768,9 +781,10 @@ function ContentEditPage({
       const config = await window.yibiao?.config.load();
       const nextImageModelStatus = config?.image_model?.status || 'untested';
       const nextImageModelAvailable = nextImageModelStatus === 'available';
-      const savedGenerationOptions = normalizeGenerationOptions(contentGenerationOptions, nextImageModelAvailable, leaves.length);
+      const savedGenerationOptions = normalizeGenerationOptions(contentGenerationOptions, nextImageModelAvailable, leaves.length, isExpansionWorkflow);
       setImageModelStatus(nextImageModelStatus);
       await window.yibiao?.tasks.startContentGeneration({
+        workflowKind,
         regenerate: true,
         targetItemId: requirementItem.id,
         requirement: regenerateRequirement,
@@ -781,6 +795,7 @@ function ContentEditPage({
           tableRequirement: savedGenerationOptions.tableRequirement,
           contentConcurrency: savedGenerationOptions.contentConcurrency,
           enableConsistencyAudit: savedGenerationOptions.enableConsistencyAudit,
+          enableOriginalPlanCoverageAudit: isExpansionWorkflow && savedGenerationOptions.enableOriginalPlanCoverageAudit,
         },
       });
       trackConfigUsage({
@@ -853,7 +868,7 @@ function ContentEditPage({
         >
           <span className="content-outline-dot" aria-hidden="true" />
           <span className="content-outline-text">
-            <strong>{item.id} {item.title}</strong>
+            <strong title={item.id}>{displayOutlineTitle(item)}</strong>
             <small>{isLeaf ? `${statusLabels[status]} · ${words} 字` : `${statusLabels[status]} · ${leafCount} 个小节 · ${words} 字`}</small>
           </span>
           {isLeaf && (status === 'success' || status === 'error') ? (
@@ -978,11 +993,11 @@ function ContentEditPage({
           </div>
         </aside>
 
-        <article className="content-reader-panel">
+        <article className={`content-reader-panel${isExpansionWorkflow && originalPlanMarkdown.trim() ? ' has-original-reference' : ''}`}>
           <div className="content-reader-head">
             <div>
               <span className="section-kicker">正文内容</span>
-              <strong>{selectedItem ? `${selectedItem.id} ${selectedItem.title}` : '选择小节'}</strong>
+              <strong title={selectedItem?.id}>{selectedItem ? displayOutlineTitle(selectedItem) : '选择小节'}</strong>
               <p>{selectedItem?.description || '选择左侧目录项查看生成正文。'}</p>
             </div>
             <div className="content-reader-actions">
@@ -1000,6 +1015,20 @@ function ContentEditPage({
               )}
             </div>
           </div>
+
+          {isExpansionWorkflow && originalPlanMarkdown.trim() && (
+            <section className="content-original-reference" aria-label="原方案参考">
+              <div className="content-original-reference-head">
+                <span className="section-kicker">原方案参考</span>
+                <strong>已有方案原文</strong>
+              </div>
+              <div className="markdown-viewer content-original-reference-body">
+                <MarkdownRenderer>
+                  {originalPlanMarkdown}
+                </MarkdownRenderer>
+              </div>
+            </section>
+          )}
 
           {selectedItem && selectedIsLeaf && editing && !isPreviewing ? (
             <MarkdownEditor

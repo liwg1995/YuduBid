@@ -1,4 +1,4 @@
-import type { TechnicalPlanState, TechnicalPlanStep } from '../types';
+import type { TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
 
 const validSteps: TechnicalPlanStep[] = [
   'document-analysis',
@@ -14,8 +14,8 @@ function isTechnicalPlanState(state: TechnicalPlanState | null): state is Techni
 }
 
 export const technicalPlanStorage = {
-  async load(): Promise<TechnicalPlanState | null> {
-    const state = await window.yibiao?.technicalPlan.loadState();
+  async load(workflowKind?: TechnicalPlanWorkflowKind): Promise<TechnicalPlanState | null> {
+    const state = await window.yibiao?.technicalPlan.loadState(workflowKind);
 
     if (!isTechnicalPlanState(state || null)) {
       return null;

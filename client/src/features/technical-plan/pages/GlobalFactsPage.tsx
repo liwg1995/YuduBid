@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MarkdownEditor, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { OutlineData } from '../../../shared/types';
-import type { BackgroundTaskState, GlobalFactGroupState } from '../types';
+import type { BackgroundTaskState, GlobalFactGroupState, TechnicalPlanWorkflowKind } from '../types';
 
 interface GlobalFactsPageProps {
+  workflowKind: TechnicalPlanWorkflowKind;
   outlineData: OutlineData | null;
   globalFacts: GlobalFactGroupState[];
   task?: BackgroundTaskState;
@@ -35,7 +36,7 @@ function getProgress(task: BackgroundTaskState | undefined, hasFacts: boolean) {
   return hasFacts ? 100 : 0;
 }
 
-function GlobalFactsPage({ outlineData, globalFacts, task, onGlobalFactsSaved }: GlobalFactsPageProps) {
+function GlobalFactsPage({ workflowKind, outlineData, globalFacts, task, onGlobalFactsSaved }: GlobalFactsPageProps) {
   const { showToast } = useToast();
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(globalFacts[0]?.id || null);
   const [draftTitle, setDraftTitle] = useState('');
@@ -62,7 +63,7 @@ function GlobalFactsPage({ outlineData, globalFacts, task, onGlobalFactsSaved }:
 
     try {
       setStarting(true);
-      await window.yibiao?.tasks.startGlobalFactsGeneration({});
+      await window.yibiao?.tasks.startGlobalFactsGeneration({ workflowKind });
       if (!auto) {
         showToast('全局事实设定任务已在后台启动', 'success');
       }
@@ -74,7 +75,7 @@ function GlobalFactsPage({ outlineData, globalFacts, task, onGlobalFactsSaved }:
     } finally {
       setStarting(false);
     }
-  }, [hasOutline, showToast]);
+  }, [hasOutline, showToast, workflowKind]);
 
   useEffect(() => {
     if (!hasOutline || globalFacts.length || task?.status || starting || autoStartedRef.current) {

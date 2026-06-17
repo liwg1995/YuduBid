@@ -1,3 +1,4 @@
+const path = require('node:path');
 const { ipcMain, shell } = require('electron');
 const { registerAiIpc } = require('./aiIpc.cjs');
 const { registerCodeGenerationIpc } = require('./codeGenerationIpc.cjs');
@@ -30,6 +31,93 @@ const { createTaskService } = require('../services/taskService.cjs');
 const { createTechnicalPlanStore } = require('../services/technicalPlanStore.cjs');
 
 const latestReleaseApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases/latest';
+
+function normalizeTechnicalPlanWorkflowKind(value) {
+  return value === 'existing-plan-expansion' ? 'existing-plan-expansion' : 'technical-plan';
+}
+
+function pickTechnicalPlanWorkflowKind(value) {
+  if (typeof value === 'string') {
+    return normalizeTechnicalPlanWorkflowKind(value);
+  }
+  return normalizeTechnicalPlanWorkflowKind(value?.workflowKind || value?.workflow_kind);
+}
+
+function createScopedApp(app, scopeName) {
+  return {
+    getPath(name) {
+      if (name === 'userData') {
+        return path.join(app.getPath('userData'), scopeName);
+      }
+      return app.getPath(name);
+    },
+    once: (...args) => app.once(...args),
+  };
+}
+
+function createTechnicalPlanStoreRouter(technicalPlanStore, existingPlanExpansionStore) {
+  const pickStore = (value) => (
+    pickTechnicalPlanWorkflowKind(value) === 'existing-plan-expansion'
+      ? existingPlanExpansionStore
+      : technicalPlanStore
+  );
+  const withoutWorkflowKind = (payload = {}) => {
+    const { workflowKind: _workflowKind, workflow_kind: _workflowKindSnake, ...rest } = payload || {};
+    return rest;
+  };
+
+  return {
+    forWorkflow(workflowKind) {
+      return pickStore(workflowKind);
+    },
+    loadTechnicalPlan(workflowKind) {
+      return pickStore(workflowKind).loadTechnicalPlan();
+    },
+    updateTechnicalPlan(partial = {}) {
+      return pickStore(partial).updateTechnicalPlan(withoutWorkflowKind(partial));
+    },
+    clearTechnicalPlan(workflowKind) {
+      return pickStore(workflowKind).clearTechnicalPlan();
+    },
+    importTenderDocument(workflowKind) {
+      return pickStore(workflowKind).importTenderDocument();
+    },
+    importOriginalPlanDocument(workflowKind) {
+      return pickStore(workflowKind).importOriginalPlanDocument();
+    },
+    readTenderMarkdown(workflowKind) {
+      return pickStore(workflowKind).readTenderMarkdown();
+    },
+    readOriginalPlanMarkdown(workflowKind) {
+      return pickStore(workflowKind).readOriginalPlanMarkdown();
+    },
+    updateStep(payload) {
+      const step = typeof payload === 'string' ? payload : payload?.step;
+      return pickStore(payload).updateStep(step);
+    },
+    switchWorkflowKind(workflowKind) {
+      return pickStore(workflowKind).loadTechnicalPlan();
+    },
+    saveOutlineConfig(payload = {}) {
+      return pickStore(payload).saveOutlineConfig(withoutWorkflowKind(payload));
+    },
+    saveOutline(payload) {
+      const outlineData = payload?.outlineData || payload;
+      return pickStore(payload).saveOutline(outlineData);
+    },
+    saveGlobalFacts(payload) {
+      const globalFacts = Array.isArray(payload) ? payload : payload?.globalFacts;
+      return pickStore(payload).saveGlobalFacts(globalFacts || []);
+    },
+    saveContentGenerationOptions(payload) {
+      const contentGenerationOptions = payload?.contentGenerationOptions || payload?.options || payload;
+      return pickStore(payload).saveContentGenerationOptions(contentGenerationOptions);
+    },
+    saveChapterContent(payload = {}) {
+      return pickStore(payload).saveChapterContent(withoutWorkflowKind(payload));
+    },
+  };
+}
 
 function normalizeExternalUrl(value) {
   const raw = String(value || '').trim();
@@ -126,8 +214,11 @@ function registerUnavailableTechnicalPlanIpc(error) {
   [
     'technical-plan:load-state',
     'technical-plan:import-tender-document',
+    'technical-plan:import-original-plan-document',
     'technical-plan:read-tender-markdown',
+    'technical-plan:read-original-plan-markdown',
     'technical-plan:update-step',
+    'technical-plan:switch-workflow-kind',
     'technical-plan:save-outline-config',
     'technical-plan:save-outline',
     'technical-plan:save-global-facts',
@@ -191,15 +282,24 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
 
   try {
     const sqliteDatabase = createSqliteDatabase(app);
+    const existingPlanExpansionApp = createScopedApp(app, 'existing-plan-expansion');
+    const existingPlanExpansionDatabase = createSqliteDatabase(existingPlanExpansionApp);
     const knowledgeBaseStore = createKnowledgeBaseStore({ app, db: sqliteDatabase.db });
     const knowledgeBaseService = createKnowledgeBaseService({ app, aiService, configStore, knowledgeBaseStore });
     const technicalPlanStore = createTechnicalPlanStore({ app, db: sqliteDatabase.db, fileService });
+    const existingPlanExpansionStore = createTechnicalPlanStore({
+      app: existingPlanExpansionApp,
+      db: existingPlanExpansionDatabase.db,
+      fileService,
+    });
+    existingPlanExpansionStore.switchWorkflowKind('existing-plan-expansion');
+    const technicalPlanStoreRouter = createTechnicalPlanStoreRouter(technicalPlanStore, existingPlanExpansionStore);
     const duplicateCheckStore = createDuplicateCheckStore({ app, db: sqliteDatabase.db });
-    const rejectionCheckStore = createRejectionCheckStore({ app, db: sqliteDatabase.db, fileService, technicalPlanStore });
+    const rejectionCheckStore = createRejectionCheckStore({ app, db: sqliteDatabase.db, fileService, technicalPlanStore: technicalPlanStoreRouter });
     const duplicateCheckService = createDuplicateCheckService({ app, configStore, workspaceStore: duplicateCheckStore });
-    const taskService = createTaskService({ aiService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService });
+    const taskService = createTaskService({ aiService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService });
     registerKnowledgeBaseIpc({ knowledgeBaseService });
-    registerTechnicalPlanIpc({ technicalPlanStore });
+    registerTechnicalPlanIpc({ technicalPlanStore: technicalPlanStoreRouter });
     registerDuplicateCheckIpc({ duplicateCheckStore });
     registerRejectionCheckIpc({ rejectionCheckStore });
     registerTaskIpc({ taskService });

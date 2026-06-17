@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { getBidAnalysisTasks } from '../services/bidAnalysisWorkflow';
 import { MarkdownRenderer, useToast } from '../../../shared/ui';
-import type { BackgroundTaskState, BidAnalysisMode, BidAnalysisTasks, BidAnalysisTaskState } from '../types';
+import type { BackgroundTaskState, BidAnalysisMode, BidAnalysisTasks, BidAnalysisTaskState, TechnicalPlanWorkflowKind } from '../types';
 
 interface BidAnalysisPageProps {
+  workflowKind: TechnicalPlanWorkflowKind;
   hasTenderFile: boolean;
   mode: BidAnalysisMode;
   tasks: BidAnalysisTasks;
@@ -155,6 +156,7 @@ function JsonResultTable({ content }: { content: string }) {
 }
 
 function BidAnalysisPage({
+  workflowKind,
   hasTenderFile,
   mode,
   tasks,
@@ -230,7 +232,7 @@ function BidAnalysisPage({
         setFullRerunLocked(true);
       }
       const config = await window.yibiao?.config.load();
-      await window.yibiao?.tasks.startBidAnalysis({ mode, task_ids: taskIds, force_rerun: forceRerun });
+      await window.yibiao?.tasks.startBidAnalysis({ workflowKind, mode, task_ids: taskIds, force_rerun: forceRerun });
       trackConfigUsage({ bid_analysis_mode: mode }, config);
       showToast(retryTask ? `${retryTask.label}重新解析任务已在后台启动` : '招标文件解析任务已在后台启动', 'success');
     } catch (error) {

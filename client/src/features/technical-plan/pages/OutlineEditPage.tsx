@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { useToast } from '../../../shared/ui';
-import type { BackgroundTaskState } from '../types';
+import type { BackgroundTaskState, TechnicalPlanWorkflowKind } from '../types';
 import type { KnowledgeBaseIndex, KnowledgeDocument } from '../../knowledge-base/types';
 import type { OutlineData, OutlineItem, OutlineMode } from '../../../shared/types';
 
 interface OutlineEditPageProps {
+  workflowKind: TechnicalPlanWorkflowKind;
   projectOverview: string;
   techRequirements: string;
   outlineMode: OutlineMode;
@@ -108,6 +109,7 @@ function includesKeyword(value: string, keyword: string) {
 }
 
 function OutlineEditPage({
+  workflowKind,
   projectOverview,
   techRequirements,
   outlineMode,
@@ -254,6 +256,7 @@ function OutlineEditPage({
       onOutlineConfigChange(draftOutlineMode, draftKnowledgeDocumentIds);
       setGenerationDialogOpen(false);
       await window.yibiao?.tasks.startOutlineGeneration({
+        workflowKind,
         mode: draftOutlineMode,
         reference_knowledge_document_ids: draftKnowledgeDocumentIds,
       });

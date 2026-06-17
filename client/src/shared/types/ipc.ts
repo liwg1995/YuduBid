@@ -8,7 +8,7 @@ import type { OfficialDocumentImportResult, OfficialDocumentState } from '../../
 import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentRevisionResult } from '../../features/patent-generation/types';
 import type { RejectionCheckWorkspaceState, RejectionDocumentRole } from '../../features/rejection-check/types';
 import type { SoftwareCopyrightCodeManifest, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightFields, SoftwareCopyrightOptions, SoftwareCopyrightSelectResult, SoftwareCopyrightState } from '../../features/software-copyright/types';
-import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanState, TechnicalPlanStep } from '../../features/technical-plan/types';
+import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../../features/technical-plan/types';
 import type { OutlineData, OutlineMode } from './outline';
 
 export interface TaskEvent<TState = unknown, TRejectionCheckState = unknown, TDuplicateCheckState = unknown> {
@@ -129,16 +129,19 @@ export interface YuDuBidBridge {
     onEvent: (callback: (event: KnowledgeBaseEvent) => void) => () => void;
   };
   technicalPlan: {
-    loadState: () => Promise<TechnicalPlanState>;
-    importTenderDocument: () => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
-    readTenderMarkdown: () => Promise<string>;
-    updateStep: (step: TechnicalPlanStep) => Promise<TechnicalPlanState>;
-    saveOutlineConfig: (payload: { outlineMode: OutlineMode; referenceKnowledgeDocumentIds: string[] }) => Promise<TechnicalPlanState>;
-    saveOutline: (outlineData: OutlineData) => Promise<TechnicalPlanState>;
-    saveGlobalFacts: (globalFacts: GlobalFactGroupState[]) => Promise<TechnicalPlanState>;
-    saveContentGenerationOptions: (options: ContentGenerationOptions) => Promise<TechnicalPlanState>;
-    saveChapterContent: (payload: { nodeId: string; content: string }) => Promise<TechnicalPlanState>;
-    clear: () => Promise<{ success: boolean; message?: string; state: TechnicalPlanState }>;
+    loadState: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<TechnicalPlanState>;
+    importTenderDocument: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
+    importOriginalPlanDocument: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
+    readTenderMarkdown: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<string>;
+    readOriginalPlanMarkdown: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<string>;
+    updateStep: (payload: TechnicalPlanStep | { workflowKind?: TechnicalPlanWorkflowKind; step: TechnicalPlanStep }) => Promise<TechnicalPlanState>;
+    switchWorkflowKind: (workflowKind: TechnicalPlanWorkflowKind) => Promise<TechnicalPlanState>;
+    saveOutlineConfig: (payload: { workflowKind?: TechnicalPlanWorkflowKind; outlineMode: OutlineMode; referenceKnowledgeDocumentIds: string[] }) => Promise<TechnicalPlanState>;
+    saveOutline: (payload: OutlineData | { workflowKind?: TechnicalPlanWorkflowKind; outlineData: OutlineData }) => Promise<TechnicalPlanState>;
+    saveGlobalFacts: (payload: GlobalFactGroupState[] | { workflowKind?: TechnicalPlanWorkflowKind; globalFacts: GlobalFactGroupState[] }) => Promise<TechnicalPlanState>;
+    saveContentGenerationOptions: (payload: ContentGenerationOptions | { workflowKind?: TechnicalPlanWorkflowKind; contentGenerationOptions: ContentGenerationOptions }) => Promise<TechnicalPlanState>;
+    saveChapterContent: (payload: { workflowKind?: TechnicalPlanWorkflowKind; nodeId: string; content: string }) => Promise<TechnicalPlanState>;
+    clear: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState }>;
   };
   duplicateCheck: {
     loadState: () => Promise<DuplicateCheckWorkspaceState>;
@@ -193,7 +196,7 @@ export interface YuDuBidBridge {
     startOutlineGeneration: (payload: unknown) => Promise<unknown>;
     startGlobalFactsGeneration: (payload: unknown) => Promise<unknown>;
     startContentGeneration: (payload: unknown) => Promise<unknown>;
-    pauseContentGeneration: () => Promise<unknown>;
+    pauseContentGeneration: (payload?: unknown) => Promise<unknown>;
     startRejectionItemsExtraction: (payload: unknown) => Promise<unknown>;
     startRejectionCheck: (payload: unknown) => Promise<unknown>;
     startDuplicateAnalysis: (payload: unknown) => Promise<unknown>;

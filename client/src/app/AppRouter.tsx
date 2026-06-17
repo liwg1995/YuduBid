@@ -27,7 +27,9 @@ function AppRouter({ activeSection, onSectionChange, onDeveloperModeChange }: Ap
     case 'home':
       return <HomePage onNavigate={onSectionChange} />;
     case 'technical-plan':
-      return <TechnicalPlanHome />;
+      return <TechnicalPlanHome workflowKind="technical-plan" onSectionChange={onSectionChange} />;
+    case 'existing-plan-expansion':
+      return <TechnicalPlanHome workflowKind="existing-plan-expansion" onSectionChange={onSectionChange} />;
     case 'business-bid':
       return <BusinessBidPage />;
     case 'official-document-drafting':

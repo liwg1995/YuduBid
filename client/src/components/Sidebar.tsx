@@ -13,6 +13,7 @@ interface SidebarProps {
 const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>> = {
   home: HomeIcon,
   'technical-plan': DocumentIcon,
+  'existing-plan-expansion': DocumentIcon,
   'business-bid': BriefcaseIcon,
   'official-document-drafting': OfficialDocumentIcon,
   'official-document-check': OfficialDocumentIcon,

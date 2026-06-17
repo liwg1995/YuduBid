@@ -1,6 +1,7 @@
 import type { OutlineData, OutlineMode } from '../../shared/types';
 
 export type TechnicalPlanStep = 'document-analysis' | 'bid-analysis' | 'outline-generation' | 'global-facts' | 'content-edit' | 'expand';
+export type TechnicalPlanWorkflowKind = 'technical-plan' | 'existing-plan-expansion';
 export type BidAnalysisMode = 'key' | 'full';
 export type BidAnalysisTaskStatus = 'idle' | 'running' | 'success' | 'error';
 export type BackgroundTaskType = 'bid-analysis' | 'outline-generation' | 'global-facts-generation' | 'content-generation';
@@ -16,6 +17,7 @@ export interface ContentGenerationOptions {
   minimumWords: number;
   contentConcurrency: number;
   enableConsistencyAudit: boolean;
+  enableOriginalPlanCoverageAudit?: boolean;
 }
 
 export interface ContentImageStats {
@@ -156,9 +158,23 @@ export interface TechnicalPlanTenderFile {
   updatedAt: string;
 }
 
+export interface TechnicalPlanOriginalPlanFile {
+  fileName: string;
+  markdownPath: string;
+  markdownChars: number;
+  contentHash: string;
+  sourcePath?: string;
+  sourceExt?: string;
+  parserLabel?: string;
+  importedAt?: string;
+  updatedAt: string;
+}
+
 export interface TechnicalPlanState {
+  workflowKind: TechnicalPlanWorkflowKind;
   step: TechnicalPlanStep;
   tenderFile: TechnicalPlanTenderFile | null;
+  originalPlanFile: TechnicalPlanOriginalPlanFile | null;
   projectOverview: string;
   techRequirements: string;
   bidAnalysisMode: BidAnalysisMode;

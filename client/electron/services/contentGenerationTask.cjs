@@ -244,6 +244,13 @@ function countContentWords(content) {
   return countReadableWords(String(content || ''));
 }
 
+function compactOriginalPlanForPrompt(content) {
+  const text = String(content || '').trim();
+  const maxChars = 80000;
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, Math.floor(maxChars * 0.65))}\n\n……（原方案过长，中间内容已省略）……\n\n${text.slice(-Math.floor(maxChars * 0.35))}`;
+}
+
 function maxTablesForRequirement(requirement, leafCount) {
   if (requirement === 'none') return 0;
   if (requirement === 'light') return Math.floor(Math.max(0, leafCount) * 0.2);
@@ -612,14 +619,16 @@ function formatKnowledgeContentsForPrompt(contents) {
     .join('\n\n');
 }
 
-function buildChapterContentMessages({ chapter, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents }) {
+function buildChapterContentMessages({ chapter, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown }) {
   const chapterId = chapter.id || 'unknown';
   const chapterTitle = chapter.title || '未命名章节';
   const chapterDescription = chapter.description || '';
+  const hasOriginalPlan = String(originalPlanMarkdown || '').trim();
   const messages = [
     {
       role: 'system',
       content: `你是一个专业的标书编写专家，负责为投标文件的技术标部分生成具体内容。
+${hasOriginalPlan ? '当前是“已有方案扩写”模式。原方案是用户已经写好的核心草稿，必须尽量保留其中已有的事实、承诺、技术路线、实施方法、设备参数、人员安排和表达重点；同时要按本次招标文件、目录和全局事实补齐缺失响应点，优化结构和专业表达。' : ''}
 
 要求：
 1. 内容要专业、准确，与章节标题和描述保持一致。
@@ -634,12 +643,19 @@ function buildChapterContentMessages({ chapter, parentChapters, siblingChapters,
 10. 严禁使用 Markdown 标题语法（#、##、###、####、#####、######），也不要生成与当前章节同级或下级的伪目录标题。
 11. 如需在正文中分层表达，只能使用普通段落、列表、表格或加粗引导语，例如 **实施要点：**。
 12. 直接返回章节内容，不生成标题，不要任何额外说明。
-13. 如果本章节需要使用的全局事实变量中包含相关内容，必须优先使用变量值，不得前后矛盾。`,
+13. 如果本章节需要使用的全局事实变量中包含相关内容，必须优先使用变量值，不得前后矛盾。
+${hasOriginalPlan ? '14. 不要把原方案整体照搬到每个章节；只吸收与当前章节相关的内容。原方案与招标文件冲突时，以招标文件和全局事实为准，并用更稳妥的投标表达改写。' : ''}`,
     },
   ];
 
   if (String(projectOverview || '').trim()) {
     messages.push({ role: 'user', content: `项目概述信息：\n${projectOverview}` });
+  }
+  if (hasOriginalPlan) {
+    messages.push({
+      role: 'user',
+      content: `原方案正文（本次扩写的核心草稿，请只吸收与当前章节相关的内容）：\n${compactOriginalPlanForPrompt(originalPlanMarkdown)}`,
+    });
   }
   appendSelectedFactsMessage(messages, selectedFactsText);
 
@@ -2125,6 +2141,18 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
   const globalFactTitlesText = formatGlobalFactTitlesForPrompt(globalFacts);
   const allowedFactTitles = new Set(globalFacts.map((group) => singleLine(group?.title)).filter(Boolean));
   const bidAnalysisFactsText = formatBidAnalysisFactsForPrompt(storedPlan);
+  const isExpansionWorkflow = storedPlan.workflowKind === 'existing-plan-expansion';
+  const originalPlanMarkdown = isExpansionWorkflow && workspaceStore.readOriginalPlanMarkdown
+    ? workspaceStore.readOriginalPlanMarkdown()
+    : '';
+  if (isExpansionWorkflow) {
+    if (!storedPlan.originalPlanFile) {
+      throw new Error('请先上传原方案，再生成正文');
+    }
+    if (!String(originalPlanMarkdown || '').trim()) {
+      throw new Error('原方案正文为空，无法执行已有方案扩写');
+    }
+  }
 
   const projectOverview = outlineData.project_overview || storedPlan.projectOverview || '';
   const techRequirements = storedPlan.techRequirements || '';
@@ -2274,6 +2302,9 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
   logs = [...logs, enableConsistencyAudit
     ? '全文一致性审计已启用，正文扩写完成后将在配图前检查并修复事实冲突。'
     : '全文一致性审计未启用，本次正文生成将直接进入配图阶段。'];
+  if (isExpansionWorkflow) {
+    logs = [...logs, `已有方案扩写模式：已读取原方案，约 ${countContentWords(originalPlanMarkdown)} 字，将作为正文扩写核心草稿。`];
+  }
 
   function appendDeveloperLog(message) {
     if (!developerModeEnabled) {
@@ -2626,7 +2657,7 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
       const selectedFactsText = resolveSelectedFactsText(contentPlan, globalFacts);
 
       const generatedContent = await aiService.chat({
-        messages: buildChapterContentMessages({ chapter: item, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents }),
+        messages: buildChapterContentMessages({ chapter: item, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown }),
         temperature: 0.7,
         logTitle: `正文生成-${item.id}-${item.title || '未命名章节'}`,
       });
