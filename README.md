@@ -2,9 +2,11 @@
   <img src="./docs/images/yudubid-icon.png" alt="禹都AI解决方案助手图标" width="120" />
 </p>
 
-# 禹都AI解决方案助手
+# 🌐 禹都AI解决方案助手
 
 🚀 禹都AI解决方案助手是一款面向招投标、公文写作、软件著作和国家专利场景的本地 AI 工作台。它把资料导入、内容解析、方案生成、公文起草、交底书编写、查重检查、润色修订、版本留档和 Word 导出整合到同一套桌面流程中，帮助团队把分散的文档、代码、方案和经验沉淀成可复用、可交付的成果。
+
+🆓 **本软件完全免费**
 
 <p align="center">
   <img src="https://img.shields.io/badge/Desktop-Electron-47848f.svg" alt="Electron Desktop" />
@@ -13,23 +15,21 @@
   <img src="https://img.shields.io/badge/Workspace-Local-10b981.svg" alt="Local Workspace" />
 </p>
 
-## 宣传图册
+## 📦 客户端下载
 
-![一站式智能文档编写解决方案](./client/installer-assets/promo-4.png)
+前往 [GitHub Releases](https://github.com/liwg1995/YuduBid/releases) 下载 Windows 或 macOS 客户端安装包。
 
-![技术标书智能编写](./client/installer-assets/promo-3.png)
+## 🎬 如何使用？
 
-![软件著作材料智能生成](./client/installer-assets/promo-2.png)
+### 使用前的设置
 
-![国家专利交底书智能编写](./client/installer-assets/promo-1.png)
+- 前往[USE.MD](./guide/USE-CONFIG.md)查阅使用教学
 
+### 新建技术方案（技术标书从无到有生成）
 
-## 客户端下载
+- 前往[USE-Bid.md](./guide/USE-Bid.md)查阅使用教学
 
-前往 [Releases](https://github.com/liwg1995/YuduBid/releases) 下载 Windows 或 macOS 客户端安装包。
-
-
-## 能力概览
+## 📚 能力概览
 
 ### 技术标书
 
@@ -47,7 +47,7 @@
 
 从项目文档、代码、方案和技术说明中挖掘可保护技术点，辅助完成专利挖掘、交底书生成、查新分析和修订迭代，帮助创新内容更快转化为专利材料。
 
-## 产品特色
+## ✨ 产品特色
 
 - 本地桌面工作台，资料、草稿和流程状态保存在本机工作区。
 - 文本模型、生图模型和文件解析能力可独立配置。
@@ -56,7 +56,7 @@
 - 内置公文写作模板、检查维度和润色规则，便于从起草到检查再到导出形成闭环。
 - 面向中文办公文档场景设计，覆盖招投标、公文写作、软著、专利和知识资产管理。
 
-## 适用场景
+## 🧩 适用场景
 
 - 招投标团队编写技术标书、整理商务响应和检查废标风险。
 - 机关、企事业单位和项目团队起草通知、请示、报告、函、工作方案等公文材料。
@@ -64,7 +64,7 @@
 - 技术团队从项目成果中提炼创新点并生成专利交底书。
 - 组织沉淀历史案例、模板、素材和知识条目，提升后续交付效率。
 
-## 开发者用户
+## ⭐ 开发者用户
 
 客户端源码位于 `client/`。安装依赖、构建和本地打包都在该目录下执行。
 
@@ -89,9 +89,20 @@ npm run dist:win
 npm run dist:mac
 ```
 
-## 🙏致谢
+## 🙏 致谢
 
 本项目基于 [FB208/OpenBidKit_Yibiao](https://github.com/FB208/OpenBidKit_Yibiao) 进行二开，感谢作者提供肩膀！
 
 ## 📄 许可证
 遵从 [GNU Affero General Public License v3.0](https://github.com/FB208/OpenBidKit_Yibiao/blob/main/LICENSE) 开源协议。
+
+
+你可以自由使用、修改、分发和商用本项目，但修改版、分发版和通过网络提供服务的版本必须遵守 AGPL-3.0 的开源义务，并保留本项目原始仓库链接和作者信息。
+
+
+---
+
+
+<p align="center">
+  ⭐ 如果这个项目对您有帮助，请给我们一个Star支持！
+</p>
