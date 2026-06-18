@@ -28,27 +28,6 @@
 
 前往 [Releases](https://github.com/liwg1995/YuduBid/releases) 下载 Windows 或 macOS 客户端安装包。
 
-## 版本更新 / Release Notes
-
-### V0.4.1
-
-#### 中文
-
-- 新增“已有方案扩写”一级功能，支持上传招标文件技术部分和已有技术方案，并基于原方案进行目录、正文和扩写流程编排。
-- 已有方案扩写与“技术方案”功能使用独立工作区，避免招标文件、原方案、目录和正文缓存互相影响。
-- 正文生成页新增“原方案参考”，便于在扩写时对照已有方案原文。
-- Word 导出新增“原格式导出”和“优化格式导出”选择；原格式导出会基于上传的 DOCX 原方案模板保留版式，优化格式导出依赖已启用的 `word-optimization` 技能。
-- 修复已有方案扩写上传页和原方案预览区的布局错位问题，并修复原格式导出找不到 DOCX 模板的问题。
-
-#### English
-
-- Added the top-level “Existing Plan Expansion” workflow, with separate uploads for the tender technical requirements and the existing technical proposal.
-- Isolated the expansion workflow from the from-scratch “Technical Plan” workflow so uploaded files, outlines, generated content, and caches do not interfere with each other.
-- Added an “Original Plan Reference” panel on the body generation page for side-by-side expansion context.
-- Added two Word export modes: original-format export based on the uploaded DOCX template, and optimized-format export powered by the enabled `word-optimization` skill.
-- Fixed layout issues on the expansion upload and original-plan preview pages, and fixed original-format export path resolution for DOCX templates.
-
-> 从 V0.4.1 开始，GitHub Releases 的更新内容将同时提供中文和 English 说明。
 
 ## 能力概览
 
