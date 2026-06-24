@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isLibreOfficeRequiredMessage, MarkdownRenderer, useDocumentParseNotice, useToast } from '../../../shared/ui';
-import type { FileParserProvider } from '../../../shared/types';
+import type { FileParserProvider, OutlineItem } from '../../../shared/types';
 import type { TechnicalPlanOriginalPlanFile, TechnicalPlanState, TechnicalPlanTenderFile, TechnicalPlanWorkflowKind } from '../types';
 
 const parserLabels: Record<FileParserProvider, string> = {
@@ -8,6 +8,10 @@ const parserLabels: Record<FileParserProvider, string> = {
   'mineru-accurate-api': 'MinerU 精准解析 API',
   'mineru-agent-api': 'MinerU-Agent 轻量解析 API',
 };
+
+function hasGeneratedOutlineContent(items: OutlineItem[] = []): boolean {
+  return items.some((item) => String(item.content || '').trim() || hasGeneratedOutlineContent(item.children || []));
+}
 
 interface DocumentAnalysisPageProps {
   workflowKind: TechnicalPlanWorkflowKind;
@@ -31,6 +35,7 @@ function DocumentAnalysisPage({
   const [parserLabel, setParserLabel] = useState(parserLabels.local);
   const [busy, setBusy] = useState(false);
   const [activeDocument, setActiveDocument] = useState<'tender' | 'original'>('tender');
+  const [canImportGeneratedPlan, setCanImportGeneratedPlan] = useState(false);
   const { showToast } = useToast();
   const { showDocumentParseNotice } = useDocumentParseNotice();
   const isExpansionWorkflow = workflowKind === 'existing-plan-expansion';
@@ -59,6 +64,34 @@ function DocumentAnalysisPage({
       mounted = false;
     };
   }, [showToast]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadGeneratedPlanAvailability = async () => {
+      if (!isExpansionWorkflow || !window.yibiao) {
+        if (mounted) setCanImportGeneratedPlan(false);
+        return;
+      }
+
+      try {
+        const technicalPlan = await window.yibiao.technicalPlan.loadState('technical-plan');
+        const available = Boolean(
+          technicalPlan.tenderFile
+          && hasGeneratedOutlineContent(technicalPlan.outlineData?.outline || []),
+        );
+        if (mounted) setCanImportGeneratedPlan(available);
+      } catch {
+        if (mounted) setCanImportGeneratedPlan(false);
+      }
+    };
+
+    loadGeneratedPlanAvailability();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isExpansionWorkflow]);
 
   const importDocument = async () => {
     try {
@@ -122,6 +155,29 @@ function DocumentAnalysisPage({
     }
   };
 
+  const importGeneratedOriginalPlan = async () => {
+    try {
+      setBusy(true);
+      const result = await window.yibiao?.technicalPlan.importGeneratedOriginalPlan();
+
+      if (!result?.success || !result.markdown) {
+        showToast(result?.message || '技术方案模块暂无可导入的内容', 'info');
+        return;
+      }
+
+      const importedTenderMarkdown = result.tenderMarkdown || await window.yibiao?.technicalPlan.readTenderMarkdown('existing-plan-expansion') || '';
+      const importedOriginalMarkdown = result.markdown || await window.yibiao?.technicalPlan.readOriginalPlanMarkdown('existing-plan-expansion') || '';
+      onFileImported(result.state, importedTenderMarkdown);
+      onOriginalPlanImported(result.state, importedOriginalMarkdown);
+      setActiveDocument(importedTenderMarkdown ? 'tender' : 'original');
+      showToast(result.message || '已导入技术方案生成内容', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '导入技术方案生成内容失败', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const activeFile = activeDocument === 'original' ? originalPlanFile : tenderFile;
   const activeMarkdown = activeDocument === 'original' ? originalPlanMarkdown : tenderMarkdown;
   const activeLabel = activeDocument === 'original' ? '原方案' : '招标文件';
@@ -157,7 +213,15 @@ function DocumentAnalysisPage({
           <strong>{isExpansionWorkflow ? '上传招标文件与原方案' : '上传招标文件'}</strong>
           <p>{isExpansionWorkflow ? '原方案会作为扩写核心草稿，招标文件用于约束目录、评分点和响应要求。' : `当前解析方案：${parserLabel}`}</p>
         </div>
-        {!isExpansionWorkflow && (
+        {isExpansionWorkflow ? (
+          <div className="analysis-actions">
+            {canImportGeneratedPlan && (
+              <button type="button" className="secondary-action" onClick={importGeneratedOriginalPlan} disabled={busy}>
+                {busy ? '导入中...' : '导入技术方案模块内容'}
+              </button>
+            )}
+          </div>
+        ) : (
           <div className="analysis-actions">
             <button type="button" className="primary-action" onClick={importDocument} disabled={busy}>
               {busy ? '解析中...' : tenderFile ? '重新选择文件' : '选择文件'}

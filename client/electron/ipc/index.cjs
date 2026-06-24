@@ -66,6 +66,35 @@ function createTechnicalPlanStoreRouter(technicalPlanStore, existingPlanExpansio
     const { workflowKind: _workflowKind, workflow_kind: _workflowKindSnake, ...rest } = payload || {};
     return rest;
   };
+  const collectGeneratedContentMarkdown = (outlineItems, level = 1) => {
+    const chunks = [];
+    for (const item of Array.isArray(outlineItems) ? outlineItems : []) {
+      const title = String(item?.title || '').trim();
+      const content = String(item?.content || '').trim();
+      const childMarkdown = collectGeneratedContentMarkdown(item?.children || [], Math.min(level + 1, 6));
+      if (!title && !content && !childMarkdown) {
+        continue;
+      }
+      if (title) {
+        chunks.push(`${'#'.repeat(Math.max(1, Math.min(level, 6)))} ${title}`);
+      }
+      if (content) {
+        chunks.push(content);
+      }
+      if (childMarkdown) {
+        chunks.push(childMarkdown);
+      }
+    }
+    return chunks.join('\n\n');
+  };
+  const countGeneratedContentNodes = (outlineItems) => {
+    let count = 0;
+    for (const item of Array.isArray(outlineItems) ? outlineItems : []) {
+      if (String(item?.content || '').trim()) count += 1;
+      count += countGeneratedContentNodes(item?.children || []);
+    }
+    return count;
+  };
 
   return {
     forWorkflow(workflowKind) {
@@ -85,6 +114,63 @@ function createTechnicalPlanStoreRouter(technicalPlanStore, existingPlanExpansio
     },
     importOriginalPlanDocument(workflowKind) {
       return pickStore(workflowKind).importOriginalPlanDocument();
+    },
+    importGeneratedOriginalPlan() {
+      const sourceState = technicalPlanStore.loadTechnicalPlan();
+      const tenderMarkdown = technicalPlanStore.readTenderMarkdown();
+      if (!sourceState?.tenderFile || !String(tenderMarkdown || '').trim()) {
+        return {
+          success: false,
+          message: '技术方案模块尚未导入招标文件',
+          state: existingPlanExpansionStore.loadTechnicalPlan(),
+          markdown: '',
+          tenderMarkdown: '',
+        };
+      }
+
+      const outlineData = sourceState?.outlineData;
+      if (!outlineData?.outline?.length) {
+        return {
+          success: false,
+          message: '技术方案模块尚未生成目录和正文',
+          state: existingPlanExpansionStore.loadTechnicalPlan(),
+          markdown: '',
+          tenderMarkdown: '',
+        };
+      }
+
+      const markdown = collectGeneratedContentMarkdown(outlineData.outline);
+      const contentNodeCount = countGeneratedContentNodes(outlineData.outline);
+      if (!markdown.trim() || contentNodeCount === 0) {
+        return {
+          success: false,
+          message: '技术方案模块尚未生成可导入的正文内容',
+          state: existingPlanExpansionStore.loadTechnicalPlan(),
+          markdown: '',
+          tenderMarkdown: '',
+        };
+      }
+
+      existingPlanExpansionStore.importTenderMarkdown({
+        fileName: sourceState.tenderFile.fileName || '技术方案招标文件',
+        markdown: tenderMarkdown,
+        parserLabel: sourceState.tenderFile.parserLabel || '技术方案模块',
+      });
+      const result = existingPlanExpansionStore.importOriginalPlanMarkdown({
+        fileName: outlineData.project_name ? `${outlineData.project_name} - 技术方案生成内容` : '技术方案生成内容',
+        markdown,
+        parserLabel: '技术方案生成内容',
+      });
+      const finalState = existingPlanExpansionStore.loadTechnicalPlan();
+      const importedTenderMarkdown = existingPlanExpansionStore.readTenderMarkdown();
+      const importedOriginalMarkdown = existingPlanExpansionStore.readOriginalPlanMarkdown();
+      return {
+        ...result,
+        state: finalState,
+        markdown: importedOriginalMarkdown || markdown,
+        tenderMarkdown: importedTenderMarkdown || tenderMarkdown,
+        message: `已导入技术方案模块的招标文件和生成内容，共 ${contentNodeCount} 个正文小节`,
+      };
     },
     readTenderMarkdown(workflowKind) {
       return pickStore(workflowKind).readTenderMarkdown();
@@ -234,6 +320,7 @@ function registerUnavailableTechnicalPlanIpc(error) {
     'technical-plan:load-state',
     'technical-plan:import-tender-document',
     'technical-plan:import-original-plan-document',
+    'technical-plan:import-generated-original-plan',
     'technical-plan:read-tender-markdown',
     'technical-plan:read-original-plan-markdown',
     'technical-plan:update-step',

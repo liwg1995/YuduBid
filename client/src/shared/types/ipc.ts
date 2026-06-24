@@ -132,6 +132,7 @@ export interface YuDuBidBridge {
     loadState: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<TechnicalPlanState>;
     importTenderDocument: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
     importOriginalPlanDocument: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
+    importGeneratedOriginalPlan: () => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string; tenderMarkdown?: string }>;
     readTenderMarkdown: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<string>;
     readOriginalPlanMarkdown: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<string>;
     updateStep: (payload: TechnicalPlanStep | { workflowKind?: TechnicalPlanWorkflowKind; step: TechnicalPlanStep }) => Promise<TechnicalPlanState>;

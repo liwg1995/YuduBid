@@ -905,6 +905,44 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     }
   }
 
+  function importTenderMarkdown({ fileName, markdown, parserLabel } = {}) {
+    const content = String(markdown || '').trim();
+    if (!content) {
+      throw new Error('可导入的招标文件内容为空');
+    }
+
+    const targetDir = path.dirname(tenderMarkdownPath);
+    const tempPath = path.join(targetDir, `tender-${Date.now()}.tmp.md`);
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(tempPath, `${content}\n`, 'utf-8');
+
+    try {
+      fs.renameSync(tempPath, tenderMarkdownPath);
+      const timestamp = now();
+      const transaction = db.transaction(() => {
+        clearDownstreamFromTender();
+        updateMeta({
+          tender_file_name: String(fileName || '技术方案招标文件').trim() || '技术方案招标文件',
+          tender_markdown_path: tenderMarkdownRelativePath,
+          tender_markdown_hash: stableHash(content),
+          tender_markdown_chars: content.length,
+          tender_parser_label: parserLabel ? String(parserLabel) : '技术方案模块',
+          tender_imported_at: timestamp,
+        });
+      });
+      transaction();
+      return {
+        success: true,
+        message: '招标文件已导入',
+        state: loadTechnicalPlan(),
+        markdown: content,
+      };
+    } catch (error) {
+      if (fs.existsSync(tempPath)) fs.rmSync(tempPath, { force: true });
+      throw error;
+    }
+  }
+
   async function importOriginalPlanDocument() {
     if (!fileService?.importDocument) {
       throw new Error('文件导入服务尚未初始化');
@@ -966,6 +1004,51 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     }
   }
 
+  function importOriginalPlanMarkdown({ fileName, markdown, parserLabel } = {}) {
+    const content = String(markdown || '').trim();
+    if (!content) {
+      throw new Error('可导入的原方案正文为空');
+    }
+
+    const targetDir = path.dirname(originalPlanMarkdownPath);
+    const tempPath = path.join(targetDir, `original-plan-${Date.now()}.tmp.md`);
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(tempPath, `${content}\n`, 'utf-8');
+
+    try {
+      fs.renameSync(tempPath, originalPlanMarkdownPath);
+      if (fs.existsSync(originalPlanSourceDir)) {
+        fs.rmSync(originalPlanSourceDir, { recursive: true, force: true });
+      }
+      const timestamp = now();
+      const transaction = db.transaction(() => {
+        clearGlobalFactsAndContentState();
+        updateMeta({
+          workflow_kind: 'existing-plan-expansion',
+          original_plan_file_name: String(fileName || '技术方案生成内容').trim() || '技术方案生成内容',
+          original_plan_markdown_path: originalPlanMarkdownRelativePath,
+          original_plan_markdown_hash: stableHash(content),
+          original_plan_markdown_chars: content.length,
+          original_plan_source_path: null,
+          original_plan_source_ext: null,
+          original_plan_parser_label: parserLabel ? String(parserLabel) : '技术方案生成内容',
+          original_plan_imported_at: timestamp,
+          step: 'document-analysis',
+        });
+      });
+      transaction();
+      return {
+        success: true,
+        message: '已从技术方案生成内容导入原方案',
+        state: loadTechnicalPlan(),
+        markdown: content,
+      };
+    } catch (error) {
+      if (fs.existsSync(tempPath)) fs.rmSync(tempPath, { force: true });
+      throw error;
+    }
+  }
+
   function clearTechnicalPlan() {
     const workflowKind = normalizeWorkflowKind(ensureMetaRow().workflow_kind);
     const transaction = db.transaction(() => {
@@ -997,7 +1080,9 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     updateTechnicalPlan,
     clearTechnicalPlan,
     importTenderDocument,
+    importTenderMarkdown,
     importOriginalPlanDocument,
+    importOriginalPlanMarkdown,
     readTenderMarkdown,
     readOriginalPlanMarkdown,
     updateStep,

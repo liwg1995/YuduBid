@@ -87,6 +87,7 @@ const bridge = {
     loadState: (workflowKind) => ipcRenderer.invoke('technical-plan:load-state', workflowKind),
     importTenderDocument: (workflowKind) => ipcRenderer.invoke('technical-plan:import-tender-document', workflowKind),
     importOriginalPlanDocument: (workflowKind) => ipcRenderer.invoke('technical-plan:import-original-plan-document', workflowKind),
+    importGeneratedOriginalPlan: () => ipcRenderer.invoke('technical-plan:import-generated-original-plan'),
     readTenderMarkdown: (workflowKind) => ipcRenderer.invoke('technical-plan:read-tender-markdown', workflowKind),
     readOriginalPlanMarkdown: (workflowKind) => ipcRenderer.invoke('technical-plan:read-original-plan-markdown', workflowKind),
     updateStep: (payload) => ipcRenderer.invoke('technical-plan:update-step', payload),

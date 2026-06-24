@@ -4,6 +4,7 @@ function registerTechnicalPlanIpc({ technicalPlanStore }) {
   ipcMain.handle('technical-plan:load-state', (_event, workflowKind) => technicalPlanStore.loadTechnicalPlan(workflowKind));
   ipcMain.handle('technical-plan:import-tender-document', (_event, workflowKind) => technicalPlanStore.importTenderDocument(workflowKind));
   ipcMain.handle('technical-plan:import-original-plan-document', (_event, workflowKind) => technicalPlanStore.importOriginalPlanDocument(workflowKind));
+  ipcMain.handle('technical-plan:import-generated-original-plan', () => technicalPlanStore.importGeneratedOriginalPlan());
   ipcMain.handle('technical-plan:read-tender-markdown', (_event, workflowKind) => technicalPlanStore.readTenderMarkdown(workflowKind));
   ipcMain.handle('technical-plan:read-original-plan-markdown', (_event, workflowKind) => technicalPlanStore.readOriginalPlanMarkdown(workflowKind));
   ipcMain.handle('technical-plan:update-step', (_event, payload) => technicalPlanStore.updateStep(payload));
