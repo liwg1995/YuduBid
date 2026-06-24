@@ -413,7 +413,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     });
     const removeErrorListener = window.yibiao?.onUpdateError((event) => {
       setDownloadingUpdate(false);
-      showToast(event.message || '下载更新失败', 'error');
+      showToast(event.message || '下载更新失败，可使用“手动下载”下载安装包', 'error');
     });
 
     return () => {
@@ -553,7 +553,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
         return;
       }
       if (result.failed) {
-        showToast(result.message || '下载更新失败', 'error');
+        showToast(result.message || '下载更新失败，可使用“手动下载”下载安装包', 'error');
         return;
       }
       if (!result.updateAvailable) {
@@ -567,7 +567,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
         }
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '下载更新失败', 'error');
+      showToast(error instanceof Error ? error.message : '下载更新失败，可使用“手动下载”下载安装包', 'error');
     } finally {
       setDownloadingUpdate(false);
     }
@@ -1567,6 +1567,15 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
                 )}
                 <div className="release-detail-actions">
                   <Dialog.Close className="secondary-action" type="button">稍后再说</Dialog.Close>
+                  {canUseOnlineUpdate && (
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      onClick={() => { void openLatestDownload(); }}
+                    >
+                      手动下载
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="primary-action"

@@ -8,6 +8,9 @@ const updateState = {
   downloadedVersion: '',
 };
 
+const updateCheckTimeoutMs = Number(process.env.YIBIAO_UPDATE_CHECK_TIMEOUT_MS || 180000);
+const updateDownloadRetryDelaysMs = [0, 5000, 15000];
+
 function setProgressBar(mainWindow, progress) {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
@@ -72,14 +75,45 @@ function createFailedResult(message) {
     enabled: true,
     updateAvailable: false,
     failed: true,
-    message: message || '检查更新失败',
+    message: normalizeUpdateErrorMessage(message),
   };
 }
 
 function emitError(options, message) {
   if (typeof options.onError === 'function') {
-    options.onError(message);
+    options.onError(normalizeUpdateErrorMessage(message));
   }
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isLikelyNetworkTimeout(value) {
+  const message = String(value || '').toLowerCase();
+  return [
+    'timeout',
+    'timed out',
+    'etimedout',
+    'econnreset',
+    'econnaborted',
+    'enotfound',
+    'eai_again',
+    'network',
+    'socket hang up',
+    'aborted',
+  ].some((keyword) => message.includes(keyword));
+}
+
+function normalizeUpdateErrorMessage(value) {
+  const message = String(value || '').trim();
+  if (!message) {
+    return '更新失败，请稍后重试；如果网络较慢，可以在关于页面打开最新版下载链接手动下载安装。';
+  }
+  if (isLikelyNetworkTimeout(message)) {
+    return '连接 GitHub 更新服务器超时或网络中断。大陆网络较慢时请稍后重试，或在关于页面使用“获取最新版”打开下载链接手动下载安装。';
+  }
+  return message;
 }
 
 function setupAutoUpdate({ app, mainWindow }) {
@@ -137,7 +171,7 @@ async function checkForUpdate() {
     const timer = setTimeout(() => {
       cleanup();
       reject(new Error('检查更新超时'));
-    }, 60000);
+    }, Math.max(60000, updateCheckTimeoutMs));
 
     const cleanup = () => {
       clearTimeout(timer);
@@ -185,11 +219,31 @@ async function downloadUpdate() {
     return updateState.downloadPromise;
   }
 
-  updateState.downloadPromise = autoUpdater.downloadUpdate()
-    .then(() => updateState.downloadedVersion)
-    .finally(() => {
-      updateState.downloadPromise = null;
-    });
+  updateState.downloadPromise = (async () => {
+    let lastError = null;
+    for (let index = 0; index < updateDownloadRetryDelaysMs.length; index += 1) {
+      const delayMs = updateDownloadRetryDelaysMs[index];
+      if (delayMs > 0) {
+        await wait(delayMs);
+      }
+
+      try {
+        await autoUpdater.downloadUpdate();
+        return updateState.downloadedVersion;
+      } catch (error) {
+        lastError = error;
+        const message = error?.message || String(error || '');
+        const canRetry = index < updateDownloadRetryDelaysMs.length - 1 && isLikelyNetworkTimeout(message);
+        if (!canRetry) {
+          throw error;
+        }
+        console.warn(`[update] 下载更新失败，准备第 ${index + 2}/${updateDownloadRetryDelaysMs.length} 次重试`, error);
+      }
+    }
+    throw lastError || new Error('下载更新失败');
+  })().finally(() => {
+    updateState.downloadPromise = null;
+  });
 
   return updateState.downloadPromise;
 }
