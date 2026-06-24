@@ -64,10 +64,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
         run: |
+          release_flags=()
+          if [[ "$TAG_NAME" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
+
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release edit "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md
+            gh release edit "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md "${release_flags[@]}"
           else
-            gh release create "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md
+            gh release create "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md "${release_flags[@]}"
           fi
 
   build:
@@ -175,6 +180,28 @@ jobs:
         if: runner.os == 'Windows'
         run: npx electron-builder --win nsis zip --publish never
 
+      - name: Verify Windows auto-update artifacts
+        if: runner.os == 'Windows'
+        run: |
+          shopt -s nullglob
+          installers=(release/*.exe)
+          blockmaps=(release/*.blockmap)
+
+          if [ ${#installers[@]} -eq 0 ]; then
+            echo "Missing Windows installer .exe for auto update."
+            exit 1
+          fi
+
+          if [ ! -f release/latest.yml ]; then
+            echo "Missing latest.yml for Windows auto update."
+            exit 1
+          fi
+
+          if [ ${#blockmaps[@]} -eq 0 ]; then
+            echo "Missing .blockmap for Windows differential update."
+            exit 1
+          fi
+
       - name: Build and publish macOS artifacts
         if: runner.os == 'macOS'
         run: |
@@ -200,7 +227,7 @@ jobs:
           shopt -s nullglob
           for dmg in release/*.dmg; do
             base="$(basename "$dmg" .dmg)"
-            package_dir="release/${base}-package"
+            package_dir="release/${base}-manual-package"
             rm -rf "$package_dir"
             mkdir -p "$package_dir"
             cp "$dmg" "$package_dir/"
@@ -222,9 +249,8 @@ jobs:
 
           如果仍无法打开，请右键点击 App，选择“打开”，再确认打开。
           EOF
-            (cd release && ditto -c -k --sequesterRsrc --keepParent "$(basename "$package_dir")" "${base}-package.zip")
+            (cd release && ditto -c -k --sequesterRsrc --keepParent "$(basename "$package_dir")" "${base}-manual-package.zip")
             rm -rf "$package_dir"
-            rm -f "$dmg"
           done
 
       - name: Upload release assets

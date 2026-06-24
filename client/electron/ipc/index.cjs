@@ -31,6 +31,7 @@ const { createTaskService } = require('../services/taskService.cjs');
 const { createTechnicalPlanStore } = require('../services/technicalPlanStore.cjs');
 
 const latestReleaseApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases/latest';
+const releasesApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases';
 
 function normalizeTechnicalPlanWorkflowKind(value) {
   return value === 'existing-plan-expansion' ? 'existing-plan-expansion' : 'technical-plan';
@@ -153,21 +154,32 @@ function pickReleaseDownloadAsset(assets = []) {
   if (platform === 'darwin') {
     const archKeyword = arch === 'arm64' ? 'arm64' : 'x64';
     return (
+      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes(archKeyword) && name.includes('manual-package')) ||
+      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes('manual-package')) ||
       byName((name) => name.endsWith('.dmg') && name.includes(archKeyword)) ||
+      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes(archKeyword) && name.includes('package')) ||
+      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes(archKeyword)) ||
       byName((name) => name.endsWith('.dmg') && name.includes('mac')) ||
-      byName((name) => name.endsWith('.dmg'))
+      byName((name) => name.endsWith('.dmg')) ||
+      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes('package')) ||
+      byName((name) => name.endsWith('.zip') && name.includes('mac'))
     );
   }
 
   return candidates[0];
 }
 
-async function fetchLatestReleaseInfo() {
+function shouldIncludePrerelease(app) {
+  return String(app?.getVersion?.() || '').includes('-') || process.env.YIBIAO_INCLUDE_PRERELEASE_UPDATE === '1';
+}
+
+async function fetchLatestReleaseInfo(options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
 
   try {
-    const response = await fetch(latestReleaseApiUrl, {
+    const includePrerelease = Boolean(options.includePrerelease);
+    const response = await fetch(includePrerelease ? `${releasesApiUrl}?per_page=20` : latestReleaseApiUrl, {
       headers: {
         Accept: 'application/vnd.github+json',
         'User-Agent': 'YuDuBid-Client',
@@ -179,7 +191,14 @@ async function fetchLatestReleaseInfo() {
       throw new Error(`GitHub 返回 ${response.status}`);
     }
 
-    const release = await response.json();
+    const payload = await response.json();
+    const release = Array.isArray(payload)
+      ? payload.find((item) => item && !item.draft && (includePrerelease || !item.prerelease))
+      : payload;
+    if (!release) {
+      throw new Error('未找到可用版本');
+    }
+
     const assets = Array.isArray(release.assets) ? release.assets : [];
     const downloadAsset = pickReleaseDownloadAsset(assets);
 
@@ -324,7 +343,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     }
   });
 
-  ipcMain.handle('app:get-latest-version', () => fetchLatestReleaseInfo());
+  ipcMain.handle('app:get-latest-version', () => fetchLatestReleaseInfo({ includePrerelease: shouldIncludePrerelease(app) }));
   ipcMain.handle('app:quit-and-install', () => {
     quitAndInstall();
   });

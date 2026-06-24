@@ -4,6 +4,7 @@ import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type { ClientConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider } from '../../../shared/types';
+import { hasPromptedUpdate, showUpdateReadyToast } from '../../../shared/updateToast';
 import type { SettingsPageState } from '../types';
 
 type SettingsTab = 'general' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'about';
@@ -375,12 +376,37 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   const [checkingLatestRelease, setCheckingLatestRelease] = useState(false);
   const [latestRelease, setLatestRelease] = useState<LatestReleaseInfo | null>(null);
   const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
+  const [downloadingUpdate, setDownloadingUpdate] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
   const { showToast } = useToast();
 
   useEffect(() => {
     void loadTextConfig();
     void window.yibiao?.getVersion().then(setAppVersion);
   }, []);
+
+  useEffect(() => {
+    const removeProgressListener = window.yibiao?.onUpdateProgress((event) => {
+      setUpdateProgress(Math.round(event.percent || 0));
+    });
+    const removeDownloadedListener = window.yibiao?.onUpdateDownloaded((event) => {
+      setDownloadingUpdate(false);
+      setUpdateProgress(100);
+      if (!hasPromptedUpdate(event.version)) {
+        showUpdateReadyToast(showToast, event.version);
+      }
+    });
+    const removeErrorListener = window.yibiao?.onUpdateError((event) => {
+      setDownloadingUpdate(false);
+      showToast(event.message || '下载更新失败', 'error');
+    });
+
+    return () => {
+      removeProgressListener?.();
+      removeDownloadedListener?.();
+      removeErrorListener?.();
+    };
+  }, [showToast]);
 
   const loadTextConfig = async () => {
     try {
@@ -495,6 +521,40 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : '打开最新版下载链接失败', 'error');
+    }
+  };
+
+  const downloadAndInstallLatest = async () => {
+    if (downloadingUpdate) {
+      return;
+    }
+
+    try {
+      setDownloadingUpdate(true);
+      setUpdateProgress(0);
+      const result = await window.yibiao?.startUpdate();
+      if (!result?.enabled) {
+        showToast(result?.message || '当前系统暂不支持包内自动更新', 'info');
+        return;
+      }
+      if (result.failed) {
+        showToast(result.message || '下载更新失败', 'error');
+        return;
+      }
+      if (!result.updateAvailable) {
+        showToast(result.message || '当前已是最新版本', 'success');
+        return;
+      }
+      if (result.downloaded) {
+        setUpdateProgress(100);
+        if (!hasPromptedUpdate(result.version || '')) {
+          showUpdateReadyToast(showToast, result.version || '');
+        }
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '下载更新失败', 'error');
+    } finally {
+      setDownloadingUpdate(false);
     }
   };
 
@@ -990,6 +1050,12 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     : [];
 
   const hasNewRelease = Boolean(latestRelease?.version && compareVersions(latestRelease.version, appVersion) > 0);
+  const canUseOnlineUpdate = window.yibiao?.platform === 'win32';
+  const updateActionLabel = downloadingUpdate
+    ? `下载中 ${updateProgress}%`
+    : canUseOnlineUpdate
+      ? '下载并安装更新'
+      : '获取最新版';
 
   return (
     <div className="settings-page">
@@ -1486,8 +1552,19 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
                 )}
                 <div className="release-detail-actions">
                   <Dialog.Close className="secondary-action" type="button">稍后再说</Dialog.Close>
-                  <button type="button" className="primary-action" onClick={() => { void openLatestDownload(); }}>
-                    获取最新版
+                  <button
+                    type="button"
+                    className="primary-action"
+                    disabled={downloadingUpdate}
+                    onClick={() => {
+                      if (canUseOnlineUpdate) {
+                        void downloadAndInstallLatest();
+                        return;
+                      }
+                      void openLatestDownload();
+                    }}
+                  >
+                    {updateActionLabel}
                   </button>
                 </div>
               </Dialog.Content>

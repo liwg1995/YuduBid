@@ -28,6 +28,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "liwg1995",
+        "repo": "YuduBid"
+      }
+    ],
     "files": [
       "dist/**/*",
       "electron/**/*",
