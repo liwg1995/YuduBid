@@ -173,14 +173,29 @@ function normalizeVersionText(version: string) {
   return String(version || '').trim().replace(/^v/i, '');
 }
 
+function parseVersionText(version: string) {
+  const normalized = normalizeVersionText(version);
+  const [core = '', prerelease = ''] = normalized.split('-', 2);
+  return {
+    numbers: core.split('.').map((part) => Number.parseInt(part, 10) || 0),
+    prerelease,
+  };
+}
+
 function compareVersions(left: string, right: string) {
-  const leftParts = normalizeVersionText(left).split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
-  const rightParts = normalizeVersionText(right).split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
-  const length = Math.max(leftParts.length, rightParts.length);
+  const leftVersion = parseVersionText(left);
+  const rightVersion = parseVersionText(right);
+  const length = Math.max(leftVersion.numbers.length, rightVersion.numbers.length);
 
   for (let index = 0; index < length; index += 1) {
-    const delta = (leftParts[index] || 0) - (rightParts[index] || 0);
+    const delta = (leftVersion.numbers[index] || 0) - (rightVersion.numbers[index] || 0);
     if (delta !== 0) return delta;
+  }
+
+  if (leftVersion.prerelease && !rightVersion.prerelease) return -1;
+  if (!leftVersion.prerelease && rightVersion.prerelease) return 1;
+  if (leftVersion.prerelease !== rightVersion.prerelease) {
+    return leftVersion.prerelease.localeCompare(rightVersion.prerelease);
   }
 
   return 0;
