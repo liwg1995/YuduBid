@@ -154,13 +154,13 @@ function pickReleaseDownloadAsset(assets = []) {
   if (platform === 'darwin') {
     const archKeyword = arch === 'arm64' ? 'arm64' : 'x64';
     return (
-      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes(archKeyword) && name.includes('manual-package')) ||
-      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes('manual-package')) ||
       byName((name) => name.endsWith('.dmg') && name.includes(archKeyword)) ||
-      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes(archKeyword) && name.includes('package')) ||
-      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes(archKeyword)) ||
       byName((name) => name.endsWith('.dmg') && name.includes('mac')) ||
       byName((name) => name.endsWith('.dmg')) ||
+      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes(archKeyword) && name.includes('manual-package')) ||
+      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes('manual-package')) ||
+      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes(archKeyword) && name.includes('package')) ||
+      byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes(archKeyword)) ||
       byName((name) => name.endsWith('.zip') && name.includes('mac') && name.includes('package')) ||
       byName((name) => name.endsWith('.zip') && name.includes('mac'))
     );
