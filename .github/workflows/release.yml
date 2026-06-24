@@ -259,7 +259,7 @@ jobs:
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
         run: |
           shopt -s nullglob
-          files=(release/*.exe release/*.msi release/*.zip release/*.blockmap release/latest*.yml)
+          files=(release/*.exe release/*.msi release/*.dmg release/*.zip release/*.blockmap release/latest*.yml)
           if [ ${#files[@]} -eq 0 ]; then
             echo "No release assets found."
             exit 1
