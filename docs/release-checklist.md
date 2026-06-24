@@ -16,7 +16,7 @@ v0.4.2-pre
 0.4.2-pre
 ```
 
-`v0.4.2-pre` 会被 Release CI 标记为 prerelease。正式版客户端默认不读取 prerelease，只有当前客户端版本号本身包含 `-`，或启动时设置了 `YIBIAO_INCLUDE_PRERELEASE_UPDATE=1`，才会读取该测试版本。
+`v0.4.2-pre` 是测试命名，但需要作为普通 Latest Release 发布，便于现有客户端通过 GitHub `/releases/latest` 检测到它。
 
 ## 发版前检查
 
@@ -45,7 +45,6 @@ v0.4.2-pre
 1. 准备一台 Windows 测试机。
 2. 安装一个带有自动更新代码的低版本测试客户端，例如本地临时构建的 `0.4.1-pre.0`。
    - 不能使用正式 `0.4.1` 作为自动更新基线，因为该版本尚未包含本次新增的自动更新服务。
-   - 如果确实要用不带 `-` 的版本号做测试，需要从命令行设置 `YIBIAO_INCLUDE_PRERELEASE_UPDATE=1` 后启动客户端。
 3. 推送测试 tag：
 
    ```bash
@@ -118,7 +117,7 @@ npm run dist:win
 
 如果 `v0.4.2-pre` 测试发布失败：
 
-1. 在 GitHub Release 页面标记为 prerelease 或删除测试 Release。
+1. 在 GitHub Release 页面删除测试 Release，或在正式版发布后让正式版成为 Latest。
 2. 如需删除远端 tag：
 
    ```bash

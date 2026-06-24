@@ -64,15 +64,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
         run: |
-          release_flags=()
-          if [[ "$TAG_NAME" == *-* ]]; then
-            release_flags+=(--prerelease)
-          fi
-
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release edit "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md "${release_flags[@]}"
+            gh release edit "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md
           else
-            gh release create "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md "${release_flags[@]}"
+            gh release create "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md
           fi
 
   build:
