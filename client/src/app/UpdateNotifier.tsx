@@ -2,10 +2,9 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState } from 'react';
 import type { Components } from 'react-markdown';
 import { dismissRemoteNotice, fetchRemoteNotice, hasDismissedRemoteNotice, type RemoteNotice } from '../shared/remoteNotice';
-import { MarkdownRenderer, useToast } from '../shared/ui';
-import { hasPromptedUpdate, showUpdateReadyToast } from '../shared/updateToast';
+import { MarkdownRenderer } from '../shared/ui';
 
-const updatePollIntervalMs = 30 * 60 * 1000;
+const noticePollIntervalMs = 30 * 60 * 1000;
 const noticeLogPrefix = '[remote-notice]';
 
 declare global {
@@ -15,8 +14,6 @@ declare global {
 }
 
 function UpdateNotifier() {
-  const { showToast } = useToast();
-  const updateCheckingRef = useRef(false);
   const activeNoticeIdRef = useRef('');
   const [remoteNotice, setRemoteNotice] = useState<RemoteNotice | null>(null);
   const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
@@ -57,30 +54,6 @@ function UpdateNotifier() {
   useEffect(() => {
     let disposed = false;
 
-    const checkUpdate = async () => {
-      if (updateCheckingRef.current) {
-        return;
-      }
-      updateCheckingRef.current = true;
-      try {
-        const result = await window.yibiao?.checkUpdate();
-        if (!result?.enabled) {
-          return;
-        }
-        if (disposed || !result.updateAvailable || !result.downloaded || !result.version) {
-          return;
-        }
-        if (hasPromptedUpdate(result.version)) {
-          return;
-        }
-        showUpdateReadyToast(showToast, result.version);
-      } catch {
-        // 自动检查失败不打扰用户，手动检查入口会展示错误。
-      } finally {
-        updateCheckingRef.current = false;
-      }
-    };
-
     const checkRemoteNotice = async () => {
       try {
         console.info(noticeLogPrefix, 'check start');
@@ -110,20 +83,15 @@ function UpdateNotifier() {
       }
     };
 
-    const checkAll = () => {
-      void checkUpdate();
-      void checkRemoteNotice();
-    };
-
     let timer: number | undefined;
     window.__yibiaoCheckRemoteNotice = () => {
       void checkRemoteNotice();
     };
-    checkAll();
+    void checkRemoteNotice();
     if (!disposed) {
       timer = window.setInterval(() => {
-        checkAll();
-      }, updatePollIntervalMs);
+        void checkRemoteNotice();
+      }, noticePollIntervalMs);
     }
 
     return () => {
@@ -135,7 +103,7 @@ function UpdateNotifier() {
         delete window.__yibiaoCheckRemoteNotice;
       }
     };
-  }, [showToast]);
+  }, []);
 
   return (
     <Dialog.Root

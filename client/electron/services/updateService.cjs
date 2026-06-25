@@ -18,7 +18,7 @@ function setProgressBar(mainWindow, progress) {
   mainWindow.setProgressBar(progress);
 }
 
-function getDisabledResult(message = '本地开发模式已关闭远程更新检查') {
+function getDisabledResult(message = '包内自动更新已关闭，请在关于页面下载最新版安装包。') {
   return {
     enabled: false,
     updateAvailable: false,
@@ -27,11 +27,11 @@ function getDisabledResult(message = '本地开发模式已关闭远程更新检
 }
 
 function getUnsupportedResult() {
-  return getDisabledResult('macOS 版本暂不启用包内自动更新，请在关于页面手动下载最新版。');
+  return getDisabledResult();
 }
 
 function canUseAutoUpdate(app) {
-  return Boolean(app?.isPackaged) && process.platform === 'win32' && process.env.YIBIAO_DISABLE_AUTO_UPDATE !== '1';
+  return false;
 }
 
 function shouldAllowPrerelease(app) {
@@ -109,6 +109,13 @@ function normalizeUpdateErrorMessage(value) {
   const message = String(value || '').trim();
   if (!message) {
     return '更新失败，请稍后重试；如果网络较慢，可以在关于页面打开最新版下载链接手动下载安装。';
+  }
+  if (
+    message.includes('ERR_UPDATER_INVALID_SIGNATURE') ||
+    message.includes('not signed by the application owner') ||
+    message.includes('not digitally signed')
+  ) {
+    return '当前安装包未进行代码签名，Windows 包内自动安装已被安全校验拦截。请在更新详情中点击“手动下载”，下载最新版安装包后覆盖安装。';
   }
   if (isLikelyNetworkTimeout(message)) {
     return '连接 GitHub 更新服务器超时或网络中断。大陆网络较慢时请稍后重试，或在关于页面使用“获取最新版”打开下载链接手动下载安装。';
