@@ -20,7 +20,7 @@
 前往 [GitHub Releases](https://github.com/liwg1995/YuduBid/releases) 下载 Windows 或 macOS 客户端安装包。
 
 ## 💡 如何更新
-在`v0.4.2`版开始，`Windows`版支持【设置】-【关于】-【检测版本】进行APP内更新
+在`v0.4.3`版开始，`Windows`版支持【设置】-【关于】-【检测版本】进行APP内更新
 
 `Mac`版暂不支持`APP`内更新，检测最新版后，仍然跳转至最新版下载链接进行下载最新`dmg`包
 
