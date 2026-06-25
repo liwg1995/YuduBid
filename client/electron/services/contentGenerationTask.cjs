@@ -13,6 +13,8 @@ const OUTLINE_EXPANSION_STEPS_PER_ROUND = 6;
 const OUTLINE_EXPANSION_TARGET_RATIO = 0.8;
 const EARLY_CONTENT_PROBE_COUNT = 3;
 const MIN_SECTION_EXPANSION_INCREMENT = 800;
+const EXPAND_ONLY_SECTION_INCREMENT = 500;
+const EXPAND_ONLY_DEFAULT_MIN_SECTION_WORDS = 900;
 const CONSISTENCY_AUDIT_GROUP_WORD_LIMIT = 300000;
 const CONSISTENCY_REPAIR_MAX_ATTEMPTS = 2;
 const TABLE_REQUIREMENT_LABELS = {
@@ -944,7 +946,7 @@ ${formatOutlineExpansionContext(outlineItems || [])}`,
   ];
 }
 
-function buildContentExpansionMessages({ outlineData, context, projectOverview, selectedFactsText, currentContent, currentWords, targetWords }) {
+function buildContentExpansionMessages({ outlineData, context, projectOverview, selectedFactsText, currentContent, currentWords, targetWords, expandOnly = false, tableRequirement = 'none' }) {
   const { item, parentChapters, siblingChapters } = context;
   const chapterPath = [...(parentChapters || []), item]
     .map((chapter) => `${chapter.id || 'unknown'} ${chapter.title || '未命名章节'}`)
@@ -970,6 +972,14 @@ function buildContentExpansionMessages({ outlineData, context, projectOverview, 
 8. 扩写内容必须服务当前章节，不要写其他目录应承载的内容。
 9. 严禁使用 Markdown 标题语法（#、##、###、####、#####、######），也不要新增伪目录标题；需要分层时使用加粗引导语或列表。
 10. 如果本章节需要使用的全局事实变量中包含相关内容，扩写必须优先使用变量值，不得新增前后不一致的时间、地点、人员、设备、标准或服务承诺。
+11. 先按段落判断扩写空间：优先选择只有结论、论据不足、缺少实施细节、风险边界或验收标准的段落；信息已经饱和、纯表格、图片、Mermaid、占位内容和“定稿勿动”内容不要改。
+12. 扩写以实质加厚为主，不做同义改写凑字数；优先补充现状依据、方案机理、实施步骤、关键参数依据、风险应对、验收指标和交付物。
+13. 不得编造客户名称、业绩、测试数据、未提供的设备参数或服务承诺；行业通识必须用“通常”“一般”等表述与已承诺事实区分。
+14. 不得使用“高度重视”“保驾护航”“全力以赴”等空洞套话。
+${expandOnly ? '15. 当前是主动“继续扩写”模式，应优先选择最值得加厚的一处段落进行补充；如果章节已较饱满，也要尽量补充一段可核查的实施或验收说明，但不得重复堆砌。' : ''}
+${tableRequirement === 'none'
+  ? '16. 本次不要新增 Markdown 表格。'
+  : '16. 如当前段落确实适合对比、验收、风险或实施分工表达，可以补充一个简短 Markdown 表格；表格必须服务内容表达，不得编造未提供的参数、数量或测试数据。'}
 
 返回格式：
 {
@@ -1678,6 +1688,30 @@ function normalizeParagraphs(content) {
   return String(content || '').split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
 }
 
+function isMostlyNonNarrativeContent(content) {
+  const lines = normalizeNewlines(content)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) {
+    return true;
+  }
+
+  const nonNarrativeLines = lines.filter((line) => (
+    line.startsWith('|')
+    || /^!\[[^\]]*\]\([^)]*\)/.test(line)
+    || /^```/.test(line)
+    || /^\s*[-*+]\s*\[[ xX]\]/.test(line)
+  )).length;
+  const narrativeChars = lines
+    .filter((line) => !line.startsWith('|') && !/^!\[[^\]]*\]\([^)]*\)/.test(line) && !/^```/.test(line))
+    .join('')
+    .replace(/[#>*`_\-\d.、\s]/g, '')
+    .length;
+
+  return nonNarrativeLines / lines.length >= 0.65 && narrativeChars < 180;
+}
+
 function applyContentExpansionPatch(content, patch) {
   const normalizedContent = String(content || '').trim();
   const patchContent = normalizeGeneratedMarkdown(patch.content).trim();
@@ -1990,6 +2024,7 @@ function normalizeContentGenerationRuntime(value) {
     expansion_cycle_start_words: Math.max(0, Math.round(Number(source.expansion_cycle_start_words ?? source.expansionCycleStartWords) || 0)),
     target_item_id: String(source.target_item_id || source.targetItemId || '').trim(),
     regenerate_requirement: String(source.regenerate_requirement || source.regenerateRequirement || '').trim(),
+    expand_only: Boolean(source.expand_only || source.expandOnly),
     updated_at: source.updated_at || source.updatedAt || now(),
   };
 }
@@ -2161,7 +2196,9 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
   }
   let contentRuntime = normalizeContentGenerationRuntime(resume ? storedPlan.contentGenerationRuntime : {});
   const regenerate = !resume && Boolean(payload.regenerate);
+  const expandOnly = !resume && Boolean(payload.expandOnly || payload.expand_only);
   const targetItemId = resume ? contentRuntime.target_item_id : String(payload.targetItemId || '').trim();
+  const expandTargetItemIds = new Set(normalizeStringArray(payload.targetItemIds || payload.target_item_ids));
   const fullRegenerate = regenerate && !targetItemId;
   if (fullRegenerate) {
     outlineData = { ...outlineData, outline: clearOutlineContent(outlineData.outline) };
@@ -2192,6 +2229,8 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
     ? Math.max(0, Math.min(Number.isFinite(requestedMaxImages) ? Math.round(requestedMaxImages) : 6, targetItemId ? 1 : leaves.length))
     : 0;
   const imageStats = { ai: createImageStat(), mermaid: createImageStat() };
+  const expansionCompletedItemIds = new Set();
+  const expansionFailedItemIds = new Set();
   const contentStats = {
     phase: 'planning',
     planning_total: 0,
@@ -2215,11 +2254,15 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
     audit_fix_failed: 0,
     illustration_total: 0,
     illustration_completed: 0,
+    expansion_total: 0,
+    expansion_completed: 0,
+    expansion_failed: 0,
   };
   contentRuntime = normalizeContentGenerationRuntime({
     ...contentRuntime,
     target_item_id: targetItemId,
     regenerate_requirement: regenerateRequirement,
+    expand_only: expandOnly,
   });
   const contentPlans = new Map();
   let storedContentPlans = pruneContentGenerationPlans(fullRegenerate ? {} : storedPlan.contentGenerationPlans, leaves);
@@ -2236,6 +2279,9 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
     const content = section?.content || item.content || '';
     return regenerate || section?.status === 'error' || !String(content).trim();
   });
+  if (expandOnly) {
+    tasksToRun = [];
+  }
   if (targetItemId) {
     const targetSection = sections[targetItemId];
     tasksToRun = resume && targetSection?.status === 'success' && touchedItemIds.has(targetItemId)
@@ -2280,7 +2326,11 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
   }
 
   refreshRunLimits(tasksToRun);
-  let logs = [resume ? `继续已暂停的正文生成任务，共 ${leaves.length} 个小节。` : `准备生成正文，共 ${leaves.length} 个小节。`];
+  let logs = [resume
+    ? `继续已暂停的正文生成任务，共 ${leaves.length} 个小节。`
+    : expandOnly
+      ? `准备继续扩写已有正文，共 ${leaves.length} 个小节。`
+      : `准备生成正文，共 ${leaves.length} 个小节。`];
   if (targetItemId) {
     logs = [`准备重新生成正文小节：${targetItemId}。`];
   }
@@ -2293,14 +2343,23 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
   logs = [...logs, aiImagesEnabled
     ? `AI 生图已启用，将在整体编排后择优生成，全文最多 ${configuredMaxAiImages} 张，本轮最多新增 ${runLimits.maxAiImagesForRun} 张。`
     : 'AI 生图未启用或不可用，本次不会调用生图接口。'];
-  if (minimumWords > 0) {
+  if (expandOnly) {
+    logs = [...logs, minimumWords > 0
+      ? `主动扩写模式：将按段落评估并加厚正文，目标总字数 ${minimumWords} 字。`
+      : '主动扩写模式：将按段落评估并加厚已生成正文。'];
+    if (expandTargetItemIds.size) {
+      logs = [...logs, `主动扩写范围：已选择 ${expandTargetItemIds.size} 个小节。`];
+    }
+  } else if (minimumWords > 0) {
     logs = [...logs, `最低字数已启用：${minimumWords} 字，将在采样预估后补目录，并在正文生成后扩写补足。`];
   }
   logs = [...logs, mermaidImagesEnabled
     ? 'Mermaid 图片已启用，适合简单图示的小节会优先使用 Mermaid 图。'
     : 'Mermaid 图片未启用。'];
   logs = [...logs, enableConsistencyAudit
-    ? '全文一致性审计已启用，正文扩写完成后将在配图前检查并修复事实冲突。'
+    ? expandOnly
+      ? '全文一致性审计已启用，继续扩写完成后将检查并修复事实冲突。'
+      : '全文一致性审计已启用，正文扩写完成后将在配图前检查并修复事实冲突。'
     : '全文一致性审计未启用，本次正文生成将直接进入配图阶段。'];
   if (isExpansionWorkflow) {
     logs = [...logs, `已有方案扩写模式：已读取原方案，约 ${countContentWords(originalPlanMarkdown)} 字，将作为正文扩写核心草稿。`];
@@ -2513,7 +2572,7 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
           imageGenerationAvailable: aiImagesEnabled && runLimits.maxAiImagesForRun > 0,
           mermaidGenerationAvailable: mermaidImagesEnabled,
           maxAiImages: runLimits.maxAiImagesForRun,
-          totalSections: tasksToRun.length,
+          totalSections: tasksToRun.length || leaves.length,
           knowledgeItems,
         }),
         temperature: 0.2,
@@ -2970,7 +3029,14 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
 
   function createExpansionCycle(currentWords) {
     const candidates = leafWordStats()
-      .filter(({ item, content }) => sections[item.id]?.status === 'success' && String(content || '').trim())
+      .filter(({ item, content }) => {
+        const text = String(content || '');
+        return sections[item.id]?.status === 'success'
+          && (!expandTargetItemIds.size || expandTargetItemIds.has(item.id))
+          && text.trim()
+          && !/定稿勿动|请勿修改|不要修改|无需扩写/.test(text)
+          && !isMostlyNonNarrativeContent(text);
+      })
       .sort((a, b) => a.words - b.words);
     const orderedIds = orderExpansionCandidates(candidates).map(({ item }) => item.id);
     syncRuntime({
@@ -3019,7 +3085,8 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
     return null;
   }
 
-  async function runExpansionWorkerPool(startWords) {
+  async function runExpansionWorkerPool(startWords, options = {}) {
+    const forceOneCycle = Boolean(options.forceOneCycle);
     let currentWords = startWords;
     const { cycleIds, attemptedIds } = getExpansionCycle(currentWords);
     let launchedCount = 0;
@@ -3030,9 +3097,9 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
 
     await runWorkerPool({
       limit: contentConcurrency,
-      shouldStop: () => currentWords >= minimumWords || isPauseRequested(),
+      shouldStop: () => (!forceOneCycle && currentWords >= minimumWords) || isPauseRequested(),
       getNextItem() {
-        if (currentWords >= minimumWords) {
+        if (!forceOneCycle && currentWords >= minimumWords) {
           if (!minimumReachedLogged) {
             appendDeveloperLog('扩写已达最低字数，停止调度新请求，等待已发出的请求完成。');
             minimumReachedLogged = true;
@@ -3091,7 +3158,9 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
   async function expandOneSection(context) {
     const { item, content, words } = context;
     const contentForPrompt = stripIllustrationsForExpansion(content) || content;
-    const targetWords = Math.max(words * 2, words + MIN_SECTION_EXPANSION_INCREMENT);
+    const targetWords = expandOnly
+      ? Math.max(EXPAND_ONLY_DEFAULT_MIN_SECTION_WORDS, words + EXPAND_ONLY_SECTION_INCREMENT)
+      : Math.max(words * 2, words + MIN_SECTION_EXPANSION_INCREMENT);
     const storedContentPlan = normalizeStoredContentPlan(storedContentPlans[item.id]);
     const contentPlan = contentPlans.get(item.id) || storedContentPlan?.plan || normalizeContentPlan({}, allowedKnowledgeItemIds, allowedFactTitles);
     const selectedFactsText = resolveSelectedFactsText(contentPlan, globalFacts);
@@ -3108,6 +3177,8 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
           currentContent: contentForPrompt,
           currentWords: words,
           targetWords,
+          expandOnly,
+          tableRequirement,
         }),
         temperature: 0.7,
         logTitle: `正文扩写-${item.id}-${item.title || '未命名章节'}`,
@@ -3120,9 +3191,17 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
       const nextContent = applyContentExpansionPatch(content, patch);
       const nextWords = countContentWords(nextContent);
       logs = [...logs, `扩写完成：${item.id} ${item.title || '未命名章节'}（${words} -> ${nextWords} 字）。`];
+      expansionCompletedItemIds.add(item.id);
+      expansionFailedItemIds.delete(item.id);
+      contentStats.expansion_completed = expansionCompletedItemIds.size;
+      contentStats.expansion_failed = expansionFailedItemIds.size;
       rememberTouchedItem(item.id);
       saveSection(item, { status: 'success', content: nextContent, error: undefined }, nextContent, { logs });
     } catch (error) {
+      expansionCompletedItemIds.add(item.id);
+      expansionFailedItemIds.add(item.id);
+      contentStats.expansion_completed = expansionCompletedItemIds.size;
+      contentStats.expansion_failed = expansionFailedItemIds.size;
       logs = [...logs, `扩写失败：${item.id} ${item.title || '未命名章节'}，${error.message || '模型返回无效'}。`];
       updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
     }
@@ -3171,10 +3250,130 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
     updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
   }
 
-  function buildConsistencyAuditTargets(auditTargetItemId = '') {
+  async function runExpandOnly() {
+    const successfulTargets = leafWordStats()
+      .filter(({ item, content }) => sections[item.id]?.status === 'success'
+        && (!expandTargetItemIds.size || expandTargetItemIds.has(item.id))
+        && String(content || '').trim());
+    if (!successfulTargets.length) {
+      throw new Error(expandTargetItemIds.size ? '已选择的小节没有可继续扩写的已生成正文' : '没有可继续扩写的已生成正文小节，请先生成正文');
+    }
+
+    let currentWords = countTotalContentWords();
+    contentStats.phase = 'expanding';
+    contentStats.expansion_total = successfulTargets.length;
+    contentStats.expansion_completed = 0;
+    contentStats.expansion_failed = 0;
+    expansionCompletedItemIds.clear();
+    expansionFailedItemIds.clear();
+    logs = [...logs, minimumWords > 0
+      ? `开始继续扩写，当前 ${currentWords}/${minimumWords} 字。`
+      : `开始继续扩写，将按段落评估 ${successfulTargets.length} 个已生成小节。`];
+    updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+
+    if (minimumWords > 0) {
+      while (currentWords < minimumWords) {
+        const expansionResult = await runExpansionWorkerPool(currentWords);
+        currentWords = expansionResult.currentWords;
+        pauseIfRequested('继续扩写已暂停，可导出当前已完成内容，稍后继续。');
+        if (!expansionResult.launchedCount) {
+          throw new Error(`没有可扩写的成功正文小节，无法达到目标字数（当前 ${currentWords}/${minimumWords} 字）`);
+        }
+        if (expansionResult.completesCycle) {
+          const expansionCycleStartWords = Number.isFinite(contentRuntime.expansion_cycle_start_words)
+            ? contentRuntime.expansion_cycle_start_words
+            : currentWords;
+          if (currentWords <= expansionCycleStartWords && currentWords < minimumWords) {
+            throw new Error(`继续扩写已覆盖一轮可选小节，但总字数没有增长，无法达到目标字数（当前 ${currentWords}/${minimumWords} 字）`);
+          }
+          syncRuntime({
+            expansion_cycle_item_ids: [],
+            expansion_attempted_item_ids: [],
+            expansion_cycle_start_words: currentWords,
+          });
+          if (currentWords >= minimumWords) {
+            break;
+          }
+        }
+      }
+    } else {
+      const expansionResult = await runExpansionWorkerPool(currentWords, { forceOneCycle: true });
+      currentWords = expansionResult.currentWords;
+      pauseIfRequested('继续扩写已暂停，可导出当前已完成内容，稍后继续。');
+      if (!expansionResult.launchedCount) {
+        throw new Error('没有可扩写的成功正文小节，请检查所选正文是否为空、是否标注定稿勿动，或是否主要为表格/图片内容');
+      }
+      syncRuntime({
+        expansion_cycle_item_ids: [],
+        expansion_attempted_item_ids: [],
+        expansion_cycle_start_words: currentWords,
+      });
+    }
+
+    logs = [...logs, minimumWords > 0
+      ? `继续扩写完成，当前 ${currentWords}/${minimumWords} 字。`
+      : `继续扩写完成，当前总字数 ${currentWords} 字。`];
+    updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+  }
+
+  async function planExpandOnlyIllustrationsIfNeeded() {
+    if (!expandOnly || (!aiImagesEnabled && !mermaidImagesEnabled)) {
+      return;
+    }
+
+    const candidateIds = new Set(Array.from(touchedItemIds).filter((itemId) => !expandTargetItemIds.size || expandTargetItemIds.has(itemId)));
+    const targets = leaves.filter(({ item }) => {
+      const content = sections[item.id]?.content || item.content || '';
+      return candidateIds.has(item.id) && sections[item.id]?.status === 'success' && String(content || '').trim();
+    });
+    if (!targets.length) {
+      logs = [...logs, '扩写配图跳过：没有本次扩写成功的小节。'];
+      updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+      return;
+    }
+
+    refreshRunLimits(targets);
+    contentStats.phase = 'planning';
+    contentStats.planning_total = targets.length;
+    contentStats.planning_completed = 0;
+    logs = [...logs, `开始扩写配图编排：${targets.length} 个小节。`];
+    updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+
+    await runItemsWithWorkerPool(targets, contentConcurrency, planOne, isPauseRequested);
+    pauseIfRequested('继续扩写已在配图编排阶段暂停，可导出当前已完成内容，稍后继续。');
+
+    const mermaidCandidates = mermaidImagesEnabled ? targets.filter(({ item }) => contentPlans.get(item.id)?.mermaid.needed) : [];
+    const aiImageCandidates = aiImagesEnabled ? targets.filter(({ item }) => contentPlans.get(item.id)?.image.needed) : [];
+    selectedAiImageIds = pickDistributedImageTargets(
+      aiImageCandidates.map((context) => ({ ...context, plan: contentPlans.get(context.item.id) })),
+      runLimits.maxAiImagesForRun,
+    );
+    aiImageTargets = targets.filter(({ item }) => selectedAiImageIds.has(item.id));
+    mermaidImageTargets = mermaidCandidates.filter(({ item }) => !selectedAiImageIds.has(item.id));
+    imageStats.ai.planned = aiImageTargets.length;
+    imageStats.ai.skipped += Math.max(0, aiImageCandidates.length - aiImageTargets.length);
+    imageStats.mermaid.planned = mermaidImageTargets.length;
+    imageStats.mermaid.skipped += Math.max(0, mermaidCandidates.length - mermaidImageTargets.length);
+    const mermaidImageIds = new Set(mermaidImageTargets.map(({ item }) => item.id));
+    persistContentPlans(targets, ({ item }) => {
+      if (selectedAiImageIds.has(item.id)) return 'ai';
+      if (mermaidImageIds.has(item.id)) return 'mermaid';
+      return 'none';
+    });
+    logs = [...logs, `扩写配图编排完成：AI 图 ${aiImageTargets.length} 张，Mermaid 图 ${mermaidImageTargets.length} 张。`];
+    updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+  }
+
+  function buildConsistencyAuditTargets(auditTargetItemId = '', auditTargetItemIds = null) {
     const normalizedTargetId = String(auditTargetItemId || '').trim();
+    const targetIds = auditTargetItemIds instanceof Set ? auditTargetItemIds : null;
     return leaves
-      .filter(({ item }) => !normalizedTargetId || item.id === normalizedTargetId)
+      .filter(({ item }) => {
+        if (targetIds?.size) {
+          return targetIds.has(item.id);
+        }
+        return !normalizedTargetId || item.id === normalizedTargetId;
+      })
       .map((context) => {
         const content = sections[context.item.id]?.content || context.item.content || '';
         return {
@@ -3282,7 +3481,7 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
       return { ran: false, fixedCount: 0, failedCount: 0 };
     }
 
-    const auditTargets = buildConsistencyAuditTargets(options.targetItemId || targetItemId);
+    const auditTargets = buildConsistencyAuditTargets(options.targetItemId || targetItemId, options.targetItemIds);
     if (!auditTargets.length) {
       logs = [...logs, '全文一致性审计跳过：没有可审计的成功正文小节。'];
       updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
@@ -3493,7 +3692,12 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
   }
 
   try {
-    if (tasksToRun.length) {
+    if (expandOnly) {
+      await runExpandOnly();
+      pauseIfRequested('继续扩写已在一致性审计前暂停，可导出当前已完成内容，稍后继续。');
+      await runConsistencyAuditIfEnabled({ targetItemIds: expandTargetItemIds });
+      await planExpandOnlyIllustrationsIfNeeded();
+    } else if (tasksToRun.length) {
       if (targetItemId) {
         await prepareSingleSectionPlan();
         pauseIfRequested('正文生成已在正文编排后暂停，可导出当前已完成内容，稍后继续。');
@@ -3510,7 +3714,9 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
       }
     }
 
-    if (!targetItemId) {
+    if (expandOnly) {
+      // 扩写模式的配图目标已由 planExpandOnlyIllustrationsIfNeeded 设置。
+    } else if (!targetItemId) {
       await ensureMinimumWords();
       pauseIfRequested('正文生成已在最低字数检查后暂停，可导出当前已完成内容，稍后继续。');
       await runConsistencyAuditIfEnabled();
@@ -3529,15 +3735,19 @@ async function runContentGenerationTask({ aiService, workspaceStore, knowledgeBa
       await runConsistencyAuditIfEnabled({ targetItemId });
     }
 
-    pauseIfRequested('正文生成已在配图前暂停，可导出当前已完成内容，稍后继续。');
-    await runIllustrations();
-    pauseIfRequested('正文生成已在完成前暂停，可导出当前已完成内容，稍后继续。');
+    if (!expandOnly || aiImageTargets.length || mermaidImageTargets.length) {
+      pauseIfRequested(expandOnly ? '继续扩写已在配图前暂停，可导出当前已完成内容，稍后继续。' : '正文生成已在配图前暂停，可导出当前已完成内容，稍后继续。');
+      await runIllustrations();
+      pauseIfRequested(expandOnly ? '继续扩写已在完成前暂停，可导出当前已完成内容，稍后继续。' : '正文生成已在完成前暂停，可导出当前已完成内容，稍后继续。');
+    }
 
     const failedCount = leaves.filter(({ item }) => sections[item.id]?.status === 'error').length;
     const finalProgress = progressFor(leaves, sections);
     const finalStatus = taskStatusFor(leaves, sections);
     contentStats.phase = 'done';
-    logs = [...logs, targetItemId
+    logs = [...logs, expandOnly
+      ? (failedCount ? `继续扩写完成，${failedCount} 个小节处于失败状态，请人工核对。` : '继续扩写完成。')
+      : targetItemId
       ? (failedCount ? `小节重新生成结束，当前整体进度 ${finalProgress}%，${failedCount} 个小节失败。` : `小节重新生成完成，当前整体进度 ${finalProgress}%。`)
       : (failedCount ? `正文生成完成，${failedCount} 个小节失败。` : '正文生成完成。')];
     technicalPlan = workspaceStore.updateTechnicalPlan({

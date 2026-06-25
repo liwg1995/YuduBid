@@ -16,6 +16,7 @@ interface ContentEditPageProps {
   task?: BackgroundTaskState;
   contentGenerationOptions?: ContentGenerationOptions;
   sections: ContentGenerationSections;
+  onSelectedItemChange?: (itemId: string) => void;
   onContentGenerationOptionsChange: (options: ContentGenerationOptions) => Promise<void> | void;
   onContentSaved: (item: OutlineItem, content: string) => Promise<void> | void;
 }
@@ -328,6 +329,7 @@ function ContentEditPage({
   task,
   contentGenerationOptions,
   sections,
+  onSelectedItemChange,
   onContentGenerationOptionsChange,
   onContentSaved,
 }: ContentEditPageProps) {
@@ -477,17 +479,21 @@ function ContentEditPage({
   const imageModelAvailable = imageModelStatus === 'available';
 
   const handlePreviewImage = useCallback((src: string, alt: string) => setPreviewImage({ src, alt }), []);
+  const selectItem = useCallback((itemId: string) => {
+    setSelectedItemId(itemId);
+    onSelectedItemChange?.(itemId);
+  }, [onSelectedItemChange]);
 
   useEffect(() => {
     if (!outlineData?.outline?.length) {
-      setSelectedItemId('');
+      selectItem('');
       return;
     }
 
     if (!selectedItemId || !findItem(outlineData.outline, selectedItemId)) {
-      setSelectedItemId(firstLeafId || outlineData.outline[0].id);
+      selectItem(firstLeafId || outlineData.outline[0].id);
     }
-  }, [firstLeafId, outlineData, selectedItemId]);
+  }, [firstLeafId, outlineData, selectItem, selectedItemId]);
 
   useEffect(() => {
     window.yibiao?.config.load()
@@ -807,7 +813,7 @@ function ContentEditPage({
         minimum_words: savedGenerationOptions.minimumWords,
         enable_consistency_audit: savedGenerationOptions.enableConsistencyAudit,
       }, config);
-      setSelectedItemId(requirementItem.id);
+      selectItem(requirementItem.id);
       setRequirementItem(null);
       setRegenerateRequirement('');
       showToast('小节重新生成任务已在后台启动', 'success');
@@ -864,7 +870,7 @@ function ContentEditPage({
         <button
           type="button"
           className={`content-outline-item is-${status}${selectedItemId === item.id ? ' is-active' : ''}`}
-          onClick={() => setSelectedItemId(item.id)}
+          onClick={() => selectItem(item.id)}
         >
           <span className="content-outline-dot" aria-hidden="true" />
           <span className="content-outline-text">

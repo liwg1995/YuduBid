@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import DocumentAnalysisPage from './DocumentAnalysisPage';
 import BidAnalysisPage from './BidAnalysisPage';
 import OutlineEditPage from './OutlineEditPage';
@@ -8,8 +8,9 @@ import ContentEditPage from './ContentEditPage';
 import { useTechnicalPlanWorkflow } from '../hooks/useTechnicalPlanWorkflow';
 import { getBidAnalysisTasks } from '../services/bidAnalysisWorkflow';
 import { trackPageView } from '../../../shared/analytics/analytics';
-import { FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useToast } from '../../../shared/ui';
-import type { BackgroundTaskState, BidAnalysisTasks, ContentGenerationOptions, GlobalFactGroupState, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
+import { FloatingToolbar, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useToast } from '../../../shared/ui';
+import { countReadableWords } from '../../../shared/utils/wordCount';
+import type { BackgroundTaskState, BidAnalysisTasks, ContentGenerationOptions, ContentTableRequirement, GlobalFactGroupState, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
 import type { OutlineData, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
 import type { SectionId } from '../../../shared/types/navigation';
 
@@ -59,6 +60,21 @@ function collectLeafItems(items: OutlineItem[]): OutlineItem[] {
   return items.flatMap((item) => item.children?.length ? collectLeafItems(item.children) : [item]);
 }
 
+function findOutlineItem(items: OutlineItem[], itemId: string): OutlineItem | null {
+  for (const item of items) {
+    if (item.id === itemId) {
+      return item;
+    }
+    if (item.children?.length) {
+      const found = findOutlineItem(item.children, itemId);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return null;
+}
+
 function countMermaidDiagrams(content: string) {
   const mermaidBlocks = (String(content || '').match(/```mermaid[\s\S]*?```/gi) || []).length;
   const mermaidInkImages = (String(content || '').match(/https:\/\/mermaid\.ink\/img\//gi) || []).length;
@@ -67,6 +83,10 @@ function countMermaidDiagrams(content: string) {
 
 function countOutlineMermaidDiagrams(items: OutlineItem[]) {
   return collectLeafItems(items).reduce((sum, item) => sum + countMermaidDiagrams(item.content || ''), 0);
+}
+
+function getLeafContent(item: OutlineItem, sections: TechnicalPlanState['contentGenerationSections']) {
+  return sections[item.id]?.content || item.content || '';
 }
 
 interface ExportProgressState {
@@ -159,6 +179,21 @@ function workflowLabel(kind: TechnicalPlanWorkflowKind) {
   return kind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案';
 }
 
+const taskStatusLabels: Record<string, string> = {
+  running: '运行中',
+  pausing: '暂停中',
+  paused: '已暂停',
+  success: '已完成',
+  error: '失败',
+};
+
+const expandTableOptions: Array<{ value: ContentTableRequirement; label: string; description: string }> = [
+  { value: 'none', label: '不要', description: '只扩写文字，不新增表格。' },
+  { value: 'light', label: '少量', description: '仅在验收、风险、分工等适合时补少量表格。' },
+  { value: 'moderate', label: '适中', description: '允许为所选章节适度补充表格。' },
+  { value: 'heavy', label: '较多', description: '更积极地补充表格，但仍避免硬插。' },
+];
+
 function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }: TechnicalPlanHomeProps) {
   const { hydrated, state, setState } = useTechnicalPlanWorkflow(workflowKind);
   const { showToast } = useToast();
@@ -167,6 +202,17 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }:
   const [exportProgress, setExportProgress] = useState<ExportProgressState>(initialExportProgress);
   const [exportChoiceOpen, setExportChoiceOpen] = useState(false);
   const [wordOptimizationEnabled, setWordOptimizationEnabled] = useState(false);
+  const [contentEditSelectedItemId, setContentEditSelectedItemId] = useState('');
+  const [expandSelectedItemIds, setExpandSelectedItemIds] = useState<Set<string>>(new Set());
+  const [previewExpandItemId, setPreviewExpandItemId] = useState('');
+  const [expandTargetWords, setExpandTargetWords] = useState(0);
+  const [expandConcurrency, setExpandConcurrency] = useState(3);
+  const [expandConsistencyAudit, setExpandConsistencyAudit] = useState(true);
+  const [expandTableRequirement, setExpandTableRequirement] = useState<ContentTableRequirement>('none');
+  const [expandUseMermaidImages, setExpandUseMermaidImages] = useState(false);
+  const [expandUseAiImages, setExpandUseAiImages] = useState(false);
+  const [expandMaxAiImages, setExpandMaxAiImages] = useState(2);
+  const [expandImageModelAvailable, setExpandImageModelAvailable] = useState(false);
   const activeIndex = steps.indexOf(state.step);
   const bidAnalysisReady = areRequiredBidAnalysisTasksReady(state.bidAnalysisTasks);
   const globalFactsReady = state.globalFacts.length > 0 && state.globalFactsTask?.status === 'success';
@@ -175,6 +221,77 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }:
   const isContentPaused = contentTaskStatus === 'paused';
   const isExporting = exportProgress.running;
   const requiresOriginalPlan = workflowKind === 'existing-plan-expansion';
+  const outlineLeaves = useMemo(() => state.outlineData?.outline ? collectLeafItems(state.outlineData.outline) : [], [state.outlineData]);
+  const generatedLeaves = useMemo(
+    () => outlineLeaves.filter((item) => getLeafContent(item, state.contentGenerationSections).trim()),
+    [outlineLeaves, state.contentGenerationSections],
+  );
+  const generatedLeafIdSet = useMemo(() => new Set(generatedLeaves.map((item) => item.id)), [generatedLeaves]);
+  const totalContentWords = useMemo(
+    () => outlineLeaves.reduce((sum, item) => sum + countReadableWords(getLeafContent(item, state.contentGenerationSections)), 0),
+    [outlineLeaves, state.contentGenerationSections],
+  );
+  const selectedExpandLeaves = useMemo(
+    () => generatedLeaves.filter((item) => expandSelectedItemIds.has(item.id)),
+    [expandSelectedItemIds, generatedLeaves],
+  );
+  const selectedExpandWords = useMemo(
+    () => selectedExpandLeaves.reduce((sum, item) => sum + countReadableWords(getLeafContent(item, state.contentGenerationSections)), 0),
+    [selectedExpandLeaves, state.contentGenerationSections],
+  );
+  const previewExpandItem = state.outlineData?.outline && previewExpandItemId ? findOutlineItem(state.outlineData.outline, previewExpandItemId) : null;
+  const previewExpandContent = previewExpandItem ? getLeafContent(previewExpandItem, state.contentGenerationSections) : '';
+  const expandTaskStatus = state.contentGenerationTask?.status || 'idle';
+  const expandContentStats = state.contentGenerationTask?.stats?.content;
+  const expandPhase = expandContentStats?.phase || state.contentGenerationRuntime?.phase || '';
+  const expandRunning = expandTaskStatus === 'running' || expandTaskStatus === 'pausing';
+  const expandDone = expandTaskStatus === 'success';
+  const expandFailed = expandTaskStatus === 'error';
+  const expandTotal = expandContentStats?.expansion_total || selectedExpandLeaves.length || 0;
+  const expandCompleted = expandContentStats?.expansion_completed || 0;
+  const auditGroupTotal = expandContentStats?.audit_group_total || 0;
+  const auditGroupCompleted = expandContentStats?.audit_group_completed || 0;
+  const auditFixTotal = expandContentStats?.audit_fix_total || 0;
+  const auditFixCompleted = expandContentStats?.audit_fix_completed || 0;
+  const planningTotal = expandContentStats?.planning_total || 0;
+  const planningCompleted = expandContentStats?.planning_completed || 0;
+  const illustrationTotal = expandContentStats?.illustration_total || 0;
+  const illustrationCompleted = expandContentStats?.illustration_completed || 0;
+  const expandProgress = expandDone
+    ? 100
+    : expandPhase === 'planning'
+      ? planningTotal ? Math.round((planningCompleted / planningTotal) * 100) : 0
+      : expandPhase === 'illustrating'
+        ? illustrationTotal ? Math.round((illustrationCompleted / illustrationTotal) * 100) : 0
+        : expandPhase === 'auditing'
+      ? auditFixTotal
+        ? Math.round((auditFixCompleted / auditFixTotal) * 100)
+        : auditGroupTotal
+          ? Math.round((auditGroupCompleted / auditGroupTotal) * 100)
+          : 0
+      : expandTotal
+        ? Math.round((expandCompleted / expandTotal) * 100)
+        : 0;
+  const expandProgressText = expandDone
+    ? '所选小节已扩写完成'
+      : expandFailed
+      ? state.contentGenerationTask?.error || '扩写失败'
+      : expandPhase === 'planning'
+        ? `配图编排 ${planningCompleted}/${planningTotal || 1}`
+        : expandPhase === 'illustrating'
+          ? `配图生成 ${illustrationCompleted}/${illustrationTotal || 1}`
+          : expandPhase === 'auditing'
+        ? auditFixTotal
+          ? `一致性修复 ${auditFixCompleted}/${auditFixTotal}`
+          : `一致性审计 ${auditGroupCompleted}/${auditGroupTotal || 1}`
+        : expandRunning
+          ? `扩写进度 ${expandCompleted}/${expandTotal || selectedExpandLeaves.length || 1}`
+          : '尚未开始';
+  const expandLatestLog = state.contentGenerationTask?.logs?.slice(-1)[0] || '';
+  const expandStatusDescription = expandDone
+    ? '可返回上一步查看扩写后的正文。'
+    : expandLatestLog || '选择小节并设置扩写参数后即可开始。';
+  const expandStatusClass = ['running', 'pausing', 'paused', 'success', 'error'].includes(expandTaskStatus) ? expandTaskStatus : 'idle';
   const isNextDisabled = activeIndex >= steps.length - 1
     || (state.step === 'document-analysis' && (!state.tenderFile || (requiresOriginalPlan && !state.originalPlanFile)))
     || (state.step === 'bid-analysis' && !bidAnalysisReady)
@@ -200,6 +317,60 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }:
     trackPageView(`${workflowKind}/${state.step}`);
   }, [hydrated, state.step, workflowKind]);
 
+  useEffect(() => {
+    if (state.step !== 'expand') {
+      return;
+    }
+    const savedOptions = state.contentGenerationOptions;
+    setExpandConcurrency(Math.max(1, Math.round(Number(savedOptions?.contentConcurrency || 3))));
+    setExpandConsistencyAudit(savedOptions?.enableConsistencyAudit ?? true);
+    setExpandTableRequirement(savedOptions?.tableRequirement || 'none');
+    setExpandUseMermaidImages(Boolean(savedOptions?.useMermaidImages ?? false));
+    setExpandUseAiImages(Boolean(savedOptions?.useAiImages ?? false));
+    setExpandMaxAiImages(Math.max(0, Math.round(Number(savedOptions?.maxAiImages || 2))));
+    setExpandTargetWords((prev) => {
+      if (prev > totalContentWords) {
+        return prev;
+      }
+      return totalContentWords > 0 ? totalContentWords + 3000 : 0;
+    });
+  }, [state.contentGenerationOptions, state.step, totalContentWords]);
+
+  useEffect(() => {
+    if (state.step !== 'expand') {
+      return;
+    }
+    window.yibiao?.config.load()
+      .then((config) => {
+        const available = config?.image_model?.status === 'available';
+        setExpandImageModelAvailable(available);
+        if (!available) {
+          setExpandUseAiImages(false);
+        }
+      })
+      .catch(() => {
+        setExpandImageModelAvailable(false);
+        setExpandUseAiImages(false);
+      });
+  }, [state.step]);
+
+  useEffect(() => {
+    if (state.step !== 'expand' || !state.outlineData?.outline?.length) {
+      return;
+    }
+    setExpandSelectedItemIds((prev) => {
+      const retained = new Set(Array.from(prev).filter((itemId) => generatedLeafIdSet.has(itemId)));
+      if (retained.size) {
+        return retained;
+      }
+      const selectedItem = contentEditSelectedItemId ? findOutlineItem(state.outlineData?.outline || [], contentEditSelectedItemId) : null;
+      const selectedLeafIds = selectedItem
+        ? collectLeafItems([selectedItem]).map((item) => item.id).filter((itemId) => generatedLeafIdSet.has(itemId))
+        : [];
+      return new Set(selectedLeafIds.length ? selectedLeafIds : generatedLeaves.slice(0, 1).map((item) => item.id));
+    });
+  }, [contentEditSelectedItemId, generatedLeafIdSet, generatedLeaves, state.outlineData, state.step]);
+
   const switchStep = (step: TechnicalPlanStep) => {
     setState((prev) => ({ ...prev, step }));
     window.yibiao?.technicalPlan.updateStep({ workflowKind, step }).catch((error) => {
@@ -211,6 +382,58 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }:
     const nextStep = steps[activeIndex + offset];
     if (nextStep) {
       switchStep(nextStep);
+    }
+  };
+
+  const startExpandOnly = async () => {
+    if (!state.outlineData?.outline?.length) {
+      showToast('请先生成目录', 'info');
+      return;
+    }
+    if (!globalFactsReady) {
+      showToast('请先完成全局事实设定', 'info');
+      return;
+    }
+    if (!generatedLeaves.length) {
+      showToast('请先生成正文，再继续扩写', 'info');
+      return;
+    }
+    if (!selectedExpandLeaves.length) {
+      showToast('请先选择要扩写的小节', 'info');
+      return;
+    }
+    if (isContentGenerating) {
+      showToast('正文任务正在运行，请等待完成或暂停后再继续扩写', 'info');
+      return;
+    }
+    if (isContentPaused) {
+      showToast('正文生成已暂停，请先继续或重置当前任务', 'info');
+      return;
+    }
+
+    const normalizedTargetWords = Math.max(0, Math.round(Number(expandTargetWords) || 0));
+    const normalizedConcurrency = Math.max(1, Math.round(Number(expandConcurrency) || 1));
+    const savedOptions: ContentGenerationOptions = {
+      useAiImages: expandUseAiImages && expandImageModelAvailable,
+      maxAiImages: expandUseAiImages ? Math.max(0, Math.min(Math.round(Number(expandMaxAiImages) || 0), selectedExpandLeaves.length)) : 0,
+      useMermaidImages: expandUseMermaidImages,
+      tableRequirement: expandTableRequirement,
+      minimumWords: normalizedTargetWords,
+      contentConcurrency: normalizedConcurrency,
+      enableConsistencyAudit: expandConsistencyAudit,
+      enableOriginalPlanCoverageAudit: state.contentGenerationOptions?.enableOriginalPlanCoverageAudit || false,
+    };
+
+    try {
+      await window.yibiao?.tasks.startContentGeneration({
+        workflowKind,
+        expandOnly: true,
+        targetItemIds: selectedExpandLeaves.map((item) => item.id),
+        generationOptions: savedOptions,
+      });
+      showToast('继续扩写任务已在后台启动', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '启动继续扩写失败', 'error');
     }
   };
 
@@ -610,6 +833,78 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }:
     setState((prev) => ({ ...prev, ...(saved || {}), globalFacts }));
   };
 
+  const selectAllExpandItems = () => {
+    setExpandSelectedItemIds(new Set(generatedLeaves.map((item) => item.id)));
+  };
+
+  const clearExpandSelection = () => {
+    setExpandSelectedItemIds(new Set());
+  };
+
+  const toggleExpandSelection = (item: OutlineItem) => {
+    const itemLeafIds = collectLeafItems([item])
+      .map((leaf) => leaf.id)
+      .filter((itemId) => generatedLeafIdSet.has(itemId));
+    if (!itemLeafIds.length) {
+      showToast('该目录下暂无已生成正文，不能扩写', 'info');
+      return;
+    }
+
+    setExpandSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = itemLeafIds.every((itemId) => next.has(itemId));
+      for (const itemId of itemLeafIds) {
+        if (allSelected) {
+          next.delete(itemId);
+        } else {
+          next.add(itemId);
+        }
+      }
+      return next;
+    });
+  };
+
+  const renderExpandTree = (items: OutlineItem[], level = 0): ReactNode => items.map((item) => {
+    const leafItems = collectLeafItems([item]);
+    const selectableLeafIds = leafItems.map((leaf) => leaf.id).filter((itemId) => generatedLeafIdSet.has(itemId));
+    const selectedCount = selectableLeafIds.filter((itemId) => expandSelectedItemIds.has(itemId)).length;
+    const isSelected = selectableLeafIds.length > 0 && selectedCount === selectableLeafIds.length;
+    const isPartial = selectedCount > 0 && selectedCount < selectableLeafIds.length;
+    const itemWords = leafItems.reduce((sum, leaf) => sum + countReadableWords(getLeafContent(leaf, state.contentGenerationSections)), 0);
+    const isLeaf = !item.children?.length;
+    const canPreview = isLeaf && Boolean(getLeafContent(item, state.contentGenerationSections).trim());
+
+    return (
+      <div className="content-outline-node" key={item.id} style={{ '--content-level': level } as CSSProperties}>
+        <div className={`content-outline-item content-expand-select-item${isSelected ? ' is-selected' : ''}${isPartial ? ' is-partial' : ''}`}>
+          <button
+            type="button"
+            className="content-expand-select-main"
+            onClick={() => toggleExpandSelection(item)}
+            disabled={!selectableLeafIds.length || isContentGenerating || isContentPaused}
+          >
+            <span className="content-expand-select-box" aria-hidden="true" />
+            <span className="content-outline-text">
+              <strong title={item.id}>{item.title || item.id || '未命名小节'}</strong>
+              <small>{item.children?.length ? `${selectedCount}/${selectableLeafIds.length} 已选 · ${itemWords} 字` : `${selectableLeafIds.length ? '可扩写' : '未生成'} · ${itemWords} 字`}</small>
+            </span>
+            <em>{selectableLeafIds.length ? `${selectedCount}/${selectableLeafIds.length}` : '不可选'}</em>
+          </button>
+          {canPreview && (
+            <button
+              type="button"
+              className="content-expand-preview-action"
+              onClick={() => setPreviewExpandItemId(item.id)}
+            >
+              预览
+            </button>
+          )}
+        </div>
+        {item.children?.length ? renderExpandTree(item.children, level + 1) : null}
+      </div>
+    );
+  });
+
   const generatedContentCount = state.outlineData?.outline
     ? collectLeafItems(state.outlineData.outline).filter((item) => item.content?.trim()).length
     : 0;
@@ -780,21 +1075,217 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }:
           task={state.contentGenerationTask}
           contentGenerationOptions={state.contentGenerationOptions}
           sections={state.contentGenerationSections}
+          onSelectedItemChange={setContentEditSelectedItemId}
           onContentGenerationOptionsChange={saveContentGenerationOptions}
           onContentSaved={saveChapterContent}
         />
       )}
       {state.step === 'expand' && (
-        <section className="empty-panel compact-placeholder">
-          <div className="feature-under-development-overlay" role="status" aria-live="polite">
-            <strong>正在开发中，敬请期待</strong>
-            <span>此功能尚未完成，请先不要使用。</span>
+        <section className="plan-step-body content-expand-page">
+          <div className="content-generation-command-bar">
+            <div>
+              <span className="section-kicker">STEP 06</span>
+              <strong>扩写改写</strong>
+              <p>对已生成正文做段落级加厚，优先补充机理、步骤、风险、验收和交付物。</p>
+            </div>
+            <div className="content-generation-stats" aria-label="继续扩写统计">
+              <span><strong>{outlineLeaves.length}</strong> 个小节</span>
+              <span><strong>{selectedExpandLeaves.length}</strong> 已选</span>
+              <span><strong>{selectedExpandWords}</strong> 字</span>
+            </div>
           </div>
-          <span className="section-kicker">STEP 06</span>
-          <h3>扩写改写</h3>
-          <p>后续接入旧方案导入、章节扩写和人工校准。</p>
+
+          <div className="content-expand-workspace">
+            <article className="analysis-result-card content-expand-main">
+              <div className="analysis-result-head">
+                <div className="content-expand-title-block">
+                  <strong>继续扩写</strong>
+                  <span>{requiresOriginalPlan ? '保留原方案事实和表达重点，只补深度。' : '保留当前章节结构，只补正文论证厚度。'}</span>
+                </div>
+                <button type="button" className="primary-action" onClick={startExpandOnly} disabled={isContentGenerating || isContentPaused || !selectedExpandLeaves.length}>
+                  {isContentGenerating ? '扩写中...' : '开始继续扩写'}
+                </button>
+              </div>
+
+              <div className="content-expand-meta">
+                <p className="content-generation-config-note content-expand-note">
+                  扩写会跳过占位、纯表格、图片、Mermaid 和标注“定稿勿动”的内容；不会新增目录、不会重新生成整篇正文，也不会编造未提供的业绩、参数或承诺。
+                </p>
+
+                <div className="content-expand-status-strip">
+                  <span className={`content-expand-status-badge is-${expandStatusClass}`}>
+                    {taskStatusLabels[expandTaskStatus] || '未开始'}
+                  </span>
+                  <div className="content-expand-progress-summary">
+                    <strong>{expandProgressText}</strong>
+                    <span>{expandStatusDescription}</span>
+                  </div>
+                  <div className={`content-generation-progress-track is-expanding${expandRunning ? ' is-active' : ''}`} aria-label={`扩写进度 ${expandProgress}%`}>
+                    <span style={{ width: `${Math.max(0, Math.min(100, expandProgress))}%` }} />
+                  </div>
+                  {expandDone && (
+                    <button type="button" className="secondary-action" onClick={() => switchStep('content-edit')}>
+                      返回上一步查看
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="content-expand-body">
+                <section className="content-expand-selection-panel" aria-label="选择扩写小节">
+                  <div className="content-expand-section-head">
+                    <div className="content-expand-title-block">
+                      <strong>选择扩写范围</strong>
+                      <span>可从 STEP 05 当前小节进入，也可以在这里多选、全选目录小节。</span>
+                    </div>
+                    <div className="content-expand-selection-actions">
+                      <button type="button" className="secondary-action" onClick={selectAllExpandItems} disabled={isContentGenerating || isContentPaused || !generatedLeaves.length}>全选</button>
+                      <button type="button" className="secondary-action" onClick={clearExpandSelection} disabled={isContentGenerating || isContentPaused || !expandSelectedItemIds.size}>清空</button>
+                    </div>
+                  </div>
+                  <div className="content-expand-tree">
+                    {state.outlineData?.outline?.length ? renderExpandTree(state.outlineData.outline) : (
+                      <p className="content-generation-config-note">暂无目录，请先完成目录生成。</p>
+                    )}
+                  </div>
+                </section>
+
+                <div className="content-generation-config-list content-expand-options">
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>目标总字数</strong>
+                      <small>设为 0 时不追求总字数，只对所选章节跑一轮段落加厚。</small>
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="500"
+                      value={expandTargetWords}
+                      disabled={isContentGenerating || isContentPaused}
+                      onChange={(event) => setExpandTargetWords(Math.max(0, Math.round(Number(event.target.value) || 0)))}
+                    />
+                  </label>
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>补充表格</strong>
+                      <small>{expandTableOptions.find((option) => option.value === expandTableRequirement)?.description}</small>
+                    </span>
+                    <select
+                      value={expandTableRequirement}
+                      disabled={isContentGenerating || isContentPaused}
+                      onChange={(event) => setExpandTableRequirement(event.target.value as ContentTableRequirement)}
+                    >
+                      {expandTableOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>扩写并发速度</strong>
+                      <small>接口限流较严格时建议设为 1-3。</small>
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={expandConcurrency}
+                      disabled={isContentGenerating || isContentPaused}
+                      onChange={(event) => setExpandConcurrency(Math.max(1, Math.round(Number(event.target.value) || 1)))}
+                    />
+                  </label>
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>生成 Mermaid 图</strong>
+                      <small>扩写完成后，为适合流程、结构、关系表达的小节补充 Mermaid 图。</small>
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="content-expand-checkbox"
+                      checked={expandUseMermaidImages}
+                      disabled={isContentGenerating || isContentPaused}
+                      onChange={(event) => setExpandUseMermaidImages(event.target.checked)}
+                      aria-label="是否在扩写后生成 Mermaid 图"
+                    />
+                  </label>
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>使用 AI 生图</strong>
+                      <small>{expandImageModelAvailable ? '扩写完成后择优生成少量图示。' : '生图模型不可用，请先到设置页配置。'}</small>
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="content-expand-checkbox"
+                      checked={expandUseAiImages && expandImageModelAvailable}
+                      disabled={isContentGenerating || isContentPaused || !expandImageModelAvailable}
+                      onChange={(event) => setExpandUseAiImages(event.target.checked)}
+                      aria-label="是否在扩写后使用 AI 生图"
+                    />
+                  </label>
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>AI 图最大数量</strong>
+                      <small>只在开启 AI 生图时生效，按所选章节择优分配。</small>
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={Math.max(1, selectedExpandLeaves.length)}
+                      value={expandMaxAiImages}
+                      disabled={isContentGenerating || isContentPaused || !expandUseAiImages || !expandImageModelAvailable}
+                      onChange={(event) => setExpandMaxAiImages(Math.max(0, Math.min(Math.round(Number(event.target.value) || 0), Math.max(1, selectedExpandLeaves.length))))}
+                    />
+                  </label>
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>扩写后一致性审计</strong>
+                      <small>检查新增内容是否与全局事实冲突。</small>
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="content-expand-checkbox"
+                      checked={expandConsistencyAudit}
+                      disabled={isContentGenerating || isContentPaused}
+                      onChange={(event) => setExpandConsistencyAudit(event.target.checked)}
+                      aria-label="是否启用扩写后一致性审计"
+                    />
+                  </label>
+                </div>
+              </div>
+            </article>
+          </div>
         </section>
       )}
+
+      <Dialog.Root
+        open={Boolean(previewExpandItem)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewExpandItemId('');
+          }
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-expand-preview-overlay" />
+          <Dialog.Content className="content-expand-preview-card">
+            <div className="content-regenerate-card-head">
+              <span className="section-kicker">章节内容预览</span>
+              <Dialog.Title>{previewExpandItem?.title || '未命名小节'}</Dialog.Title>
+              <Dialog.Description>
+                当前预览的是扩写前/扩写后的最新正文内容。
+              </Dialog.Description>
+            </div>
+            <div className="markdown-viewer content-expand-preview-body">
+              {previewExpandContent.trim() ? (
+                <MarkdownRenderer>{previewExpandContent}</MarkdownRenderer>
+              ) : (
+                <p className="content-editor-empty">当前小节暂无正文内容。</p>
+              )}
+            </div>
+            <div className="content-regenerate-actions">
+              <Dialog.Close className="primary-action" type="button">关闭</Dialog.Close>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       <Dialog.Root open={exportChoiceOpen} onOpenChange={setExportChoiceOpen}>
         <Dialog.Portal>

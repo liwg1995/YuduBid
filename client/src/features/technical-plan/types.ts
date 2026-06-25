@@ -61,6 +61,9 @@ export interface BackgroundTaskState {
       audit_fix_failed?: number;
       illustration_total?: number;
       illustration_completed?: number;
+      expansion_total?: number;
+      expansion_completed?: number;
+      expansion_failed?: number;
     };
     images?: Partial<ContentImageStats> & {
       total?: ContentImageStats;
@@ -145,6 +148,7 @@ export interface ContentGenerationRuntimeState {
   expansion_cycle_start_words?: number;
   target_item_id?: string;
   regenerate_requirement?: string;
+  expand_only?: boolean;
   updated_at?: string;
 }
 
