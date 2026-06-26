@@ -19,13 +19,15 @@
 
 前往 [GitHub Releases](https://github.com/liwg1995/YuduBid/releases) 下载 Windows 或 macOS 客户端安装包。
 
-- 注意苹果用户下载dmg安装之后，需要运行以下命令，然后输入本机密码即可（由于没有签名，苹果会阻拦）
+- 注意苹果用户下载dmg，将`app`移动`/Applications`后，运行前需要运行以下命令，然后输入本机密码即可（由于没有签名，苹果会阻拦，苹果的签名也老贵了）
 
 ```
 sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
 ```
 
 > 其中，/Applications/禹都AI解决方案助手.app，是这个app的位置，一般我都放到`/Applications`里面了，根据实际进行调整即可
+
+- `Windows`用户通过浏览器下载的`exe`包可能会显示不安全等等之类的提醒，那是因为没有对它进行签名，所以才会提醒，保留即可，不用在意（`Windows`的签名也老贵了，买不起买不起）
 
 ## 💡 如何更新
 `Windows`、`Mac`版支持【设置】-【关于】-【检测版本】进行更新，更新方式获取`github`中最新版本的包并下载
