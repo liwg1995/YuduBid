@@ -9,6 +9,7 @@ import type { SettingsPageState } from '../types';
 type SettingsTab = 'general' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'about';
 const SETTINGS_ACTIVE_TAB_KEY = 'yibiao-settings-active-tab';
 const DEFAULT_SETTINGS_TAB: SettingsTab = 'text-model';
+const githubReleaseDownloadPattern = /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\/[^/]+\/.+/i;
 
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'text-model', label: '文本模型' },
@@ -63,6 +64,10 @@ function normalizeTextModelProfile(provider: TextModelProvider, profile?: Partia
     base_url: provider === 'xiaomi' && baseUrl === oldXiaomiBaseUrl ? defaults.base_url : baseUrl,
     model_name: provider === 'agnes-ai' && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
   };
+}
+
+function isDirectReleaseDownloadUrl(url?: string): boolean {
+  return githubReleaseDownloadPattern.test(String(url || ''));
 }
 
 function normalizeTextModelProfiles(profiles?: Partial<TextModelProfiles>): TextModelProfiles {
@@ -484,6 +489,10 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
 
       setLatestRelease(release);
       if (compareVersions(release.version, appVersion) > 0) {
+        if (!isDirectReleaseDownloadUrl(release.download_url)) {
+          showToast(`发现新版本 ${release.version}，安装包仍在构建或上传，请稍后重新检测`, 'info');
+          return;
+        }
         showToast(`发现新版本 ${release.version}`, 'info');
         return;
       }
@@ -497,14 +506,15 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   };
 
   const openLatestDownload = async (options: { accelerated?: boolean } = {}) => {
-    const url = latestRelease?.download_url || latestRelease?.html_url;
-    if (!url) {
-      showToast('未获取到最新版下载链接', 'error');
+    const downloadUrl = isDirectReleaseDownloadUrl(latestRelease?.download_url) ? latestRelease?.download_url : '';
+    if (!downloadUrl) {
+      showToast('当前系统安装包仍在构建或上传，请稍后重新检测版本。', 'info');
       return;
     }
-    const targetUrl = options.accelerated && latestRelease?.download_url
-      ? `https://gh-proxy.com/${latestRelease.download_url}`
-      : url;
+
+    const targetUrl = options.accelerated
+      ? `https://gh-proxy.com/${downloadUrl}`
+      : downloadUrl;
 
     try {
       const result = await window.yibiao?.openExternal(targetUrl);
@@ -1008,6 +1018,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     : [];
 
   const hasNewRelease = Boolean(latestRelease?.version && compareVersions(latestRelease.version, appVersion) > 0);
+  const latestDownloadUrl = isDirectReleaseDownloadUrl(latestRelease?.download_url) ? latestRelease?.download_url : '';
 
   return (
     <div className="settings-page">
@@ -1499,23 +1510,28 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
                     <p>该版本暂未填写更新详情。</p>
                   )}
                 </div>
-                {latestRelease?.download_name && (
+                {latestRelease?.download_name && latestDownloadUrl && (
                   <div className="release-detail-download-name">已匹配当前系统安装包：{latestRelease.download_name}</div>
+                )}
+                {latestRelease && !latestDownloadUrl && (
+                  <div className="release-detail-download-name">当前系统安装包正在构建或上传，请稍后点击“检测版本”刷新状态。</div>
                 )}
                 <div className="release-detail-actions">
                   <Dialog.Close className="secondary-action" type="button">稍后再说</Dialog.Close>
-                  {latestRelease?.download_url && (
-                    <button
-                      type="button"
-                      className="secondary-action"
-                      onClick={() => { void openLatestDownload({ accelerated: true }); }}
-                    >
-                      加速更新下载
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    disabled={!latestDownloadUrl}
+                    title={latestDownloadUrl ? '通过下载加速服务获取当前系统安装包' : '当前系统安装包仍在构建或上传'}
+                    onClick={() => { void openLatestDownload({ accelerated: true }); }}
+                  >
+                    加速更新下载
+                  </button>
                   <button
                     type="button"
                     className="primary-action"
+                    disabled={!latestDownloadUrl}
+                    title={latestDownloadUrl ? '下载当前系统安装包' : '当前系统安装包仍在构建或上传'}
                     onClick={() => { void openLatestDownload(); }}
                   >
                     获取最新版

@@ -223,16 +223,42 @@ function normalizeVersion(value) {
   return String(value || '').trim().replace(/^v/i, '');
 }
 
+function isReleaseDownloadUrl(value) {
+  const url = String(value || '');
+  return /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\/[^/]+\/.+/i.test(url);
+}
+
+function normalizeReleaseAsset(asset) {
+  return {
+    name: String(asset?.name || ''),
+    browser_download_url: String(asset?.browser_download_url || ''),
+    size: Number(asset?.size || 0),
+  };
+}
+
 function pickReleaseDownloadAsset(assets = []) {
-  const candidates = Array.isArray(assets) ? assets : [];
+  const candidates = (Array.isArray(assets) ? assets : [])
+    .map(normalizeReleaseAsset)
+    .filter((asset) => {
+      const name = asset.name.toLowerCase();
+      return (
+        asset.name &&
+        isReleaseDownloadUrl(asset.browser_download_url) &&
+        !name.endsWith('.blockmap') &&
+        name !== 'latest.yml' &&
+        name !== 'latest-mac.yml'
+      );
+    });
   const arch = process.arch;
   const platform = process.platform;
   const byName = (predicate) => candidates.find((asset) => predicate(String(asset?.name || '').toLowerCase()));
 
   if (platform === 'win32') {
     return (
+      byName((name) => name.endsWith('.exe') && name.includes('win') && name.includes('x64')) ||
       byName((name) => name.endsWith('.exe') && name.includes('win')) ||
       byName((name) => name.endsWith('.exe')) ||
+      byName((name) => name.endsWith('.zip') && name.includes('win') && name.includes('x64')) ||
       byName((name) => name.endsWith('.zip') && name.includes('win'))
     );
   }
@@ -255,6 +281,30 @@ function pickReleaseDownloadAsset(assets = []) {
   return candidates[0];
 }
 
+async function fetchReleaseJson(url, signal) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'YuDuBid-Client',
+    },
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub 返回 ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function fetchReleaseByTag(tagName, signal) {
+  const tag = String(tagName || '').trim();
+  if (!tag) {
+    return null;
+  }
+  return fetchReleaseJson(`${releasesApiUrl}/tags/${encodeURIComponent(tag)}`, signal);
+}
+
 function shouldIncludePrerelease(app) {
   return String(app?.getVersion?.() || '').includes('-') || process.env.YIBIAO_INCLUDE_PRERELEASE_UPDATE === '1';
 }
@@ -265,28 +315,24 @@ async function fetchLatestReleaseInfo(options = {}) {
 
   try {
     const includePrerelease = Boolean(options.includePrerelease);
-    const response = await fetch(includePrerelease ? `${releasesApiUrl}?per_page=20` : latestReleaseApiUrl, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'YuDuBid-Client',
-      },
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`GitHub 返回 ${response.status}`);
-    }
-
-    const payload = await response.json();
-    const release = Array.isArray(payload)
+    const payload = await fetchReleaseJson(includePrerelease ? `${releasesApiUrl}?per_page=20` : latestReleaseApiUrl, controller.signal);
+    let release = Array.isArray(payload)
       ? payload.find((item) => item && !item.draft && (includePrerelease || !item.prerelease))
       : payload;
     if (!release) {
       throw new Error('未找到可用版本');
     }
 
-    const assets = Array.isArray(release.assets) ? release.assets : [];
-    const downloadAsset = pickReleaseDownloadAsset(assets);
+    let assets = Array.isArray(release.assets) ? release.assets : [];
+    let downloadAsset = pickReleaseDownloadAsset(assets);
+    if (!downloadAsset && release.tag_name) {
+      const tagRelease = await fetchReleaseByTag(release.tag_name, controller.signal);
+      if (tagRelease && !tagRelease.draft) {
+        release = tagRelease;
+        assets = Array.isArray(release.assets) ? release.assets : [];
+        downloadAsset = pickReleaseDownloadAsset(assets);
+      }
+    }
 
     return {
       version: normalizeVersion(release.tag_name || release.name || ''),
@@ -294,15 +340,11 @@ async function fetchLatestReleaseInfo(options = {}) {
       body: String(release.body || ''),
       published_at: String(release.published_at || ''),
       html_url: String(release.html_url || 'https://github.com/liwg1995/YuduBid/releases/latest'),
-      download_url: String(downloadAsset?.browser_download_url || release.html_url || 'https://github.com/liwg1995/YuduBid/releases/latest'),
+      download_url: downloadAsset ? downloadAsset.browser_download_url : '',
       download_name: String(downloadAsset?.name || ''),
       platform: process.platform,
       arch: process.arch,
-      assets: assets.map((asset) => ({
-        name: String(asset?.name || ''),
-        browser_download_url: String(asset?.browser_download_url || ''),
-        size: Number(asset?.size || 0),
-      })),
+      assets: assets.map(normalizeReleaseAsset),
     };
   } finally {
     clearTimeout(timer);
