@@ -8,9 +8,9 @@ import type { SettingsPageState } from '../types';
 
 type SettingsTab = 'general' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'about';
 const SETTINGS_ACTIVE_TAB_KEY = 'yibiao-settings-active-tab';
+const DEFAULT_SETTINGS_TAB: SettingsTab = 'text-model';
 
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
-  { id: 'general', label: '通用' },
   { id: 'text-model', label: '文本模型' },
   { id: 'image-model', label: '生图模型' },
   { id: 'file-parser', label: '文件解析' },
@@ -370,10 +370,10 @@ interface SettingsPageProps {
 }
 
 function getInitialSettingsTab(): SettingsTab {
-  if (typeof window === 'undefined') return 'general';
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS_TAB;
   const storedTab = window.localStorage.getItem(SETTINGS_ACTIVE_TAB_KEY) as SettingsTab | null;
   if (storedTab && settingsTabs.some((tab) => tab.id === storedTab)) return storedTab;
-  return 'general';
+  return DEFAULT_SETTINGS_TAB;
 }
 
 function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
