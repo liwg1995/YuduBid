@@ -19,7 +19,7 @@
 
 前往 [GitHub Releases](https://github.com/liwg1995/YuduBid/releases) 下载 Windows 或 macOS 客户端安装包。
 
-- 注意苹果用户下载dmg，将`app`移动`/Applications`后，运行前需要运行以下命令，然后输入本机密码即可（由于没有签名，苹果会阻拦，苹果的签名也老贵了）
+- 注意苹果用户下载dmg，将`app`移动`/Applications`后，运行前需要运行以下命令，然后输入本机密码即可（由于没有签名，苹果会阻拦，苹果的签名老贵了）
 
 ```
 sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
@@ -32,7 +32,7 @@ sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
 ## 💡 如何更新
 `Windows`、`Mac`版支持【设置】-【关于】-【检测版本】进行更新，更新方式获取`github`中最新版本的包并下载
 
-不支持`APP`内自动更新的原因是，需要开发者进行`app`签名，为啥不给它签名呢，因为很贵，我没钱。
+以另一种方式支持`APP`内自动更新，但不是原生支持，下载完毕后，仍然需要覆盖安装，原因是，需要开发者进行`app`签名，为啥不给它签名呢，因为确实很贵...
 
 功能能用就行了，要是有免费的我就签了！
 
