@@ -11888,6 +11888,63 @@ button {
   border-radius: 14px;
 }
 
+.release-download-progress {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  color: var(--yb-text-soft);
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(33, 116, 253, 0.14);
+  border-radius: 14px;
+}
+
+.release-download-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.release-download-progress-head strong {
+  color: var(--yb-text);
+}
+
+.release-download-progress-head span {
+  color: var(--yb-primary);
+  font-weight: 900;
+}
+
+.release-download-progress-track {
+  height: 8px;
+  overflow: hidden;
+  background: rgba(33, 116, 253, 0.1);
+  border-radius: 999px;
+}
+
+.release-download-progress-track span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(135deg, #2f7cff, #38bdf8);
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
+.release-download-progress.is-downloaded .release-download-progress-track span,
+.release-download-progress.is-installing .release-download-progress-track span {
+  background: linear-gradient(135deg, #14b86b, #40d19b);
+}
+
+.release-download-progress.is-error .release-download-progress-track span {
+  background: linear-gradient(135deg, #ff4d67, #ff8a3d);
+}
+
+.release-download-progress p {
+  margin: 0;
+  color: var(--yb-text-muted);
+  font-size: 12px;
+}
+
 .release-detail-actions {
   display: flex;
   justify-content: flex-end;

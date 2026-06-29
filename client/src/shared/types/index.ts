@@ -55,7 +55,7 @@ export type {
 } from './config';
 export type { AppMenuGroup, AppMenuItem, SectionId } from './navigation';
 export type { OutlineData, OutlineItem, OutlineMode, TechnicalRequirementGroup } from './outline';
-export type { LatestReleaseInfo, UpdateCheckResult, WordExportProgressEvent, WordExportResult, YuDuBidBridge } from './ipc';
+export type { LatestReleaseInfo, ReleaseInstallerDownloadRequest, ReleaseInstallerDownloadResult, UpdateCheckResult, UpdateProgressEvent, WordExportProgressEvent, WordExportResult, YuDuBidBridge } from './ipc';
 export type {
   SoftwareCopyrightAnalysis,
   SoftwareCopyrightAnalysisFile,

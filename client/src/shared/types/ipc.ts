@@ -66,6 +66,31 @@ export interface UpdateCheckResult {
   message?: string;
 }
 
+export interface ReleaseInstallerDownloadRequest {
+  version: string;
+  download_url: string;
+  download_name?: string;
+  size?: number;
+}
+
+export interface ReleaseInstallerDownloadResult {
+  success: boolean;
+  downloaded?: boolean;
+  version?: string;
+  path?: string;
+  fileName?: string;
+  message?: string;
+}
+
+export interface UpdateProgressEvent {
+  percent: number;
+  transferred?: number;
+  total?: number;
+  bytesPerSecond?: number;
+  fileName?: string;
+  version?: string;
+}
+
 export interface YuDuBidBridge {
   appName: string;
   platform: string;
@@ -74,8 +99,10 @@ export interface YuDuBidBridge {
   openExternal: (url: string) => Promise<{ success: boolean; message?: string }>;
   checkUpdate: () => Promise<UpdateCheckResult>;
   startUpdate: () => Promise<UpdateCheckResult>;
+  downloadReleaseInstaller: (payload: ReleaseInstallerDownloadRequest) => Promise<ReleaseInstallerDownloadResult>;
+  installDownloadedRelease: () => Promise<{ success: boolean; message?: string }>;
   quitAndInstall: () => Promise<void>;
-  onUpdateProgress: (callback: (event: { percent: number }) => void) => () => void;
+  onUpdateProgress: (callback: (event: UpdateProgressEvent) => void) => () => void;
   onUpdateDownloaded: (callback: (event: { version: string }) => void) => () => void;
   onUpdateError: (callback: (event: { message: string }) => void) => () => void;
   config: {

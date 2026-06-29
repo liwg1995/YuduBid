@@ -410,7 +410,7 @@ function registerUnavailableTechnicalPlanIpc(error) {
   ipcMain.on('tasks:subscribe', () => {});
 }
 
-function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, quitAndInstall }) {
+function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, installDownloadedRelease, quitAndInstall }) {
   const configStore = createConfigStore(app);
   const aiService = createAiService({ app, configStore });
   const fileService = createFileService({ app, configStore });
@@ -510,6 +510,23 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
       },
     });
   });
+
+  ipcMain.handle('app:download-release-installer', (event, payload = {}) => {
+    const webContents = event.sender;
+    return downloadReleaseInstaller({
+      app,
+      mainWindow,
+      url: payload.download_url,
+      fileName: payload.download_name,
+      version: payload.version,
+      size: payload.size,
+      onProgress: (progress) => {
+        webContents.send('app:update-progress', progress);
+      },
+    });
+  });
+
+  ipcMain.handle('app:install-downloaded-release', () => installDownloadedRelease({ app, mainWindow }));
 }
 
 module.exports = {

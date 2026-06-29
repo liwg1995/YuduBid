@@ -8,6 +8,8 @@ const bridge = {
   openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
   checkUpdate: () => ipcRenderer.invoke('app:check-update'),
   startUpdate: () => ipcRenderer.invoke('app:start-update'),
+  downloadReleaseInstaller: (payload) => ipcRenderer.invoke('app:download-release-installer', payload),
+  installDownloadedRelease: () => ipcRenderer.invoke('app:install-downloaded-release'),
   quitAndInstall: () => ipcRenderer.invoke('app:quit-and-install'),
   onUpdateProgress: (callback) => {
     const listener = (_event, payload) => callback(payload);

@@ -3,10 +3,23 @@ import { useEffect, useState } from 'react';
 import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { ClientConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider } from '../../../shared/types';
+import type { ClientConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 
 type SettingsTab = 'general' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'about';
+type ReleaseDownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'installing' | 'error';
+
+interface ReleaseDownloadState {
+  status: ReleaseDownloadStatus;
+  percent: number;
+  transferred: number;
+  total: number;
+  bytesPerSecond: number;
+  fileName: string;
+  version: string;
+  message: string;
+}
+
 const SETTINGS_ACTIVE_TAB_KEY = 'yibiao-settings-active-tab';
 const DEFAULT_SETTINGS_TAB: SettingsTab = 'text-model';
 const githubReleaseDownloadPattern = /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\/[^/]+\/.+/i;
@@ -68,6 +81,43 @@ function normalizeTextModelProfile(provider: TextModelProvider, profile?: Partia
 
 function isDirectReleaseDownloadUrl(url?: string): boolean {
   return githubReleaseDownloadPattern.test(String(url || ''));
+}
+
+function createInitialReleaseDownloadState(partial: Partial<ReleaseDownloadState> = {}): ReleaseDownloadState {
+  return {
+    status: 'idle',
+    percent: 0,
+    transferred: 0,
+    total: 0,
+    bytesPerSecond: 0,
+    fileName: '',
+    version: '',
+    message: '',
+    ...partial,
+  };
+}
+
+function formatBytes(value?: number): string {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size >= 10 || unitIndex === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function findReleaseAssetSize(release: LatestReleaseInfo | null): number {
+  if (!release?.assets?.length) return 0;
+  const downloadUrl = String(release.download_url || '');
+  const downloadName = String(release.download_name || '');
+  const asset = release.assets.find((item) => (
+    item.browser_download_url === downloadUrl || item.name === downloadName
+  ));
+  return Number(asset?.size || 0);
 }
 
 function normalizeTextModelProfiles(profiles?: Partial<TextModelProfiles>): TextModelProfiles {
@@ -395,11 +445,37 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   const [checkingLatestRelease, setCheckingLatestRelease] = useState(false);
   const [latestRelease, setLatestRelease] = useState<LatestReleaseInfo | null>(null);
   const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
+  const [releaseDownloadState, setReleaseDownloadState] = useState<ReleaseDownloadState>(() => createInitialReleaseDownloadState());
   const { showToast } = useToast();
 
   useEffect(() => {
     void loadTextConfig();
     void window.yibiao?.getVersion().then(setAppVersion);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.yibiao?.onUpdateProgress?.((event: UpdateProgressEvent) => {
+      setReleaseDownloadState((prev) => {
+        if (prev.status !== 'downloading' && prev.status !== 'downloaded') {
+          return prev;
+        }
+        const percent = Math.max(0, Math.min(100, Number(event.percent || 0)));
+        return {
+          ...prev,
+          status: percent >= 100 ? 'downloaded' : 'downloading',
+          percent,
+          transferred: Number(event.transferred || prev.transferred || 0),
+          total: Number(event.total || prev.total || 0),
+          bytesPerSecond: Number(event.bytesPerSecond || 0),
+          fileName: event.fileName || prev.fileName,
+          version: event.version || prev.version,
+          message: percent >= 100 ? '安装包已下载完成' : '正在下载安装包',
+        };
+      });
+    });
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
 
   const loadTextConfig = async () => {
@@ -488,6 +564,11 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       }
 
       setLatestRelease(release);
+      setReleaseDownloadState(createInitialReleaseDownloadState({
+        fileName: release.download_name || '',
+        version: release.version,
+        total: findReleaseAssetSize(release),
+      }));
       if (compareVersions(release.version, appVersion) > 0) {
         if (!isDirectReleaseDownloadUrl(release.download_url)) {
           showToast(`发现新版本 ${release.version}，安装包仍在构建或上传，请稍后重新检测`, 'info');
@@ -523,6 +604,70 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : '打开最新版下载链接失败', 'error');
+    }
+  };
+
+  const downloadLatestRelease = async () => {
+    const downloadUrl = isDirectReleaseDownloadUrl(latestRelease?.download_url) ? latestRelease?.download_url : '';
+    if (!latestRelease?.version || !downloadUrl) {
+      showToast('当前系统安装包仍在构建或上传，请稍后重新检测版本。', 'info');
+      return;
+    }
+
+    const size = findReleaseAssetSize(latestRelease);
+    setReleaseDownloadState(createInitialReleaseDownloadState({
+      status: 'downloading',
+      fileName: latestRelease.download_name || '',
+      version: latestRelease.version,
+      total: size,
+      message: '正在下载安装包',
+    }));
+
+    try {
+      const result = await window.yibiao?.downloadReleaseInstaller({
+        version: latestRelease.version,
+        download_url: downloadUrl,
+        download_name: latestRelease.download_name,
+        size,
+      });
+      if (!result?.success) {
+        const message = result?.message || '下载安装包失败';
+        setReleaseDownloadState((prev) => ({ ...prev, status: 'error', message }));
+        showToast(message, 'error');
+        return;
+      }
+
+      setReleaseDownloadState((prev) => ({
+        ...prev,
+        status: 'downloaded',
+        percent: 100,
+        version: result.version || latestRelease.version,
+        fileName: result.fileName || latestRelease.download_name || prev.fileName,
+        message: result.message || '安装包已下载完成',
+      }));
+      showToast('安装包已下载完成，可立即安装', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '下载安装包失败';
+      setReleaseDownloadState((prev) => ({ ...prev, status: 'error', message }));
+      showToast(message, 'error');
+    }
+  };
+
+  const installDownloadedRelease = async () => {
+    setReleaseDownloadState((prev) => ({ ...prev, status: 'installing', message: '正在启动安装程序' }));
+    try {
+      const result = await window.yibiao?.installDownloadedRelease();
+      if (!result?.success) {
+        const message = result?.message || '启动安装程序失败';
+        setReleaseDownloadState((prev) => ({ ...prev, status: 'downloaded', message }));
+        showToast(message, 'error');
+        return;
+      }
+      showToast(result.message || '安装程序已启动', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '启动安装程序失败';
+      setReleaseDownloadState((prev) => ({ ...prev, status: 'downloaded', message }));
+      showToast(message, 'error');
     }
   };
 
@@ -1019,6 +1164,15 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
 
   const hasNewRelease = Boolean(latestRelease?.version && compareVersions(latestRelease.version, appVersion) > 0);
   const latestDownloadUrl = isDirectReleaseDownloadUrl(latestRelease?.download_url) ? latestRelease?.download_url : '';
+  const releaseDownloading = releaseDownloadState.status === 'downloading';
+  const releaseDownloaded = releaseDownloadState.status === 'downloaded' || releaseDownloadState.status === 'installing';
+  const releaseInstalling = releaseDownloadState.status === 'installing';
+  const releaseProgressText = releaseDownloadState.total > 0
+    ? `${formatBytes(releaseDownloadState.transferred)} / ${formatBytes(releaseDownloadState.total)}`
+    : formatBytes(releaseDownloadState.transferred);
+  const releaseSpeedText = releaseDownloading && releaseDownloadState.bytesPerSecond > 0
+    ? `${formatBytes(releaseDownloadState.bytesPerSecond)}/s`
+    : '';
 
   return (
     <div className="settings-page">
@@ -1516,12 +1670,29 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
                 {latestRelease && !latestDownloadUrl && (
                   <div className="release-detail-download-name">当前系统安装包正在构建或上传，请稍后点击“检测版本”刷新状态。</div>
                 )}
+                {releaseDownloadState.status !== 'idle' && latestDownloadUrl && (
+                  <div className={`release-download-progress is-${releaseDownloadState.status}`}>
+                    <div className="release-download-progress-head">
+                      <strong>
+                        {releaseDownloaded ? '安装包已准备好' : releaseDownloading ? '正在下载安装包' : releaseDownloadState.status === 'error' ? '下载失败' : '安装包大小'}
+                      </strong>
+                      <span>{Math.round(releaseDownloadState.percent)}%</span>
+                    </div>
+                    <div className="release-download-progress-track" aria-hidden="true">
+                      <span style={{ width: `${Math.max(0, Math.min(100, releaseDownloadState.percent))}%` }} />
+                    </div>
+                    <p>
+                      {releaseDownloadState.message || releaseProgressText}
+                      {releaseSpeedText ? ` · ${releaseSpeedText}` : ''}
+                    </p>
+                  </div>
+                )}
                 <div className="release-detail-actions">
                   <Dialog.Close className="secondary-action" type="button">稍后再说</Dialog.Close>
                   <button
                     type="button"
                     className="secondary-action"
-                    disabled={!latestDownloadUrl}
+                    disabled={!latestDownloadUrl || releaseDownloading || releaseInstalling}
                     title={latestDownloadUrl ? '通过下载加速服务获取当前系统安装包' : '当前系统安装包仍在构建或上传'}
                     onClick={() => { void openLatestDownload({ accelerated: true }); }}
                   >
@@ -1530,11 +1701,17 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
                   <button
                     type="button"
                     className="primary-action"
-                    disabled={!latestDownloadUrl}
-                    title={latestDownloadUrl ? '下载当前系统安装包' : '当前系统安装包仍在构建或上传'}
-                    onClick={() => { void openLatestDownload(); }}
+                    disabled={!latestDownloadUrl || releaseDownloading || releaseInstalling}
+                    title={latestDownloadUrl ? '下载并安装当前系统安装包' : '当前系统安装包仍在构建或上传'}
+                    onClick={() => {
+                      if (releaseDownloaded) {
+                        void installDownloadedRelease();
+                        return;
+                      }
+                      void downloadLatestRelease();
+                    }}
                   >
-                    获取最新版
+                    {releaseInstalling ? '启动中...' : releaseDownloaded ? '立即安装' : releaseDownloading ? '下载中...' : '下载更新'}
                   </button>
                 </div>
               </Dialog.Content>
