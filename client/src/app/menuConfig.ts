@@ -74,6 +74,44 @@ const officialDocumentMenuItems: AppMenuItem[] = [
   },
 ];
 
+const thesisTutorMenuItems: AppMenuItem[] = [
+  {
+    id: 'thesis-diagnosis',
+    label: '启动诊断',
+    description: '定位阶段与路径安排',
+  },
+  {
+    id: 'thesis-topic',
+    label: '选题与开题',
+    description: '选题评估与开题框架',
+  },
+  {
+    id: 'thesis-literature',
+    label: '文献综述',
+    description: '检索策略与综述组织',
+  },
+  {
+    id: 'thesis-methodology',
+    label: '研究设计',
+    description: '方法、数据与技术路线',
+  },
+  {
+    id: 'thesis-writing',
+    label: '逐章写作',
+    description: '文献驱动正文与批注',
+  },
+  {
+    id: 'thesis-review',
+    label: '评审与答辩',
+    description: '修改清单与答辩准备',
+  },
+  {
+    id: 'thesis-format',
+    label: '格式与查重',
+    description: '引用、排版和降 AI 味',
+  },
+];
+
 const patentMenuItems: AppMenuItem[] = [
   {
     id: 'patent-mining',
@@ -125,6 +163,11 @@ export function getAppMenuGroups(developerMode: boolean): AppMenuGroup[] {
       id: 'official-document',
       label: '公文写作',
       items: officialDocumentMenuItems,
+    },
+    {
+      id: 'thesis-tutor',
+      label: '论文导师',
+      items: thesisTutorMenuItems,
     },
     {
       id: 'copyright',

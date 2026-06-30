@@ -1,0 +1,1298 @@
+{
+  "zh": {
+    "cs": {
+      "name": "计算机科学",
+      "subdisciplines": {
+        "software_engineering": {
+          "name": "软件工程",
+          "keywords": ["软件工程", "软件开发", "敏捷开发", "软件测试", "软件架构", "设计模式"],
+          "focus": ["需求分析", "系统设计", "代码质量", "软件维护", "项目管理"]
+        },
+        "artificial_intelligence": {
+          "name": "人工智能",
+          "keywords": ["人工智能", "机器学习", "深度学习", "神经网络", "自然语言处理", "计算机视觉"],
+          "focus": ["算法设计", "模型训练", "数据处理", "性能优化", "应用场景"]
+        },
+        "network_security": {
+          "name": "网络空间安全",
+          "keywords": ["网络安全", "信息安全", "密码学", "入侵检测", "漏洞分析", "隐私保护"],
+          "focus": ["安全协议", "加密算法", "威胁分析", "防护策略", "安全审计"]
+        },
+        "data_science": {
+          "name": "数据科学",
+          "keywords": ["数据科学", "大数据", "数据挖掘", "数据分析", "可视化", "数据仓库"],
+          "focus": ["数据采集", "数据清洗", "特征工程", "统计分析", "业务洞察"]
+        },
+        "computer_systems": {
+          "name": "计算机系统",
+          "keywords": ["操作系统", "计算机体系结构", "嵌入式系统", "并行计算", "分布式系统"],
+          "focus": ["系统设计", "性能优化", "资源管理", "并发控制", "容错机制"]
+        },
+        "database": {
+          "name": "数据库",
+          "keywords": ["数据库", "SQL", "NoSQL", "数据管理", "查询优化", "事务处理"],
+          "focus": ["数据建模", "索引优化", "并发控制", "数据一致性", "分布式数据库"]
+        },
+        "computer_network": {
+          "name": "计算机网络",
+          "keywords": ["计算机网络", "网络协议", "路由", "交换", "网络编程", "互联网"],
+          "focus": ["协议设计", "网络架构", "流量控制", "网络安全", "网络管理"]
+        },
+        "graphics_multimedia": {
+          "name": "图形学与多媒体",
+          "keywords": ["计算机图形学", "图像处理", "多媒体", "虚拟现实", "增强现实", "游戏开发"],
+          "focus": ["渲染算法", "图像识别", "视频处理", "3D建模", "交互设计"]
+        }
+      }
+    },
+    "economics": {
+      "name": "经济学",
+      "subdisciplines": {
+        "finance": {
+          "name": "金融学",
+          "keywords": ["金融", "银行", "证券", "保险", "投资", "风险管理"],
+          "focus": ["金融市场", "金融监管", "资产定价", "投资组合", "金融创新"]
+        },
+        "international_trade": {
+          "name": "国际贸易",
+          "keywords": ["国际贸易", "进出口", "关税", "贸易壁垒", "贸易政策", "跨境电商"],
+          "focus": ["贸易理论", "贸易政策", "汇率", "国际收支", "全球价值链"]
+        },
+        "public_economics": {
+          "name": "公共经济学",
+          "keywords": ["公共经济", "财政", "税收", "政府支出", "公共政策", "社会保障"],
+          "focus": ["财政政策", "税收制度", "公共支出", "政府债务", "收入分配"]
+        },
+        "labor_economics": {
+          "name": "劳动经济学",
+          "keywords": ["劳动经济", "就业", "失业", "工资", "人力资本", "劳动市场"],
+          "focus": ["劳动力供给", "劳动力需求", "工资决定", "就业政策", "人力资本投资"]
+        },
+        "development_economics": {
+          "name": "发展经济学",
+          "keywords": ["发展经济", "经济增长", "贫困", "不平等", "发展政策", "制度"],
+          "focus": ["增长理论", "贫困陷阱", "制度变迁", "结构转型", "可持续发展"]
+        },
+        "environmental_economics": {
+          "name": "环境经济学",
+          "keywords": ["环境经济", "气候变化", "碳排放", "环境政策", "绿色经济", "可持续发展"],
+          "focus": ["外部性", "环境规制", "碳交易", "绿色金融", "生态补偿"]
+        }
+      }
+    },
+    "management": {
+      "name": "管理学",
+      "subdisciplines": {
+        "business_management": {
+          "name": "工商管理",
+          "keywords": ["工商管理", "企业管理", "战略管理", "组织管理", "运营管理"],
+          "focus": ["战略规划", "组织设计", "运营管理", "企业创新", "竞争优势"]
+        },
+        "human_resources": {
+          "name": "人力资源管理",
+          "keywords": ["人力资源", "招聘", "培训", "绩效", "薪酬", "员工关系"],
+          "focus": ["人才招聘", "培训发展", "绩效管理", "薪酬福利", "组织文化"]
+        },
+        "marketing": {
+          "name": "市场营销",
+          "keywords": ["市场营销", "营销策略", "品牌管理", "消费者行为", "数字营销", "市场调研"],
+          "focus": ["市场分析", "营销组合", "品牌建设", "客户关系", "渠道管理"]
+        },
+        "accounting": {
+          "name": "会计学",
+          "keywords": ["会计", "财务报表", "审计", "税务", "成本会计", "管理会计"],
+          "focus": ["会计准则", "财务分析", "内部控制", "税务筹划", "审计监督"]
+        },
+        "information_management": {
+          "name": "信息管理与信息系统",
+          "keywords": ["信息管理", "信息系统", "企业信息化", "数字化转型", "IT治理"],
+          "focus": ["系统规划", "数据治理", "信息安全", "数字化战略", "IT服务管理"]
+        }
+      }
+    },
+    "education": {
+      "name": "教育学",
+      "subdisciplines": {
+        "curriculum_pedagogy": {
+          "name": "课程与教学论",
+          "keywords": ["课程", "教学", "教学方法", "教学设计", "教学评价", "课程改革"],
+          "focus": ["课程设计", "教学策略", "学习评估", "教学创新", "教育技术"]
+        },
+        "educational_psychology": {
+          "name": "教育心理学",
+          "keywords": ["教育心理", "学习心理", "发展心理", "认知发展", "学习动机"],
+          "focus": ["学习理论", "认知发展", "学习动机", "个体差异", "心理健康"]
+        },
+        "higher_education": {
+          "name": "高等教育学",
+          "keywords": ["高等教育", "大学", "高校", "研究生教育", "学科建设", "人才培养"],
+          "focus": ["大学治理", "学科建设", "人才培养", "科研管理", "国际化"]
+        },
+        "preschool_education": {
+          "name": "学前教育学",
+          "keywords": ["学前教育", "幼儿园", "幼儿教育", "早期教育", "儿童发展"],
+          "focus": ["幼儿发展", "游戏教学", "家园共育", "课程设计", "教师专业发展"]
+        },
+        "vocational_education": {
+          "name": "职业教育学",
+          "keywords": ["职业教育", "职业培训", "技能人才", "产教融合", "校企合作"],
+          "focus": ["人才培养", "课程开发", "实训基地", "职业资格", "就业导向"]
+        }
+      }
+    },
+    "engineering": {
+      "name": "工学",
+      "subdisciplines": {
+        "mechanical_engineering": {
+          "name": "机械工程",
+          "keywords": ["机械工程", "机械设计", "机械制造", "机电一体化", "机器人"],
+          "focus": ["设计方法", "制造工艺", "自动化控制", "材料应用", "质量控制"]
+        },
+        "electrical_engineering": {
+          "name": "电气工程",
+          "keywords": ["电气工程", "电力系统", "电机", "电力电子", "智能电网"],
+          "focus": ["电力系统", "电机控制", "电力电子", "新能源", "智能电网"]
+        },
+        "civil_engineering": {
+          "name": "土木工程",
+          "keywords": ["土木工程", "结构工程", "岩土工程", "市政工程", "建筑工程"],
+          "focus": ["结构设计", "施工技术", "工程管理", "防灾减灾", "绿色建筑"]
+        },
+        "materials_engineering": {
+          "name": "材料科学与工程",
+          "keywords": ["材料科学", "材料工程", "新材料", "纳米材料", "复合材料"],
+          "focus": ["材料制备", "性能测试", "材料改性", "应用开发", "材料表征"]
+        },
+        "chemical_engineering": {
+          "name": "化学工程",
+          "keywords": ["化学工程", "化工", "化学工艺", "催化", "分离工程"],
+          "focus": ["工艺设计", "反应工程", "分离纯化", "过程控制", "安全环保"]
+        },
+        "environmental_engineering": {
+          "name": "环境科学与工程",
+          "keywords": ["环境工程", "环境科学", "水处理", "大气污染", "固体废物"],
+          "focus": ["污染控制", "环境监测", "环境影响评价", "生态修复", "清洁生产"]
+        },
+        "biomedical_engineering": {
+          "name": "生物医学工程",
+          "keywords": ["生物医学工程", "医疗器械", "生物材料", "医学影像", "康复工程"],
+          "focus": ["医疗器械", "生物材料", "医学影像", "康复技术", "组织工程"]
+        }
+      }
+    },
+    "law": {
+      "name": "法学",
+      "subdisciplines": {
+        "constitutional_administrative_law": {
+          "name": "宪法学与行政法学",
+          "keywords": ["宪法", "行政法", "行政诉讼", "政府法治", "公民权利"],
+          "focus": ["宪法实施", "行政行为", "行政救济", "政府治理", "人权保障"]
+        },
+        "civil_commercial_law": {
+          "name": "民商法学",
+          "keywords": ["民法", "商法", "合同法", "物权法", "公司法", "知识产权"],
+          "focus": ["民事权利", "合同制度", "公司治理", "知识产权", "侵权责任"]
+        },
+        "criminal_law": {
+          "name": "刑法学",
+          "keywords": ["刑法", "犯罪", "刑罚", "刑事政策", "刑事诉讼"],
+          "focus": ["犯罪构成", "刑罚制度", "刑事政策", "刑事程序", "犯罪预防"]
+        },
+        "economic_law": {
+          "name": "经济法学",
+          "keywords": ["经济法", "竞争法", "消费者保护", "金融监管", "财税法"],
+          "focus": ["市场规制", "宏观调控", "消费者权益", "金融监管", "财税法律"]
+        },
+        "international_law": {
+          "name": "国际法学",
+          "keywords": ["国际法", "国际公法", "国际私法", "国际经济法", "国际人权法"],
+          "focus": ["国际条约", "国际组织", "国际争端", "国际人权", "国际经济秩序"]
+        },
+        "environmental_law": {
+          "name": "环境与资源保护法学",
+          "keywords": ["环境法", "资源保护", "生态保护", "环境公益诉讼"],
+          "focus": ["环境规制", "污染防治", "生态保护", "气候变化", "绿色发展"]
+        }
+      }
+    },
+    "medical": {
+      "name": "医学",
+      "subdisciplines": {
+        "clinical_medicine": {
+          "name": "临床医学",
+          "keywords": ["临床医学", "诊断", "治疗", "内科学", "外科学", "临床试验"],
+          "focus": ["疾病诊断", "治疗方案", "临床研究", "循证医学", "患者管理"]
+        },
+        "public_health": {
+          "name": "公共卫生与预防医学",
+          "keywords": ["公共卫生", "预防医学", "流行病学", "卫生统计", "健康管理"],
+          "focus": ["疾病预防", "健康促进", "卫生政策", "环境健康", "职业健康"]
+        },
+        "pharmacy": {
+          "name": "药学",
+          "keywords": ["药学", "药物研发", "药理学", "药物分析", "临床药学"],
+          "focus": ["药物研发", "药物评价", "药物安全", "合理用药", "药物经济学"]
+        },
+        "nursing": {
+          "name": "护理学",
+          "keywords": ["护理学", "临床护理", "社区护理", "护理管理", "护理教育"],
+          "focus": ["护理评估", "护理干预", "护理管理", "患者教育", "护理研究"]
+        },
+        "traditional_chinese_medicine": {
+          "name": "中医学",
+          "keywords": ["中医", "中药", "针灸", "方剂", "中医理论", "中西医结合"],
+          "focus": ["中医理论", "中药研究", "针灸推拿", "中西医结合", "中医现代化"]
+        }
+      }
+    },
+    "psychology": {
+      "name": "心理学",
+      "subdisciplines": {
+        "developmental_psychology": {
+          "name": "发展心理学",
+          "keywords": ["发展心理", "儿童心理", "青少年心理", "老年心理", "毕生发展"],
+          "focus": ["认知发展", "社会性发展", "情绪发展", "依恋", "衰老"]
+        },
+        "cognitive_psychology": {
+          "name": "认知心理学",
+          "keywords": ["认知心理", "注意", "记忆", "思维", "语言", "决策"],
+          "focus": ["信息加工", "认知模型", "认知神经", "认知发展", "认知训练"]
+        },
+        "social_psychology": {
+          "name": "社会心理学",
+          "keywords": ["社会心理", "社会认知", "社会影响", "群体心理", "人际关系"],
+          "focus": ["态度", "偏见", "群体决策", "亲社会行为", "社会认同"]
+        },
+        "clinical_psychology": {
+          "name": "临床心理学",
+          "keywords": ["临床心理", "心理治疗", "心理咨询", "心理障碍", "心理评估"],
+          "focus": ["心理诊断", "心理治疗", "危机干预", "心理健康", "循证实践"]
+        },
+        "organizational_psychology": {
+          "name": "组织行为学",
+          "keywords": ["组织行为", "工作动机", "领导力", "组织文化", "员工行为"],
+          "focus": ["工作动机", "领导力", "团队管理", "组织变革", "员工福祉"]
+        }
+      }
+    },
+    "literature": {
+      "name": "文学",
+      "subdisciplines": {
+        "chinese_literature": {
+          "name": "中国现当代文学",
+          "keywords": ["中国文学", "现当代文学", "文学批评", "文学理论", "作家研究"],
+          "focus": ["文学史", "作品分析", "作家研究", "文学思潮", "文学批评"]
+        },
+        "ancient_chinese_literature": {
+          "name": "中国古代文学",
+          "keywords": ["古代文学", "古典文学", "诗词", "散文", "小说", "戏曲"],
+          "focus": ["文献考证", "文本分析", "文学流派", "文学与文化", "接受史"]
+        },
+        "foreign_literature": {
+          "name": "外国文学",
+          "keywords": ["外国文学", "比较文学", "世界文学", "翻译文学", "文学理论"],
+          "focus": ["国别文学", "比较研究", "翻译研究", "文学理论", "跨文化研究"]
+        },
+        "linguistics": {
+          "name": "语言学",
+          "keywords": ["语言学", "应用语言学", "社会语言学", "心理语言学", "计算语言学"],
+          "focus": ["语言理论", "语言习得", "语言变异", "语言与社会", "语言技术"]
+        }
+      }
+    },
+    "art": {
+      "name": "艺术学",
+      "subdisciplines": {
+        "fine_arts": {
+          "name": "美术学",
+          "keywords": ["美术", "绘画", "雕塑", "艺术史", "艺术批评", "美术教育"],
+          "focus": ["艺术创作", "艺术史论", "艺术批评", "美术教育", "艺术管理"]
+        },
+        "design": {
+          "name": "设计学",
+          "keywords": ["设计", "视觉传达", "环境设计", "产品设计", "交互设计", "用户体验"],
+          "focus": ["设计理论", "设计方法", "设计创新", "设计管理", "用户体验"]
+        },
+        "music": {
+          "name": "音乐学",
+          "keywords": ["音乐", "音乐学", "音乐教育", "音乐表演", "作曲", "音乐理论"],
+          "focus": ["音乐理论", "音乐史", "音乐教育", "音乐表演", "音乐创作"]
+        },
+        "film_television": {
+          "name": "戏剧与影视学",
+          "keywords": ["戏剧", "电影", "电视", "影视", "导演", "编剧"],
+          "focus": ["影视理论", "影视创作", "影视批评", "戏剧理论", "戏剧创作"]
+        }
+      }
+    },
+    "science": {
+      "name": "理学",
+      "subdisciplines": {
+        "mathematics": {
+          "name": "数学",
+          "keywords": ["数学", "代数", "几何", "分析", "概率统计", "应用数学"],
+          "focus": ["纯数学", "应用数学", "计算数学", "概率统计", "数学教育"]
+        },
+        "physics": {
+          "name": "物理学",
+          "keywords": ["物理", "理论物理", "凝聚态", "光学", "粒子物理", "天体物理"],
+          "focus": ["理论研究", "实验研究", "计算物理", "应用物理", "物理教育"]
+        },
+        "chemistry": {
+          "name": "化学",
+          "keywords": ["化学", "有机化学", "无机化学", "分析化学", "物理化学", "高分子"],
+          "focus": ["合成方法", "结构表征", "反应机理", "材料化学", "化学教育"]
+        },
+        "biology": {
+          "name": "生物学",
+          "keywords": ["生物", "分子生物", "细胞生物", "生态学", "遗传学", "生物信息"],
+          "focus": ["分子生物学", "细胞生物学", "生态学", "生物技术", "生物教育"]
+        }
+      }
+    },
+    "agriculture": {
+      "name": "农学",
+      "subdisciplines": {
+        "crop_science": {
+          "name": "作物学",
+          "keywords": ["作物", "栽培", "育种", "种子", "耕作", "作物生理"],
+          "focus": ["品种选育", "栽培技术", "种子生产", "耕作制度", "作物生理"]
+        },
+        "plant_protection": {
+          "name": "植物保护",
+          "keywords": ["植物保护", "病虫害", "农药", "植保", "农业昆虫", "植物病理"],
+          "focus": ["病虫害防治", "农药研发", "生物防治", "植物检疫", "综合治理"]
+        },
+        "horticulture": {
+          "name": "园艺学",
+          "keywords": ["园艺", "果树", "蔬菜", "花卉", "观赏园艺", "设施园艺"],
+          "focus": ["品种选育", "栽培技术", "采后处理", "设施栽培", "园林设计"]
+        }
+      }
+    },
+    "library_science": {
+      "name": "图书馆学",
+      "subdisciplines": {
+        "library_science": {
+          "name": "图书馆管理",
+          "keywords": ["图书馆", "文献", "信息组织", "信息服务", "数字图书馆"],
+          "focus": ["馆藏建设", "信息服务", "数字图书馆", "图书馆管理", "阅读推广"]
+        },
+        "archival_science": {
+          "name": "档案学",
+          "keywords": ["档案", "档案管理", "档案信息化", "档案保护", "档案利用"],
+          "focus": ["档案管理", "档案信息化", "档案保护", "档案利用", "档案编研"]
+        },
+        "information_resource_management": {
+          "name": "信息资源管理",
+          "keywords": ["信息资源", "知识管理", "数据管理", "竞争情报", "数字人文"],
+          "focus": ["知识组织", "数据治理", "竞争情报", "数字人文", "信息生态"]
+        }
+      }
+    },
+    "archaeology": {
+      "name": "考古学",
+      "subdisciplines": {
+        "prehistoric_archaeology": {
+          "name": "史前考古",
+          "keywords": ["史前", "旧石器", "新石器", "青铜时代", "文明起源"],
+          "focus": ["人类起源", "农业起源", "文明起源", "石器技术", "聚落形态"]
+        },
+        "historical_archaeology": {
+          "name": "历史考古",
+          "keywords": ["历史考古", "秦汉", "魏晋", "隋唐", "宋元", "帝陵"],
+          "focus": ["都城考古", "墓葬考古", "陶瓷考古", "宗教考古", "丝绸之路"]
+        },
+        "scientific_archaeology": {
+          "name": "科技考古",
+          "keywords": ["科技考古", "测年", "成分分析", "残留物分析", "古DNA"],
+          "focus": ["年代测定", "产地分析", "环境考古", "动物考古", "植物考古"]
+        }
+      }
+    },
+    "sports_science": {
+      "name": "体育学",
+      "subdisciplines": {
+        "sports_training": {
+          "name": "运动训练学",
+          "keywords": ["运动训练", "体能训练", "技术训练", "战术训练", "训练监控"],
+          "focus": ["训练方法", "体能测试", "运动损伤", "运动营养", "竞技体育"]
+        },
+        "exercise_science": {
+          "name": "运动人体科学",
+          "keywords": ["运动生理", "运动医学", "运动生物力学", "运动心理", "运动营养"],
+          "focus": ["运动生理", "运动医学", "运动生物力学", "运动心理", "运动营养"]
+        },
+        "physical_education": {
+          "name": "体育教育学",
+          "keywords": ["体育教育", "学校体育", "体育教学", "体育课程", "体育教师"],
+          "focus": ["教学方法", "课程设计", "学生发展", "体质健康", "体育素养"]
+        }
+      }
+    }
+  },
+  "en": {
+    "cs": {
+      "name": "Computer Science",
+      "subdisciplines": {
+        "software_engineering": {
+          "name": "Software Engineering",
+          "keywords": ["software engineering", "software development", "agile", "testing", "architecture", "design patterns"],
+          "focus": ["requirements", "system design", "code quality", "maintenance", "project management"]
+        },
+        "artificial_intelligence": {
+          "name": "Artificial Intelligence",
+          "keywords": ["AI", "machine learning", "deep learning", "neural networks", "NLP", "computer vision"],
+          "focus": ["algorithm design", "model training", "data processing", "optimization", "applications"]
+        },
+        "network_security": {
+          "name": "Cybersecurity",
+          "keywords": ["cybersecurity", "information security", "cryptography", "intrusion detection", "privacy"],
+          "focus": ["security protocols", "encryption", "threat analysis", "defense strategies", "audit"]
+        },
+        "data_science": {
+          "name": "Data Science",
+          "keywords": ["data science", "big data", "data mining", "data analysis", "visualization"],
+          "focus": ["data collection", "cleaning", "feature engineering", "statistics", "insights"]
+        },
+        "computer_systems": {
+          "name": "Computer Systems",
+          "keywords": ["operating systems", "architecture", "embedded systems", "parallel computing", "distributed systems"],
+          "focus": ["system design", "performance", "resource management", "concurrency", "fault tolerance"]
+        },
+        "database": {
+          "name": "Database",
+          "keywords": ["database", "SQL", "NoSQL", "data management", "query optimization"],
+          "focus": ["data modeling", "indexing", "concurrency", "consistency", "distributed databases"]
+        },
+        "computer_network": {
+          "name": "Computer Networks",
+          "keywords": ["networking", "protocols", "routing", "switching", "network programming"],
+          "focus": ["protocol design", "architecture", "traffic control", "security", "management"]
+        },
+        "graphics_multimedia": {
+          "name": "Graphics and Multimedia",
+          "keywords": ["computer graphics", "image processing", "multimedia", "VR", "AR", "game development"],
+          "focus": ["rendering", "image recognition", "video processing", "3D modeling", "interaction"]
+        }
+      }
+    },
+    "economics": {
+      "name": "Economics",
+      "subdisciplines": {
+        "finance": {
+          "name": "Finance",
+          "keywords": ["finance", "banking", "securities", "insurance", "investment", "risk management"],
+          "focus": ["financial markets", "regulation", "asset pricing", "portfolio", "innovation"]
+        },
+        "international_trade": {
+          "name": "International Trade",
+          "keywords": ["international trade", "export", "import", "tariffs", "trade policy"],
+          "focus": ["trade theory", "trade policy", "exchange rates", "balance of payments", "value chains"]
+        },
+        "public_economics": {
+          "name": "Public Economics",
+          "keywords": ["public economics", "fiscal", "taxation", "government spending", "social security"],
+          "focus": ["fiscal policy", "tax system", "public spending", "government debt", "income distribution"]
+        },
+        "labor_economics": {
+          "name": "Labor Economics",
+          "keywords": ["labor economics", "employment", "unemployment", "wages", "human capital"],
+          "focus": ["labor supply", "labor demand", "wage determination", "employment policy", "human capital"]
+        },
+        "development_economics": {
+          "name": "Development Economics",
+          "keywords": ["development economics", "economic growth", "poverty", "inequality"],
+          "focus": ["growth theory", "poverty traps", "institutional change", "structural transformation"]
+        },
+        "environmental_economics": {
+          "name": "Environmental Economics",
+          "keywords": ["environmental economics", "climate change", "carbon emissions", "green economy"],
+          "focus": ["externalities", "environmental regulation", "carbon trading", "green finance"]
+        }
+      }
+    },
+    "management": {
+      "name": "Management",
+      "subdisciplines": {
+        "business_management": {
+          "name": "Business Administration",
+          "keywords": ["business administration", "enterprise management", "strategic management"],
+          "focus": ["strategic planning", "organizational design", "operations", "innovation", "competitive advantage"]
+        },
+        "human_resources": {
+          "name": "Human Resource Management",
+          "keywords": ["human resources", "recruitment", "training", "performance", "compensation"],
+          "focus": ["talent acquisition", "training development", "performance management", "compensation"]
+        },
+        "marketing": {
+          "name": "Marketing",
+          "keywords": ["marketing", "marketing strategy", "brand management", "consumer behavior"],
+          "focus": ["market analysis", "marketing mix", "brand building", "customer relationships"]
+        },
+        "accounting": {
+          "name": "Accounting",
+          "keywords": ["accounting", "financial statements", "audit", "taxation", "cost accounting"],
+          "focus": ["accounting standards", "financial analysis", "internal control", "tax planning"]
+        },
+        "information_management": {
+          "name": "Information Systems",
+          "keywords": ["information management", "information systems", "digital transformation", "IT governance"],
+          "focus": ["system planning", "data governance", "information security", "digital strategy"]
+        }
+      }
+    },
+    "education": {
+      "name": "Education",
+      "subdisciplines": {
+        "curriculum_pedagogy": {
+          "name": "Curriculum and Pedagogy",
+          "keywords": ["curriculum", "pedagogy", "teaching methods", "instructional design"],
+          "focus": ["curriculum design", "teaching strategies", "learning assessment", "educational technology"]
+        },
+        "educational_psychology": {
+          "name": "Educational Psychology",
+          "keywords": ["educational psychology", "learning psychology", "developmental psychology"],
+          "focus": ["learning theory", "cognitive development", "motivation", "individual differences"]
+        },
+        "higher_education": {
+          "name": "Higher Education",
+          "keywords": ["higher education", "university", "graduate education", "discipline building"],
+          "focus": ["university governance", "discipline building", "talent cultivation", "internationalization"]
+        },
+        "preschool_education": {
+          "name": "Early Childhood Education",
+          "keywords": ["preschool education", "kindergarten", "early childhood", "child development"],
+          "focus": ["child development", "play-based learning", "family partnership", "curriculum design"]
+        },
+        "vocational_education": {
+          "name": "Vocational Education",
+          "keywords": ["vocational education", "professional training", "skills", "industry-education integration"],
+          "focus": ["talent cultivation", "curriculum development", "training base", "employment-oriented"]
+        }
+      }
+    },
+    "engineering": {
+      "name": "Engineering",
+      "subdisciplines": {
+        "mechanical_engineering": {
+          "name": "Mechanical Engineering",
+          "keywords": ["mechanical engineering", "mechanical design", "manufacturing", "mechatronics", "robotics"],
+          "focus": ["design methods", "manufacturing processes", "automation", "materials", "quality control"]
+        },
+        "electrical_engineering": {
+          "name": "Electrical Engineering",
+          "keywords": ["electrical engineering", "power systems", "motors", "power electronics", "smart grid"],
+          "focus": ["power systems", "motor control", "power electronics", "renewable energy", "smart grid"]
+        },
+        "civil_engineering": {
+          "name": "Civil Engineering",
+          "keywords": ["civil engineering", "structural engineering", "geotechnical engineering", "construction"],
+          "focus": ["structural design", "construction technology", "project management", "disaster prevention"]
+        },
+        "materials_engineering": {
+          "name": "Materials Science",
+          "keywords": ["materials science", "materials engineering", "new materials", "nanomaterials"],
+          "focus": ["material preparation", "performance testing", "material modification", "characterization"]
+        },
+        "chemical_engineering": {
+          "name": "Chemical Engineering",
+          "keywords": ["chemical engineering", "chemical process", "catalysis", "separation engineering"],
+          "focus": ["process design", "reaction engineering", "separation", "process control", "safety"]
+        },
+        "environmental_engineering": {
+          "name": "Environmental Engineering",
+          "keywords": ["environmental engineering", "environmental science", "water treatment", "air pollution"],
+          "focus": ["pollution control", "environmental monitoring", "EIA", "ecological restoration"]
+        },
+        "biomedical_engineering": {
+          "name": "Biomedical Engineering",
+          "keywords": ["biomedical engineering", "medical devices", "biomaterials", "medical imaging"],
+          "focus": ["medical devices", "biomaterials", "medical imaging", "rehabilitation", "tissue engineering"]
+        }
+      }
+    },
+    "law": {
+      "name": "Law",
+      "subdisciplines": {
+        "constitutional_administrative_law": {
+          "name": "Constitutional and Administrative Law",
+          "keywords": ["constitutional law", "administrative law", "administrative litigation"],
+          "focus": ["constitutional implementation", "administrative action", "administrative remedies", "human rights"]
+        },
+        "civil_commercial_law": {
+          "name": "Civil and Commercial Law",
+          "keywords": ["civil law", "commercial law", "contract law", "property law", "corporate law"],
+          "focus": ["civil rights", "contract system", "corporate governance", "intellectual property"]
+        },
+        "criminal_law": {
+          "name": "Criminal Law",
+          "keywords": ["criminal law", "crime", "penalty", "criminal policy", "criminal procedure"],
+          "focus": ["crime elements", "penalty system", "criminal policy", "criminal procedure"]
+        },
+        "economic_law": {
+          "name": "Economic Law",
+          "keywords": ["economic law", "competition law", "consumer protection", "financial regulation"],
+          "focus": ["market regulation", "macroeconomic control", "consumer rights", "financial regulation"]
+        },
+        "international_law": {
+          "name": "International Law",
+          "keywords": ["international law", "public international law", "private international law"],
+          "focus": ["international treaties", "international organizations", "international disputes"]
+        },
+        "environmental_law": {
+          "name": "Environmental Law",
+          "keywords": ["environmental law", "resource protection", "ecological protection"],
+          "focus": ["environmental regulation", "pollution prevention", "ecological protection"]
+        }
+      }
+    },
+    "medical": {
+      "name": "Medicine",
+      "subdisciplines": {
+        "clinical_medicine": {
+          "name": "Clinical Medicine",
+          "keywords": ["clinical medicine", "diagnosis", "treatment", "internal medicine", "surgery"],
+          "focus": ["disease diagnosis", "treatment plans", "clinical research", "evidence-based medicine"]
+        },
+        "public_health": {
+          "name": "Public Health",
+          "keywords": ["public health", "preventive medicine", "epidemiology", "health statistics"],
+          "focus": ["disease prevention", "health promotion", "health policy", "environmental health"]
+        },
+        "pharmacy": {
+          "name": "Pharmacy",
+          "keywords": ["pharmacy", "drug development", "pharmacology", "pharmaceutical analysis"],
+          "focus": ["drug development", "drug evaluation", "drug safety", "rational drug use"]
+        },
+        "nursing": {
+          "name": "Nursing",
+          "keywords": ["nursing", "clinical nursing", "community nursing", "nursing management"],
+          "focus": ["nursing assessment", "nursing intervention", "nursing management", "patient education"]
+        },
+        "traditional_chinese_medicine": {
+          "name": "Traditional Chinese Medicine",
+          "keywords": ["TCM", "Chinese medicine", "acupuncture", "herbal medicine"],
+          "focus": ["TCM theory", "Chinese materia medica", "acupuncture", "integrative medicine"]
+        }
+      }
+    },
+    "psychology": {
+      "name": "Psychology",
+      "subdisciplines": {
+        "developmental_psychology": {
+          "name": "Developmental Psychology",
+          "keywords": ["developmental psychology", "child psychology", "adolescent psychology"],
+          "focus": ["cognitive development", "social development", "emotional development", "attachment"]
+        },
+        "cognitive_psychology": {
+          "name": "Cognitive Psychology",
+          "keywords": ["cognitive psychology", "attention", "memory", "thinking", "language"],
+          "focus": ["information processing", "cognitive models", "cognitive neuroscience", "cognitive training"]
+        },
+        "social_psychology": {
+          "name": "Social Psychology",
+          "keywords": ["social psychology", "social cognition", "social influence", "group psychology"],
+          "focus": ["attitudes", "prejudice", "group decision-making", "prosocial behavior"]
+        },
+        "clinical_psychology": {
+          "name": "Clinical Psychology",
+          "keywords": ["clinical psychology", "psychotherapy", "counseling", "mental disorders"],
+          "focus": ["psychological diagnosis", "psychotherapy", "crisis intervention", "mental health"]
+        },
+        "organizational_psychology": {
+          "name": "Organizational Psychology",
+          "keywords": ["organizational behavior", "work motivation", "leadership", "organizational culture"],
+          "focus": ["work motivation", "leadership", "team management", "organizational change"]
+        }
+      }
+    },
+    "literature": {
+      "name": "Literature",
+      "subdisciplines": {
+        "chinese_literature": {
+          "name": "Modern Chinese Literature",
+          "keywords": ["Chinese literature", "modern literature", "literary criticism", "literary theory"],
+          "focus": ["literary history", "text analysis", "author studies", "literary trends"]
+        },
+        "ancient_chinese_literature": {
+          "name": "Classical Chinese Literature",
+          "keywords": ["classical literature", "poetry", "prose", "fiction", "drama"],
+          "focus": ["textual criticism", "text analysis", "literary schools", "reception history"]
+        },
+        "foreign_literature": {
+          "name": "Foreign Literature",
+          "keywords": ["foreign literature", "comparative literature", "world literature"],
+          "focus": ["national literature", "comparative studies", "translation studies", "literary theory"]
+        },
+        "linguistics": {
+          "name": "Linguistics",
+          "keywords": ["linguistics", "applied linguistics", "sociolinguistics", "psycholinguistics"],
+          "focus": ["language theory", "language acquisition", "language variation", "language technology"]
+        }
+      }
+    },
+    "art": {
+      "name": "Art",
+      "subdisciplines": {
+        "fine_arts": {
+          "name": "Fine Arts",
+          "keywords": ["fine arts", "painting", "sculpture", "art history", "art criticism"],
+          "focus": ["art creation", "art history", "art criticism", "art education"]
+        },
+        "design": {
+          "name": "Design",
+          "keywords": ["design", "visual communication", "environmental design", "product design"],
+          "focus": ["design theory", "design methods", "design innovation", "user experience"]
+        },
+        "music": {
+          "name": "Music",
+          "keywords": ["music", "musicology", "music education", "music performance", "composition"],
+          "focus": ["music theory", "music history", "music education", "music performance"]
+        },
+        "film_television": {
+          "name": "Film and Television",
+          "keywords": ["drama", "film", "television", "cinema", "directing", "screenwriting"],
+          "focus": ["film theory", "film production", "film criticism", "drama theory"]
+        }
+      }
+    },
+    "science": {
+      "name": "Science",
+      "subdisciplines": {
+        "mathematics": {
+          "name": "Mathematics",
+          "keywords": ["mathematics", "algebra", "geometry", "analysis", "probability", "statistics"],
+          "focus": ["pure mathematics", "applied mathematics", "computational mathematics", "statistics"]
+        },
+        "physics": {
+          "name": "Physics",
+          "keywords": ["physics", "theoretical physics", "condensed matter", "optics", "particle physics"],
+          "focus": ["theoretical research", "experimental research", "computational physics", "applied physics"]
+        },
+        "chemistry": {
+          "name": "Chemistry",
+          "keywords": ["chemistry", "organic chemistry", "inorganic chemistry", "analytical chemistry"],
+          "focus": ["synthesis methods", "structural characterization", "reaction mechanisms", "materials chemistry"]
+        },
+        "biology": {
+          "name": "Biology",
+          "keywords": ["biology", "molecular biology", "cell biology", "ecology", "genetics"],
+          "focus": ["molecular biology", "cell biology", "ecology", "biotechnology"]
+        }
+      }
+    },
+    "agriculture": {
+      "name": "Agriculture",
+      "subdisciplines": {
+        "crop_science": {
+          "name": "Crop Science",
+          "keywords": ["crop", "cultivation", "breeding", "seed", "farming", "crop physiology"],
+          "focus": ["variety breeding", "cultivation techniques", "seed production", "cropping systems"]
+        },
+        "plant_protection": {
+          "name": "Plant Protection",
+          "keywords": ["plant protection", "pest", "pesticide", "plant pathology", "entomology"],
+          "focus": ["pest control", "pesticide development", "biological control", "quarantine"]
+        },
+        "horticulture": {
+          "name": "Horticulture",
+          "keywords": ["horticulture", "fruit", "vegetable", "flower", "ornamental", "protected cultivation"],
+          "focus": ["variety breeding", "cultivation techniques", "post-harvest", "protected cultivation"]
+        }
+      }
+    },
+    "library_science": {
+      "name": "Library Science",
+      "subdisciplines": {
+        "library_science": {
+          "name": "Library Management",
+          "keywords": ["library", "document", "information organization", "digital library"],
+          "focus": ["collection development", "information services", "digital library", "reading promotion"]
+        },
+        "archival_science": {
+          "name": "Archival Science",
+          "keywords": ["archives", "archival management", "digital archives", "preservation"],
+          "focus": ["archival management", "digital archives", "preservation", "utilization"]
+        },
+        "information_resource_management": {
+          "name": "Information Resource Management",
+          "keywords": ["information resources", "knowledge management", "data management", "digital humanities"],
+          "focus": ["knowledge organization", "data governance", "competitive intelligence", "digital humanities"]
+        }
+      }
+    },
+    "archaeology": {
+      "name": "Archaeology",
+      "subdisciplines": {
+        "prehistoric_archaeology": {
+          "name": "Prehistoric Archaeology",
+          "keywords": ["prehistoric", "Paleolithic", "Neolithic", "Bronze Age", "civilization origins"],
+          "focus": ["human origins", "agricultural origins", "civilization origins", "stone technology"]
+        },
+        "historical_archaeology": {
+          "name": "Historical Archaeology",
+          "keywords": ["historical archaeology", "imperial tombs", "ceramics", "Silk Road"],
+          "focus": ["capital archaeology", "tomb archaeology", "ceramic archaeology", "religious archaeology"]
+        },
+        "scientific_archaeology": {
+          "name": "Archaeological Science",
+          "keywords": ["archaeological science", "dating", "compositional analysis", "ancient DNA"],
+          "focus": ["chronology", "provenance analysis", "environmental archaeology", "zooarchaeology"]
+        }
+      }
+    },
+    "sports_science": {
+      "name": "Sports Science",
+      "subdisciplines": {
+        "sports_training": {
+          "name": "Sports Training",
+          "keywords": ["sports training", "physical training", "technical training", "tactical training"],
+          "focus": ["training methods", "fitness testing", "sports injuries", "sports nutrition"]
+        },
+        "exercise_science": {
+          "name": "Exercise Science",
+          "keywords": ["exercise physiology", "sports medicine", "biomechanics", "sports psychology"],
+          "focus": ["exercise physiology", "sports medicine", "biomechanics", "sports nutrition"]
+        },
+        "physical_education": {
+          "name": "Physical Education",
+          "keywords": ["physical education", "school sports", "PE teaching", "PE curriculum"],
+          "focus": ["teaching methods", "curriculum design", "student development", "physical fitness"]
+        }
+      }
+    }
+  },
+  "ja": {
+    "cs": {
+      "name": "コンピュータサイエンス",
+      "subdisciplines": {
+        "software_engineering": {
+          "name": "ソフトウェア工学",
+          "keywords": ["ソフトウェア工学", "ソフトウェア開発", "アジャイル", "テスト", "アーキテクチャ", "設計パターン"],
+          "focus": ["要件定義", "システム設計", "コード品質", "保守", "プロジェクト管理"]
+        },
+        "artificial_intelligence": {
+          "name": "人工知能",
+          "keywords": ["人工知能", "機械学習", "深層学習", "ニューラルネットワーク", "自然言語処理", "コンピュータビジョン"],
+          "focus": ["アルゴリズム設計", "モデル訓練", "データ処理", "最適化", "応用"]
+        },
+        "network_security": {
+          "name": "サイバーセキュリティ",
+          "keywords": ["サイバーセキュリティ", "情報セキュリティ", "暗号学", "侵入検知", "プライバシー"],
+          "focus": ["セキュリティプロトコル", "暗号化", "脅威分析", "防御戦略", "監査"]
+        },
+        "data_science": {
+          "name": "データサイエンス",
+          "keywords": ["データサイエンス", "ビッグデータ", "データマイニング", "データ分析", "可視化"],
+          "focus": ["データ収集", "クリーニング", "特徴量エンジニアリング", "統計", "インサイト"]
+        },
+        "computer_systems": {
+          "name": "コンピュータシステム",
+          "keywords": ["オペレーティングシステム", "アーキテクチャ", "組込みシステム", "並列計算", "分散システム"],
+          "focus": ["システム設計", "性能", "リソース管理", "並行性", "耐障害性"]
+        },
+        "database": {
+          "name": "データベース",
+          "keywords": ["データベース", "SQL", "NoSQL", "データ管理", "クエリ最適化"],
+          "focus": ["データモデリング", "インデックス", "並行性", "一貫性", "分散データベース"]
+        },
+        "computer_network": {
+          "name": "コンピュータネットワーク",
+          "keywords": ["ネットワーキング", "プロトコル", "ルーティング", "スイッチング", "ネットワークプログラミング"],
+          "focus": ["プロトコル設計", "アーキテクチャ", "トラフィック制御", "セキュリティ", "管理"]
+        },
+        "graphics_multimedia": {
+          "name": "グラフィックスとマルチメディア",
+          "keywords": ["コンピュータグラフィックス", "画像処理", "マルチメディア", "VR", "AR", "ゲーム開発"],
+          "focus": ["レンダリング", "画像認識", "動画処理", "3Dモデリング", "インタラクション"]
+        }
+      }
+    },
+    "economics": {
+      "name": "経済学",
+      "subdisciplines": {
+        "finance": {
+          "name": "金融学",
+          "keywords": ["金融", "銀行", "証券", "保険", "投資", "リスク管理"],
+          "focus": ["金融市場", "規制", "資産価格設定", "ポートフォリオ", "イノベーション"]
+        },
+        "international_trade": {
+          "name": "国際貿易",
+          "keywords": ["国際貿易", "輸出", "輸入", "関税", "貿易政策"],
+          "focus": ["貿易理論", "貿易政策", "為替レート", "国際収支", "価値連鎖"]
+        },
+        "public_economics": {
+          "name": "公共経済学",
+          "keywords": ["公共経済", "財政", "課税", "政府支出", "社会保障"],
+          "focus": ["財政政策", "税制", "公共支出", "政府債務", "所得分配"]
+        },
+        "labor_economics": {
+          "name": "労働経済学",
+          "keywords": ["労働経済", "雇用", "失業", "賃金", "人的資本"],
+          "focus": ["労働供給", "労働需要", "賃金決定", "雇用政策", "人的資本投資"]
+        },
+        "development_economics": {
+          "name": "開発経済学",
+          "keywords": ["開発経済", "経済成長", "貧困", "不平等"],
+          "focus": ["成長理論", "貧困の罠", "制度変革", "構造転換"]
+        },
+        "environmental_economics": {
+          "name": "環境経済学",
+          "keywords": ["環境経済", "気候変動", "炭素排出", "グリーン経済"],
+          "focus": ["外部性", "環境規制", "炭素取引", "グリーンファイナンス"]
+        }
+      }
+    },
+    "management": {
+      "name": "経営学",
+      "subdisciplines": {
+        "business_management": {
+          "name": "企業経営",
+          "keywords": ["企業経営", "経営管理", "戦略管理"],
+          "focus": ["戦略計画", "組織設計", "オペレーション", "イノベーション", "競争優位"]
+        },
+        "human_resources": {
+          "name": "人事管理",
+          "keywords": ["人事", "採用", "研修", "業績", "報酬"],
+          "focus": ["人材獲得", "研修開発", "業績管理", "報酬"]
+        },
+        "marketing": {
+          "name": "マーケティング",
+          "keywords": ["マーケティング", "マーケティング戦略", "ブランド管理", "消費者行動"],
+          "focus": ["市場分析", "マーケティングミックス", "ブランド構築", "顧客関係"]
+        },
+        "accounting": {
+          "name": "会計学",
+          "keywords": ["会計", "財務諸表", "監査", "課税", "原価計算"],
+          "focus": ["会計基準", "財務分析", "内部統制", "税務計画"]
+        },
+        "information_management": {
+          "name": "情報システム",
+          "keywords": ["情報管理", "情報システム", "DX", "ITガバナンス"],
+          "focus": ["システム計画", "データガバナンス", "情報セキュリティ", "デジタル戦略"]
+        }
+      }
+    },
+    "education": {
+      "name": "教育学",
+      "subdisciplines": {
+        "curriculum_pedagogy": {
+          "name": "カリキュラムと教授法",
+          "keywords": ["カリキュラム", "教授法", "教育方法", "教育設計"],
+          "focus": ["カリキュラム設計", "教育戦略", "学習評価", "教育技術"]
+        },
+        "educational_psychology": {
+          "name": "教育心理学",
+          "keywords": ["教育心理学", "学習心理学", "発達心理学"],
+          "focus": ["学習理論", "認知発達", "動機づけ", "個別差異"]
+        },
+        "higher_education": {
+          "name": "高等教育",
+          "keywords": ["高等教育", "大学", "大学院教育", "学科建設"],
+          "focus": ["大学ガバナンス", "学科建設", "人材育成", "国際化"]
+        },
+        "preschool_education": {
+          "name": "学前教育",
+          "keywords": ["学前教育", "幼稚園", "幼児教育", "早期教育", "児童発達"],
+          "focus": ["幼児発達", "遊びに基づく学習", "家庭連携", "カリキュラム設計"]
+        },
+        "vocational_education": {
+          "name": "職業教育",
+          "keywords": ["職業教育", "職業訓練", "技能", "産学連携"],
+          "focus": ["人材育成", "カリキュラム開発", "実習基地", "就職志向"]
+        }
+      }
+    },
+    "engineering": {
+      "name": "工学",
+      "subdisciplines": {
+        "mechanical_engineering": {
+          "name": "機械工学",
+          "keywords": ["機械工学", "機械設計", "製造", "メカトロニクス", "ロボット工学"],
+          "focus": ["設計方法", "製造工程", "自動化", "材料", "品質管理"]
+        },
+        "electrical_engineering": {
+          "name": "電気工学",
+          "keywords": ["電気工学", "電力システム", "モーター", "パワーエレクトロニクス", "スマートグリッド"],
+          "focus": ["電力システム", "モーター制御", "パワーエレクトロニクス", "再生可能エネルギー", "スマートグリッド"]
+        },
+        "civil_engineering": {
+          "name": "土木工学",
+          "keywords": ["土木工学", "構造工学", "地盤工学", "建設"],
+          "focus": ["構造設計", "建設技術", "プロジェクト管理", "防災"]
+        },
+        "materials_engineering": {
+          "name": "材料科学",
+          "keywords": ["材料科学", "材料工学", "新材料", "ナノ材料"],
+          "focus": ["材料調製", "性能試験", "材料改質", "キャラクタリゼーション"]
+        },
+        "chemical_engineering": {
+          "name": "化学工学",
+          "keywords": ["化学工学", "化学プロセス", "触媒", "分離工学"],
+          "focus": ["プロセス設計", "反応工学", "分離", "プロセス制御", "安全"]
+        },
+        "environmental_engineering": {
+          "name": "環境工学",
+          "keywords": ["環境工学", "環境科学", "水処理", "大気汚染"],
+          "focus": ["汚染制御", "環境モニタリング", "環境影響評価", "生態系修復"]
+        },
+        "biomedical_engineering": {
+          "name": "生体医工学",
+          "keywords": ["生体医工学", "医療機器", "生体材料", "医用画像"],
+          "focus": ["医療機器", "生体材料", "医用画像", "リハビリテーション", "組織工学"]
+        }
+      }
+    },
+    "law": {
+      "name": "法学",
+      "subdisciplines": {
+        "constitutional_administrative_law": {
+          "name": "憲法・行政法",
+          "keywords": ["憲法", "行政法", "行政訴訟"],
+          "focus": ["憲法実施", "行政行為", "行政救済", "人権"]
+        },
+        "civil_commercial_law": {
+          "name": "民商法",
+          "keywords": ["民法", "商法", "契約法", "物権法", "会社法"],
+          "focus": ["民事権利", "契約制度", "コーポレートガバナンス", "知的財産"]
+        },
+        "criminal_law": {
+          "name": "刑法",
+          "keywords": ["刑法", "犯罪", "刑罰", "刑事政策", "刑事訴訟"],
+          "focus": ["犯罪構成要件", "刑罰制度", "刑事政策", "刑事手続"]
+        },
+        "economic_law": {
+          "name": "経済法",
+          "keywords": ["経済法", "競争法", "消費者保護", "金融規制"],
+          "focus": ["市場規制", "マクロ経済調整", "消費者権利", "金融規制"]
+        },
+        "international_law": {
+          "name": "国際法",
+          "keywords": ["国際法", "国際公法", "国際私法"],
+          "focus": ["国際条約", "国際機関", "国際紛争"]
+        },
+        "environmental_law": {
+          "name": "環境法",
+          "keywords": ["環境法", "資源保護", "生態系保護"],
+          "focus": ["環境規制", "汚染防止", "生態系保護"]
+        }
+      }
+    },
+    "medical": {
+      "name": "医学",
+      "subdisciplines": {
+        "clinical_medicine": {
+          "name": "臨床医学",
+          "keywords": ["臨床医学", "診断", "治療", "内科学", "外科学"],
+          "focus": ["疾患診断", "治療計画", "臨床研究", "エビデンスベースの医療"]
+        },
+        "public_health": {
+          "name": "公衆衛生",
+          "keywords": ["公衆衛生", "予防医学", "疫学", "衛生統計"],
+          "focus": ["疾患予防", "健康増進", "衛生政策", "環境健康"]
+        },
+        "pharmacy": {
+          "name": "薬学",
+          "keywords": ["薬学", "医薬品開発", "薬理学", "医薬品分析"],
+          "focus": ["医薬品開発", "医薬品評価", "医薬品安全性", "適正使用"]
+        },
+        "nursing": {
+          "name": "看護学",
+          "keywords": ["看護学", "臨床看護", "地域看護", "看護管理"],
+          "focus": ["看護評価", "看護介入", "看護管理", "患者教育"]
+        },
+        "traditional_chinese_medicine": {
+          "name": "中医学",
+          "keywords": ["中医学", "漢方医学", "鍼灸", "漢方薬"],
+          "focus": ["中医理論", "漢方薬学", "鍼灸", "統合医療"]
+        }
+      }
+    },
+    "psychology": {
+      "name": "心理学",
+      "subdisciplines": {
+        "developmental_psychology": {
+          "name": "発達心理学",
+          "keywords": ["発達心理学", "児童心理学", "青年心理学"],
+          "focus": ["認知発達", "社会性発達", "感情発達", "愛着"]
+        },
+        "cognitive_psychology": {
+          "name": "認知心理学",
+          "keywords": ["認知心理学", "注意", "記憶", "思考", "言語"],
+          "focus": ["情報処理", "認知モデル", "認知神経科学", "認知トレーニング"]
+        },
+        "social_psychology": {
+          "name": "社会心理学",
+          "keywords": ["社会心理学", "社会認知", "社会的影響", "集団心理"],
+          "focus": ["態度", "偏見", "集団意思決定", "向社会的行動"]
+        },
+        "clinical_psychology": {
+          "name": "臨床心理学",
+          "keywords": ["臨床心理学", "心理療法", "カウンセリング", "精神障害"],
+          "focus": ["心理診断", "心理療法", "危機介入", "メンタルヘルス"]
+        },
+        "organizational_psychology": {
+          "name": "組織心理学",
+          "keywords": ["組織行動", "仕事の動機づけ", "リーダーシップ", "組織文化"],
+          "focus": ["仕事の動機づけ", "リーダーシップ", "チーム管理", "組織変革"]
+        }
+      }
+    },
+    "literature": {
+      "name": "文学",
+      "subdisciplines": {
+        "chinese_literature": {
+          "name": "中国現代文学",
+          "keywords": ["中国文学", "現代文学", "文芸批評", "文学理論"],
+          "focus": ["文学史", "テクスト分析", "作家研究", "文学動向"]
+        },
+        "ancient_chinese_literature": {
+          "name": "中国古典文学",
+          "keywords": ["古典文学", "詩", "散文", "小説", "戯曲"],
+          "focus": ["文献学的批判", "テクスト分析", "文学流派", "受容史"]
+        },
+        "foreign_literature": {
+          "name": "外国文学",
+          "keywords": ["外国文学", "比較文学", "世界文学"],
+          "focus": ["国別文学", "比較研究", "翻訳研究", "文学理論"]
+        },
+        "linguistics": {
+          "name": "言語学",
+          "keywords": ["言語学", "応用言語学", "社会言語学", "心理言語学"],
+          "focus": ["言語理論", "言語習得", "言語変異", "言語技術"]
+        }
+      }
+    },
+    "art": {
+      "name": "芸術学",
+      "subdisciplines": {
+        "fine_arts": {
+          "name": "美術学",
+          "keywords": ["美術", "絵画", "彫刻", "美術史", "美術批評"],
+          "focus": ["芸術創作", "美術史", "美術批評", "美術教育"]
+        },
+        "design": {
+          "name": "デザイン学",
+          "keywords": ["デザイン", "ビジュアルコミュニケーション", "環境デザイン", "プロダクトデザイン"],
+          "focus": ["デザイン理論", "デザイン方法", "デザインイノベーション", "ユーザー体験"]
+        },
+        "music": {
+          "name": "音楽学",
+          "keywords": ["音楽", "音楽学", "音楽教育", "音楽演奏", "作曲"],
+          "focus": ["音楽理論", "音楽史", "音楽教育", "音楽演奏"]
+        },
+        "film_television": {
+          "name": "映画・テレビ学",
+          "keywords": ["演劇", "映画", "テレビ", "映像", "監督", "脚本"],
+          "focus": ["映画理論", "映画制作", "映画批評", "演劇理論"]
+        }
+      }
+    },
+    "science": {
+      "name": "理学",
+      "subdisciplines": {
+        "mathematics": {
+          "name": "数学",
+          "keywords": ["数学", "代数", "幾何学", "解析", "確率統計"],
+          "focus": ["純粋数学", "応用数学", "計算数学", "統計"]
+        },
+        "physics": {
+          "name": "物理学",
+          "keywords": ["物理学", "理論物理学", "凝縮系", "光学", "素粒子物理学"],
+          "focus": ["理論研究", "実験研究", "計算物理学", "応用物理学"]
+        },
+        "chemistry": {
+          "name": "化学",
+          "keywords": ["化学", "有機化学", "無機化学", "分析化学"],
+          "focus": ["合成方法", "構造解析", "反応機構", "材料化学"]
+        },
+        "biology": {
+          "name": "生物学",
+          "keywords": ["生物学", "分子生物学", "細胞生物学", "生態学", "遺伝学"],
+          "focus": ["分子生物学", "細胞生物学", "生態学", "バイオテクノロジー"]
+        }
+      }
+    },
+    "agriculture": {
+      "name": "農学",
+      "subdisciplines": {
+        "crop_science": {
+          "name": "作物学",
+          "keywords": ["作物", "栽培", "育種", "種子", "農業", "作物生理"],
+          "focus": ["品種育成", "栽培技術", "種子生産", "作付体系"]
+        },
+        "plant_protection": {
+          "name": "植物保護",
+          "keywords": ["植物保護", "病害虫", "農薬", "植物病理学", "昆虫学"],
+          "focus": ["病害虫防除", "農薬開発", "生物的防除", "検疫"]
+        },
+        "horticulture": {
+          "name": "園芸学",
+          "keywords": ["園芸", "果樹", "野菜", "花卉", "観賞園芸", "施設園芸"],
+          "focus": ["品種育成", "栽培技術", "収穫後処理", "施設栽培"]
+        }
+      }
+    },
+    "library_science": {
+      "name": "図書館学",
+      "subdisciplines": {
+        "library_science": {
+          "name": "図書館管理",
+          "keywords": ["図書館", "文献", "情報組織", "デジタル図書館"],
+          "focus": ["コレクション開発", "情報サービス", "デジタル図書館", "読書推進"]
+        },
+        "archival_science": {
+          "name": "アーカイブズ学",
+          "keywords": ["アーカイブズ", "アーカイブズ管理", "デジタルアーカイブズ", "保存"],
+          "focus": ["アーカイブズ管理", "デジタルアーカイブズ", "保存", "活用"]
+        },
+        "information_resource_management": {
+          "name": "情報資源管理",
+          "keywords": ["情報資源", "知識管理", "データ管理", "デジタル人文科学"],
+          "focus": ["知識組織", "データガバナンス", "競争情報", "デジタル人文科学"]
+        }
+      }
+    },
+    "archaeology": {
+      "name": "考古学",
+      "subdisciplines": {
+        "prehistoric_archaeology": {
+          "name": "先史考古学",
+          "keywords": ["先史", "旧石器", "新石器", "青銅器時代", "文明起源"],
+          "focus": ["人類起源", "農業起源", "文明起源", "石器技術"]
+        },
+        "historical_archaeology": {
+          "name": "歴史考古学",
+          "keywords": ["歴史考古学", "帝陵", "陶磁器", "シルクロード"],
+          "focus": ["都城考古", "墓葬考古", "陶磁器考古", "宗教考古"]
+        },
+        "scientific_archaeology": {
+          "name": "考古科学",
+          "keywords": ["考古科学", "年代測定", "成分分析", "古代DNA"],
+          "focus": ["年代学", "産地分析", "環境考古学", "動物考古学"]
+        }
+      }
+    },
+    "sports_science": {
+      "name": "体育学",
+      "subdisciplines": {
+        "sports_training": {
+          "name": "スポーツトレーニング",
+          "keywords": ["スポーツトレーニング", "体力トレーニング", "技術トレーニング", "戦術トレーニング"],
+          "focus": ["トレーニング方法", "体力テスト", "スポーツ障害", "スポーツ栄養"]
+        },
+        "exercise_science": {
+          "name": "運動人体科学",
+          "keywords": ["運動生理学", "スポーツ医学", "バイオメカニクス", "スポーツ心理学"],
+          "focus": ["運動生理学", "スポーツ医学", "バイオメカニクス", "スポーツ栄養"]
+        },
+        "physical_education": {
+          "name": "体育教育",
+          "keywords": ["体育教育", "学校体育", "体育授業", "体育カリキュラム"],
+          "focus": ["教育方法", "カリキュラム設計", "学生発達", "体力"]
+        }
+      }
+    }
+  }
+}

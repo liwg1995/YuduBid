@@ -9,6 +9,7 @@ import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectP
 import type { RejectionCheckWorkspaceState, RejectionDocumentRole } from '../../features/rejection-check/types';
 import type { SoftwareCopyrightCodeManifest, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightFields, SoftwareCopyrightOptions, SoftwareCopyrightSelectResult, SoftwareCopyrightState } from '../../features/software-copyright/types';
 import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../../features/technical-plan/types';
+import type { ThesisTutorGeneratePayload, ThesisTutorHistoryItem, ThesisTutorImportSourceResult, ThesisTutorProfile, ThesisTutorState, ThesisTutorWorkspaceTransferResult } from '../../features/thesis-tutor/types';
 import type { OutlineData, OutlineMode } from './outline';
 
 export interface TaskEvent<TState = unknown, TRejectionCheckState = unknown, TDuplicateCheckState = unknown> {
@@ -139,6 +140,36 @@ export interface YuDuBidBridge {
     rewriteDraft: (payload: { input: OfficialDocumentPromptInput; draft: string; instruction: string }) => Promise<OfficialDocumentState>;
     clear: () => Promise<{ success: boolean; state: OfficialDocumentState }>;
     onEvent: (callback: (event: OfficialDocumentState) => void) => () => void;
+  };
+  thesisTutor: {
+    loadState: () => Promise<ThesisTutorState>;
+    saveProfile: (profile: ThesisTutorProfile) => Promise<ThesisTutorState>;
+    saveChapters: (payload: { chapters: ThesisTutorGeneratePayload['chapters']; activeChapterId?: string }) => Promise<ThesisTutorState>;
+    saveReferences: (payload: { references: ThesisTutorGeneratePayload['references']; activeReferenceId?: string }) => Promise<ThesisTutorState>;
+    saveFeedback: (payload: { feedbackItems: ThesisTutorGeneratePayload['feedbackItems']; activeFeedbackId?: string }) => Promise<ThesisTutorState>;
+    saveChecks: (payload: { checkItems: ThesisTutorGeneratePayload['checkItems']; activeCheckId?: string }) => Promise<ThesisTutorState>;
+    saveHistory: (payload: { history: ThesisTutorHistoryItem[] }) => Promise<ThesisTutorState>;
+    saveProfileLock: (payload: { locked: boolean }) => Promise<ThesisTutorState>;
+    generate: (payload: ThesisTutorGeneratePayload) => Promise<ThesisTutorState>;
+    saveDraft: (payload: {
+      panel?: ThesisTutorGeneratePayload['panel'];
+      draft?: string;
+      sourceText?: string;
+      userInput?: string;
+      chapters?: ThesisTutorGeneratePayload['chapters'];
+      activeChapterId?: string;
+      references?: ThesisTutorGeneratePayload['references'];
+      activeReferenceId?: string;
+      feedbackItems?: ThesisTutorGeneratePayload['feedbackItems'];
+      activeFeedbackId?: string;
+      checkItems?: ThesisTutorGeneratePayload['checkItems'];
+      activeCheckId?: string;
+    }) => Promise<ThesisTutorState>;
+    importSource: () => Promise<ThesisTutorImportSourceResult>;
+    exportWorkspace: () => Promise<ThesisTutorWorkspaceTransferResult>;
+    importWorkspace: () => Promise<ThesisTutorWorkspaceTransferResult>;
+    clear: () => Promise<{ success: boolean; state: ThesisTutorState }>;
+    onEvent: (callback: (event: ThesisTutorState) => void) => () => void;
   };
   knowledgeBase: {
     getMigrationStatus: () => Promise<KnowledgeBaseMigrationStatus>;

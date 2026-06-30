@@ -73,6 +73,10 @@ function getOfficialDocumentDir(app) {
   return path.join(getWorkspaceDir(app), 'official-document');
 }
 
+function getThesisTutorDir(app) {
+  return path.join(getWorkspaceDir(app), 'thesis-tutor');
+}
+
 function getCodeGenerationDir(app) {
   return path.join(getWorkspaceDir(app), 'code-generation');
 }
@@ -91,6 +95,7 @@ module.exports = {
   getKnowledgeBaseDir,
   getCodeGenerationDir,
   getOfficialDocumentDir,
+  getThesisTutorDir,
   getPatentGenerationDir,
   getSoftwareCopyrightDir,
   getRejectionCheckDir,

@@ -15,6 +15,7 @@ import RejectionCheckPage from '../features/rejection-check/pages/RejectionCheck
 import SettingsPage from '../features/settings/pages/SettingsPage';
 import SoftwareCopyrightPage from '../features/software-copyright/pages/SoftwareCopyrightPage';
 import TechnicalPlanHome from '../features/technical-plan/pages/TechnicalPlanHome';
+import ThesisTutorPage, { type ThesisTutorInitialPanel } from '../features/thesis-tutor/pages/ThesisTutorPage';
 
 interface AppRouterProps {
   activeSection: SectionId;
@@ -40,6 +41,14 @@ function AppRouter({ activeSection, onSectionChange, onDeveloperModeChange }: Ap
       return <OfficialDocumentDraftingPage initialPanel="polish" onNavigate={onSectionChange} />;
     case 'official-document-templates':
       return <OfficialDocumentDraftingPage initialPanel="templates" onNavigate={onSectionChange} />;
+    case 'thesis-diagnosis':
+    case 'thesis-topic':
+    case 'thesis-literature':
+    case 'thesis-methodology':
+    case 'thesis-writing':
+    case 'thesis-review':
+    case 'thesis-format':
+      return <ThesisTutorPage initialPanel={activeSection.replace('thesis-', '') as ThesisTutorInitialPanel} onNavigate={onSectionChange} />;
     case 'code-generation':
       return <CodeGenerationPage />;
     case 'software-copyright':

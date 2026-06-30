@@ -1,0 +1,1711 @@
+{
+  "version": "4.1.0",
+  "disciplines": {
+    "cs": {
+      "name_zh": "计算机科学",
+      "name_en": "Computer Science",
+      "name_ja": "コンピュータサイエンス",
+      "name_ko": "컴퓨터 과학",
+      "name_fr": "Informatique",
+      "name_de": "Informatik",
+      "name_es": "Informatica",
+      "keywords_zh": [
+        "计算机",
+        "软件",
+        "人工智能",
+        "AI",
+        "大数据",
+        "网络安全",
+        "物联网",
+        "数据科学",
+        "机器学习",
+        "深度学习"
+      ],
+      "keywords_en": [
+        "computer",
+        "software",
+        "artificial intelligence",
+        "AI",
+        "big data",
+        "cybersecurity",
+        "IoT",
+        "data science",
+        "machine learning",
+        "deep learning"
+      ],
+      "keywords_ja": [
+        "コンピュータ",
+        "ソフトウェア",
+        "人工知能",
+        "AI",
+        "ビッグデータ",
+        "サイバーセキュリティ",
+        "IoT",
+        "データサイエンス",
+        "機械学習",
+        "深層学習"
+      ],
+      "keywords_ko": [
+        "컴퓨터",
+        "소프트웨어",
+        "인공지능",
+        "AI",
+        "빅데이터",
+        "사이버 보안",
+        "IoT",
+        "데이터 과학",
+        "기계 학습",
+        "딥 러닝"
+      ],
+      "keywords_fr": [
+        "informatique",
+        "logiciel",
+        "intelligence artificielle",
+        "IA",
+        "big data",
+        "cybersecurite",
+        "IoT",
+        "science des donnees",
+        "apprentissage automatique",
+        "apprentissage profond"
+      ],
+      "keywords_de": [
+        "Informatik",
+        "Software",
+        "Künstliche Intelligenz",
+        "KI",
+        "Big Data",
+        "Cybersicherheit",
+        "IoT",
+        "Datenwissenschaft",
+        "Maschinelles Lernen",
+        "Tiefes Lernen"
+      ],
+      "keywords_es": [
+        "computadora",
+        "software",
+        "inteligencia artificial",
+        "IA",
+        "grandes datos",
+        "ciberseguridad",
+        "IoT",
+        "ciencia de datos",
+        "aprendizaje automatico",
+        "aprendizaje profundo"
+      ],
+      "subfields": {
+        "software_engineering": {
+          "name_zh": "软件工程",
+          "name_en": "Software Engineering",
+          "keywords_zh": [
+            "软件工程",
+            "软件开发",
+            "敏捷",
+            "DevOps",
+            "低代码",
+            "微服务"
+          ],
+          "keywords_en": [
+            "software engineering",
+            "software development",
+            "agile",
+            "DevOps",
+            "low-code",
+            "microservices"
+          ]
+        },
+        "cybersecurity": {
+          "name_zh": "网络安全",
+          "name_en": "Cybersecurity",
+          "keywords_zh": [
+            "网络安全",
+            "信息安全",
+            "密码学",
+            "渗透测试",
+            "零信任",
+            "威胁检测"
+          ],
+          "keywords_en": [
+            "cybersecurity",
+            "information security",
+            "cryptography",
+            "penetration testing",
+            "zero trust",
+            "threat detection"
+          ]
+        },
+        "ai_ml": {
+          "name_zh": "人工智能",
+          "name_en": "AI/Machine Learning",
+          "keywords_zh": [
+            "人工智能",
+            "机器学习",
+            "深度学习",
+            "大模型",
+            "强化学习",
+            "计算机视觉",
+            "自然语言处理"
+          ],
+          "keywords_en": [
+            "artificial intelligence",
+            "machine learning",
+            "deep learning",
+            "large language model",
+            "reinforcement learning",
+            "computer vision",
+            "NLP"
+          ]
+        },
+        "data_science": {
+          "name_zh": "数据科学",
+          "name_en": "Data Science",
+          "keywords_zh": [
+            "数据科学",
+            "数据分析",
+            "数据挖掘",
+            "大数据",
+            "数据治理",
+            "数据可视化"
+          ],
+          "keywords_en": [
+            "data science",
+            "data analysis",
+            "data mining",
+            "big data",
+            "data governance",
+            "data visualization"
+          ]
+        }
+      }
+    },
+    "economics": {
+      "name_zh": "经济学",
+      "name_en": "Economics",
+      "name_ja": "経済学",
+      "name_ko": "경제학",
+      "name_fr": "Economie",
+      "name_de": "Wirtschaftswissenschaften",
+      "name_es": "Economia",
+      "keywords_zh": [
+        "经济",
+        "金融",
+        "财政",
+        "保险",
+        "银行",
+        "投资",
+        "国际经济",
+        "产业经济"
+      ],
+      "keywords_en": [
+        "economics",
+        "finance",
+        "fiscal",
+        "insurance",
+        "banking",
+        "investment",
+        "international economics",
+        "industrial economics"
+      ],
+      "keywords_ja": [
+        "経済",
+        "金融",
+        "財政",
+        "保険",
+        "銀行",
+        "投資",
+        "国際経済",
+        "産業経済"
+      ],
+      "keywords_ko": [
+        "경제",
+        "금융",
+        "재정",
+        "보험",
+        "은행",
+        "투자",
+        "국제 경제",
+        "산업 경제"
+      ],
+      "keywords_fr": [
+        "economie",
+        "finance",
+        "fiscalite",
+        "assurance",
+        "banque",
+        "investissement",
+        "economie internationale",
+        "economie industrielle"
+      ],
+      "keywords_de": [
+        "Wirtschaft",
+        "Finanzen",
+        "Finanzwesen",
+        "Versicherung",
+        "Bank",
+        "Investition",
+        "Internationale Wirtschaft",
+        "Industriewirtschaft"
+      ],
+      "keywords_es": [
+        "economia",
+        "finanzas",
+        "fiscal",
+        "seguros",
+        "banca",
+        "inversion",
+        "economia internacional",
+        "economia industrial"
+      ],
+      "subfields": {
+        "microeconomics": {
+          "name_zh": "微观经济学",
+          "name_en": "Microeconomics",
+          "keywords_zh": [
+            "微观",
+            "消费者",
+            "厂商",
+            "市场均衡"
+          ],
+          "keywords_en": [
+            "microeconomics",
+            "consumer",
+            "firm",
+            "market equilibrium"
+          ]
+        },
+        "macroeconomics": {
+          "name_zh": "宏观经济学",
+          "name_en": "Macroeconomics",
+          "keywords_zh": [
+            "宏观",
+            "GDP",
+            "通货膨胀",
+            "货币政策"
+          ],
+          "keywords_en": [
+            "macroeconomics",
+            "GDP",
+            "inflation",
+            "monetary policy"
+          ]
+        },
+        "finance": {
+          "name_zh": "金融学",
+          "name_en": "Finance",
+          "keywords_zh": [
+            "金融",
+            "证券",
+            "投资",
+            "风险管理",
+            "资产定价"
+          ],
+          "keywords_en": [
+            "finance",
+            "securities",
+            "investment",
+            "risk management",
+            "asset pricing"
+          ]
+        }
+      }
+    },
+    "education": {
+      "name_zh": "教育学",
+      "name_en": "Education",
+      "name_ja": "教育学",
+      "name_ko": "교육학",
+      "name_fr": "Education",
+      "name_de": "Pädagogik",
+      "name_es": "Educacion",
+      "keywords_zh": [
+        "教育",
+        "教学",
+        "师范",
+        "课程",
+        "学习科学",
+        "教育学",
+        "高等教育",
+        "职业教育"
+      ],
+      "keywords_en": [
+        "education",
+        "teaching",
+        "pedagogy",
+        "curriculum",
+        "learning science",
+        "higher education",
+        "vocational education"
+      ],
+      "keywords_ja": [
+        "教育",
+        "教授",
+        "教員養成",
+        "カリキュラム",
+        "学習科学",
+        "教育学",
+        "高等教育",
+        "職業教育"
+      ],
+      "keywords_ko": [
+        "교육",
+        "교수",
+        "사범",
+        "커리큘럼",
+        "학습 과학",
+        "교육학",
+        "고등 교육",
+        "직업 교육"
+      ],
+      "keywords_fr": [
+        "education",
+        "enseignement",
+        "pedagogie",
+        "curriculum",
+        "science de l apprentissage",
+        "enseignement superieur",
+        "enseignement professionnel"
+      ],
+      "keywords_de": [
+        "Bildung",
+        "Unterricht",
+        "Lehramt",
+        "Lehrplan",
+        "Lernwissenschaft",
+        "Pädagogik",
+        "Hochschulbildung",
+        "Berufsbildung"
+      ],
+      "keywords_es": [
+        "educacion",
+        "ensenanza",
+        "pedagogia",
+        "curriculo",
+        "ciencia del aprendizaje",
+        "educacion superior",
+        "educacion vocacional"
+      ],
+      "subfields": {
+        "educational_technology": {
+          "name_zh": "教育技术",
+          "name_en": "Educational Technology",
+          "keywords_zh": [
+            "教育技术",
+            "在线学习",
+            "数字化",
+            "智慧教育"
+          ],
+          "keywords_en": [
+            "educational technology",
+            "e-learning",
+            "digital",
+            "smart education"
+          ]
+        },
+        "curriculum_teaching": {
+          "name_zh": "课程与教学",
+          "name_en": "Curriculum & Instruction",
+          "keywords_zh": [
+            "课程设计",
+            "教学方法",
+            "教学改革"
+          ],
+          "keywords_en": [
+            "curriculum design",
+            "teaching methods",
+            "pedagogical reform"
+          ]
+        }
+      }
+    },
+    "engineering": {
+      "name_zh": "工学",
+      "name_en": "Engineering",
+      "name_ja": "工学",
+      "name_ko": "공학",
+      "name_fr": "Genie",
+      "name_de": "Ingenieurwesen",
+      "name_es": "Ingenieria",
+      "keywords_zh": [
+        "机械",
+        "电子",
+        "通信",
+        "自动化",
+        "土木",
+        "化工",
+        "材料",
+        "能源",
+        "环境",
+        "航空航天"
+      ],
+      "keywords_en": [
+        "mechanical",
+        "electronic",
+        "communication",
+        "automation",
+        "civil",
+        "chemical",
+        "materials",
+        "energy",
+        "environment",
+        "aerospace"
+      ],
+      "keywords_ja": [
+        "機械",
+        "電子",
+        "通信",
+        "自動化",
+        "土木",
+        "化学",
+        "材料",
+        "エネルギー",
+        "環境",
+        "航空宇宙"
+      ],
+      "keywords_ko": [
+        "기계",
+        "전자",
+        "통신",
+        "자동화",
+        "토목",
+        "화학",
+        "재료",
+        "에너지",
+        "환경",
+        "항공우주"
+      ],
+      "keywords_fr": [
+        "mecanique",
+        "electronique",
+        "communication",
+        "automatisation",
+        "genie civil",
+        "chimie",
+        "materiaux",
+        "energie",
+        "environnement",
+        "aeronautique"
+      ],
+      "keywords_de": [
+        "Maschinenbau",
+        "Elektronik",
+        "Kommunikation",
+        "Automatisierung",
+        "Bauingenieurwesen",
+        "Chemie",
+        "Material",
+        "Energie",
+        "Umwelt",
+        "Luft- und Raumfahrt"
+      ],
+      "keywords_es": [
+        "mecanica",
+        "electronica",
+        "comunicacion",
+        "automatizacion",
+        "civil",
+        "quimica",
+        "materiales",
+        "energia",
+        "medio ambiente",
+        "aeroespacial"
+      ],
+      "subfields": {
+        "mechanical": {
+          "name_zh": "机械工程",
+          "name_en": "Mechanical Engineering",
+          "keywords_zh": [
+            "机械",
+            "制造",
+            "机器人",
+            "数控"
+          ],
+          "keywords_en": [
+            "mechanical",
+            "manufacturing",
+            "robotics",
+            "CNC"
+          ]
+        },
+        "electronic": {
+          "name_zh": "电子工程",
+          "name_en": "Electronic Engineering",
+          "keywords_zh": [
+            "电子",
+            "集成电路",
+            "嵌入式",
+            "传感器"
+          ],
+          "keywords_en": [
+            "electronic",
+            "integrated circuit",
+            "embedded",
+            "sensor"
+          ]
+        },
+        "civil": {
+          "name_zh": "土木工程",
+          "name_en": "Civil Engineering",
+          "keywords_zh": [
+            "土木",
+            "建筑",
+            "结构",
+            "桥梁",
+            "隧道"
+          ],
+          "keywords_en": [
+            "civil",
+            "construction",
+            "structural",
+            "bridge",
+            "tunnel"
+          ]
+        }
+      }
+    },
+    "law": {
+      "name_zh": "法学",
+      "name_en": "Law",
+      "name_ja": "法学",
+      "name_ko": "법학",
+      "name_fr": "Droit",
+      "name_de": "Rechtswissenschaften",
+      "name_es": "Derecho",
+      "keywords_zh": [
+        "法学",
+        "法律",
+        "司法",
+        "立法",
+        "合规",
+        "刑法",
+        "民法",
+        "行政法"
+      ],
+      "keywords_en": [
+        "law",
+        "legal",
+        "judicial",
+        "legislation",
+        "compliance",
+        "criminal law",
+        "civil law",
+        "administrative law"
+      ],
+      "keywords_ja": [
+        "法学",
+        "法律",
+        "司法",
+        "立法",
+        "コンプライアンス",
+        "刑法",
+        "民法",
+        "行政法"
+      ],
+      "keywords_ko": [
+        "법학",
+        "법률",
+        "사법",
+        "입법",
+        "컴플라이언스",
+        "형법",
+        "민법",
+        "행정법"
+      ],
+      "keywords_fr": [
+        "droit",
+        "juridique",
+        "judiciaire",
+        "legislation",
+        "conformite",
+        "droit penal",
+        "droit civil",
+        "droit administratif"
+      ],
+      "keywords_de": [
+        "Rechtswissenschaft",
+        "Recht",
+        "Justiz",
+        "Gesetzgebung",
+        "Compliance",
+        "Strafrecht",
+        "Zivilrecht",
+        "Verwaltungsrecht"
+      ],
+      "keywords_es": [
+        "derecho",
+        "juridico",
+        "judicial",
+        "legislacion",
+        "cumplimiento",
+        "derecho penal",
+        "derecho civil",
+        "derecho administrativo"
+      ],
+      "subfields": {
+        "civil_law": {
+          "name_zh": "民商法",
+          "name_en": "Civil & Commercial Law",
+          "keywords_zh": [
+            "民法",
+            "商法",
+            "合同",
+            "侵权",
+            "知识产权"
+          ],
+          "keywords_en": [
+            "civil law",
+            "commercial law",
+            "contract",
+            "tort",
+            "intellectual property"
+          ]
+        },
+        "criminal_law": {
+          "name_zh": "刑法",
+          "name_en": "Criminal Law",
+          "keywords_zh": [
+            "刑法",
+            "犯罪",
+            "刑罚",
+            "刑事诉讼"
+          ],
+          "keywords_en": [
+            "criminal law",
+            "crime",
+            "penalty",
+            "criminal procedure"
+          ]
+        }
+      }
+    },
+    "literature": {
+      "name_zh": "文学",
+      "name_en": "Literature",
+      "name_ja": "文学",
+      "name_ko": "문학",
+      "name_fr": "Litterature",
+      "name_de": "Literaturwissenschaft",
+      "name_es": "Literatura",
+      "keywords_zh": [
+        "文学",
+        "语言",
+        "汉语",
+        "外语",
+        "翻译",
+        "语言学",
+        "比较文学"
+      ],
+      "keywords_en": [
+        "literature",
+        "language",
+        "linguistics",
+        "translation",
+        "comparative literature"
+      ],
+      "keywords_ja": [
+        "文学",
+        "言語",
+        "中国語",
+        "外国語",
+        "翻訳",
+        "言語学",
+        "比較文学"
+      ],
+      "keywords_ko": [
+        "문학",
+        "언어",
+        "중국어",
+        "외국어",
+        "번역",
+        "언어학",
+        "비교 문학"
+      ],
+      "keywords_fr": [
+        "litterature",
+        "langue",
+        "linguistique",
+        "traduction",
+        "litterature comparee"
+      ],
+      "keywords_de": [
+        "Literatur",
+        "Sprache",
+        "Chinesisch",
+        "Fremdsprache",
+        "Übersetzung",
+        "Linguistik",
+        "Vergleichende Literaturwissenschaft"
+      ],
+      "keywords_es": [
+        "literatura",
+        "lengua",
+        "linguistica",
+        "traduccion",
+        "literatura comparada"
+      ],
+      "subfields": {
+        "chinese_literature": {
+          "name_zh": "中国文学",
+          "name_en": "Chinese Literature",
+          "keywords_zh": [
+            "古典文学",
+            "现当代文学",
+            "古代文学"
+          ],
+          "keywords_en": [
+            "classical literature",
+            "modern literature",
+            "ancient literature"
+          ]
+        },
+        "linguistics": {
+          "name_zh": "语言学",
+          "name_en": "Linguistics",
+          "keywords_zh": [
+            "语言学",
+            "语法",
+            "语义",
+            "语用",
+            "语音"
+          ],
+          "keywords_en": [
+            "linguistics",
+            "grammar",
+            "semantics",
+            "pragmatics",
+            "phonetics"
+          ]
+        }
+      }
+    },
+    "management": {
+      "name_zh": "管理学",
+      "name_en": "Management",
+      "name_ja": "経営学",
+      "name_ko": "경영학",
+      "name_fr": "Gestion",
+      "name_de": "Betriebswirtschaftslehre",
+      "name_es": "Administracion",
+      "keywords_zh": [
+        "管理",
+        "营销",
+        "市场",
+        "人力资源",
+        "MBA",
+        "工商",
+        "会计",
+        "财务"
+      ],
+      "keywords_en": [
+        "management",
+        "marketing",
+        "market",
+        "human resources",
+        "MBA",
+        "business",
+        "accounting",
+        "finance"
+      ],
+      "keywords_ja": [
+        "管理",
+        "マーケティング",
+        "市場",
+        "人事",
+        "MBA",
+        "企業",
+        "会計",
+        "財務"
+      ],
+      "keywords_ko": [
+        "관리",
+        "마케팅",
+        "시장",
+        "인사",
+        "MBA",
+        "기업",
+        "회계",
+        "재무"
+      ],
+      "keywords_fr": [
+        "gestion",
+        "marketing",
+        "marche",
+        "ressources humaines",
+        "MBA",
+        "commerce",
+        "comptabilite",
+        "finance"
+      ],
+      "keywords_de": [
+        "Management",
+        "Marketing",
+        "Markt",
+        "Personalwesen",
+        "MBA",
+        "Unternehmen",
+        "Buchhaltung",
+        "Finanzen"
+      ],
+      "keywords_es": [
+        "gestion",
+        "marketing",
+        "mercado",
+        "recursos humanos",
+        "MBA",
+        "negocios",
+        "contabilidad",
+        "finanzas"
+      ],
+      "subfields": {
+        "marketing": {
+          "name_zh": "市场营销",
+          "name_en": "Marketing",
+          "keywords_zh": [
+            "营销",
+            "市场",
+            "品牌",
+            "消费者行为"
+          ],
+          "keywords_en": [
+            "marketing",
+            "market",
+            "brand",
+            "consumer behavior"
+          ]
+        },
+        "human_resources": {
+          "name_zh": "人力资源管理",
+          "name_en": "Human Resource Management",
+          "keywords_zh": [
+            "人力资源",
+            "招聘",
+            "培训",
+            "绩效"
+          ],
+          "keywords_en": [
+            "human resources",
+            "recruitment",
+            "training",
+            "performance"
+          ]
+        },
+        "accounting": {
+          "name_zh": "会计学",
+          "name_en": "Accounting",
+          "keywords_zh": [
+            "会计",
+            "审计",
+            "财务报表",
+            "成本"
+          ],
+          "keywords_en": [
+            "accounting",
+            "audit",
+            "financial statements",
+            "cost"
+          ]
+        }
+      }
+    },
+    "medical": {
+      "name_zh": "医学",
+      "name_en": "Medicine",
+      "name_ja": "医学",
+      "name_ko": "의학",
+      "name_fr": "Medecine",
+      "name_de": "Medizin",
+      "name_es": "Medicina",
+      "keywords_zh": [
+        "医学",
+        "临床",
+        "药学",
+        "公卫",
+        "护理",
+        "生物",
+        "基础医学",
+        "预防医学"
+      ],
+      "keywords_en": [
+        "medicine",
+        "clinical",
+        "pharmacy",
+        "public health",
+        "nursing",
+        "biology",
+        "basic medicine",
+        "preventive medicine"
+      ],
+      "keywords_ja": [
+        "医学",
+        "臨床",
+        "薬学",
+        "公衆衛生",
+        "看護",
+        "生物学",
+        "基礎医学",
+        "予防医学"
+      ],
+      "keywords_ko": [
+        "의학",
+        "임상",
+        "약학",
+        "공중보건",
+        "간호",
+        "생물학",
+        "기초의학",
+        "예방의학"
+      ],
+      "keywords_fr": [
+        "medecine",
+        "clinique",
+        "pharmacie",
+        "sante publique",
+        "soins infirmiers",
+        "biologie",
+        "medecine fondamentale",
+        "medecine preventive"
+      ],
+      "keywords_de": [
+        "Medizin",
+        "Klinik",
+        "Pharmazie",
+        "Öffentliche Gesundheit",
+        "Pflege",
+        "Biologie",
+        "Grundlagenmedizin",
+        "Präventivmedizin"
+      ],
+      "keywords_es": [
+        "medicina",
+        "clinica",
+        "farmacia",
+        "salud publica",
+        "enfermeria",
+        "biologia",
+        "medicina basica",
+        "medicina preventiva"
+      ],
+      "subfields": {
+        "clinical": {
+          "name_zh": "临床医学",
+          "name_en": "Clinical Medicine",
+          "keywords_zh": [
+            "临床",
+            "诊断",
+            "治疗",
+            "病例"
+          ],
+          "keywords_en": [
+            "clinical",
+            "diagnosis",
+            "treatment",
+            "case"
+          ]
+        },
+        "public_health": {
+          "name_zh": "公共卫生",
+          "name_en": "Public Health",
+          "keywords_zh": [
+            "公共卫生",
+            "流行病学",
+            "预防",
+            "健康促进"
+          ],
+          "keywords_en": [
+            "public health",
+            "epidemiology",
+            "prevention",
+            "health promotion"
+          ]
+        }
+      }
+    },
+    "psychology": {
+      "name_zh": "心理学",
+      "name_en": "Psychology",
+      "name_ja": "心理学",
+      "name_ko": "심리학",
+      "name_fr": "Psychologie",
+      "name_de": "Psychologie",
+      "name_es": "Psicologia",
+      "keywords_zh": [
+        "心理学",
+        "心理",
+        "认知",
+        "发展心理学",
+        "社会心理学",
+        "临床心理学"
+      ],
+      "keywords_en": [
+        "psychology",
+        "cognitive",
+        "developmental psychology",
+        "social psychology",
+        "clinical psychology"
+      ],
+      "keywords_ja": [
+        "心理学",
+        "心理",
+        "認知",
+        "発達心理学",
+        "社会心理学",
+        "臨床心理学"
+      ],
+      "keywords_ko": [
+        "심리학",
+        "심리",
+        "인지",
+        "발달심리학",
+        "사회심리학",
+        "임상심리학"
+      ],
+      "keywords_fr": [
+        "psychologie",
+        "cognitif",
+        "psychologie du developpement",
+        "psychologie sociale",
+        "psychologie clinique"
+      ],
+      "keywords_de": [
+        "Psychologie",
+        "Psyche",
+        "Kognition",
+        "Entwicklungspsychologie",
+        "Sozialpsychologie",
+        "Klinische Psychologie"
+      ],
+      "keywords_es": [
+        "psicologia",
+        "cognitivo",
+        "psicologia del desarrollo",
+        "psicologia social",
+        "psicologia clinica"
+      ],
+      "subfields": {
+        "cognitive": {
+          "name_zh": "认知心理学",
+          "name_en": "Cognitive Psychology",
+          "keywords_zh": [
+            "认知",
+            "记忆",
+            "注意",
+            "思维"
+          ],
+          "keywords_en": [
+            "cognitive",
+            "memory",
+            "attention",
+            "thinking"
+          ]
+        },
+        "clinical_psychology": {
+          "name_zh": "临床心理学",
+          "name_en": "Clinical Psychology",
+          "keywords_zh": [
+            "临床",
+            "心理咨询",
+            "心理治疗",
+            "心理障碍"
+          ],
+          "keywords_en": [
+            "clinical",
+            "counseling",
+            "psychotherapy",
+            "mental disorder"
+          ]
+        }
+      }
+    },
+    "art": {
+      "name_zh": "艺术学",
+      "name_en": "Art",
+      "name_ja": "芸術学",
+      "name_ko": "예술학",
+      "name_fr": "Art",
+      "name_de": "Kunst",
+      "name_es": "Arte",
+      "keywords_zh": [
+        "艺术",
+        "设计",
+        "视觉",
+        "音乐",
+        "美术",
+        "非遗",
+        "艺术学",
+        "戏剧",
+        "影视"
+      ],
+      "keywords_en": [
+        "art",
+        "design",
+        "visual",
+        "music",
+        "fine arts",
+        "intangible heritage",
+        "drama",
+        "film"
+      ],
+      "keywords_ja": [
+        "芸術",
+        "デザイン",
+        "視覚",
+        "音楽",
+        "美術",
+        "無形文化遺産",
+        "演劇",
+        "映画"
+      ],
+      "keywords_ko": [
+        "예술",
+        "디자인",
+        "시각",
+        "음악",
+        "미술",
+        "무형문화유산",
+        "연극",
+        "영화"
+      ],
+      "keywords_fr": [
+        "art",
+        "design",
+        "visuel",
+        "musique",
+        "beaux-arts",
+        "patrimoine immateriel",
+        "theatre",
+        "cinema"
+      ],
+      "keywords_de": [
+        "Kunst",
+        "Design",
+        "Visuell",
+        "Musik",
+        "Bildende Kunst",
+        "Immaterielles Kulturerbe",
+        "Kunstwissenschaft",
+        "Theater",
+        "Film"
+      ],
+      "keywords_es": [
+        "arte",
+        "diseno",
+        "visual",
+        "musica",
+        "bellas artes",
+        "patrimonio inmaterial",
+        "teatro",
+        "cine"
+      ],
+      "subfields": {
+        "music": {
+          "name_zh": "音乐学",
+          "name_en": "Music",
+          "keywords_zh": [
+            "音乐",
+            "作曲",
+            "声乐",
+            "器乐",
+            "音乐教育"
+          ],
+          "keywords_en": [
+            "music",
+            "composition",
+            "vocal",
+            "instrumental",
+            "music education"
+          ]
+        },
+        "fine_arts": {
+          "name_zh": "美术学",
+          "name_en": "Fine Arts",
+          "keywords_zh": [
+            "美术",
+            "绘画",
+            "雕塑",
+            "油画",
+            "国画"
+          ],
+          "keywords_en": [
+            "fine arts",
+            "painting",
+            "sculpture",
+            "oil painting",
+            "Chinese painting"
+          ]
+        },
+        "design": {
+          "name_zh": "设计学",
+          "name_en": "Design",
+          "keywords_zh": [
+            "设计",
+            "工业设计",
+            "视觉传达",
+            "环境设计",
+            "交互设计"
+          ],
+          "keywords_en": [
+            "design",
+            "industrial design",
+            "visual communication",
+            "environmental design",
+            "interaction design"
+          ]
+        }
+      }
+    },
+    "science": {
+      "name_zh": "理学",
+      "name_en": "Science",
+      "name_ja": "理学",
+      "name_ko": "이학",
+      "name_fr": "Sciences",
+      "name_de": "Naturwissenschaften",
+      "name_es": "Ciencias",
+      "keywords_zh": [
+        "数学",
+        "物理",
+        "化学",
+        "生物",
+        "地理",
+        "天文",
+        "统计学"
+      ],
+      "keywords_en": [
+        "mathematics",
+        "physics",
+        "chemistry",
+        "biology",
+        "geography",
+        "astronomy",
+        "statistics"
+      ],
+      "keywords_ja": [
+        "数学",
+        "物理学",
+        "化学",
+        "生物学",
+        "地理学",
+        "天文学",
+        "統計学"
+      ],
+      "keywords_ko": [
+        "수학",
+        "물리학",
+        "화학",
+        "생물학",
+        "지리학",
+        "천문학",
+        "통계학"
+      ],
+      "keywords_fr": [
+        "mathematiques",
+        "physique",
+        "chimie",
+        "biologie",
+        "geographie",
+        "astronomie",
+        "statistiques"
+      ],
+      "keywords_de": [
+        "Mathematik",
+        "Physik",
+        "Chemie",
+        "Biologie",
+        "Geographie",
+        "Astronomie",
+        "Statistik"
+      ],
+      "keywords_es": [
+        "matematicas",
+        "fisica",
+        "quimica",
+        "biologia",
+        "geografia",
+        "astronomia",
+        "estadisticas"
+      ],
+      "subfields": {
+        "mathematics": {
+          "name_zh": "数学",
+          "name_en": "Mathematics",
+          "keywords_zh": [
+            "数学",
+            "代数",
+            "几何",
+            "分析",
+            "概率"
+          ],
+          "keywords_en": [
+            "mathematics",
+            "algebra",
+            "geometry",
+            "analysis",
+            "probability"
+          ]
+        },
+        "physics": {
+          "name_zh": "物理学",
+          "name_en": "Physics",
+          "keywords_zh": [
+            "物理",
+            "力学",
+            "电磁",
+            "量子",
+            "光学"
+          ],
+          "keywords_en": [
+            "physics",
+            "mechanics",
+            "electromagnetism",
+            "quantum",
+            "optics"
+          ]
+        },
+        "chemistry": {
+          "name_zh": "化学",
+          "name_en": "Chemistry",
+          "keywords_zh": [
+            "化学",
+            "有机",
+            "无机",
+            "分析化学",
+            "物理化学"
+          ],
+          "keywords_en": [
+            "chemistry",
+            "organic",
+            "inorganic",
+            "analytical chemistry",
+            "physical chemistry"
+          ]
+        },
+        "biology": {
+          "name_zh": "生物学",
+          "name_en": "Biology",
+          "keywords_zh": [
+            "生物",
+            "分子生物",
+            "细胞",
+            "遗传",
+            "生态"
+          ],
+          "keywords_en": [
+            "biology",
+            "molecular biology",
+            "cell",
+            "genetics",
+            "ecology"
+          ]
+        }
+      }
+    },
+    "agriculture": {
+      "name_zh": "农学",
+      "name_en": "Agriculture",
+      "name_ja": "農学",
+      "name_ko": "농학",
+      "name_fr": "Agronomie",
+      "name_de": "Agrarwissenschaften",
+      "name_es": "Agronomia",
+      "keywords_zh": [
+        "农学",
+        "林学",
+        "畜牧",
+        "兽医",
+        "水产",
+        "农业经济"
+      ],
+      "keywords_en": [
+        "agronomy",
+        "forestry",
+        "animal husbandry",
+        "veterinary",
+        "fisheries",
+        "agricultural economics"
+      ],
+      "keywords_ja": [
+        "農学",
+        "林学",
+        "畜産",
+        "獣医学",
+        "水産",
+        "農業経済"
+      ],
+      "keywords_ko": [
+        "농학",
+        "임학",
+        "축산",
+        "수의학",
+        "수산",
+        "농업 경제"
+      ],
+      "keywords_fr": [
+        "agronomie",
+        "sylviculture",
+        "elevage",
+        "medecine veterinaire",
+        "peche",
+        "economie agricole"
+      ],
+      "keywords_de": [
+        "Agronomie",
+        "Forstwirtschaft",
+        "Tierhaltung",
+        "Tiermedizin",
+        "Fischerei",
+        "Landwirtschaftliche Ökonomie"
+      ],
+      "keywords_es": [
+        "agronomia",
+        "silvicultura",
+        "ganaderia",
+        "veterinaria",
+        "pesca",
+        "economia agricola"
+      ],
+      "subfields": {
+        "agronomy": {
+          "name_zh": "农学",
+          "name_en": "Agronomy",
+          "keywords_zh": [
+            "作物",
+            "育种",
+            "栽培",
+            "植物保护"
+          ],
+          "keywords_en": [
+            "crop",
+            "breeding",
+            "cultivation",
+            "plant protection"
+          ]
+        },
+        "forestry": {
+          "name_zh": "林学",
+          "name_en": "Forestry",
+          "keywords_zh": [
+            "林业",
+            "森林",
+            "造林",
+            "森林经营"
+          ],
+          "keywords_en": [
+            "forestry",
+            "forest",
+            "afforestation",
+            "forest management"
+          ]
+        }
+      }
+    },
+    "library_science": {
+      "name_zh": "图书馆学",
+      "name_en": "Library Science",
+      "name_ja": "図書館学",
+      "name_ko": "도서관학",
+      "name_fr": "Sciences de l information et des bibliotheques",
+      "name_de": "Bibliotheks- und Informationswissenschaft",
+      "name_es": "Biblioteconomia",
+      "keywords_zh": [
+        "图书馆",
+        "档案",
+        "信息管理",
+        "知识管理",
+        "文献"
+      ],
+      "keywords_en": [
+        "library",
+        "archive",
+        "information management",
+        "knowledge management",
+        "documentation"
+      ],
+      "keywords_ja": [
+        "図書館",
+        "アーカイブズ",
+        "情報管理",
+        "知識管理",
+        "文献"
+      ],
+      "keywords_ko": [
+        "도서관",
+        "아카이브",
+        "정보 관리",
+        "지식 관리",
+        "문헌"
+      ],
+      "keywords_fr": [
+        "bibliotheque",
+        "archives",
+        "gestion de l information",
+        "gestion des connaissances",
+        "documentation"
+      ],
+      "keywords_de": [
+        "Bibliothek",
+        "Archiv",
+        "Informationsmanagement",
+        "Wissensmanagement",
+        "Dokumentation"
+      ],
+      "keywords_es": [
+        "biblioteca",
+        "archivo",
+        "gestion de la informacion",
+        "gestion del conocimiento",
+        "documentacion"
+      ],
+      "subfields": {
+        "library": {
+          "name_zh": "图书馆学",
+          "name_en": "Library Science",
+          "keywords_zh": [
+            "图书馆",
+            "编目",
+            "读者服务",
+            "数字图书馆"
+          ],
+          "keywords_en": [
+            "library",
+            "cataloging",
+            "reader services",
+            "digital library"
+          ]
+        },
+        "archival": {
+          "name_zh": "档案学",
+          "name_en": "Archival Science",
+          "keywords_zh": [
+            "档案",
+            "档案管理",
+            "档案保护",
+            "数字档案"
+          ],
+          "keywords_en": [
+            "archive",
+            "archival management",
+            "archival preservation",
+            "digital archive"
+          ]
+        }
+      }
+    },
+    "archaeology": {
+      "name_zh": "考古学",
+      "name_en": "Archaeology",
+      "name_ja": "考古学",
+      "name_ko": "고고학",
+      "name_fr": "Archeologie",
+      "name_de": "Archäologie",
+      "name_es": "Arqueologia",
+      "keywords_zh": [
+        "考古",
+        "文物",
+        "遗址",
+        "发掘",
+        "文物保护"
+      ],
+      "keywords_en": [
+        "archaeology",
+        "artifact",
+        "site",
+        "excavation",
+        "heritage preservation"
+      ],
+      "keywords_ja": [
+        "考古学",
+        "遺物",
+        "遺跡",
+        "発掘",
+        "文化財保護"
+      ],
+      "keywords_ko": [
+        "고고학",
+        "유물",
+        "유적",
+        "발굴",
+        "문화재 보호"
+      ],
+      "keywords_fr": [
+        "archeologie",
+        "artefact",
+        "site",
+        "fouilles",
+        "preservation du patrimoine"
+      ],
+      "keywords_de": [
+        "Archäologie",
+        "Artefakt",
+        "Fundstelle",
+        "Ausgrabung",
+        "Denkmalschutz"
+      ],
+      "keywords_es": [
+        "arqueologia",
+        "artefacto",
+        "sitio",
+        "excavacion",
+        "preservacion del patrimonio"
+      ],
+      "subfields": {}
+    },
+    "sports_science": {
+      "name_zh": "体育学",
+      "name_en": "Sports Science",
+      "name_ja": "体育学",
+      "name_ko": "체육학",
+      "name_fr": "Sciences du sport",
+      "name_de": "Sportwissenschaften",
+      "name_es": "Ciencias del Deporte",
+      "keywords_zh": [
+        "体育",
+        "运动",
+        "训练",
+        "体育教育",
+        "运动人体科学"
+      ],
+      "keywords_en": [
+        "sports",
+        "exercise",
+        "training",
+        "physical education",
+        "kinesiology"
+      ],
+      "keywords_ja": [
+        "体育",
+        "スポーツ",
+        "トレーニング",
+        "体育教育",
+        "運動人体科学"
+      ],
+      "keywords_ko": [
+        "체육",
+        "스포츠",
+        "트레이닝",
+        "체육 교육",
+        "운동 인체 과학"
+      ],
+      "keywords_fr": [
+        "sport",
+        "exercice",
+        "entrainement",
+        "education physique",
+        "cinesthesiologie"
+      ],
+      "keywords_de": [
+        "Sport",
+        "Bewegung",
+        "Training",
+        "Sportpädagogik",
+        "Bewegungswissenschaft"
+      ],
+      "keywords_es": [
+        "deportes",
+        "ejercicio",
+        "entrenamiento",
+        "educacion fisica",
+        "kinesiologia"
+      ],
+      "subfields": {}
+    }
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "version": "4.1",
+  "formats": {
+    "GB/T 7714": {
+      "name_zh": "GB/T 7714-2015（中国标准）",
+      "name_en": "GB/T 7714-2015 (Chinese Standard)",
+      "description_zh": "中国学术期刊、学位论文的引用格式标准",
+      "description_en": "Chinese standard for academic journals and dissertations",
+      "regions": ["CN"],
+      "disciplines": ["all"],
+      "examples": {
+        "journal": {
+          "zh": "[序号] 作者. 题名[J]. 刊名, 年, 卷(期): 起止页码.",
+          "en": "[No.] Author. Title[J]. Journal, Year, Vol(No): Pages."
+        },
+        "book": {
+          "zh": "[序号] 作者. 书名[M]. 出版地: 出版者, 年: 页码.",
+          "en": "[No.] Author. Book Title[M]. Place: Publisher, Year: Pages."
+        },
+        "dissertation": {
+          "zh": "[序号] 作者. 题名[D]. 保存地: 保存单位, 年.",
+          "en": "[No.] Author. Title[D]. Place: Institution, Year."
+        },
+        "conference": {
+          "zh": "[序号] 作者. 题名[C]//会议名. 出版地: 出版者, 年: 页码.",
+          "en": "[No.] Author. Title[C]//Conference. Place: Publisher, Year: Pages."
+        }
+      }
+    },
+    "APA 7th": {
+      "name_zh": "APA 第7版",
+      "name_en": "APA 7th Edition",
+      "description_zh": "美国心理学会引用格式，社会科学领域常用",
+      "description_en": "American Psychological Association format, common in social sciences",
+      "regions": ["US", "UK", "AU"],
+      "disciplines": ["psychology", "education", "management", "economics"],
+      "examples": {
+        "journal": {
+          "zh": "作者. (年). 题名. 刊名, 卷(期), 页码. DOI",
+          "en": "Author, A. A. (Year). Title of article. Journal Name, Volume(Issue), Pages. DOI"
+        },
+        "book": {
+          "zh": "作者. (年). 书名. 出版社.",
+          "en": "Author, A. A. (Year). Title of work: Capital letter also for subtitle. Publisher."
+        },
+        "dissertation": {
+          "zh": "作者. (年). 题名 [博士/硕士学位论文]. 学校.",
+          "en": "Author, A. A. (Year). Title of dissertation [Doctoral dissertation, Institution Name]. Database Name."
+        }
+      }
+    },
+    "MLA 9th": {
+      "name_zh": "MLA 第9版",
+      "name_en": "MLA 9th Edition",
+      "description_zh": "现代语言协会引用格式，人文学科常用",
+      "description_en": "Modern Language Association format, common in humanities",
+      "regions": ["US"],
+      "disciplines": ["literature", "art"],
+      "examples": {
+        "journal": {
+          "zh": "作者. \"题名.\" 刊名, 卷号, 期号, 年, 页码.",
+          "en": "Author. \"Title of Article.\" Journal Name, vol. #, no. #, Year, pp. ##-##."
+        },
+        "book": {
+          "zh": "作者. 书名. 出版社, 年.",
+          "en": "Author. Title of Book. Publisher, Year."
+        }
+      }
+    },
+    "IEEE": {
+      "name_zh": "IEEE 引用格式",
+      "name_en": "IEEE Citation Style",
+      "description_zh": "电气电子工程师学会引用格式，工程和计算机科学常用",
+      "description_en": "Institute of Electrical and Electronics Engineers format, common in engineering and CS",
+      "regions": ["US", "Global"],
+      "disciplines": ["cs", "engineering", "science"],
+      "examples": {
+        "journal": {
+          "zh": "[序号] 作者, \"题名,\" 刊名, vol. 卷, no. 期, pp. 页码, 月 年.",
+          "en": "[No.] A. Author, \"Title of article,\" Journal Name, vol. #, no. #, pp. ##-##, Month Year."
+        },
+        "conference": {
+          "zh": "[序号] 作者, \"题名,\" in 会议名, 年, pp. 页码.",
+          "en": "[No.] A. Author, \"Title of paper,\" in Conference Name, Year, pp. ##-##."
+        }
+      }
+    },
+    "Chicago": {
+      "name_zh": "芝加哥引用格式",
+      "name_en": "Chicago Style",
+      "description_zh": "芝加哥引用格式，历史学和部分社会科学常用",
+      "description_en": "Chicago style, common in history and some social sciences",
+      "regions": ["US", "UK"],
+      "disciplines": ["literature", "archaeology"],
+      "examples": {
+        "journal": {
+          "zh": "作者. \"题名.\" 刊名 卷, 期 (年): 页码.",
+          "en": "Author. \"Title.\" Journal Name Volume, no. Issue (Year): Pages."
+        },
+        "book": {
+          "zh": "作者. 书名. 出版地: 出版社, 年.",
+          "en": "Author. Title. Place: Publisher, Year."
+        }
+      }
+    },
+    "Vancouver": {
+      "name_zh": "温哥华引用格式",
+      "name_en": "Vancouver Style",
+      "description_zh": "生物医学领域常用引用格式",
+      "description_en": "Common citation style in biomedical fields",
+      "regions": ["Global"],
+      "disciplines": ["medical"],
+      "examples": {
+        "journal": {
+          "zh": "序号 作者. 题名. 刊名 年;卷(期):页码.",
+          "en": "No. Author. Title. Journal. Year;Volume(Issue):Pages."
+        }
+      }
+    }
+  },
+  "default_by_discipline": {
+    "cs": "IEEE",
+    "engineering": "IEEE",
+    "science": "IEEE",
+    "economics": "APA 7th",
+    "education": "APA 7th",
+    "management": "APA 7th",
+    "psychology": "APA 7th",
+    "law": "GB/T 7714",
+    "literature": "MLA 9th",
+    "art": "MLA 9th",
+    "medical": "Vancouver",
+    "agriculture": "GB/T 7714",
+    "library_science": "GB/T 7714",
+    "archaeology": "Chicago",
+    "sports_science": "APA 7th"
+  },
+  "default_by_region": {
+    "CN": "GB/T 7714",
+    "US": "APA 7th",
+    "UK": "APA 7th",
+    "JP": "GB/T 7714",
+    "KR": "GB/T 7714",
+    "DE": "Chicago",
+    "FR": "Chicago"
+  }
+}

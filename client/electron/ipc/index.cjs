@@ -13,6 +13,7 @@ const { registerRejectionCheckIpc } = require('./rejectionCheckIpc.cjs');
 const { registerSoftwareCopyrightIpc } = require('./softwareCopyrightIpc.cjs');
 const { registerTaskIpc } = require('./taskIpc.cjs');
 const { registerTechnicalPlanIpc } = require('./technicalPlanIpc.cjs');
+const { registerThesisTutorIpc } = require('./thesisTutorIpc.cjs');
 const { createAiService } = require('../services/aiService.cjs');
 const { createCodeGenerationService } = require('../services/codeGenerationService.cjs');
 const { createConfigStore } = require('../services/configStore.cjs');
@@ -29,6 +30,7 @@ const { createSoftwareCopyrightService } = require('../services/softwareCopyrigh
 const { createSqliteDatabase } = require('../services/sqliteDatabase.cjs');
 const { createTaskService } = require('../services/taskService.cjs');
 const { createTechnicalPlanStore } = require('../services/technicalPlanStore.cjs');
+const { createThesisTutorService } = require('../services/thesisTutorService.cjs');
 
 const latestReleaseApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases/latest';
 const releasesApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases';
@@ -418,6 +420,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const codeGenerationService = createCodeGenerationService({ app });
   const officialDocumentService = createOfficialDocumentService({ app, aiService, configStore });
   const patentGenerationService = createPatentGenerationService({ app, aiService });
+  const thesisTutorService = createThesisTutorService({ app, aiService, configStore });
 
   registerConfigIpc({ configStore, aiService });
   registerAiIpc({ aiService });
@@ -425,6 +428,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   registerExportIpc({ exportService });
   registerCodeGenerationIpc({ codeGenerationService });
   registerOfficialDocumentIpc({ officialDocumentService });
+  registerThesisTutorIpc({ thesisTutorService });
   registerSoftwareCopyrightIpc({ softwareCopyrightService: createSoftwareCopyrightService({ app, aiService, configStore, codeGenerationService }) });
   registerPatentGenerationIpc({ patentGenerationService });
 

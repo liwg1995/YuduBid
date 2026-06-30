@@ -66,6 +66,28 @@ const bridge = {
       return () => ipcRenderer.removeListener('official-document:event', listener);
     },
   },
+  thesisTutor: {
+    loadState: () => ipcRenderer.invoke('thesis-tutor:load-state'),
+    saveProfile: (profile) => ipcRenderer.invoke('thesis-tutor:save-profile', profile),
+    saveChapters: (payload) => ipcRenderer.invoke('thesis-tutor:save-chapters', payload),
+    saveReferences: (payload) => ipcRenderer.invoke('thesis-tutor:save-references', payload),
+    saveFeedback: (payload) => ipcRenderer.invoke('thesis-tutor:save-feedback', payload),
+    saveChecks: (payload) => ipcRenderer.invoke('thesis-tutor:save-checks', payload),
+    saveHistory: (payload) => ipcRenderer.invoke('thesis-tutor:save-history', payload),
+    saveProfileLock: (payload) => ipcRenderer.invoke('thesis-tutor:save-profile-lock', payload),
+    generate: (payload) => ipcRenderer.invoke('thesis-tutor:generate', payload),
+    saveDraft: (payload) => ipcRenderer.invoke('thesis-tutor:save-draft', payload),
+    importSource: () => ipcRenderer.invoke('thesis-tutor:import-source'),
+    exportWorkspace: () => ipcRenderer.invoke('thesis-tutor:export-workspace'),
+    importWorkspace: () => ipcRenderer.invoke('thesis-tutor:import-workspace'),
+    clear: () => ipcRenderer.invoke('thesis-tutor:clear'),
+    onEvent: (callback) => {
+      ipcRenderer.send('thesis-tutor:subscribe');
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('thesis-tutor:event', listener);
+      return () => ipcRenderer.removeListener('thesis-tutor:event', listener);
+    },
+  },
   knowledgeBase: {
     getMigrationStatus: () => ipcRenderer.invoke('knowledge-base:get-migration-status'),
     migrateLegacy: () => ipcRenderer.invoke('knowledge-base:migrate-legacy'),

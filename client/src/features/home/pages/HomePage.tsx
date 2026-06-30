@@ -4,13 +4,13 @@ interface HomePageProps {
   onNavigate: (section: SectionId) => void;
 }
 
-type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' | 'book' | 'document' | 'check';
+type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' | 'book' | 'document' | 'check' | 'thesis';
 
 const overviewStats: Array<{ label: string; value: string; detail: string; tone: string; icon: HomeIconName }> = [
-  { label: '核心工作区', value: '4组', detail: '招投标、公文、软著、专利', tone: 'blue', icon: 'flow' },
-  { label: 'AI生成链路', value: '8类', detail: '方案、正文、代码、交底书等', tone: 'violet', icon: 'spark' },
+  { label: '核心工作区', value: '5组', detail: '招投标、公文、论文、软著、专利', tone: 'blue', icon: 'flow' },
+  { label: 'AI生成链路', value: '15+类', detail: '方案、公文、论文辅导、代码、交底书等', tone: 'violet', icon: 'spark' },
   { label: '本地能力', value: '多项', detail: '文件解析、Word导出、SQLite工作区', tone: 'cyan', icon: 'archive' },
-  { label: '专利流程', value: '4步', detail: '挖掘、交底、查新、修订', tone: 'green', icon: 'patent' },
+  { label: '流程覆盖', value: '全周期', detail: '解析、生成、检查、修订、沉淀、导出', tone: 'green', icon: 'check' },
 ];
 
 const featureCards: Array<{ title: string; text: string; action: string; section: SectionId; tone: string; icon: HomeIconName; tags: string[] }> = [
@@ -22,6 +22,15 @@ const featureCards: Array<{ title: string; text: string; action: string; section
     tone: 'blue',
     icon: 'flow',
     tags: ['解析', '生成', '检查'],
+  },
+  {
+    title: '论文导师',
+    text: '从启动诊断、选题开题、文献综述、研究设计到逐章写作、答辩检查和格式查重，辅助论文全过程推进。',
+    action: '进入启动诊断',
+    section: 'thesis-diagnosis',
+    tone: 'amber',
+    icon: 'thesis',
+    tags: ['诊断', '综述', '写作'],
   },
   {
     title: '公文写作',
@@ -54,7 +63,7 @@ const featureCards: Array<{ title: string; text: string; action: string; section
 
 const workflowItems = [
   '先在设置中确认文本模型、文件解析和导出偏好。',
-  '导入项目或招标资料后，按页面步骤生成、检查、编辑和导出。',
+  '导入项目、招标、公文或论文材料后，按页面步骤生成、检查、编辑和导出。',
   '长任务在 Electron Main 后台执行，页面切换不会中断任务。',
   '关键结果保存在本机工作区，便于继续修订和留档。',
 ];
@@ -72,7 +81,7 @@ function HomePage({ onNavigate }: HomePageProps) {
         <div>
           <span className="section-kicker">首页</span>
           <h2>禹都 AI 解决方案助手</h2>
-          <p>一个面向投标资料、公文材料、软著材料、专利交底书和技术文档的本地 AI 工作台，把资料解析、生成、检查、修订和导出收拢到同一套桌面流程里。</p>
+          <p>一个面向招投标、公文写作、论文辅导、软著材料和专利交底的本地 AI 工作台，把资料解析、生成、检查、修订、沉淀和导出收拢到同一套桌面流程里。</p>
           <div className="home-signal-row" aria-label="工作台状态">
             {quickSignals.map((item) => (
               <span className={`home-signal is-${item.tone}`} key={item.label}>
@@ -203,6 +212,16 @@ function HomeIcon({ name }: { name: HomeIconName }) {
           <path d="M6 4.8h8.2a3.8 3.8 0 0 1 3.8 3.8v10.6H9.8A3.8 3.8 0 0 0 6 15.4z" />
           <path d="M6 15.4a3.8 3.8 0 0 1 3.8-3.8H18" />
           <path d="M9 8h5.2" />
+        </svg>
+      );
+    case 'thesis':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5.5 5.2h5.2c1.1 0 1.8.7 1.8 1.8v11.2c0-1.1-.7-1.8-1.8-1.8H5.5z" />
+          <path d="M18.5 5.2h-5.2c-1.1 0-1.8.7-1.8 1.8v11.2c0-1.1.7-1.8 1.8-1.8h5.2z" />
+          <path d="M8 8.8h2.2" />
+          <path d="M14 8.8h2.2" />
+          <path d="m15.4 13.1 1 1 2.2-2.5" />
         </svg>
       );
     case 'document':

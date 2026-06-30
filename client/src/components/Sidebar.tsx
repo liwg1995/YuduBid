@@ -12,13 +12,20 @@ interface SidebarProps {
 
 const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>> = {
   home: HomeIcon,
-  'technical-plan': DocumentIcon,
-  'existing-plan-expansion': DocumentIcon,
+  'technical-plan': TechnicalPlanIcon,
+  'existing-plan-expansion': PlanExpansionIcon,
   'business-bid': BriefcaseIcon,
-  'official-document-drafting': OfficialDocumentIcon,
-  'official-document-check': OfficialDocumentIcon,
-  'official-document-polish': OfficialDocumentIcon,
-  'official-document-templates': OfficialDocumentIcon,
+  'official-document-drafting': DraftingIcon,
+  'official-document-check': OfficialCheckIcon,
+  'official-document-polish': PolishIcon,
+  'official-document-templates': TemplateIcon,
+  'thesis-diagnosis': DiagnosisIcon,
+  'thesis-topic': TopicIcon,
+  'thesis-literature': LiteratureIcon,
+  'thesis-methodology': MethodologyIcon,
+  'thesis-writing': WritingIcon,
+  'thesis-review': ReviewIcon,
+  'thesis-format': FormatIcon,
   'code-generation': CodeIcon,
   'software-copyright': CertificateIcon,
   'patent-mining': PatentIdeaIcon,
@@ -224,6 +231,31 @@ function DocumentIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function TechnicalPlanIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M5.5 4.5h13v15h-13z" />
+      <path d="M8.3 8h7.4" />
+      <path d="M8.3 11.2h4.8" />
+      <path d="M8.3 14.4h3.2" />
+      <path d="m14.3 16.9 1.6 1.6 3-3.4" />
+    </svg>
+  );
+}
+
+function PlanExpansionIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6 5h8.2l3.8 3.8V19H6z" />
+      <path d="M14 5.3v3.8h3.7" />
+      <path d="M8.8 12h4.2" />
+      <path d="M8.8 15h3" />
+      <path d="M18.8 13.2v5.6" />
+      <path d="M16 16h5.6" />
+    </svg>
+  );
+}
+
 function BriefcaseIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
@@ -245,6 +277,141 @@ function OfficialDocumentIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M9 17.4h3.7" />
       <path d="M5 7.5h-1.2v11.2h1.2" />
       <path d="M20.2 8.8v10h-1.2" />
+    </svg>
+  );
+}
+
+function DraftingIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6.2 4.2h7.2l3.8 3.8v11.8h-11z" />
+      <path d="M13.2 4.5v3.8h3.7" />
+      <path d="M9 12h4.2" />
+      <path d="M9 15h2.4" />
+      <path d="m13.4 18.3 4.8-4.8 1.6 1.6-4.8 4.8-2.1.5z" />
+    </svg>
+  );
+}
+
+function OfficialCheckIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M7 4.5h10v15H7z" />
+      <path d="M9.3 8.2h5.4" />
+      <path d="M9.3 11.4h5.4" />
+      <path d="m9.2 15.8 1.4 1.4 3.5-3.8" />
+    </svg>
+  );
+}
+
+function PolishIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6.2 4.2h7.4l3.7 3.7v11.9H6.2z" />
+      <path d="M13.4 4.5v3.7h3.6" />
+      <path d="M8.9 13.5h4.2" />
+      <path d="M8.9 16.4h3.1" />
+      <path d="m16.4 11.2.55 1.25 1.25.55-1.25.55-.55 1.25-.55-1.25-1.25-.55 1.25-.55z" />
+      <path d="m8.4 8.6.35.8.8.35-.8.35-.35.8-.35-.8-.8-.35.8-.35z" />
+    </svg>
+  );
+}
+
+function TemplateIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M5 5h6v6H5z" />
+      <path d="M13 5h6v6h-6z" />
+      <path d="M5 13h6v6H5z" />
+      <path d="M13 13h6v6h-6z" />
+      <path d="M7 8h2" />
+      <path d="M15 8h2" />
+      <path d="M7 16h2" />
+      <path d="M15 16h2" />
+    </svg>
+  );
+}
+
+function DiagnosisIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M12 20.2a8.2 8.2 0 1 0 0-16.4 8.2 8.2 0 0 0 0 16.4Z" />
+      <path d="m14.8 8.2-1.2 4.4-4.4 1.2 1.2-4.4z" />
+      <path d="M12 12h.01" />
+    </svg>
+  );
+}
+
+function TopicIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z" />
+      <path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+      <path d="M12 12h.01" />
+      <path d="M18 6.2 20.5 4" />
+      <path d="M18.5 4h2v2" />
+    </svg>
+  );
+}
+
+function LiteratureIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M5.5 5.2h5.2c1.1 0 1.8.7 1.8 1.8v11.2c0-1.1-.7-1.8-1.8-1.8H5.5z" />
+      <path d="M18.5 5.2h-5.2c-1.1 0-1.8.7-1.8 1.8v11.2c0-1.1.7-1.8 1.8-1.8h5.2z" />
+      <path d="M8 8.8h2.2" />
+      <path d="M8 12h2.2" />
+      <path d="M14 8.8h2.2" />
+      <path d="M14 12h2.2" />
+    </svg>
+  );
+}
+
+function MethodologyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6.5 7.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" />
+      <path d="M17.5 7.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" />
+      <path d="M12 21.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" />
+      <path d="M8.3 6.5 11 16.9" />
+      <path d="M15.7 6.5 13 16.9" />
+      <path d="M8.7 5h6.6" />
+    </svg>
+  );
+}
+
+function WritingIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6.2 4.2h7.4l3.7 3.7v5" />
+      <path d="M6.2 4.2v15.6h6.2" />
+      <path d="M13.4 4.5v3.7h3.6" />
+      <path d="M8.9 12h4.6" />
+      <path d="M8.9 15h2.8" />
+      <path d="m14.2 18.6 4.7-4.7 1.6 1.6-4.7 4.7-2.1.5z" />
+    </svg>
+  );
+}
+
+function ReviewIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M5 5h14v9.5H9l-4 3.2z" />
+      <path d="M8.4 8.6h7.2" />
+      <path d="M8.4 11.5h4.4" />
+      <path d="m15.2 17.5 1.3 1.3 3-3.4" />
+    </svg>
+  );
+}
+
+function FormatIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6.5 4.2h11v15.6h-11z" />
+      <path d="M9 8h6" />
+      <path d="M9 11.2h6" />
+      <path d="M9 14.4h3" />
+      <path d="m14.2 17 1.3 1.3 3.1-3.5" />
     </svg>
   );
 }
