@@ -102,6 +102,7 @@ export interface YuDuBidBridge {
   startUpdate: () => Promise<UpdateCheckResult>;
   downloadReleaseInstaller: (payload: ReleaseInstallerDownloadRequest) => Promise<ReleaseInstallerDownloadResult>;
   installDownloadedRelease: () => Promise<{ success: boolean; message?: string }>;
+  showDownloadedRelease: () => Promise<{ success: boolean; path?: string; fileName?: string; version?: string; message?: string }>;
   quitAndInstall: () => Promise<void>;
   onUpdateProgress: (callback: (event: UpdateProgressEvent) => void) => () => void;
   onUpdateDownloaded: (callback: (event: { version: string }) => void) => () => void;

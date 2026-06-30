@@ -13489,10 +13489,11 @@ button {
   left: 50%;
   z-index: 101;
   display: grid;
+  grid-template-rows: auto minmax(120px, 1fr) auto auto auto;
   width: min(720px, calc(100vw - 40px));
   max-height: min(780px, calc(100vh - 40px));
   gap: 16px;
-  padding: 26px;
+  padding: 24px 26px 22px;
   color: var(--yb-text);
   overflow: hidden;
   background:
@@ -13551,7 +13552,7 @@ button {
 
 .release-detail-body {
   min-height: 120px;
-  max-height: min(420px, calc(100vh - 300px));
+  max-height: none;
   padding: 16px;
   overflow: auto;
   background: rgba(255, 255, 255, 0.78);
@@ -13564,6 +13565,10 @@ button {
 }
 
 .release-detail-download-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 10px 14px;
   color: var(--yb-primary);
   font-size: 13px;
@@ -13571,6 +13576,27 @@ button {
   background: rgba(33, 116, 253, 0.08);
   border: 1px solid rgba(33, 116, 253, 0.14);
   border-radius: 14px;
+}
+
+.release-detail-build-state span {
+  min-width: 0;
+}
+
+.release-detail-build-state button,
+.release-download-path-row button {
+  flex: 0 0 auto;
+  padding: 0;
+  color: var(--yb-primary);
+  font: inherit;
+  font-weight: 900;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.release-detail-build-state button:disabled {
+  color: var(--yb-text-muted);
+  cursor: default;
 }
 
 .release-download-progress {
@@ -13630,10 +13656,36 @@ button {
   font-size: 12px;
 }
 
-.release-detail-actions {
+.release-download-path-row {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
+  color: var(--yb-text-muted);
+  font-size: 12px;
+}
+
+.release-download-path-row span {
+  min-width: 0;
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.release-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.release-detail-actions .primary-action,
+.release-detail-actions .secondary-action {
+  min-height: 40px;
+  padding: 10px 18px;
+  white-space: nowrap;
 }
 
 .privacy-statement {

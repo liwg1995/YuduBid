@@ -16,6 +16,7 @@ interface ReleaseDownloadState {
   total: number;
   bytesPerSecond: number;
   fileName: string;
+  filePath: string;
   version: string;
   message: string;
 }
@@ -91,6 +92,7 @@ function createInitialReleaseDownloadState(partial: Partial<ReleaseDownloadState
     total: 0,
     bytesPerSecond: 0,
     fileName: '',
+    filePath: '',
     version: '',
     message: '',
     ...partial,
@@ -564,11 +566,21 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       }
 
       setLatestRelease(release);
-      setReleaseDownloadState(createInitialReleaseDownloadState({
-        fileName: release.download_name || '',
-        version: release.version,
-        total: findReleaseAssetSize(release),
-      }));
+      setReleaseDownloadState((prev) => {
+        const sameDownloadedPackage = prev.status === 'downloaded'
+          && prev.version === release.version
+          && Boolean(prev.filePath || prev.fileName);
+        return createInitialReleaseDownloadState({
+          status: sameDownloadedPackage ? 'downloaded' : 'idle',
+          percent: sameDownloadedPackage ? 100 : 0,
+          fileName: release.download_name || prev.fileName || '',
+          filePath: sameDownloadedPackage ? prev.filePath : '',
+          version: release.version,
+          total: findReleaseAssetSize(release),
+          transferred: sameDownloadedPackage ? prev.transferred : 0,
+          message: sameDownloadedPackage ? prev.message || '安装包已下载完成' : '',
+        });
+      });
       if (compareVersions(release.version, appVersion) > 0) {
         if (!isDirectReleaseDownloadUrl(release.download_url)) {
           showToast(`发现新版本 ${release.version}，安装包仍在构建或上传，请稍后重新检测`, 'info');
@@ -643,6 +655,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
         percent: 100,
         version: result.version || latestRelease.version,
         fileName: result.fileName || latestRelease.download_name || prev.fileName,
+        filePath: result.path || prev.filePath,
         message: result.message || '安装包已下载完成',
       }));
       showToast('安装包已下载完成，可立即安装', 'success');
@@ -668,6 +681,19 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       const message = error instanceof Error ? error.message : '启动安装程序失败';
       setReleaseDownloadState((prev) => ({ ...prev, status: 'downloaded', message }));
       showToast(message, 'error');
+    }
+  };
+
+  const showDownloadedRelease = async () => {
+    try {
+      const result = await window.yibiao?.showDownloadedRelease();
+      if (!result?.success) {
+        showToast(result?.message || '打开安装包所在文件夹失败', 'error');
+        return;
+      }
+      showToast(result.message || '已打开安装包所在文件夹', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '打开安装包所在文件夹失败', 'error');
     }
   };
 
@@ -1668,7 +1694,12 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
                   <div className="release-detail-download-name">已匹配当前系统安装包：{latestRelease.download_name}</div>
                 )}
                 {latestRelease && !latestDownloadUrl && (
-                  <div className="release-detail-download-name">当前系统安装包正在构建或上传，请稍后点击“检测版本”刷新状态。</div>
+                  <div className="release-detail-download-name release-detail-build-state">
+                    <span>当前系统安装包正在构建或上传，请稍后刷新状态。</span>
+                    <button type="button" onClick={() => { void checkLatestRelease(); }} disabled={checkingLatestRelease}>
+                      {checkingLatestRelease ? '刷新中...' : '刷新状态'}
+                    </button>
+                  </div>
                 )}
                 {releaseDownloadState.status !== 'idle' && latestDownloadUrl && (
                   <div className={`release-download-progress is-${releaseDownloadState.status}`}>
@@ -1685,10 +1716,29 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
                       {releaseDownloadState.message || releaseProgressText}
                       {releaseSpeedText ? ` · ${releaseSpeedText}` : ''}
                     </p>
+                    {releaseDownloaded && (
+                      <div className="release-download-path-row">
+                        <button type="button" onClick={() => { void showDownloadedRelease(); }}>
+                          最新安装包路径
+                        </button>
+                        <span title={releaseDownloadState.filePath || releaseDownloadState.fileName}>
+                          {releaseDownloadState.fileName || '打开所在文件夹'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="release-detail-actions">
                   <Dialog.Close className="secondary-action" type="button">稍后再说</Dialog.Close>
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    disabled={checkingLatestRelease || releaseDownloading || releaseInstalling}
+                    title="重新检测当前系统安装包是否已构建完成"
+                    onClick={() => { void checkLatestRelease(); }}
+                  >
+                    {checkingLatestRelease ? '刷新中...' : '刷新状态'}
+                  </button>
                   <button
                     type="button"
                     className="secondary-action"

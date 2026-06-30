@@ -10,6 +10,7 @@ const bridge = {
   startUpdate: () => ipcRenderer.invoke('app:start-update'),
   downloadReleaseInstaller: (payload) => ipcRenderer.invoke('app:download-release-installer', payload),
   installDownloadedRelease: () => ipcRenderer.invoke('app:install-downloaded-release'),
+  showDownloadedRelease: () => ipcRenderer.invoke('app:show-downloaded-release'),
   quitAndInstall: () => ipcRenderer.invoke('app:quit-and-install'),
   onUpdateProgress: (callback) => {
     const listener = (_event, payload) => callback(payload);

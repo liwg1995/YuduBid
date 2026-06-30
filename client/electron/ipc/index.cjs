@@ -412,7 +412,7 @@ function registerUnavailableTechnicalPlanIpc(error) {
   ipcMain.on('tasks:subscribe', () => {});
 }
 
-function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, installDownloadedRelease, quitAndInstall }) {
+function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall }) {
   const configStore = createConfigStore(app);
   const aiService = createAiService({ app, configStore });
   const fileService = createFileService({ app, configStore });
@@ -531,6 +531,19 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   });
 
   ipcMain.handle('app:install-downloaded-release', () => installDownloadedRelease({ app, mainWindow }));
+
+  ipcMain.handle('app:show-downloaded-release', () => {
+    const result = getDownloadedReleasePath();
+    if (!result.success || !result.path) {
+      return result;
+    }
+    try {
+      shell.showItemInFolder(result.path);
+      return { ...result, message: '已打开安装包所在文件夹' };
+    } catch (error) {
+      return { success: false, message: error?.message || '打开安装包所在文件夹失败' };
+    }
+  });
 }
 
 module.exports = {

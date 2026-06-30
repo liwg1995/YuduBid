@@ -612,6 +612,19 @@ async function installDownloadedRelease(options = {}) {
   return { success: false, message: '当前系统暂不支持包内安装' };
 }
 
+function getDownloadedReleasePath() {
+  const installerPath = updateState.releaseInstallerPath;
+  if (!installerPath || !fs.existsSync(installerPath)) {
+    return { success: false, message: '安装包尚未下载完成，请先下载更新' };
+  }
+  return {
+    success: true,
+    path: installerPath,
+    fileName: updateState.releaseInstallerName || path.basename(installerPath),
+    version: updateState.releaseInstallerVersion,
+  };
+}
+
 function quitAndInstall() {
   if (process.platform !== 'win32') {
     return getUnsupportedResult();
@@ -631,5 +644,6 @@ module.exports = {
   triggerUpdateDownload,
   downloadReleaseInstaller,
   installDownloadedRelease,
+  getDownloadedReleasePath,
   quitAndInstall,
 };
