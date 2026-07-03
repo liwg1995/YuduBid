@@ -3,7 +3,6 @@ import * as Popover from '@radix-ui/react-popover';
 import * as Switch from '@radix-ui/react-switch';
 import { Children, isValidElement, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Components } from 'react-markdown';
-import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { DetailHelpLink, MarkdownEditor, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { ClientConfig, ImageModelStatus, OutlineData, OutlineItem } from '../../../shared/types';
 import { countReadableWords } from '../../../shared/utils/wordCount';
@@ -690,15 +689,6 @@ function ContentEditPage({
         enableOriginalPlanCoverageAudit: isExpansionWorkflow && savedGenerationOptions.enableOriginalPlanCoverageAudit,
       },
     });
-    trackConfigUsage({
-      table_requirement: savedGenerationOptions.tableRequirement,
-      use_mermaid_images: savedGenerationOptions.useMermaidImages,
-      use_ai_images: nextImageModelAvailable && savedGenerationOptions.useAiImages,
-      content_concurrency: savedGenerationOptions.contentConcurrency,
-      content_generation_action: contentGenerationAction,
-      minimum_words: savedGenerationOptions.minimumWords,
-      enable_consistency_audit: savedGenerationOptions.enableConsistencyAudit,
-    }, config);
     setGenerationDialogOpen(false);
     setPendingMinimumWordsChoice(null);
     showToast(contentGenerationAction === 'retry_minimum_words' ? '正文补足字数任务已在后台启动' : regenerate ? '正文重新生成任务已在后台启动' : '正文生成任务已在后台启动', 'success');
@@ -804,15 +794,6 @@ function ContentEditPage({
           enableOriginalPlanCoverageAudit: isExpansionWorkflow && savedGenerationOptions.enableOriginalPlanCoverageAudit,
         },
       });
-      trackConfigUsage({
-        table_requirement: savedGenerationOptions.tableRequirement,
-        use_mermaid_images: savedGenerationOptions.useMermaidImages,
-        use_ai_images: nextImageModelAvailable && savedGenerationOptions.useAiImages,
-        content_concurrency: savedGenerationOptions.contentConcurrency,
-        content_generation_action: 'regenerate_section',
-        minimum_words: savedGenerationOptions.minimumWords,
-        enable_consistency_audit: savedGenerationOptions.enableConsistencyAudit,
-      }, config);
       selectItem(requirementItem.id);
       setRequirementItem(null);
       setRegenerateRequirement('');

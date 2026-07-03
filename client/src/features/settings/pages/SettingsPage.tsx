@@ -1,6 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
-import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type { ClientConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent } from '../../../shared/types';
@@ -737,7 +736,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       if (result?.success) {
         setSavedConfig(config);
         onDeveloperModeChange?.(Boolean(config.developer_mode));
-        trackConfigUsage({}, config);
       }
       return Boolean(result?.success);
     } catch (error) {
@@ -899,7 +897,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
         },
       }));
       setSavedConfig(testedConfig);
-      trackConfigUsage({}, testedConfig);
       const previewSrc = result?.image_url || (result?.image_data ? `data:${result.mime_type || 'image/png'};base64,${result.image_data}` : '');
 
       if (previewSrc) {
@@ -934,7 +931,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
         },
       }));
       setSavedConfig(failedConfig);
-      trackConfigUsage({}, failedConfig);
       showToast(message, 'error');
     } finally {
       setTestingImageModel(false);
@@ -1786,8 +1782,8 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
               </article>
               <article className="privacy-item">
                 <span>03</span>
-                <strong>匿名埋点只用于了解功能使用情况</strong>
-                <p>为了判断开源项目是否有人使用、哪些功能更常用，应用会把匿名页面访问和功能使用次数上报到 Cloudflare。统计不包含文档内容、文件名、本地路径、API Key、用户输入、生成结果或任何可还原业务内容的信息。</p>
+                <strong>本地纯净版不做使用上报</strong>
+                <p>应用不会生成匿名统计 ID，也不会上报页面访问、功能使用次数或 AI 请求统计。除你主动配置或触发的模型 API、文件解析服务、版本更新检查等业务请求外，软件不连接项目自有统计服务。</p>
               </article>
             </div>
           </div>

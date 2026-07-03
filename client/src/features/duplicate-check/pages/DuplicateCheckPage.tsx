@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { trackPageView } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, isLibreOfficeRequiredMessage, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type { DuplicateAnalysisStatus, DuplicateAnalysisTabId, DuplicateCheckStep, DuplicateCheckTaskState, DuplicateCheckWorkspaceState, DuplicateContentAnalysisState, DuplicateImageAnalysisState, DuplicateMetadataAnalysisState, DuplicateOutlineAnalysisState, LocalFileSelection } from '../../../shared/types';
@@ -606,7 +605,6 @@ function DuplicateCheckPage() {
   const [analysisTask, setAnalysisTask] = useState<DuplicateCheckTaskState | undefined>();
   const [startingAnalysis, setStartingAnalysis] = useState(false);
   const [busy, setBusy] = useState<'tender' | 'bid' | null>(null);
-  const [analyticsReady, setAnalyticsReady] = useState(false);
   const startedMetadataSignatureRef = useRef<string | null>(null);
   const currentAnalysisSignatureRef = useRef('');
   const hydratedRef = useRef(false);
@@ -643,14 +641,6 @@ function DuplicateCheckPage() {
       : '请先上传至少一份投标文件';
 
   useEffect(() => {
-    if (!analyticsReady) return;
-
-    trackPageView(step === 'analysis'
-      ? `duplicate-check/analysis/${activeAnalysisTab}`
-      : 'duplicate-check/upload');
-  }, [activeAnalysisTab, analyticsReady, step]);
-
-  useEffect(() => {
     let canceled = false;
 
     void window.yibiao?.duplicateCheck.loadState()
@@ -664,7 +654,6 @@ function DuplicateCheckPage() {
       .finally(() => {
         if (!canceled) {
           hydratedRef.current = true;
-          setAnalyticsReady(true);
         }
       });
 

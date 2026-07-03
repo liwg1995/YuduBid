@@ -2316,7 +2316,7 @@ function ProjectDictionarySelect({ value, options, placeholder, addLabel, onChan
   const [customMode, setCustomMode] = useState(false);
   const [draft, setDraft] = useState('');
   const [keyword, setKeyword] = useState('');
-  const normalizedOptions = useMemo(() => Array.from(new Set(options.map((item) => item.trim()).filter(Boolean))), [options]);
+  const normalizedOptions = useMemo(() => Array.from(new Set([...options, value].map((item) => item.trim()).filter(Boolean))), [options, value]);
   const visibleOptions = useMemo(() => {
     const query = keyword.trim().toLowerCase();
     if (!query) return normalizedOptions;

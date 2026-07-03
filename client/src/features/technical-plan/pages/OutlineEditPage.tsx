@@ -1,7 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { useToast } from '../../../shared/ui';
 import type { BackgroundTaskState, TechnicalPlanWorkflowKind } from '../types';
 import type { KnowledgeBaseIndex, KnowledgeDocument } from '../../knowledge-base/types';
@@ -260,7 +259,6 @@ function OutlineEditPage({
         mode: draftOutlineMode,
         reference_knowledge_document_ids: draftKnowledgeDocumentIds,
       });
-      trackConfigUsage({ outline_mode: draftOutlineMode });
       showToast('目录生成任务已在后台启动', 'success');
     } catch (error) {
       setStartingOutline(false);

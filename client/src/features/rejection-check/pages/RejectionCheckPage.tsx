@@ -1,7 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Switch from '@radix-ui/react-switch';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { trackPageView } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, isLibreOfficeRequiredMessage, MarkdownEditor, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type {
@@ -548,7 +547,6 @@ function RejectionCheckPage() {
   const [draftCheckOptions, setDraftCheckOptions] = useState<RejectionCheckOptions>(defaultCheckOptions);
   const [checkConfigDialogOpen, setCheckConfigDialogOpen] = useState(false);
   const [busy, setBusy] = useState<'technical-plan' | 'tender-upload' | 'bid-upload' | null>(null);
-  const [analyticsReady, setAnalyticsReady] = useState(false);
   const hydratedRef = useRef(false);
   const autoStartedSignatureRef = useRef('');
   const activeTaskTypesRef = useRef<Set<string> | null>(null);
@@ -639,17 +637,6 @@ function RejectionCheckPage() {
     && (logicCheckResult.findings.length || logicCheckResult.status !== 'idle'),
   );
 
-  useEffect(() => {
-    if (!analyticsReady) return;
-
-    const page = step === 'documents'
-      ? `rejection-check/documents/${activeDocumentTab}`
-      : step === 'items'
-        ? `rejection-check/items/${activeResultTab}`
-        : `rejection-check/results/${activeCheckResultTab}`;
-    trackPageView(page);
-  }, [activeCheckResultTab, activeDocumentTab, activeResultTab, analyticsReady, step]);
-
   function applyWorkspaceState(state: RejectionCheckWorkspaceState, options: { syncViewState?: boolean } = {}) {
     const syncViewState = options.syncViewState !== false;
     setTenderDocument(state.tenderDocument || null);
@@ -696,7 +683,6 @@ function RejectionCheckPage() {
       .finally(() => {
         if (!canceled) {
           hydratedRef.current = true;
-          setAnalyticsReady(true);
           if (activeTaskTypesRef.current) {
             markStaleTasksWithoutActive(activeTaskTypesRef.current);
           }

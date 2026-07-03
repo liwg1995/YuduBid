@@ -7,7 +7,6 @@ import GlobalFactsPage from './GlobalFactsPage';
 import ContentEditPage from './ContentEditPage';
 import { useTechnicalPlanWorkflow } from '../hooks/useTechnicalPlanWorkflow';
 import { getBidAnalysisTasks } from '../services/bidAnalysisWorkflow';
-import { trackPageView } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useToast } from '../../../shared/ui';
 import { countReadableWords } from '../../../shared/utils/wordCount';
 import type { BackgroundTaskState, BidAnalysisTasks, ContentGenerationOptions, ContentTableRequirement, GlobalFactGroupState, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
@@ -310,12 +309,6 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }:
           : activeIndex >= steps.length - 1
             ? '当前已经是最后一步'
             : `进入${stepLabels[steps[activeIndex + 1]]}`;
-
-  useEffect(() => {
-    if (!hydrated) return;
-
-    trackPageView(`${workflowKind}/${state.step}`);
-  }, [hydrated, state.step, workflowKind]);
 
   useEffect(() => {
     if (state.step !== 'expand') {

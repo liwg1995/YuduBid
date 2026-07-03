@@ -72,6 +72,4 @@ export interface ClientConfig extends AiConfig {
   file_parser: FileParserConfig;
   skill_settings?: SkillSettings;
   developer_mode?: boolean;
-  analytics_client_id?: string;
-  analytics_created_at?: string;
 }

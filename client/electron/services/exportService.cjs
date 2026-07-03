@@ -22,8 +22,10 @@ const {
   Packer,
   Paragraph,
   PageNumber,
+  NumberFormat,
   ShadingType,
   SimpleField,
+  SectionType,
   Table,
   TableCell,
   TableLayoutType,
@@ -717,13 +719,13 @@ function createProjectManagementCover(payload = {}) {
     paragraph([textRun('项目管理文档', { font: '楷体_GB2312', bold: true, size: 48, color: '000000', cleanMarkdown: true })], {
       alignment: AlignmentType.CENTER,
       indent: { left: 0, right: 0, firstLine: 0 },
-      before: 900,
-      after: 260,
+      before: 560,
+      after: 220,
     }),
     paragraph([textRun(documentTitle, { font: '楷体_GB2312', bold: true, size: 38, color: '000000', cleanMarkdown: true })], {
       alignment: AlignmentType.CENTER,
       indent: { left: 0, right: 0, firstLine: 0 },
-      after: 720,
+      after: 420,
     }),
     new Table({
       width: { size: coverTableColumnWidths.reduce((sum, width) => sum + width, 0), type: WidthType.DXA },
@@ -742,15 +744,15 @@ function createProjectManagementCover(payload = {}) {
         children: [
           new TableCell({
             width: { size: coverTableColumnWidths[0], type: WidthType.DXA },
-            margins: { top: 160, bottom: 160, left: 180, right: 180 },
+            margins: { top: 110, bottom: 110, left: 180, right: 180 },
             verticalAlign: VerticalAlign.CENTER,
-            children: [paragraph([textRun(label, { font: '楷体_GB2312', bold: true, size: 28, color: '000000', cleanMarkdown: true })], projectManagementParagraphOptions({ alignment: AlignmentType.CENTER }))],
+            children: [paragraph([textRun(label, { font: '楷体_GB2312', bold: true, size: 26, color: '000000', cleanMarkdown: true })], projectManagementParagraphOptions({ alignment: AlignmentType.CENTER }))],
           }),
           new TableCell({
             width: { size: coverTableColumnWidths[1], type: WidthType.DXA },
-            margins: { top: 160, bottom: 160, left: 220, right: 220 },
+            margins: { top: 110, bottom: 110, left: 220, right: 220 },
             verticalAlign: VerticalAlign.CENTER,
-            children: [paragraph([textRun(value, { font: '仿宋_GB2312', size: 28, color: '000000', cleanMarkdown: true })], projectManagementParagraphOptions())],
+            children: [paragraph([textRun(value, { font: '仿宋_GB2312', size: 26, color: '000000', cleanMarkdown: true })], projectManagementParagraphOptions())],
           }),
         ],
       })),
@@ -758,10 +760,9 @@ function createProjectManagementCover(payload = {}) {
     paragraph([textRun('请在 Word/WPS 中更新目录域后定稿归档', { font: '仿宋_GB2312', size: 22, color: '666666', cleanMarkdown: true })], {
       alignment: AlignmentType.CENTER,
       indent: { left: 0, right: 0, firstLine: 0 },
-      before: 680,
+      before: 360,
       after: 0,
     }),
-    pageBreakParagraph(),
   ];
 }
 
@@ -778,8 +779,51 @@ function createProjectManagementTocPage() {
       useAppliedParagraphOutlineLevel: true,
       stylesWithLevels: [1, 2, 3, 4].map((level) => ({ styleName: `Heading${level}`, level })),
     }),
-    pageBreakParagraph(),
   ];
+}
+
+function projectManagementPageMargin() {
+  return { top: 2098, right: 1475, bottom: 1890, left: 1587 };
+}
+
+function centeredPageNumberFooter(options = {}) {
+  return new Footer({
+    children: [
+      paragraph([new TextRun({
+        children: [PageNumber.CURRENT],
+        font: options.font || 'Times New Roman',
+        size: options.size || 18,
+        color: '000000',
+      })], {
+        alignment: AlignmentType.CENTER,
+        indent: { left: 0, right: 0 },
+        tabStops: [],
+        before: 0,
+        after: 0,
+      }),
+    ],
+  });
+}
+
+function createProjectManagementTocStyles() {
+  return [1, 2, 3, 4].map((level) => ({
+    id: `TOC${level}`,
+    name: `TOC ${level}`,
+    basedOn: 'Normal',
+    next: 'Normal',
+    semiHidden: true,
+    unhideWhenUsed: true,
+    paragraph: {
+      spacing: { before: 0, after: 0, line: 420, lineRule: LineRuleType.EXACTLY },
+      indent: { left: 0, right: 0, firstLine: 0, hanging: 0 },
+      rightTabStop: 9350,
+    },
+    run: {
+      font: '仿宋_GB2312',
+      size: level === 1 ? 28 : 26,
+      color: '000000',
+    },
+  }));
 }
 
 function tableBorders(optimized = false, projectManagementDocument = false) {
@@ -2167,11 +2211,10 @@ async function buildDocxResult(payload, options = {}) {
     lastParagraphText: '',
     recentParagraphTexts: [],
   };
+  const coverChildren = projectManagementDocumentEnabled ? createProjectManagementCover(payload) : [];
+  const tocChildren = projectManagementDocumentEnabled ? createProjectManagementTocPage() : [];
   const children = projectManagementDocumentEnabled
-    ? [
-        ...createProjectManagementCover(payload),
-        ...createProjectManagementTocPage(),
-      ]
+    ? []
     : officialDocumentEnabled
     ? []
     : wordOptimizationEnabled
@@ -2227,6 +2270,58 @@ async function buildDocxResult(payload, options = {}) {
         },
       }
     : undefined;
+  const sections = projectManagementDocumentEnabled
+    ? [
+        {
+          properties: {
+            type: SectionType.NEXT_PAGE,
+            page: {
+              margin: projectManagementPageMargin(),
+            },
+          },
+          children: coverChildren,
+        },
+        {
+          properties: {
+            type: SectionType.NEXT_PAGE,
+            page: {
+              margin: projectManagementPageMargin(),
+              pageNumbers: { start: 1, formatType: NumberFormat.UPPER_ROMAN },
+            },
+          },
+          footers: {
+            default: centeredPageNumberFooter(),
+          },
+          children: tocChildren,
+        },
+        {
+          properties: {
+            type: SectionType.NEXT_PAGE,
+            page: {
+              margin: projectManagementPageMargin(),
+              pageNumbers: { start: 1, formatType: NumberFormat.DECIMAL },
+            },
+          },
+          footers: {
+            default: centeredPageNumberFooter(),
+          },
+          children,
+        },
+      ]
+    : [{
+        properties: {
+          page: {
+            margin: officialDocumentEnabled
+              ? { top: 2098, right: 1475, bottom: 1890, left: 1587 }
+              : { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+          },
+        },
+        footers: wordOptimizationEnabled ? {
+          default: centeredPageNumberFooter(),
+        } : undefined,
+        children,
+      }];
+
   const doc = new Document({
     ...(numbering ? { numbering } : {}),
     ...(wordOptimizationEnabled || projectManagementDocumentEnabled ? { features: { updateFields: true } } : {}),
@@ -2243,40 +2338,20 @@ async function buildDocxResult(payload, options = {}) {
         },
       },
       ...(wordOptimizationEnabled || projectManagementDocumentEnabled ? {
-        paragraphStyles: [1, 2, 3, 4, 5].map((level) => ({
-          id: `Heading${level}`,
-          name: `Heading ${level}`,
-          ...optimizedHeadingStyle,
-          run: projectManagementDocumentEnabled
-            ? { font: '楷体_GB2312', size: level === 1 ? 32 : level === 2 ? 30 : 28, bold: true, color: '000000' }
-            : optimizedHeadingStyle.run,
-        })),
+        paragraphStyles: [
+          ...[1, 2, 3, 4, 5].map((level) => ({
+            id: `Heading${level}`,
+            name: `Heading ${level}`,
+            ...optimizedHeadingStyle,
+            run: projectManagementDocumentEnabled
+              ? { font: '楷体_GB2312', size: level === 1 ? 32 : level === 2 ? 30 : 28, bold: true, color: '000000' }
+              : optimizedHeadingStyle.run,
+          })),
+          ...(projectManagementDocumentEnabled ? createProjectManagementTocStyles() : []),
+        ],
       } : {}),
     },
-    sections: [{
-      properties: {
-        page: {
-          margin: officialDocumentEnabled
-            || projectManagementDocumentEnabled
-            ? { top: 2098, right: 1475, bottom: 1890, left: 1587 }
-            : { top: 1440, right: 1440, bottom: 1440, left: 1440 },
-        },
-      },
-      footers: wordOptimizationEnabled ? {
-        default: new Footer({
-          children: [
-            paragraph([new TextRun({ children: [PageNumber.CURRENT], font: 'Times New Roman', size: 18, color: '000000' })], {
-              alignment: AlignmentType.CENTER,
-              indent: { left: 0, right: 0 },
-              tabStops: [],
-              before: 0,
-              after: 0,
-            }),
-          ],
-        }),
-      } : undefined,
-      children,
-    }],
+    sections,
   });
 
   return { buffer: await Packer.toBuffer(doc), warnings: context.warnings, stats };

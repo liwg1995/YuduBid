@@ -3,7 +3,7 @@
 ## 范围
 - `archive/` 是归档的历史数据，不要读取，完全忽略掉即可。
 - 当前有效产品代码在 `client/`；
-- `analytics/` 是独立 Cloudflare Workers 埋点服务，用于统计、分析、查看`client/`中提交的埋点信息。
+- 本仓库为本地纯净版，不包含埋点上报、远程统计服务或远程公告服务。
 
 ## Client
 - 开发Client前，必须先阅读`client/开发说明.md`，保持框架风格一致性。
@@ -45,12 +45,10 @@
 - Release CI 使用 Node 22，在 `client/` 下 `npm ci`，从 tag 同步 `package.json` 版本，再用 `electron-builder --publish never` 构建并由 `gh release upload` 上传产物。
 - 当前未接入代码签名；Windows/macOS 未签名提示是已知发布约束，不要在普通功能改动里临时绕过。
 
-## Analytics
-- Worker：`cd analytics\worker; npm install; npm run dev` 或 `npm run deploy`。
-- Dashboard：`cd analytics\dashboard; npm install; npm run dev` 或 `npm run deploy`。
-- `analytics/scripts/deploy-if-changed.mjs` 在 Cloudflare Workers CI 下只部署对应目录变化；强制部署用 `FORCE_DEPLOY=1 npm run deploy`。
-- 不把 `ACCOUNT_ID`、`ADMIN_TOKEN`、`ANALYTICS_API_TOKEN` 等密钥写入仓库；Worker 配置保留 `keep_vars: true`，不要在 `wrangler.jsonc` 增加 `secrets.required`。
-- 禁止删除、绕过或弱化任何埋点、统计、Analytics Dashboard 展示和 Worker 聚合逻辑；如确需调整，必须等价保留统计能力并说明影响。
+## 本地纯净版
+- 不新增埋点上报、远程统计、Analytics Dashboard 或远程公告依赖。
+- 客户端不生成匿名统计 ID，不向项目自有服务器上报页面访问、功能使用或 AI 请求统计。
+- 如需联网能力，仅限用户主动配置或触发的业务服务，例如模型 API、文件解析服务、版本更新检查等。
 
 ## 开发规范
 - 尽量保持整体编码风格的统一。

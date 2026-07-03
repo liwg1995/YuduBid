@@ -1,6 +1,5 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
 const { getConfigFilePath } = require('../utils/paths.cjs');
 
 const textModelProviders = ['agnes-ai', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
@@ -112,17 +111,7 @@ const defaultConfig = {
     },
   },
   developer_mode: false,
-  analytics_client_id: '',
-  analytics_created_at: '',
 };
-
-function createAnalyticsClientId() {
-  return crypto.randomUUID();
-}
-
-function createAnalyticsCreatedAt() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function isTextModelProvider(value) {
   return textModelProviders.includes(value);
@@ -250,8 +239,6 @@ function normalizeConfig(config) {
     },
     skill_settings: normalizeSkillSettings(source.skill_settings),
     developer_mode: source.developer_mode === undefined ? defaultConfig.developer_mode : Boolean(source.developer_mode),
-    analytics_client_id: source.analytics_client_id || defaultConfig.analytics_client_id,
-    analytics_created_at: source.analytics_created_at || defaultConfig.analytics_created_at,
   };
 }
 
@@ -263,18 +250,6 @@ function createConfigStore(app) {
     fs.writeFileSync(configFile, JSON.stringify(config, null, 2), 'utf-8');
   }
 
-  function withAnalyticsIdentity(config) {
-    if (config.analytics_client_id && config.analytics_created_at) {
-      return config;
-    }
-
-    return {
-      ...config,
-      analytics_client_id: config.analytics_client_id || createAnalyticsClientId(),
-      analytics_created_at: config.analytics_created_at || createAnalyticsCreatedAt(),
-    };
-  }
-
   return {
     getConfigFilePath() {
       return configFile;
@@ -282,7 +257,7 @@ function createConfigStore(app) {
 
     load() {
       if (!fs.existsSync(configFile)) {
-        const config = withAnalyticsIdentity(normalizeConfig());
+        const config = normalizeConfig();
         persist(config);
         return config;
       }
@@ -291,11 +266,10 @@ function createConfigStore(app) {
         const raw = fs.readFileSync(configFile, 'utf-8');
         const parsedConfig = JSON.parse(raw);
         const config = normalizeConfig(parsedConfig);
-        const nextConfig = withAnalyticsIdentity(config);
-        if (JSON.stringify(parsedConfig) !== JSON.stringify(nextConfig)) {
-          persist(nextConfig);
+        if (JSON.stringify(parsedConfig) !== JSON.stringify(config)) {
+          persist(config);
         }
-        return nextConfig;
+        return config;
       } catch (error) {
         throw new Error(`配置文件读取失败：${error.message}`);
       }
@@ -306,7 +280,7 @@ function createConfigStore(app) {
         const currentConfig = fs.existsSync(configFile)
           ? normalizeConfig(JSON.parse(fs.readFileSync(configFile, 'utf-8')))
           : normalizeConfig();
-        const nextConfig = withAnalyticsIdentity(normalizeConfig({
+        const nextConfig = normalizeConfig({
           ...currentConfig,
           ...config,
           text_model_profiles: {
@@ -317,9 +291,7 @@ function createConfigStore(app) {
             ...currentConfig.image_model_profiles,
             ...(config && config.image_model_profiles ? config.image_model_profiles : {}),
           },
-          analytics_client_id: config?.analytics_client_id || currentConfig.analytics_client_id,
-          analytics_created_at: config?.analytics_created_at || currentConfig.analytics_created_at,
-        }));
+        });
         persist(nextConfig);
         return { success: true, message: '配置已保存', config_path: configFile };
       } catch (error) {

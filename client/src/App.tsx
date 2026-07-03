@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import AppRouter from './app/AppRouter';
 import StartupSplash from './app/StartupSplash';
-import UpdateNotifier from './app/UpdateNotifier';
 import AppShell from './components/AppShell';
-import { trackAppOpen, trackConfigUsage, trackPageView } from './shared/analytics/analytics';
 import type { SectionId } from './shared/types/navigation';
 
 const sectionIds = new Set<SectionId>([
@@ -105,15 +103,12 @@ function App() {
       }, 260);
     };
 
-    trackAppOpen();
-
     const configPromise = window.yibiao?.config.load?.() ?? Promise.resolve(null);
 
     void configPromise
       .then((config) => {
         if (!alive) return;
         setDeveloperMode(Boolean(config?.developer_mode));
-        trackConfigUsage({}, config);
       })
       .catch((error) => console.warn('读取启动配置失败', error))
       .finally(() => {
@@ -136,10 +131,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    trackPageView(activeSection);
-  }, [activeSection]);
-
-  useEffect(() => {
     if (!developerMode && activeSection === 'developer-test') {
       setActiveSection('technical-plan');
     }
@@ -147,7 +138,6 @@ function App() {
 
   return (
     <>
-      <UpdateNotifier />
       {!startupDone && <StartupSplash progress={startupProgress} message={startupMessage} />}
       <AppShell
         activeSection={activeSection}
