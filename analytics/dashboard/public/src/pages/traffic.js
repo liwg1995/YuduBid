@@ -12,6 +12,7 @@ const pageLabels = {
   'technical-plan/content-edit': '技术方案 - 生成正文',
   'technical-plan/expand': '技术方案 - 扩写改写',
   'business-bid': '商务标',
+  'project-management': '项目管理',
   'official-document-drafting': '公文写作 - 智能起草',
   'official-document-check': '公文写作 - 格式检查',
   'official-document-polish': '公文写作 - 润色改写',

@@ -11,6 +11,9 @@ import PatentDisclosurePage from '../features/patent-generation/pages/PatentDisc
 import PatentIterationPage from '../features/patent-generation/pages/PatentIterationPage';
 import PatentMiningPage from '../features/patent-generation/pages/PatentMiningPage';
 import PatentPriorArtPage from '../features/patent-generation/pages/PatentPriorArtPage';
+import ProjectHistoryPage from '../features/project-management/pages/ProjectHistoryPage';
+import ProjectManagementPage from '../features/project-management/pages/ProjectManagementPage';
+import ProjectTypesPage from '../features/project-management/pages/ProjectTypesPage';
 import RejectionCheckPage from '../features/rejection-check/pages/RejectionCheckPage';
 import SettingsPage from '../features/settings/pages/SettingsPage';
 import SoftwareCopyrightPage from '../features/software-copyright/pages/SoftwareCopyrightPage';
@@ -33,6 +36,12 @@ function AppRouter({ activeSection, onSectionChange, onDeveloperModeChange }: Ap
       return <TechnicalPlanHome workflowKind="existing-plan-expansion" onSectionChange={onSectionChange} />;
     case 'business-bid':
       return <BusinessBidPage />;
+    case 'project-management':
+      return <ProjectManagementPage />;
+    case 'project-types':
+      return <ProjectTypesPage />;
+    case 'project-history':
+      return <ProjectHistoryPage onNavigate={onSectionChange} />;
     case 'official-document-drafting':
       return <OfficialDocumentDraftingPage initialPanel="drafting" onNavigate={onSectionChange} />;
     case 'official-document-check':

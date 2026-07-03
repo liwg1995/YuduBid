@@ -4,10 +4,10 @@ interface HomePageProps {
   onNavigate: (section: SectionId) => void;
 }
 
-type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' | 'book' | 'document' | 'check' | 'thesis';
+type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' | 'book' | 'document' | 'check' | 'thesis' | 'project';
 
 const overviewStats: Array<{ label: string; value: string; detail: string; tone: string; icon: HomeIconName }> = [
-  { label: '核心工作区', value: '5组', detail: '招投标、公文、论文、软著、专利', tone: 'blue', icon: 'flow' },
+  { label: '核心工作区', value: '6组', detail: '招投标、公文、项目、论文、软著、专利', tone: 'blue', icon: 'flow' },
   { label: 'AI生成链路', value: '15+类', detail: '方案、公文、论文辅导、代码、交底书等', tone: 'violet', icon: 'spark' },
   { label: '本地能力', value: '多项', detail: '文件解析、Word导出、SQLite工作区', tone: 'cyan', icon: 'archive' },
   { label: '流程覆盖', value: '全周期', detail: '解析、生成、检查、修订、沉淀、导出', tone: 'green', icon: 'check' },
@@ -40,6 +40,15 @@ const featureCards: Array<{ title: string; text: string; action: string; section
     tone: 'green',
     icon: 'document',
     tags: ['公文', '润色', '导出'],
+  },
+  {
+    title: '项目管理',
+    text: '围绕项目启动、需求 PRD、排期推进、风险问题、汇报回款、复盘沉淀和合规本土化建立项目管理工作台。',
+    action: '进入项目管理',
+    section: 'project-management',
+    tone: 'blue',
+    icon: 'project',
+    tags: ['计划', '推进', '合规'],
   },
   {
     title: '软件著作材料',
@@ -222,6 +231,19 @@ function HomeIcon({ name }: { name: HomeIconName }) {
           <path d="M8 8.8h2.2" />
           <path d="M14 8.8h2.2" />
           <path d="m15.4 13.1 1 1 2.2-2.5" />
+        </svg>
+      );
+    case 'project':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 5.2h14v13.6H5z" />
+          <path d="M8.2 8.4h7.6" />
+          <path d="M8.2 12h3.5" />
+          <path d="M14.1 12h1.7" />
+          <path d="M8.2 15.6h3.5" />
+          <path d="M14.1 15.6h1.7" />
+          <path d="M6.8 3.8v2.6" />
+          <path d="M17.2 3.8v2.6" />
         </svg>
       );
     case 'document':

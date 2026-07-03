@@ -18,6 +18,7 @@ const {
   LevelFormat,
   LevelSuffix,
   LineRuleType,
+  PageBreak,
   Packer,
   Paragraph,
   PageNumber,
@@ -26,6 +27,7 @@ const {
   Table,
   TableCell,
   TableLayoutType,
+  TableOfContents,
   TableRow,
   TextRun,
   UnderlineType,
@@ -38,14 +40,17 @@ const NUMBERING_REFERENCE_PREFIX = 'technical-plan-numbering';
 const DOCX_TABLE_WIDTH_TWIPS = 9000;
 const REMOTE_IMAGE_FETCH_TIMEOUT_MS = 12000;
 const MERMAID_EXPORT_FETCH_TIMEOUT_MS = 8000;
-const MERMAID_EXPORT_RETRY_ATTEMPTS = 1;
+const MERMAID_EXPORT_RETRY_ATTEMPTS = 6;
 const MERMAID_EXPORT_RETRY_DELAY_MS = 1000;
 const WORD_OPTIMIZATION_HEADING_REFERENCE = 'word-optimization-heading-numbering';
 const WORD_OPTIMIZATION_IMAGE_MAX_WIDTH = 520;
 const WORD_OPTIMIZATION_IMAGE_MAX_HEIGHT = 620;
+const PROJECT_MANAGEMENT_IMAGE_MAX_WIDTH = 560;
+const PROJECT_MANAGEMENT_IMAGE_MAX_HEIGHT = 620;
 const WORD_OPTIMIZATION_TABLE_SEQ_ID = 'YDBTable';
 const WORD_OPTIMIZATION_FIGURE_SEQ_ID = 'YDBFigure';
 const WORD_TWO_CHARS_TWIPS = 480;
+const PROJECT_MANAGEMENT_TABLE_FONT_SIZE = 24;
 
 function encodeMermaidForInk(code) {
   const state = JSON.stringify({
@@ -57,6 +62,53 @@ function encodeMermaidForInk(code) {
 
 function mermaidInkUrl(code) {
   return `https://mermaid.ink/img/${encodeMermaidForInk(code)}?type=png&bgColor=!white`;
+}
+
+function horizontalizeMermaidForProjectManagement(code) {
+  const source = String(code || '');
+  return source.replace(
+    /^(\s*(?:graph|flowchart))\s+(TD|TB|BT)\b/im,
+    (_match, prefix) => `${prefix} LR`,
+  );
+}
+
+function normalizeXyChartMermaidForExport(code) {
+  let source = String(code || '').replace(/\r\n?/g, '\n').trim();
+  if (!/^\s*xychart-beta\b/i.test(source)) {
+    return source;
+  }
+
+  source = source
+    .replace(/^\s*xychart-beta\s+/i, 'xychart-beta\n')
+    .replace(/[ \t]+(title|x-axis|y-axis|line|bar)\b/g, '\n$1')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+
+  source = source.replace(/^(\s*title\s+)(?!["'])(.+)$/gim, (_match, prefix, title) => {
+    const cleanTitle = String(title || '').trim().replace(/^["']|["']$/g, '');
+    return `${prefix}"${cleanTitle}"`;
+  });
+
+  source = source.replace(/^(\s*y-axis\s+)(?!["'\[])(.+?)\s+(-?\d+(?:\.\d+)?\s*-->\s*-?\d+(?:\.\d+)?)\s*$/gim, (_match, prefix, label, range) => {
+    const cleanLabel = String(label || '').trim().replace(/^["']|["']$/g, '');
+    return `${prefix}"${cleanLabel}" ${range}`;
+  });
+
+  return source;
+}
+
+function normalizeMermaidForProjectManagementExport(code) {
+  return normalizeXyChartMermaidForExport(horizontalizeMermaidForProjectManagement(code));
+}
+
+function looksLikeMarkdownTemplate(value) {
+  const source = String(value || '').trim();
+  if (!source) return false;
+  return /^#{1,6}\s+\S/m.test(source)
+    || /^\|.+\|$/m.test(source)
+    || /^\s*[-*]\s+\S/m.test(source)
+    || /\*\*[^*]+\*\*/.test(source)
+    || /(?:会议纪要|变更申请单|Action Items|Change Request)/i.test(source);
 }
 
 function delay(ms) {
@@ -523,8 +575,9 @@ function isWordOptimizationEnabled(config) {
 }
 
 function textRun(text, options = {}) {
+  const sourceText = options.cleanMarkdown ? stripInlineMarkdownMarkers(text) : text;
   return new TextRun({
-    text: cleanText(text),
+    text: cleanText(sourceText),
     font: options.font || '宋体',
     size: options.size || 24,
     bold: options.bold,
@@ -535,8 +588,26 @@ function textRun(text, options = {}) {
   });
 }
 
+function stripInlineMarkdownMarkers(value) {
+  return String(value || '')
+    .replace(/!\[([^\]]*)]\([^)]+\)/g, '$1')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/\*{2,}/g, '')
+    .replace(/_{2,}/g, '');
+}
+
 function lineBreakRun() {
   return new TextRun({ break: 1 });
+}
+
+function pageBreakParagraph() {
+  return paragraph([new PageBreak()], { indent: { left: 0, right: 0, firstLine: 0 }, before: 0, after: 0 });
 }
 
 function textRunsWithBreaks(value, options = {}) {
@@ -558,19 +629,22 @@ function textRunsWithBreaks(value, options = {}) {
 function paragraph(children, options = {}) {
   const optimized = Boolean(options.optimized);
   const officialDocument = Boolean(options.officialDocument);
-  const spacing = optimized
+  const projectManagementDocument = Boolean(options.projectManagementDocument);
+  const formalDocument = officialDocument || projectManagementDocument;
+  const defaultSpacing = optimized
     ? { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY }
-    : officialDocument
+    : formalDocument
       ? { before: options.before || 0, after: options.after ?? 0, line: 560, lineRule: LineRuleType.EXACTLY }
     : { before: options.before || 0, after: options.after ?? 160, line: 360 };
-  const indent = (optimized || officialDocument) && options.indent === undefined
+  const spacing = options.spacing || defaultSpacing;
+  const indent = (optimized || formalDocument) && options.indent === undefined
     ? { left: 0, right: 0, firstLine: WORD_TWO_CHARS_TWIPS }
     : options.indent;
 
   return new Paragraph({
     children: children?.length ? children : [textRun('')],
     heading: options.heading,
-    alignment: options.alignment || (optimized || officialDocument ? AlignmentType.JUSTIFIED : undefined),
+    alignment: options.alignment || (optimized || formalDocument ? AlignmentType.JUSTIFIED : undefined),
     bullet: options.bullet,
     numbering: options.numbering,
     spacing,
@@ -608,7 +682,118 @@ function optimizedTableCellParagraphOptions(optimized) {
     : {};
 }
 
-function tableBorders(optimized = false) {
+function projectManagementParagraphOptions(overrides = {}) {
+  return {
+    projectManagementDocument: true,
+    indent: { left: 0, right: 0, firstLine: 0 },
+    tabStops: [],
+    ...overrides,
+  };
+}
+
+function createProjectManagementCover(payload = {}) {
+  const profile = payload.project_profile || payload.projectProfile || {};
+  const documentTitle = payload.document_title || payload.documentTitle || payload.project_name || '项目管理文档';
+  const projectName = profile.projectName || payload.project_name || '待确认';
+  const clientName = profile.clientName || '待确认';
+  const vendorName = profile.vendorName || '待确认';
+  const projectType = profile.projectType || '待确认';
+  const projectGroup = profile.projectGroup || '未分组';
+  const currentStage = profile.currentStage || '待确认';
+  const exportDate = new Date().toLocaleDateString('zh-CN');
+  const metaRows = [
+    ['项目名称', projectName],
+    ['文档类型', documentTitle],
+    ['甲方/客户', clientName],
+    ['乙方/交付方', vendorName],
+    ['项目类型', projectType],
+    ['项目分组', projectGroup],
+    ['当前阶段', currentStage],
+    ['导出日期', exportDate],
+  ];
+  const coverTableColumnWidths = [2200, 5400];
+
+  return [
+    paragraph([textRun('项目管理文档', { font: '楷体_GB2312', bold: true, size: 48, color: '000000', cleanMarkdown: true })], {
+      alignment: AlignmentType.CENTER,
+      indent: { left: 0, right: 0, firstLine: 0 },
+      before: 900,
+      after: 260,
+    }),
+    paragraph([textRun(documentTitle, { font: '楷体_GB2312', bold: true, size: 38, color: '000000', cleanMarkdown: true })], {
+      alignment: AlignmentType.CENTER,
+      indent: { left: 0, right: 0, firstLine: 0 },
+      after: 720,
+    }),
+    new Table({
+      width: { size: coverTableColumnWidths.reduce((sum, width) => sum + width, 0), type: WidthType.DXA },
+      columnWidths: coverTableColumnWidths,
+      layout: TableLayoutType.FIXED,
+      alignment: AlignmentType.CENTER,
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 8, color: '000000' },
+        bottom: { style: BorderStyle.SINGLE, size: 8, color: '000000' },
+        left: { style: BorderStyle.SINGLE, size: 8, color: '000000' },
+        right: { style: BorderStyle.SINGLE, size: 8, color: '000000' },
+        insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+        insideVertical: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+      },
+      rows: metaRows.map(([label, value]) => new TableRow({
+        children: [
+          new TableCell({
+            width: { size: coverTableColumnWidths[0], type: WidthType.DXA },
+            margins: { top: 160, bottom: 160, left: 180, right: 180 },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [paragraph([textRun(label, { font: '楷体_GB2312', bold: true, size: 28, color: '000000', cleanMarkdown: true })], projectManagementParagraphOptions({ alignment: AlignmentType.CENTER }))],
+          }),
+          new TableCell({
+            width: { size: coverTableColumnWidths[1], type: WidthType.DXA },
+            margins: { top: 160, bottom: 160, left: 220, right: 220 },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [paragraph([textRun(value, { font: '仿宋_GB2312', size: 28, color: '000000', cleanMarkdown: true })], projectManagementParagraphOptions())],
+          }),
+        ],
+      })),
+    }),
+    paragraph([textRun('请在 Word/WPS 中更新目录域后定稿归档', { font: '仿宋_GB2312', size: 22, color: '666666', cleanMarkdown: true })], {
+      alignment: AlignmentType.CENTER,
+      indent: { left: 0, right: 0, firstLine: 0 },
+      before: 680,
+      after: 0,
+    }),
+    pageBreakParagraph(),
+  ];
+}
+
+function createProjectManagementTocPage() {
+  return [
+    paragraph([textRun('目录', { font: '楷体_GB2312', bold: true, size: 36, color: '000000' })], {
+      alignment: AlignmentType.CENTER,
+      indent: { left: 0, right: 0, firstLine: 0 },
+      after: 280,
+    }),
+    new TableOfContents('目录', {
+      hyperlink: true,
+      headingStyleRange: '1-4',
+      useAppliedParagraphOutlineLevel: true,
+      stylesWithLevels: [1, 2, 3, 4].map((level) => ({ styleName: `Heading${level}`, level })),
+    }),
+    pageBreakParagraph(),
+  ];
+}
+
+function tableBorders(optimized = false, projectManagementDocument = false) {
+  if (projectManagementDocument) {
+    return {
+      top: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+      bottom: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+      left: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+      right: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+      insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+      insideVertical: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+    };
+  }
+
   if (optimized) {
     return {
       top: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
@@ -644,26 +829,30 @@ function tableCellWidth(columnSpan, totalColumns) {
   return Math.round((DOCX_TABLE_WIDTH_TWIPS * safeSpan) / safeTotal);
 }
 
-function createTableCell({ children, isHeader = false, columnSpan = 1, totalColumns = 1, optimized = false }) {
+function createTableCell({ children, isHeader = false, columnSpan = 1, totalColumns = 1, optimized = false, projectManagementDocument = false }) {
   const safeSpan = Math.max(1, columnSpan || 1);
   return new TableCell({
     children,
-    shading: isHeader && !optimized ? { type: ShadingType.CLEAR, fill: 'F1F6FF' } : undefined,
-    margins: { top: 120, bottom: 120, left: 140, right: 140 },
+    shading: isHeader && !optimized && !projectManagementDocument ? { type: ShadingType.CLEAR, fill: 'F1F6FF' } : undefined,
+    margins: projectManagementDocument
+      ? { top: 80, bottom: 80, left: 100, right: 100 }
+      : { top: 120, bottom: 120, left: 140, right: 140 },
     columnSpan: safeSpan > 1 ? safeSpan : undefined,
     width: { size: tableCellWidth(safeSpan, totalColumns), type: WidthType.DXA },
-    verticalAlign: optimized ? VerticalAlign.CENTER : undefined,
+    verticalAlign: optimized || projectManagementDocument ? VerticalAlign.CENTER : undefined,
   });
 }
 
 function createDocxTable(rows, columnCount, options = {}) {
   const optimized = Boolean(options.optimized);
+  const projectManagementDocument = Boolean(options.projectManagementDocument);
   return new Table({
     rows,
     width: { size: 100, type: WidthType.PERCENTAGE },
     columnWidths: tableColumnWidths(columnCount),
-    layout: optimized ? TableLayoutType.AUTOFIT : TableLayoutType.FIXED,
-    borders: tableBorders(optimized),
+    layout: optimized || projectManagementDocument ? TableLayoutType.AUTOFIT : TableLayoutType.FIXED,
+    alignment: projectManagementDocument ? AlignmentType.CENTER : undefined,
+    borders: tableBorders(optimized, projectManagementDocument),
   });
 }
 
@@ -1123,7 +1312,7 @@ async function loadImageWithRetry(source, context = {}, options = {}) {
         options.onRetry(attempt, error);
       }
       if (retryDelayMs > 0) {
-        await delay(retryDelayMs);
+        await delay(retryDelayMs * attempt);
       }
     }
   }
@@ -1134,11 +1323,22 @@ async function loadImageWithRetry(source, context = {}, options = {}) {
 async function imageRunFromNode(node, context, options = {}) {
   let loaded = null;
   const imageLabel = compactText(node.alt || node.url || '未知图片');
+  const isMermaidImage = /mermaid/i.test(String(node.alt || '')) || /^https?:\/\/mermaid\.ink\//i.test(String(node.url || ''));
   try {
     loaded = await loadImageWithRetry(node.url, context, options.loadRetry);
   } catch (error) {
-    const message = `图片无法导出：${imageLabel}，${compactText(error.message || '下载失败', 120)}`;
-    addWarning(context, message);
+    const detail = compactText(error.message || '下载失败', 120);
+    const warning = `图片无法导出：${imageLabel}，${detail}`;
+    const message = isMermaidImage
+      ? `图片无法导出：Mermaid 图，远程转换服务暂时不可用，已重试 ${MERMAID_EXPORT_RETRY_ATTEMPTS} 次。可重新导出，或点击打开远程图片链接手动插入。远程链接：${compactText(node.url || '', 96)}`
+      : warning;
+    addWarning(context, warning);
+    if (isMermaidImage && /^https?:\/\//i.test(String(node.url || ''))) {
+      return new ExternalHyperlink({
+        children: [textRun(`[${message}]`, { color: 'C83220', underline: true })],
+        link: node.url,
+      });
+    }
     return textRun(`[${message}]`, { color: 'C83220' });
   }
   if (!loaded?.buffer || !loaded.type) {
@@ -1163,8 +1363,16 @@ async function imageRunFromNode(node, context, options = {}) {
     addWarning(context, message);
     return textRun(`[${message}]`, { color: 'C83220' });
   }
-  const maxImageWidth = context.wordOptimizationEnabled ? WORD_OPTIMIZATION_IMAGE_MAX_WIDTH : MAX_IMAGE_WIDTH;
-  const maxImageHeight = context.wordOptimizationEnabled ? WORD_OPTIMIZATION_IMAGE_MAX_HEIGHT : Number.POSITIVE_INFINITY;
+  const maxImageWidth = context.projectManagementDocumentEnabled
+    ? PROJECT_MANAGEMENT_IMAGE_MAX_WIDTH
+    : context.wordOptimizationEnabled
+      ? WORD_OPTIMIZATION_IMAGE_MAX_WIDTH
+      : MAX_IMAGE_WIDTH;
+  const maxImageHeight = context.projectManagementDocumentEnabled
+    ? PROJECT_MANAGEMENT_IMAGE_MAX_HEIGHT
+    : context.wordOptimizationEnabled
+      ? WORD_OPTIMIZATION_IMAGE_MAX_HEIGHT
+      : Number.POSITIVE_INFINITY;
   const sourceWidth = size.width || maxImageWidth;
   const sourceHeight = size.height || Math.round(maxImageWidth * 0.62);
   const ratio = Math.min(1, maxImageWidth / sourceWidth, maxImageHeight / sourceHeight);
@@ -1192,7 +1400,10 @@ async function inlineRuns(nodes = [], context = {}, marks = {}) {
 
   for (const node of nodes) {
     if (node.type === 'text') {
-      runs.push(...textRunsWithBreaks(node.value, marks));
+      const statusRuns = context.projectManagementDocumentEnabled
+        ? (projectManagementLeadingStatusRuns(node.value, marks) || projectManagementInlineStatusRuns(node.value, marks))
+        : null;
+      runs.push(...(statusRuns || textRunsWithBreaks(node.value, marks)));
     } else if (node.type === 'strong') {
       runs.push(...await inlineRuns(node.children, context, { ...marks, bold: true }));
     } else if (node.type === 'emphasis') {
@@ -1437,21 +1648,184 @@ async function htmlToDocxBlocks(html, context = {}, options = {}) {
   return blocks;
 }
 
+function projectManagementStatusRuns(value, options = {}) {
+  const text = String(value || '')
+    .replace(/[\uFE0E\uFE0F]/g, '')
+    .replace(/[●○🔴🟡🟢✅❌✖✔☑⚠⏳]/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+  const statusMap = {
+    红: { label: '红', color: 'E60012' },
+    红色: { label: '红', color: 'E60012' },
+    红色预警: { label: '红色预警', color: 'E60012' },
+    高: { label: '高', color: 'E60012' },
+    高风险: { label: '高', color: 'E60012' },
+    高等级: { label: '高', color: 'E60012' },
+    高优先级: { label: '高', color: 'E60012' },
+    严重: { label: '严重', color: 'E60012' },
+    未达成: { label: '未达成', color: 'E60012' },
+    黄: { label: '黄', color: 'F59E0B' },
+    黄色: { label: '黄', color: 'F59E0B' },
+    黄色预警: { label: '黄色预警', color: 'F59E0B' },
+    中: { label: '中', color: 'F59E0B' },
+    中风险: { label: '中', color: 'F59E0B' },
+    中等级: { label: '中', color: 'F59E0B' },
+    中优先级: { label: '中', color: 'F59E0B' },
+    中等: { label: '中等', color: 'F59E0B' },
+    一般: { label: '一般', color: 'F59E0B' },
+    部分达成: { label: '部分达成', color: 'F59E0B' },
+    待确认: { label: '待确认', color: 'F59E0B' },
+    进行中: { label: '进行中', color: 'F59E0B' },
+    绿: { label: '绿', color: '16A34A' },
+    绿色: { label: '绿', color: '16A34A' },
+    绿色正常: { label: '绿色正常', color: '16A34A' },
+    低: { label: '低', color: '16A34A' },
+    低风险: { label: '低', color: '16A34A' },
+    低等级: { label: '低', color: '16A34A' },
+    低优先级: { label: '低', color: '16A34A' },
+    达成: { label: '达成', color: '16A34A' },
+    正常: { label: '正常', color: '16A34A' },
+    良好: { label: '良好', color: '16A34A' },
+  };
+  const status = statusMap[text];
+  if (!status) return null;
+  const size = options.size || 21;
+  return [
+    textRun('● ', { font: '仿宋_GB2312', size, color: status.color }),
+    textRun(status.label, { font: '仿宋_GB2312', size, color: '000000', cleanMarkdown: true }),
+  ];
+}
+
+function projectManagementStatusFromToken(value) {
+  const raw = String(value || '').replace(/[\uFE0E\uFE0F]/g, '').trim();
+  if (/^(?:🔴|❌|✖)\s*$/.test(raw)) {
+    return { label: '红', color: 'E60012' };
+  }
+  if (/^(?:🟡|⚠|⏳)\s*$/.test(raw)) {
+    return { label: '预警', color: 'F59E0B' };
+  }
+  if (/^(?:🟢|✅|✔|☑)\s*$/.test(raw)) {
+    return { label: '达成', color: '16A34A' };
+  }
+  const text = raw
+    .replace(/[\uFE0E\uFE0F]/g, '')
+    .replace(/[●○]/g, '')
+    .replace(/[🔴🟡🟢✅❌✖✔☑⚠⏳]/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+  if (!text) return null;
+  if (/^(?:🔴|❌|✖|未达成|红色预警|高风险|高等级|高优先级|严重|红色|红|高)$/.test(text)) {
+    return { label: text.replace(/^(?:🔴|❌|✖)/, '') || '红', color: 'E60012' };
+  }
+  if (/^(?:🟡|⚠|⏳|黄色预警|中风险|中等级|中优先级|中等|一般|部分达成|待确认|进行中|风险|预警|黄色|黄|中)$/.test(text)) {
+    return { label: text.replace(/^(?:🟡|⚠|⏳)/, '') || '预警', color: 'F59E0B' };
+  }
+  if (/^(?:🟢|✅|✔|☑|绿色正常|低风险|低等级|低优先级|达成|正常|良好|绿色|绿|低)$/.test(text)) {
+    return { label: text.replace(/^(?:🟢|✅|✔|☑)/, '') || '达成', color: '16A34A' };
+  }
+  return null;
+}
+
+function projectManagementStatusInlineRuns(token, marks = {}) {
+  const status = projectManagementStatusFromToken(token);
+  if (!status) return null;
+  return [
+    textRun('● ', { ...marks, font: marks.font || '仿宋_GB2312', size: marks.size || 21, color: status.color }),
+    textRun(status.label, { ...marks, font: marks.font || '仿宋_GB2312', size: marks.size || 21, color: '000000', cleanMarkdown: true }),
+  ];
+}
+
+function projectManagementLeadingStatusRuns(value, marks = {}) {
+  const source = String(value || '');
+  const emojiMatch = /^(\s*)(🔴|🟡|🟢|✅|❌|✔|✖|☑|⚠️?|⏳)\s*(高风险|中风险|低风险|红色预警|黄色预警|绿色正常|未达成|部分达成|达成|待确认|进行中|风险|预警|正常|良好)?([\s\S]*)$/u.exec(source);
+  const numberedMatch = /^(\s*(?:\d+(?:\.\d+)*[.、)]|[（(]?\d+[）)])\s*)(高风险|中风险|低风险|高等级|中等级|低等级|高优先级|中优先级|低优先级|红色预警|黄色预警|绿色正常|红色|黄色|绿色|严重|中等|一般|未达成|部分达成|达成|待确认|进行中|正常|良好|高|中|低|红|黄|绿)(?=[:：、，,\s]|风险|$)([\s\S]*)$/u.exec(source);
+  const match = emojiMatch
+    ? [emojiMatch[0], emojiMatch[1], emojiMatch[3] || emojiMatch[2], emojiMatch[4] || '']
+    : numberedMatch;
+  if (!match) return null;
+  const statusRuns = projectManagementStatusInlineRuns(match[2], marks) || projectManagementStatusRuns(match[2]);
+  if (!statusRuns) return null;
+  const rest = match[3] || '';
+  return [
+    ...(match[1] ? [textRun(match[1], marks)] : []),
+    ...statusRuns,
+    ...(rest ? [textRun(rest, marks)] : []),
+  ];
+}
+
+function projectManagementInlineStatusRuns(value, marks = {}) {
+  const source = String(value || '').replace(/[\uFE0E\uFE0F]/g, '');
+  const tokenPattern = /(🔴|🟡|🟢|✅|❌|✔|✖|☑|⚠\s*(?:高风险|中风险|低风险|风险|预警)?|⏳)/gu;
+  const runs = [];
+  let lastIndex = 0;
+  let hasStatus = false;
+  for (const match of source.matchAll(tokenPattern)) {
+    const token = match[0];
+    const index = match.index || 0;
+    const statusRuns = projectManagementStatusInlineRuns(token, marks);
+    if (!statusRuns) {
+      continue;
+    }
+    if (index > lastIndex) {
+      runs.push(...textRunsWithBreaks(source.slice(lastIndex, index), marks));
+    }
+    runs.push(...statusRuns);
+    lastIndex = index + token.length;
+    hasStatus = true;
+  }
+  if (!hasStatus) return null;
+  if (lastIndex < source.length) {
+    runs.push(...textRunsWithBreaks(source.slice(lastIndex), marks));
+  }
+  return runs;
+}
+
 async function tableCellParagraphs(cell, context, isHeader = false) {
   const optimized = Boolean(context.wordOptimizationEnabled);
+  const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
+  const projectTableParagraphOptions = projectManagementDocument
+    ? {
+        projectManagementDocument: true,
+        alignment: AlignmentType.CENTER,
+        indent: optimizedTableCellIndent(),
+        tabStops: [],
+        after: 0,
+        spacing: { before: 0, after: 0, line: 300, lineRule: LineRuleType.EXACTLY },
+      }
+    : {};
+  if (projectManagementDocument && !isHeader) {
+    const statusRuns = projectManagementStatusRuns(nodeText(cell), { size: PROJECT_MANAGEMENT_TABLE_FONT_SIZE });
+    if (statusRuns) {
+      return [paragraph(statusRuns, projectTableParagraphOptions)];
+    }
+  }
   const phrasingNodes = (cell.children || []).filter((child) => child.type !== 'paragraph');
   if (phrasingNodes.length) {
     return [paragraph(await inlineRuns(phrasingNodes, context, {
       bold: isHeader,
-      font: optimized && isHeader ? '黑体' : undefined,
+      font: projectManagementDocument ? '仿宋_GB2312' : optimized && isHeader ? '黑体' : undefined,
+      size: projectManagementDocument ? PROJECT_MANAGEMENT_TABLE_FONT_SIZE : undefined,
+      color: projectManagementDocument ? '000000' : undefined,
       optimized,
+      cleanMarkdown: projectManagementDocument,
     }), {
       after: optimized ? 0 : 80,
       ...optimizedTableCellParagraphOptions(optimized),
+      ...projectTableParagraphOptions,
     })];
   }
 
   const paragraphNodes = (cell.children || []).filter((child) => child.type === 'paragraph');
+  if (projectManagementDocument && paragraphNodes.length) {
+    return Promise.all(paragraphNodes.map(async (node) => paragraph(await inlineRuns(node.children || [], context, {
+      bold: isHeader,
+      font: '仿宋_GB2312',
+      size: PROJECT_MANAGEMENT_TABLE_FONT_SIZE,
+      color: '000000',
+      cleanMarkdown: true,
+    }), projectTableParagraphOptions)));
+  }
+
   if (optimized && paragraphNodes.length) {
     return Promise.all(paragraphNodes.map(async (node) => paragraph(await inlineRuns(node.children || [], context, {
       bold: isHeader,
@@ -1467,6 +1841,7 @@ async function tableCellParagraphs(cell, context, isHeader = false) {
     return [paragraph([textRun('', { optimized })], {
       after: optimized ? 0 : 80,
       ...optimizedTableCellParagraphOptions(optimized),
+      ...projectTableParagraphOptions,
     })];
   }
   return blocks.filter((block) => block instanceof Paragraph);
@@ -1476,29 +1851,41 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
   const blocks = [];
   const optimized = Boolean(context.wordOptimizationEnabled);
   const officialDocument = Boolean(context.officialDocumentEnabled);
+  const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
+  const formalDocument = officialDocument || projectManagementDocument;
 
   for (const node of nodes) {
     if (node.type === 'heading') {
       const headingDepth = headingNumberingLevel(node.depth);
       const officialHeadingFont = node.depth === 1 ? '小标宋体' : node.depth === 2 ? '黑体' : '楷体_GB2312';
-      blocks.push(paragraph(await inlineRuns(
-        node.children,
-        context,
-        optimized
-          ? { font: '黑体', color: '000000', optimized }
-          : officialDocument
-            ? { font: officialHeadingFont, color: '000000', size: node.depth === 1 ? 44 : 32 }
-            : {},
-      ), {
+      const headingRuns = projectManagementDocument
+        ? [textRun(stripLeadingNumbering(stripInlineMarkdownMarkers(nodeText(node))) || stripInlineMarkdownMarkers(nodeText(node)), {
+            font: '楷体_GB2312',
+            bold: true,
+            color: '000000',
+            size: node.depth === 1 ? 32 : node.depth === 2 ? 30 : 28,
+            cleanMarkdown: true,
+          })]
+        : await inlineRuns(
+            node.children,
+            context,
+            optimized
+              ? { font: '黑体', color: '000000', optimized }
+              : officialDocument
+                ? { font: officialHeadingFont, color: '000000', size: node.depth === 1 ? 44 : 32 }
+                : {},
+          );
+      blocks.push(paragraph(headingRuns, {
         heading: headingLevel(node.depth),
-        before: optimized || officialDocument ? 0 : node.depth === 1 ? 280 : 180,
-        after: optimized || officialDocument ? 0 : 120,
+        before: optimized || formalDocument ? 0 : node.depth === 1 ? 280 : 180,
+        after: optimized || formalDocument ? 0 : 120,
         optimized,
         officialDocument,
-        keepNext: optimized || officialDocument ? true : undefined,
-        numbering: optimized ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
-        indent: optimized || officialDocument ? { left: 0, right: 0 } : undefined,
-        tabStops: optimized || officialDocument ? [] : undefined,
+        projectManagementDocument,
+        keepNext: optimized || formalDocument ? true : undefined,
+        numbering: optimized || projectManagementDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
+        indent: optimized || formalDocument ? { left: 0, right: 0 } : undefined,
+        tabStops: optimized || formalDocument ? [] : undefined,
         alignment: officialDocument && node.depth === 1 ? AlignmentType.CENTER : undefined,
       }));
       rememberParagraphText(context, nodeText(node));
@@ -1514,16 +1901,21 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
       } else {
         blocks.push(paragraph(await inlineRuns(node.children, context, optimized
           ? { optimized }
+          : projectManagementDocument
+            ? { font: '仿宋_GB2312', size: 32, color: '000000', cleanMarkdown: true }
           : officialDocument
             ? { font: '仿宋_GB2312', size: 32, color: '000000' }
             : {}), {
-          after: officialDocument ? 0 : options.inTable ? 80 : 160,
+          after: formalDocument ? 0 : options.inTable ? 80 : 160,
           optimized,
           officialDocument,
-          alignment: options.inTable && optimized
+          projectManagementDocument,
+          alignment: options.inTable && (optimized || projectManagementDocument)
             ? AlignmentType.CENTER
             : !options.inTable && (isImageOnlyParagraph(node) || isFigureCaptionParagraph(node)) ? AlignmentType.CENTER : undefined,
-          indent: officialDocument
+          indent: projectManagementDocument && options.inTable
+            ? optimizedTableCellIndent()
+            : formalDocument
             ? { left: 0, right: 0, firstLine: WORD_TWO_CHARS_TWIPS }
             : optimized
             ? options.inTable
@@ -1532,7 +1924,7 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
                 ? optimizedNumberedBodyIndent()
                 : undefined
             : undefined,
-          tabStops: optimized || officialDocument ? [] : undefined,
+          tabStops: optimized || formalDocument ? [] : undefined,
         }));
         if (!options.inTable && text) {
           rememberParagraphText(context, text);
@@ -1546,11 +1938,16 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         const listOptions = node.ordered
           ? { numbering: { reference: numberingReference, level: Math.min(options.listLevel || 0, 2) } }
           : { bullet: { level: Math.min(options.listLevel || 0, 2) } };
-        blocks.push(paragraph(await inlineRuns(firstParagraph?.children || [], context, optimized ? { optimized } : {}), {
+        blocks.push(paragraph(await inlineRuns(firstParagraph?.children || [], context, optimized
+          ? { optimized }
+          : projectManagementDocument
+            ? { font: '仿宋_GB2312', size: 32, color: '000000', cleanMarkdown: true }
+            : {}), {
           ...listOptions,
           optimized,
-          indent: optimized ? optimizedNumberedBodyIndent() : undefined,
-          tabStops: optimized ? [] : undefined,
+          projectManagementDocument,
+          indent: optimized ? optimizedNumberedBodyIndent() : projectManagementDocument ? optimizedNumberedBodyIndent() : undefined,
+          tabStops: optimized || projectManagementDocument ? [] : undefined,
         }));
         blocks.push(...await markdownNodesToDocx(restChildren, context, { ...options, listLevel: (options.listLevel || 0) + 1 }));
       }
@@ -1570,15 +1967,16 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
             columnSpan,
             totalColumns: maxColumns,
             optimized,
+            projectManagementDocument,
           }));
         }
-        rows.push(new TableRow({ children: cells, tableHeader: optimized && rowIndex === 0 }));
+        rows.push(new TableRow({ children: cells, tableHeader: (optimized || projectManagementDocument) && rowIndex === 0 }));
       }
       if (rows.length) {
         if (optimized) {
           blocks.push(createCaptionParagraph(context, 'table', inferMarkdownTableCaptionName(node, context), '数据表'));
         }
-        blocks.push(createDocxTable(rows, maxColumns, { optimized }));
+        blocks.push(createDocxTable(rows, maxColumns, { optimized, projectManagementDocument }));
       }
     } else if (node.type === 'blockquote') {
       for (const child of node.children || []) {
@@ -1596,14 +1994,17 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
       if (String(node.lang || '').toLowerCase() === 'mermaid') {
         const nextIndex = (context.convertedMermaidCount || 0) + 1;
         const total = context.stats?.mermaidCount || nextIndex;
-        reportConversionProgress(context, `正在转换 Mermaid 图 ${nextIndex}/${total}，单张最多等待约 ${MERMAID_EXPORT_FETCH_TIMEOUT_MS / 1000} 秒。`);
-        blocks.push(await imageParagraphFromSource(mermaidInkUrl(node.value), 'Mermaid 图', context, {
+        reportConversionProgress(context, `正在转换 Mermaid 图 ${nextIndex}/${total}，失败时最多重试 ${MERMAID_EXPORT_RETRY_ATTEMPTS} 次。`);
+        const mermaidCode = context.projectManagementDocumentEnabled
+          ? normalizeMermaidForProjectManagementExport(node.value)
+          : node.value;
+        blocks.push(await imageParagraphFromSource(mermaidInkUrl(mermaidCode), 'Mermaid 图', context, {
           loadRetry: {
             timeoutMs: MERMAID_EXPORT_FETCH_TIMEOUT_MS,
             retryAttempts: MERMAID_EXPORT_RETRY_ATTEMPTS,
             retryDelayMs: MERMAID_EXPORT_RETRY_DELAY_MS,
             onRetry: (attempt) => {
-              reportConversionProgress(context, `Mermaid 图 ${nextIndex}/${total} 转换超时或失败，正在第 ${attempt} 次重试。`);
+              reportConversionProgress(context, `Mermaid 图 ${nextIndex}/${total} 转换超时或失败，正在第 ${attempt}/${MERMAID_EXPORT_RETRY_ATTEMPTS} 次重试。`);
             },
           },
         }));
@@ -1612,6 +2013,8 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         }
         context.convertedMermaidCount = nextIndex;
         reportConversionProgress(context, `Mermaid 图 ${nextIndex}/${total} 已处理。`);
+      } else if (projectManagementDocument && looksLikeMarkdownTemplate(node.value)) {
+        blocks.push(...await markdownToDocxBlocks(node.value, context));
       } else {
         blocks.push(paragraph([new TextRun({ text: cleanText(node.value), font: 'Consolas', size: 21, color: '243048' })], {
           shading: { type: ShadingType.CLEAR, fill: 'F6F9FF' },
@@ -1651,28 +2054,32 @@ async function addMarkdownContent(children, content, context) {
 async function addOutlineItems(children, items, context, level = 1) {
   const optimized = Boolean(context.wordOptimizationEnabled);
   const officialDocument = Boolean(context.officialDocumentEnabled);
+  const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
+  const formalDocument = officialDocument || projectManagementDocument;
   for (const item of items || []) {
     const rawTitle = item.title || '未命名章节';
-    const title = optimized
+    const title = optimized || projectManagementDocument
       ? stripLeadingNumbering(rawTitle) || rawTitle
       : `${item.id || ''} ${rawTitle}`.trim();
     const shouldRenderTitle = !(officialDocument && item.hideTitle);
     if (shouldRenderTitle) {
       children.push(paragraph([textRun(title, {
         bold: true,
-        font: optimized || officialDocument ? '黑体' : undefined,
-        color: optimized || officialDocument ? '000000' : undefined,
-        size: officialDocument ? 32 : undefined,
+        font: projectManagementDocument ? '楷体_GB2312' : optimized || officialDocument ? '黑体' : undefined,
+        color: optimized || formalDocument ? '000000' : undefined,
+        size: projectManagementDocument ? (level === 1 ? 32 : 30) : officialDocument ? 32 : undefined,
+        cleanMarkdown: projectManagementDocument,
       })], {
         heading: headingLevel(level),
-        before: optimized || officialDocument ? 0 : level === 1 ? 320 : 200,
-        after: optimized || officialDocument ? 0 : 120,
+        before: optimized || formalDocument ? 0 : level === 1 ? 320 : 200,
+        after: optimized || formalDocument ? 0 : 120,
         optimized,
         officialDocument,
-        keepNext: optimized || officialDocument ? true : undefined,
-        numbering: optimized ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) } : undefined,
-        indent: optimized || officialDocument ? { left: 0, right: 0 } : undefined,
-        tabStops: optimized || officialDocument ? [] : undefined,
+        projectManagementDocument,
+        keepNext: optimized || formalDocument ? true : undefined,
+        numbering: optimized || projectManagementDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) } : undefined,
+        indent: optimized || formalDocument ? { left: 0, right: 0 } : undefined,
+        tabStops: optimized || formalDocument ? [] : undefined,
       }));
       rememberParagraphText(context, title);
     }
@@ -1693,13 +2100,15 @@ async function addOutlineItems(children, items, context, level = 1) {
 function createNumberingConfig(context) {
   const references = context.numberingReferences || [];
   const optimized = Boolean(context.wordOptimizationEnabled);
-  if (!references.length && !optimized) {
+  const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
+  const headingNumberingEnabled = optimized || projectManagementDocument;
+  if (!references.length && !headingNumberingEnabled) {
     return undefined;
   }
 
   return {
     config: [
-      ...(optimized ? [{
+      ...(headingNumberingEnabled ? [{
         reference: WORD_OPTIMIZATION_HEADING_REFERENCE,
         levels: Array.from({ length: 9 }, (_item, level) => ({
           level,
@@ -1712,7 +2121,7 @@ function createNumberingConfig(context) {
               indent: { left: 0, hanging: 0 },
               spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
             },
-            run: { font: '黑体', size: 24, bold: true, color: '000000' },
+            run: { font: projectManagementDocument ? '楷体_GB2312' : '黑体', size: projectManagementDocument ? 28 : 24, bold: true, color: '000000' },
           },
         })),
       }] : []),
@@ -1725,7 +2134,7 @@ function createNumberingConfig(context) {
           alignment: AlignmentType.START,
           style: {
             paragraph: {
-              indent: optimized ? optimizedNumberedBodyIndent() : { left: 720 + level * 420, hanging: 260 },
+              indent: optimized || projectManagementDocument ? optimizedNumberedBodyIndent() : { left: 720 + level * 420, hanging: 260 },
             },
           },
         })),
@@ -1737,13 +2146,16 @@ function createNumberingConfig(context) {
 async function buildDocxResult(payload, options = {}) {
   const stats = countOutlineStats(payload.outline || []);
   const officialDocumentEnabled = payload.document_profile === 'official-document' || payload.documentProfile === 'official-document';
-  const wordOptimizationEnabled = !officialDocumentEnabled && isWordOptimizationEnabled(options.config);
+  const projectManagementDocumentEnabled = payload.document_profile === 'project-management' || payload.documentProfile === 'project-management';
+  const formalDocumentEnabled = officialDocumentEnabled || projectManagementDocumentEnabled;
+  const wordOptimizationEnabled = !formalDocumentEnabled && isWordOptimizationEnabled(options.config);
   const context = {
     baseDir: payload.base_dir || payload.baseDir,
     onProgress: options.onProgress,
     warnings: options.warnings || [],
     stats,
     officialDocumentEnabled,
+    projectManagementDocumentEnabled,
     wordOptimizationEnabled,
     convertedLeafCount: 0,
     convertedMermaidCount: 0,
@@ -1755,7 +2167,12 @@ async function buildDocxResult(payload, options = {}) {
     lastParagraphText: '',
     recentParagraphTexts: [],
   };
-  const children = officialDocumentEnabled
+  const children = projectManagementDocumentEnabled
+    ? [
+        ...createProjectManagementCover(payload),
+        ...createProjectManagementTocPage(),
+      ]
+    : officialDocumentEnabled
     ? []
     : wordOptimizationEnabled
     ? [
@@ -1778,7 +2195,7 @@ async function buildDocxResult(payload, options = {}) {
   reportProgress(context, 90, '正在生成 Word 文件。');
 
   const numbering = createNumberingConfig(context);
-  const defaultParagraphStyle = officialDocumentEnabled
+  const defaultParagraphStyle = officialDocumentEnabled || projectManagementDocumentEnabled
     ? {
         spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
         alignment: AlignmentType.JUSTIFIED,
@@ -1791,12 +2208,17 @@ async function buildDocxResult(payload, options = {}) {
         indent: optimizedBodyIndent(),
       }
     : { spacing: { line: 360, after: 160 } };
-  const optimizedHeadingStyle = wordOptimizationEnabled
+  const optimizedHeadingStyle = wordOptimizationEnabled || projectManagementDocumentEnabled
     ? {
         basedOn: 'Normal',
         next: 'Normal',
         quickFormat: true,
-        run: { font: '黑体', size: 24, bold: true, color: '000000' },
+        run: {
+          font: projectManagementDocumentEnabled ? '楷体_GB2312' : '黑体',
+          size: projectManagementDocumentEnabled ? 30 : 24,
+          bold: true,
+          color: '000000',
+        },
         paragraph: {
           spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
           alignment: AlignmentType.JUSTIFIED,
@@ -1807,22 +2229,27 @@ async function buildDocxResult(payload, options = {}) {
     : undefined;
   const doc = new Document({
     ...(numbering ? { numbering } : {}),
-    ...(wordOptimizationEnabled ? { features: { updateFields: true } } : {}),
-    ...(wordOptimizationEnabled ? { defaultTabStop: 0 } : {}),
+    ...(wordOptimizationEnabled || projectManagementDocumentEnabled ? { features: { updateFields: true } } : {}),
+    ...(wordOptimizationEnabled || projectManagementDocumentEnabled ? { defaultTabStop: 0 } : {}),
     styles: {
       default: {
         document: {
-          run: officialDocumentEnabled
+          run: projectManagementDocumentEnabled
+            ? { font: '仿宋_GB2312', size: 32, color: '000000' }
+            : officialDocumentEnabled
             ? { font: '仿宋_GB2312', size: 32, color: '000000' }
             : { font: '宋体', size: 24, color: wordOptimizationEnabled ? '000000' : undefined },
           paragraph: defaultParagraphStyle,
         },
       },
-      ...(wordOptimizationEnabled ? {
+      ...(wordOptimizationEnabled || projectManagementDocumentEnabled ? {
         paragraphStyles: [1, 2, 3, 4, 5].map((level) => ({
           id: `Heading${level}`,
           name: `Heading ${level}`,
           ...optimizedHeadingStyle,
+          run: projectManagementDocumentEnabled
+            ? { font: '楷体_GB2312', size: level === 1 ? 32 : level === 2 ? 30 : 28, bold: true, color: '000000' }
+            : optimizedHeadingStyle.run,
         })),
       } : {}),
     },
@@ -1830,6 +2257,7 @@ async function buildDocxResult(payload, options = {}) {
       properties: {
         page: {
           margin: officialDocumentEnabled
+            || projectManagementDocumentEnabled
             ? { top: 2098, right: 1475, bottom: 1890, left: 1587 }
             : { top: 1440, right: 1440, bottom: 1440, left: 1440 },
         },

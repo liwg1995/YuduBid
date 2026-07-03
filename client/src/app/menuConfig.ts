@@ -38,6 +38,24 @@ export const appMenuItems: AppMenuItem[] = [
   },
 ];
 
+const projectManagementMenuItems: AppMenuItem[] = [
+  {
+    id: 'project-types',
+    label: '项目类型',
+    description: '类型与分组字典管理',
+  },
+  {
+    id: 'project-management',
+    label: '项目管理',
+    description: '计划、执行、汇报、复盘和合规',
+  },
+  {
+    id: 'project-history',
+    label: '项目历史',
+    description: '项目列表、阶段产出和预览',
+  },
+];
+
 const softwareCopyrightMenuItems: AppMenuItem[] = [
   {
     id: 'code-generation',
@@ -163,6 +181,11 @@ export function getAppMenuGroups(developerMode: boolean): AppMenuGroup[] {
       id: 'official-document',
       label: '公文写作',
       items: officialDocumentMenuItems,
+    },
+    {
+      id: 'project-management',
+      label: '项目协作',
+      items: projectManagementMenuItems,
     },
     {
       id: 'thesis-tutor',

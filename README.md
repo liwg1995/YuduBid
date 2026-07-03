@@ -4,7 +4,7 @@
 
 # 🌐 禹都AI解决方案助手
 
-🚀 禹都AI解决方案助手是一款面向招投标、公文写作、论文辅导、软件著作和国家专利场景的本地 AI 工作台。它把资料导入、内容解析、方案生成、公文起草、论文诊断、交底书编写、查重检查、润色修订、版本留档和 Word 导出整合到同一套桌面流程中，帮助团队把分散的文档、代码、方案和经验沉淀成可复用、可交付的成果。
+🚀 禹都AI解决方案助手是一款面向招投标、公文写作、论文辅导、项目管理、软件著作和国家专利场景的本地 AI 工作台。它把资料导入、内容解析、方案生成、公文起草、论文诊断、项目推进、交底书编写、查重检查、润色修订、版本留档和 Word 导出整合到同一套桌面流程中，帮助团队把分散的文档、代码、方案和经验沉淀成可复用、可交付的成果。
 
 🆓 **本软件完全免费**
 
@@ -36,6 +36,28 @@ sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
 
 功能能用就行了，要是有免费的我就签了！
 
+## 📝 v0.6.0 更新 / Release Notes
+
+### 中文
+
+- 新增“项目协作 / 项目管理”工作台，支持项目列表、项目类型、项目分组和项目历史。
+- 支持创建、切换、删除项目，并围绕启动、需求、排期、风险、沟通、交付、汇报、回款、复盘、合规 10 个阶段连续推进。
+- 阶段产出支持预览、保存、单阶段 Word 导出和全套 Word 合并导出。
+- 优化项目管理 Word 导出格式，包括专用封面页、目录页、自动标题编号、正文样式、表格样式、图表插入和失败兜底链接。
+- 增强 Mermaid/图表导出，支持更多重试、等待、横向适配和超宽/超高图缩放策略。
+- 新增项目类型与项目分组字典管理。项目类型内置常用交付类型，项目分组完全由用户自定义，并支持搜索、折叠和滚动选择。
+- 优化项目列表检索、批量选择、批量删除、项目历史预览和从历史直接进入项目流程等交互。
+
+### English
+
+- Added the Project Collaboration / Project Management workspace with project list, project type, project group, and project history views.
+- Added create, switch, and delete operations for projects, with a 10-stage workflow covering planning, requirements, scheduling, risks, communication, delivery, reporting, payments, retrospectives, and compliance.
+- Added preview, save, single-stage Word export, and full-suite merged Word export for project deliverables.
+- Improved project-management Word exports with a dedicated cover page, table of contents, automatic heading numbering, body styles, table styles, diagram insertion, and fallback links when diagrams cannot be embedded.
+- Improved Mermaid and diagram export reliability with additional retries, wait handling, landscape-friendly layout, and scaling for very wide or tall diagrams.
+- Added project type and project group dictionary management. Project types include common built-in delivery categories, while project groups are fully user-defined and support search, collapse, and scrollable selection.
+- Improved project list search, multi-select deletion, history preview, and direct navigation from project history into the selected project workflow.
+
 ## 🎬 如何使用？
 
 ### 使用前的设置
@@ -60,6 +82,10 @@ sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
 
 面向论文选题、开题、文献综述、研究设计、逐章写作、评审答辩和格式查重等全过程，提供启动诊断、论文档案、材料导入、阶段成果沉淀、历史版本、备份导入导出和 Word 导出能力。它定位为论文辅导与写作管理工具，帮助用户基于真实材料规划路径、组织结构、检查问题和优化表达，而不是替代真实研究或全盘代写论文。
 
+### 项目协作 / 项目管理
+
+围绕项目创建、项目类型、项目分组、项目列表、项目历史和 10 个阶段推进形成项目管理工作台。支持启动与规划、需求与 PRD、排期与推进、风险问题、沟通变更、交付上线、汇报月报、商务回款、复盘沉淀和合规本土化等阶段产出，支持单阶段 Word 导出和全套 Word 合并导出。
+
 ### 软件著作
 
 基于现有代码和说明材料，辅助整理软著源码材料、申请表、手册和交付文件，减少重复复制、格式整理和材料归纳成本。
@@ -75,13 +101,15 @@ sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
 - 支持 Markdown 编辑/预览、只读审阅、结构化编辑和 Word 文档导出。
 - 长任务在后台执行，页面切换不会中断生成、检查和导出流程。
 - 内置公文写作模板、论文导师流程、检查维度和润色规则，便于从起草、辅导、检查到导出形成闭环。
-- 面向中文办公文档场景设计，覆盖招投标、公文写作、论文辅导、软著、专利和知识资产管理。
+- 项目管理支持多项目创建、切换、检索、分类、分组、历史预览和阶段化交付物沉淀。
+- 面向中文办公文档场景设计，覆盖招投标、公文写作、论文辅导、项目管理、软著、专利和知识资产管理。
 
 ## 🧩 适用场景
 
 - 招投标团队编写技术标书、整理商务响应和检查废标风险。
 - 机关、企事业单位和项目团队起草通知、请示、报告、函、工作方案等公文材料。
 - 本科、硕士、博士等论文写作者梳理选题、开题、综述、研究设计、章节写作、答辩准备和格式检查。
+- 项目经理、交付团队和客户成功团队管理项目阶段、沉淀交付物、导出项目方案和复盘材料。
 - 软件企业基于代码和说明材料准备软著申报文件。
 - 技术团队从项目成果中提炼创新点并生成专利交底书。
 - 组织沉淀历史案例、模板、素材和知识条目，提升后续交付效率。
