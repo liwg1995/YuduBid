@@ -14060,7 +14060,7 @@ button {
   position: fixed;
   right: 28px;
   top: 28px;
-  z-index: 80;
+  z-index: 2000;
   display: grid;
   gap: 12px;
   width: min(560px, calc(100vw - 40px));

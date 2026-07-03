@@ -259,4 +259,13 @@ jobs:
             echo "No release assets found."
             exit 1
           fi
+          md5_file="release/YuDuBid-${TAG_NAME#[vV]}-${RUNNER_OS}-md5.txt"
+          if command -v md5sum >/dev/null 2>&1; then
+            md5sum "${files[@]}" > "$md5_file"
+          else
+            for file in "${files[@]}"; do
+              md5 -r "$file"
+            done > "$md5_file"
+          fi
+          files+=("$md5_file")
           gh release upload "$TAG_NAME" "${files[@]}" --clobber
