@@ -54,6 +54,9 @@ function AppRouter({ activeSection, onSectionChange, onDeveloperModeChange }: Ap
     case 'thesis-topic':
     case 'thesis-literature':
     case 'thesis-methodology':
+    case 'thesis-data':
+    case 'thesis-charts':
+    case 'thesis-drafting':
     case 'thesis-writing':
     case 'thesis-review':
     case 'thesis-format':

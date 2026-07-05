@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const AdmZip = require('adm-zip');
 const { dialog } = require('electron');
 const { parseDocumentWithConfig, resolveFileParser } = require('./fileService.cjs');
 const { getThesisTutorDir } = require('../utils/paths.cjs');
@@ -8,7 +9,7 @@ const panelDefinitions = {
   diagnosis: {
     label: '启动诊断',
     intent: '诊断学位、专业、语种、当前阶段和卡点，给出阶段路径与时间安排。',
-    assetFiles: ['super-thesis-tutor.md', 'writing-phases.md'],
+    assetFiles: ['super-thesis-tutor.md', 'writing-phases.md', 'academic-paper-writing-assistant.md'],
     knowledgeFiles: ['thesis_stages.md', 'faq.md'],
   },
   topic: {
@@ -26,8 +27,26 @@ const panelDefinitions = {
   methodology: {
     label: '研究设计',
     intent: '匹配量化、质性、混合方法，设计变量、问卷、访谈、案例或数据分析路线。',
-    assetFiles: ['writing-phases.md'],
+    assetFiles: ['writing-phases.md', 'academic-paper-writing-assistant.md'],
     knowledgeFiles: ['research_methods.md'],
+  },
+  data: {
+    label: '数据与实证',
+    intent: '检查数据来源、样本、变量、真实性边界和可做分析，输出实证预检与分析路线。',
+    assetFiles: ['writing-phases.md', 'academic-paper-writing-assistant.md'],
+    knowledgeFiles: ['research_methods.md', 'research_tools.md'],
+  },
+  charts: {
+    label: '图表与模型图',
+    intent: '生成论文可用的 Mermaid 研究框架图、技术路线图、变量关系图、章节结构图和数据分析流程图。',
+    assetFiles: ['writing-phases.md', 'templates.md', 'academic-paper-writing-assistant.md'],
+    knowledgeFiles: ['research_methods.md', 'academic_writing.md'],
+  },
+  drafting: {
+    label: '自动成稿',
+    intent: '基于论文档案、章节计划、真实材料和证据链生成可编辑论文初稿，缺材料处明确标注。',
+    assetFiles: ['super-thesis-tutor.md', 'writing-phases.md', 'templates.md', 'academic-paper-writing-assistant.md'],
+    knowledgeFiles: ['academic_writing.md', 'research_methods.md'],
   },
   writing: {
     label: '逐章写作',
@@ -43,13 +62,13 @@ const panelDefinitions = {
   },
   format: {
     label: '格式与查重',
-    intent: '检查格式、引用、查重风险和 AI 味，给出合规修改建议。',
+    intent: '执行终稿质量门检查，覆盖格式、引用、证据核验、数据边界、查重风险和 AI 味。',
     assetFiles: ['super-thesis-tutor.md', 'review-defense.md'],
     knowledgeFiles: ['academic_writing.md', 'research_tools.md'],
   },
 };
 
-const panelOrder = ['diagnosis', 'topic', 'literature', 'methodology', 'writing', 'review', 'format'];
+const panelOrder = ['diagnosis', 'topic', 'literature', 'methodology', 'data', 'charts', 'drafting', 'writing', 'review', 'format'];
 const workspaceExportSchema = 'yibiao-thesis-tutor-workspace';
 
 const initialProfile = {
@@ -65,6 +84,10 @@ const initialProfile = {
   advisorPreferences: '',
   milestones: '',
   dataSources: '',
+  researchType: '未确定',
+  targetWordCount: '',
+  writingScope: '章节初稿',
+  dataIntegrityNotes: '',
   researchQuestions: '',
   methodologyNotes: '',
   outlinePlan: '',
@@ -142,6 +165,10 @@ function normalizeProfile(profile = {}) {
     advisorPreferences: normalizeString(merged.advisorPreferences, 3000),
     milestones: normalizeString(merged.milestones, 2000),
     dataSources: normalizeString(merged.dataSources, 3000),
+    researchType: normalizeString(merged.researchType, 80) || initialProfile.researchType,
+    targetWordCount: normalizeString(merged.targetWordCount, 80),
+    writingScope: normalizeString(merged.writingScope, 80) || initialProfile.writingScope,
+    dataIntegrityNotes: normalizeString(merged.dataIntegrityNotes, 3000),
     researchQuestions: normalizeString(merged.researchQuestions, 3000),
     methodologyNotes: normalizeString(merged.methodologyNotes, 3000),
     outlinePlan: normalizeString(merged.outlinePlan, 5000),
@@ -236,9 +263,14 @@ function upsertActiveChapter(chapters, activeChapterId, patch) {
 }
 
 const referenceTypes = new Set(['literature', 'policy', 'case', 'data', 'quote', 'other']);
+const referenceVerificationStatuses = new Set(['unverified', 'verified', 'partial', 'invalid']);
 
 function normalizeReferenceType(value) {
   return referenceTypes.has(value) ? value : 'literature';
+}
+
+function normalizeReferenceVerificationStatus(value) {
+  return referenceVerificationStatuses.has(value) ? value : 'unverified';
 }
 
 function createReferenceId(seed = '') {
@@ -260,11 +292,14 @@ function normalizeReference(item, index = 0) {
   return {
     id: normalizeString(item.id, 120) || createReferenceId(title),
     type: normalizeReferenceType(item.type),
+    verificationStatus: normalizeReferenceVerificationStatus(item.verificationStatus),
     title,
     authors: normalizeString(item.authors, 240),
     year: normalizeString(item.year, 40),
     source: normalizeString(item.source, 300),
     citation: normalizeString(item.citation, 1200),
+    verificationSource: normalizeString(item.verificationSource, 500),
+    verificationNotes: normalizeString(item.verificationNotes, 1500),
     keywords: normalizeString(item.keywords, 500),
     summary: normalizeString(item.summary, 5000),
     keyPoints: normalizeString(item.keyPoints, 5000),
@@ -285,7 +320,7 @@ function resolveActiveReferenceId(activeReferenceId, references) {
 }
 
 function buildReferenceContext(panel, references = [], activeReferenceId = '') {
-  const shouldUseReferences = ['literature', 'writing', 'review', 'format'].includes(panel);
+  const shouldUseReferences = ['literature', 'charts', 'drafting', 'writing', 'review', 'format'].includes(panel);
   if (!shouldUseReferences) return '';
   const normalizedReferences = normalizeReferences(references);
   if (!normalizedReferences.length) {
@@ -300,10 +335,13 @@ function buildReferenceContext(panel, references = [], activeReferenceId = '') {
   return sorted.slice(0, 20).map((item, index) => [
     `## 证据 ${index + 1}${item.id === activeId ? '（当前选中）' : ''}`,
     `- 类型：${item.type}`,
+    `- 核验状态：${item.verificationStatus}`,
     `- 标题：${item.title}`,
     `- 作者/年份：${item.authors || '未填写'} ${item.year || ''}`.trim(),
     `- 来源：${item.source || '未填写'}`,
     `- 引用格式：${item.citation || '未整理'}`,
+    `- 核验来源：${item.verificationSource || '未填写'}`,
+    `- 核验备注：${item.verificationNotes || '未填写'}`,
     `- 关键词：${item.keywords || '未填写'}`,
     `- 摘要：${item.summary || '未填写'}`,
     `- 可用观点/证据：${item.keyPoints || '未填写'}`,
@@ -552,6 +590,351 @@ function normalizeHistoryItem(item) {
   };
 }
 
+const chapterStatusLabels = {
+  not_started: '未开始',
+  writing: '写作中',
+  drafted: '已成稿',
+  needs_revision: '待修改',
+  done: '已完成',
+};
+
+const referenceTypeLabels = {
+  literature: '文献',
+  policy: '政策/规范',
+  case: '案例',
+  data: '数据',
+  quote: '原文摘录',
+  other: '其他',
+};
+
+const referenceVerificationLabels = {
+  unverified: '待核验',
+  verified: '已核验',
+  partial: '信息不完整',
+  invalid: '不可查/慎用',
+};
+
+const feedbackPriorityLabels = {
+  high: '高',
+  medium: '中',
+  low: '低',
+};
+
+const feedbackStatusLabels = {
+  todo: '待处理',
+  doing: '处理中',
+  done: '已完成',
+  deferred: '暂缓',
+};
+
+const checkCategoryLabels = {
+  format: '格式',
+  citation: '引用',
+  duplication: '重复表达',
+  ai_tone: 'AI 味',
+  logic: '逻辑',
+  other: '其他',
+};
+
+const checkStatusLabels = {
+  unchecked: '未检查',
+  issue_found: '发现问题',
+  fixed: '已修正',
+  ignored: '暂不处理',
+};
+
+const checkSeverityLabels = {
+  high: '高',
+  medium: '中',
+  low: '低',
+};
+
+function labelOf(labels, value) {
+  return labels[value] || value || '未填写';
+}
+
+function safeFileName(value, fallback = '论文导师项目包') {
+  const text = normalizeString(value, 80)
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return text || fallback;
+}
+
+function escapeMarkdownTableCell(value) {
+  return String(value || '未填写')
+    .replace(/\|/g, '\\|')
+    .replace(/\r?\n/g, '<br>');
+}
+
+function markdownTable(rows) {
+  return [
+    '| 项目 | 内容 |',
+    '| --- | --- |',
+    ...rows.map(([label, value]) => `| ${escapeMarkdownTableCell(label)} | ${escapeMarkdownTableCell(value)} |`),
+  ].join('\n');
+}
+
+function formatExportTime() {
+  return new Date().toLocaleString('zh-CN', { hour12: false });
+}
+
+function buildProjectProfileMarkdown(state) {
+  const profile = normalizeProfile(state.profile);
+  const rows = [
+    ['学位/类型', `${profile.degree || '未填写'} / ${profile.degreeType || '未填写'}`],
+    ['专业方向', `${profile.discipline || '未填写'}${profile.direction ? ` / ${profile.direction}` : ''}`],
+    ['语种', profile.language || '未填写'],
+    ['当前阶段', profile.stage || '未填写'],
+    ['引用格式', profile.citationFormat || '未填写'],
+    ['论文题目', profile.title || '未定题'],
+    ['研究类型', profile.researchType || '未确定'],
+    ['目标字数', profile.targetWordCount || '未填写'],
+    ['成稿范围', profile.writingScope || '章节初稿'],
+    ['学校/学院要求', profile.schoolRequirements || '未填写'],
+    ['导师偏好', profile.advisorPreferences || '未填写'],
+    ['时间节点', profile.milestones || '未填写'],
+    ['可用数据源', profile.dataSources || '未填写'],
+    ['数据/材料真实性说明', profile.dataIntegrityNotes || '未填写'],
+    ['已定研究问题', profile.researchQuestions || '未填写'],
+    ['方法/变量/样本条件', profile.methodologyNotes || '未填写'],
+    ['论文目录或章节计划', profile.outlinePlan || '未填写'],
+    ['已有文献线索', profile.literatureNotes || '未填写'],
+    ['档案锁定', state.profileLocked ? '已锁定' : '未锁定'],
+  ];
+
+  return [
+    '# 论文档案',
+    '',
+    `导出时间：${formatExportTime()}`,
+    '',
+    markdownTable(rows),
+    '',
+    '## 当前材料',
+    state.importedSourceFileName ? `导入文件：${state.importedSourceFileName}` : '未导入文件。',
+    '',
+    String(state.sourceText || '').trim() || '暂无材料正文。',
+  ].join('\n');
+}
+
+function buildProjectPanelResultsMarkdown(state) {
+  const panelResults = normalizePanelResults(state.panelResults);
+  const parts = panelOrder.map((panel) => {
+    const item = panelResults[panel];
+    if (!item) {
+      return `## ${panelDefinitions[panel].label}\n\n暂无阶段成果。`;
+    }
+    return [
+      `## ${panelDefinitions[panel].label}`,
+      '',
+      item.input ? `本阶段需求：${item.input}` : '本阶段需求：未填写。',
+      '',
+      `更新时间：${item.updated_at || '未知'}`,
+      '',
+      item.content || '暂无内容。',
+    ].join('\n');
+  });
+
+  return ['# 阶段成果', '', ...parts].join('\n\n');
+}
+
+function buildProjectChaptersMarkdown(state) {
+  const chapters = normalizeChapters(state.chapters);
+  if (!chapters.length) return '# 章节草稿\n\n暂无章节。';
+  const activeChapterId = resolveActiveChapterId(state.activeChapterId, chapters);
+  const parts = chapters.map((chapter, index) => [
+    `## ${index + 1}. ${chapter.title}${chapter.id === activeChapterId ? '（当前章节）' : ''}`,
+    '',
+    `- 状态：${labelOf(chapterStatusLabels, chapter.status)}`,
+    `- 本章目标：${chapter.goal || '未填写'}`,
+    `- 导师反馈/修改要求：${chapter.advisorFeedback || '未填写'}`,
+    `- 更新时间：${chapter.updated_at || '未知'}`,
+    '',
+    '### 本章材料',
+    chapter.material || '未填写。',
+    '',
+    '### 已保存草稿',
+    chapter.draft || '暂无草稿。',
+  ].join('\n'));
+  return ['# 章节草稿', '', ...parts].join('\n\n');
+}
+
+function buildProjectReferencesMarkdown(state) {
+  const references = normalizeReferences(state.references);
+  if (!references.length) return '# 文献与证据链\n\n暂无文献或证据条目。';
+  const parts = references.map((reference, index) => [
+    `## ${index + 1}. ${reference.title}`,
+    '',
+    `- 类型：${labelOf(referenceTypeLabels, reference.type)}`,
+    `- 核验状态：${labelOf(referenceVerificationLabels, reference.verificationStatus)}`,
+    `- 作者/机构：${reference.authors || '未填写'}`,
+    `- 年份：${reference.year || '未填写'}`,
+    `- 来源：${reference.source || '未填写'}`,
+    `- 关键词：${reference.keywords || '未填写'}`,
+    `- 规范引用/出处：${reference.citation || '未填写'}`,
+    `- 核验来源：${reference.verificationSource || '未填写'}`,
+    `- 核验备注：${reference.verificationNotes || '未填写'}`,
+    `- 关联章节ID：${reference.relatedChapterIds.length ? reference.relatedChapterIds.join(', ') : '未关联'}`,
+    `- 更新时间：${reference.updated_at || '未知'}`,
+    '',
+    '### 摘要/证据内容',
+    reference.summary || '未填写。',
+    '',
+    '### 可用观点/写作用途',
+    reference.keyPoints || '未填写。',
+  ].join('\n'));
+  return ['# 文献与证据链', '', ...parts].join('\n\n');
+}
+
+function buildProjectFeedbackMarkdown(state) {
+  const feedbackItems = normalizeFeedbackItems(state.feedbackItems);
+  if (!feedbackItems.length) return '# 导师反馈闭环\n\n暂无导师反馈任务。';
+  const parts = feedbackItems.map((item, index) => [
+    `## ${index + 1}. ${item.title}`,
+    '',
+    `- 来源：${item.source || '未填写'}`,
+    `- 优先级：${labelOf(feedbackPriorityLabels, item.priority)}`,
+    `- 状态：${labelOf(feedbackStatusLabels, item.status)}`,
+    `- 关联章节ID：${item.relatedChapterIds.length ? item.relatedChapterIds.join(', ') : '未关联'}`,
+    `- 更新时间：${item.updated_at || '未知'}`,
+    '',
+    '### 原始意见',
+    item.originalFeedback || '未填写。',
+    '',
+    '### 处理方案',
+    item.actionPlan || '未填写。',
+    '',
+    '### 修改记录',
+    item.revisionNotes || '未填写。',
+  ].join('\n'));
+  return ['# 导师反馈闭环', '', ...parts].join('\n\n');
+}
+
+function buildProjectChecksMarkdown(state) {
+  const checkItems = normalizeCheckItems(state.checkItems);
+  if (!checkItems.length) return '# 终稿检查清单\n\n暂无检查项。';
+  const parts = checkItems.map((item, index) => [
+    `## ${index + 1}. ${item.title}`,
+    '',
+    `- 分类：${labelOf(checkCategoryLabels, item.category)}`,
+    `- 严重级别：${labelOf(checkSeverityLabels, item.severity)}`,
+    `- 状态：${labelOf(checkStatusLabels, item.status)}`,
+    `- 位置：${item.location || '未填写'}`,
+    `- 更新时间：${item.updated_at || '未知'}`,
+    '',
+    '### 问题描述',
+    item.issue || '未填写。',
+    '',
+    '### 修改建议',
+    item.suggestion || '未填写。',
+    '',
+    '### 修改记录',
+    item.revisionNotes || '未填写。',
+  ].join('\n'));
+  return ['# 终稿检查清单', '', ...parts].join('\n\n');
+}
+
+function buildProjectLatestResultMarkdown(state) {
+  const panel = normalizePanel(state.activePanel);
+  return [
+    '# 最新结果',
+    '',
+    `当前模块：${panelDefinitions[panel].label}`,
+    '',
+    state.latestResult || state.draft || '暂无最新结果。',
+  ].join('\n');
+}
+
+function buildProjectHistoryMarkdown(state) {
+  const history = Array.isArray(state.history) ? state.history.map(normalizeHistoryItem).filter(Boolean) : [];
+  if (!history.length) return '# 历史记录\n\n暂无历史记录。';
+  const parts = history.map((item, index) => [
+    `## ${index + 1}. ${item.customTitle || item.title}`,
+    '',
+    `- 模块：${item.panelLabel || panelDefinitions[item.panel].label}`,
+    `- 重要版本：${item.important ? '是' : '否'}`,
+    `- 创建时间：${item.created_at || '未知'}`,
+    item.input ? `- 原始需求：${item.input}` : '- 原始需求：未填写',
+    '',
+    item.content,
+  ].join('\n'));
+  return ['# 历史记录', '', ...parts].join('\n\n');
+}
+
+function buildProjectPackageReadme(state) {
+  const profile = normalizeProfile(state.profile);
+  return [
+    '# 论文导师项目包',
+    '',
+    `导出时间：${formatExportTime()}`,
+    `论文题目：${profile.title || '未定题'}`,
+    '',
+    '## 文件说明',
+    '',
+    '- `00-论文档案.md`：论文基础档案、学校/导师要求、阶段、数据与材料说明。',
+    '- `01-阶段成果.md`：启动诊断、选题、综述、研究设计、数据实证、自动成稿等模块沉淀结果。',
+    '- `02-章节草稿.md`：章节计划、章节材料、导师要求和已保存草稿。',
+    '- `03-文献与证据链.md`：文献、政策、案例、数据和引用核验状态。',
+    '- `04-导师反馈.md`：导师反馈、处理方案和修改记录。',
+    '- `05-终稿检查清单.md`：格式、引用、查重、AI 味和逻辑检查项。',
+    '- `06-最新结果.md`：当前页面最新生成或编辑的结果。',
+    '- `07-历史记录.md`：最近生成历史，便于回溯版本。',
+    '- `workspace.json`：完整机器可读工作区快照，可用于排查或后续兼容导入。',
+    '',
+    '## 使用提醒',
+    '',
+    '论文导师是论文辅导、写作管理和材料组织工具，不替代真实研究、真实数据核验和导师/学校审核。正式提交前，请逐条核验引用、数据、格式要求和学术诚信边界。',
+  ].join('\n');
+}
+
+function buildProjectPackageFiles(state) {
+  return [
+    ['README.md', buildProjectPackageReadme(state)],
+    ['00-论文档案.md', buildProjectProfileMarkdown(state)],
+    ['01-阶段成果.md', buildProjectPanelResultsMarkdown(state)],
+    ['02-章节草稿.md', buildProjectChaptersMarkdown(state)],
+    ['03-文献与证据链.md', buildProjectReferencesMarkdown(state)],
+    ['04-导师反馈.md', buildProjectFeedbackMarkdown(state)],
+    ['05-终稿检查清单.md', buildProjectChecksMarkdown(state)],
+    ['06-最新结果.md', buildProjectLatestResultMarkdown(state)],
+    ['07-历史记录.md', buildProjectHistoryMarkdown(state)],
+    ['workspace.json', JSON.stringify({
+      schema: workspaceExportSchema,
+      version: 1,
+      exported_at: now(),
+      state,
+    }, null, 2)],
+  ];
+}
+
+function parseWorkspaceImportFile(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  let rawJson = '';
+
+  if (extension === '.zip') {
+    const zip = new AdmZip(filePath);
+    const workspaceEntry = zip.getEntries().find((entry) => (
+      !entry.isDirectory
+      && (entry.entryName === 'workspace.json' || entry.entryName.endsWith('/workspace.json'))
+    ));
+    if (!workspaceEntry) {
+      throw new Error('项目包中未找到 workspace.json，无法恢复工作区');
+    }
+    rawJson = workspaceEntry.getData().toString('utf-8');
+  } else {
+    rawJson = fs.readFileSync(filePath, 'utf-8');
+  }
+
+  const parsed = safeJsonParse(rawJson, null);
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error(extension === '.zip' ? '项目包中的 workspace.json 不是有效 JSON' : '备份文件不是有效 JSON');
+  }
+  return parsed.schema === workspaceExportSchema && parsed.state && typeof parsed.state === 'object'
+    ? parsed.state
+    : parsed;
+}
+
 function recoverInterruptedTask(state) {
   if (state?.task?.status !== 'running') return state;
   return {
@@ -696,8 +1079,9 @@ function createPrompt(payload) {
     '底线：',
     '1. 不编造文献、作者、DOI、统计结果、访谈对象、实验数据或学校规定。',
     '2. 涉及正文写作时，必须基于用户提供的真实文献和材料；材料不足处用“需补充：...”标注。',
-    '3. 查重和 AI 检测只提供合规修改、引用规范和表达自然化建议，不提供规避检测的方法。',
-    '4. 输出要像导师批注和任务清单，少讲空话，多给下一步。',
+    '3. 证据链中只有“已核验”的条目可作为正式引用；待核验、信息不完整、不可查/慎用的条目只能作为线索或用“待核验：...”标注。',
+    '4. 查重和 AI 检测只提供合规修改、引用规范和表达自然化建议，不提供规避检测的方法。',
+    '5. 输出要像导师批注和任务清单，少讲空话，多给下一步。',
     '',
     `当前二级模块：${definition.label}`,
     `模块目标：${definition.intent}`,
@@ -713,6 +1097,10 @@ function createPrompt(payload) {
     `- 导师偏好：${profile.advisorPreferences || '未填写'}`,
     `- 时间节点：${profile.milestones || '未填写'}`,
     `- 可用数据源：${profile.dataSources || '未填写'}`,
+    `- 研究类型：${profile.researchType || '未确定'}`,
+    `- 目标字数：${profile.targetWordCount || '未填写'}`,
+    `- 成稿范围：${profile.writingScope || '章节初稿'}`,
+    `- 数据/材料真实性说明：${profile.dataIntegrityNotes || '未填写'}`,
     `- 已定研究问题：${profile.researchQuestions || '未填写'}`,
     `- 方法/变量/样本条件：${profile.methodologyNotes || '未填写'}`,
     `- 论文目录或章节计划：${profile.outlinePlan || '未填写'}`,
@@ -734,7 +1122,7 @@ function createPrompt(payload) {
     '可参考的内置方法论和知识库摘录：',
     knowledgeContext || '无。',
     '',
-    '请按 Markdown 输出。若是启动诊断，输出“诊断简报 + 推荐路径 + 本周任务”。若是选题，给 3-5 个候选题并评估难度、创新性、资料充足度、风险。若是文献综述，给检索式、分类框架和综述写法。若是研究设计，给方法匹配、数据需求和风险。若是逐章写作或修改，先列材料使用情况，再给正文/批注，并标明使用了哪些证据条目和处理了哪些导师反馈。若是评审答辩，输出评分、问题清单、反馈拆解和答辩准备。若是格式查重，输出可落地的检查清单、引用问题、重复表达/AI 味风险和合规修改建议，并对应已有检查项更新处理建议。',
+    '请按 Markdown 输出。若是启动诊断，输出“启动预检报告 + 风险清单 + 推荐路径 + 本周任务”，必须明确档案缺口、材料缺口、文献/数据真实性风险和下一步先后顺序。若是选题，给 3-5 个候选题并评估难度、创新性、资料充足度、风险。若是文献综述，给检索式、分类框架和综述写法。若是研究设计，给方法匹配、数据需求和风险。若是数据与实证，输出“数据真实性判断 + 样本/变量预检 + 可做分析 + 不建议做的分析 + 写作边界”，不得编造统计结果；没有真实数据时只能给数据需求和分析计划。若是图表与模型图，先判断适合的图类型，再至少输出 1 个 Mermaid 代码块（如 flowchart、graph、mindmap、timeline），并给“图名/图注 + 适用章节 + 图中节点解释 + 可修改项”；不得把未核验变量关系或数据结果画成确定结论，缺材料处用“待补充/待核验”标注。若是自动成稿，先输出“成稿前提检查 + 本次使用的材料 + 缺口标注规则”，再按用户指定范围生成可编辑论文初稿；不得编造文献、数据和统计结论，材料不足处用“需补充：...”或“待核验：...”标注。若是逐章写作或修改，先列材料使用情况，再给正文/批注，并标明使用了哪些证据条目和处理了哪些导师反馈。若是评审答辩，输出评分、问题清单、反馈拆解和答辩准备。若是格式查重，按“终稿质量门”输出可落地的检查清单、引用/证据核验问题、数据边界问题、重复表达/AI 味风险和合规修改建议，并对应已有检查项更新处理建议。',
   ].join('\n');
 }
 
@@ -914,7 +1302,7 @@ function createThesisTutorService({ app, aiService, configStore }) {
     const activeFeedbackId = resolveActiveFeedbackId(payload.activeFeedbackId || current.activeFeedbackId, feedbackItems);
     const checkItems = normalizeCheckItems(payload.checkItems).length ? normalizeCheckItems(payload.checkItems) : current.checkItems;
     const activeCheckId = resolveActiveCheckId(payload.activeCheckId || current.activeCheckId, checkItems);
-    const nextChapters = panel === 'writing' && draft.trim()
+    const nextChapters = (panel === 'writing' || panel === 'drafting') && draft.trim()
       ? upsertActiveChapter(chapters, activeChapterId, { draft, status: 'drafted' })
       : chapters;
     const nextPanelResults = { ...(current.panelResults || {}) };
@@ -1066,7 +1454,7 @@ function createThesisTutorService({ app, aiService, configStore }) {
         ...(current.panelResults || {}),
         [panel]: createPanelResult(panel, userInput, result),
       };
-      const nextChapters = panel === 'writing' && result
+      const nextChapters = (panel === 'writing' || panel === 'drafting') && result
         ? upsertActiveChapter(chapters, activeChapterId, { draft: result, status: 'drafted' })
         : chapters;
       const finalTask = {
@@ -1150,13 +1538,48 @@ function createThesisTutorService({ app, aiService, configStore }) {
     };
   }
 
+  async function exportProjectPackage() {
+    const state = loadState();
+    const dateText = new Date().toISOString().slice(0, 10);
+    const profile = normalizeProfile(state.profile);
+    const result = await dialog.showSaveDialog({
+      title: '导出论文导师项目包',
+      defaultPath: `${safeFileName(profile.title, '论文导师项目包')}-${dateText}.zip`,
+      filters: [
+        { name: 'ZIP 压缩包', extensions: ['zip'] },
+        { name: '所有文件', extensions: ['*'] },
+      ],
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, canceled: true, message: '已取消导出', state };
+    }
+
+    const zip = new AdmZip();
+    for (const [fileName, content] of buildProjectPackageFiles(state)) {
+      zip.addFile(fileName, Buffer.from(String(content || ''), 'utf-8'));
+    }
+    zip.writeZip(result.filePath);
+
+    return {
+      success: true,
+      canceled: false,
+      message: `已导出 ${path.basename(result.filePath)}`,
+      fileName: path.basename(result.filePath),
+      filePath: result.filePath,
+      state,
+    };
+  }
+
   async function importWorkspace() {
     const currentState = loadState();
     const result = await dialog.showOpenDialog({
-      title: '导入论文导师工作区备份',
+      title: '导入论文导师工作区备份或项目包',
       properties: ['openFile'],
       filters: [
+        { name: '论文导师备份/项目包', extensions: ['json', 'zip'] },
         { name: 'JSON 文件', extensions: ['json'] },
+        { name: 'ZIP 项目包', extensions: ['zip'] },
         { name: '所有文件', extensions: ['*'] },
       ],
     });
@@ -1167,13 +1590,7 @@ function createThesisTutorService({ app, aiService, configStore }) {
 
     const filePath = result.filePaths[0];
     try {
-      const parsed = safeJsonParse(fs.readFileSync(filePath, 'utf-8'), null);
-      if (!parsed || typeof parsed !== 'object') {
-        throw new Error('备份文件不是有效 JSON');
-      }
-      const importedState = parsed.schema === workspaceExportSchema && parsed.state && typeof parsed.state === 'object'
-        ? parsed.state
-        : parsed;
+      const importedState = parseWorkspaceImportFile(filePath);
       const nextState = cloneState({
         ...initialState,
         ...importedState,
@@ -1212,6 +1629,7 @@ function createThesisTutorService({ app, aiService, configStore }) {
     saveDraft,
     importSource,
     exportWorkspace,
+    exportProjectPackage,
     importWorkspace,
     generate,
     clear,

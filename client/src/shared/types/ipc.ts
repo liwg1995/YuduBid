@@ -212,6 +212,7 @@ export interface YuDuBidBridge {
     }) => Promise<ThesisTutorState>;
     importSource: () => Promise<ThesisTutorImportSourceResult>;
     exportWorkspace: () => Promise<ThesisTutorWorkspaceTransferResult>;
+    exportProjectPackage: () => Promise<ThesisTutorWorkspaceTransferResult>;
     importWorkspace: () => Promise<ThesisTutorWorkspaceTransferResult>;
     clear: () => Promise<{ success: boolean; state: ThesisTutorState }>;
     onEvent: (callback: (event: ThesisTutorState) => void) => () => void;

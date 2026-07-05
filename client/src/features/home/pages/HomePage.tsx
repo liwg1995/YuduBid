@@ -25,12 +25,12 @@ const featureCards: Array<{ title: string; text: string; action: string; section
   },
   {
     title: '论文导师',
-    text: '从启动诊断、选题开题、文献综述、研究设计到逐章写作、答辩检查和格式查重，辅助论文全过程推进。',
+    text: '从启动诊断、选题开题、文献综述、研究设计、数据实证、图表模型到自动成稿、逐章修改、答辩检查和格式查重，辅助论文全过程推进。',
     action: '进入启动诊断',
     section: 'thesis-diagnosis',
     tone: 'amber',
     icon: 'thesis',
-    tags: ['诊断', '综述', '写作'],
+    tags: ['诊断', '图表', '成稿'],
   },
   {
     title: '公文写作',

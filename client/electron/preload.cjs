@@ -128,6 +128,7 @@ const bridge = {
     saveDraft: (payload) => ipcRenderer.invoke('thesis-tutor:save-draft', payload),
     importSource: () => ipcRenderer.invoke('thesis-tutor:import-source'),
     exportWorkspace: () => ipcRenderer.invoke('thesis-tutor:export-workspace'),
+    exportProjectPackage: () => ipcRenderer.invoke('thesis-tutor:export-project-package'),
     importWorkspace: () => ipcRenderer.invoke('thesis-tutor:import-workspace'),
     clear: () => ipcRenderer.invoke('thesis-tutor:clear'),
     onEvent: (callback) => {

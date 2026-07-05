@@ -114,6 +114,21 @@ const thesisTutorMenuItems: AppMenuItem[] = [
     description: '方法、数据与技术路线',
   },
   {
+    id: 'thesis-data',
+    label: '数据与实证',
+    description: '数据预检与分析路线',
+  },
+  {
+    id: 'thesis-charts',
+    label: '图表与模型图',
+    description: '研究框架与技术路线图',
+  },
+  {
+    id: 'thesis-drafting',
+    label: '自动成稿',
+    description: '基于材料生成论文初稿',
+  },
+  {
     id: 'thesis-writing',
     label: '逐章写作',
     description: '文献驱动正文与批注',

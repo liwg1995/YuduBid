@@ -16,6 +16,7 @@ function registerThesisTutorIpc({ thesisTutorService }) {
   ipcMain.handle('thesis-tutor:save-draft', (_event, payload) => thesisTutorService.saveDraft(payload));
   ipcMain.handle('thesis-tutor:import-source', () => thesisTutorService.importSource());
   ipcMain.handle('thesis-tutor:export-workspace', () => thesisTutorService.exportWorkspace());
+  ipcMain.handle('thesis-tutor:export-project-package', () => thesisTutorService.exportProjectPackage());
   ipcMain.handle('thesis-tutor:import-workspace', () => thesisTutorService.importWorkspace());
   ipcMain.handle('thesis-tutor:clear', () => thesisTutorService.clear());
   ipcMain.on('thesis-tutor:subscribe', (event) => {

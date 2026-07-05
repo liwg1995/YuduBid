@@ -3,6 +3,9 @@ export type ThesisTutorPanel =
   | 'topic'
   | 'literature'
   | 'methodology'
+  | 'data'
+  | 'charts'
+  | 'drafting'
   | 'writing'
   | 'review'
   | 'format';
@@ -20,6 +23,10 @@ export interface ThesisTutorProfile {
   advisorPreferences: string;
   milestones: string;
   dataSources: string;
+  researchType: string;
+  targetWordCount: string;
+  writingScope: string;
+  dataIntegrityNotes: string;
   researchQuestions: string;
   methodologyNotes: string;
   outlinePlan: string;
@@ -71,14 +78,19 @@ export interface ThesisTutorChapter {
 
 export type ThesisTutorReferenceType = 'literature' | 'policy' | 'case' | 'data' | 'quote' | 'other';
 
+export type ThesisTutorReferenceVerificationStatus = 'unverified' | 'verified' | 'partial' | 'invalid';
+
 export interface ThesisTutorReference {
   id: string;
   type: ThesisTutorReferenceType;
+  verificationStatus: ThesisTutorReferenceVerificationStatus;
   title: string;
   authors: string;
   year: string;
   source: string;
   citation: string;
+  verificationSource: string;
+  verificationNotes: string;
   keywords: string;
   summary: string;
   keyPoints: string;
