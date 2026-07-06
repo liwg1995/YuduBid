@@ -1,3 +1,5 @@
+const crypto = require('node:crypto');
+const fs = require('node:fs');
 const path = require('node:path');
 const { ipcMain, shell } = require('electron');
 const { registerAiIpc } = require('./aiIpc.cjs');
@@ -60,14 +62,152 @@ function createScopedApp(app, scopeName) {
   };
 }
 
-function createTechnicalPlanStoreRouter(technicalPlanStore, existingPlanExpansionStore) {
-  const pickStore = (value) => (
-    pickTechnicalPlanWorkflowKind(value) === 'existing-plan-expansion'
-      ? existingPlanExpansionStore
-      : technicalPlanStore
+function createTechnicalPlanStoreRouter({ app, fileService, technicalPlanStore, existingPlanExpansionStore }) {
+  const registryPath = path.join(app.getPath('userData'), 'workspace', 'technical-plan', 'projects.json');
+  const storeCache = new Map();
+  const legacyProjectNames = {
+    'technical-plan': '历史技术方案项目',
+    'existing-plan-expansion': '历史已有方案扩写项目',
+  };
+  const baseStores = {
+    'technical-plan': technicalPlanStore,
+    'existing-plan-expansion': existingPlanExpansionStore,
+  };
+  const normalizeProjectId = (value) => {
+    const normalized = String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+    return normalized || 'default';
+  };
+  const createProjectId = () => `tp-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+  const now = () => new Date().toISOString();
+  const stripFileExt = (value) => String(value || '').trim().replace(/\.[^.\\/]+$/, '');
+  const hasTechnicalPlanData = (state = {}) => Boolean(
+    state.tenderFile
+    || state.originalPlanFile
+    || state.outlineData
+    || state.globalFacts?.length
+    || Object.keys(state.bidAnalysisTasks || {}).length
+    || Object.keys(state.contentGenerationSections || {}).length
+    || state.bidAnalysisTask
+    || state.outlineGenerationTask
+    || state.globalFactsTask
+    || state.contentGenerationTask
   );
+  const getLegacyProjectName = (workflowKind) => {
+    const state = baseStores[workflowKind]?.loadTechnicalPlan?.() || {};
+    const outlineName = String(state.outlineData?.project_name || '').trim();
+    const tenderName = stripFileExt(state.tenderFile?.fileName);
+    const originalName = stripFileExt(state.originalPlanFile?.fileName);
+    return outlineName || tenderName || originalName || legacyProjectNames[workflowKind];
+  };
+  const getLegacyProject = (workflowKind, timestamp = now()) => {
+    const state = baseStores[workflowKind]?.loadTechnicalPlan?.() || {};
+    if (!hasTechnicalPlanData(state)) return null;
+    return {
+      id: 'default',
+      workflowKind,
+      name: getLegacyProjectName(workflowKind),
+      created_at: timestamp,
+      updated_at: state.tenderFile?.updatedAt || state.originalPlanFile?.updatedAt || timestamp,
+      isLegacy: true,
+    };
+  };
+  const readRegistry = () => {
+    const timestamp = now();
+    const fallback = {
+      activeProjectIds: {},
+      projects: ['technical-plan', 'existing-plan-expansion'].map((workflowKind) => getLegacyProject(workflowKind, timestamp)).filter(Boolean),
+    };
+    if (!fs.existsSync(registryPath)) {
+      return fallback;
+    }
+    try {
+      const parsed = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+      return {
+        activeProjectIds: {
+          ...fallback.activeProjectIds,
+          ...(parsed?.activeProjectIds || {}),
+        },
+        projects: Array.isArray(parsed?.projects) ? parsed.projects : fallback.projects,
+      };
+    } catch {
+      return fallback;
+    }
+  };
+  const writeRegistry = (registry) => {
+    fs.mkdirSync(path.dirname(registryPath), { recursive: true });
+    fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2), 'utf-8');
+  };
+  const ensureRegistry = () => {
+    const registry = readRegistry();
+    let changed = false;
+    for (const workflowKind of ['technical-plan', 'existing-plan-expansion']) {
+      const legacyProject = getLegacyProject(workflowKind);
+      const legacyIndex = registry.projects.findIndex((project) => project.workflowKind === workflowKind && project.id === 'default');
+      if (legacyProject && legacyIndex < 0) {
+        registry.projects.unshift(legacyProject);
+        changed = true;
+      } else if (legacyProject && legacyIndex >= 0 && legacyProjectNames[workflowKind] !== registry.projects[legacyIndex].name && /^默认/.test(registry.projects[legacyIndex].name || '')) {
+        registry.projects[legacyIndex] = { ...registry.projects[legacyIndex], name: legacyProject.name, isLegacy: true };
+        changed = true;
+      } else if (!legacyProject && legacyIndex >= 0 && /^默认/.test(registry.projects[legacyIndex].name || '')) {
+        registry.projects.splice(legacyIndex, 1);
+        changed = true;
+      }
+      if (!registry.activeProjectIds?.[workflowKind] && registry.projects.some((project) => project.workflowKind === workflowKind)) {
+        registry.activeProjectIds = {
+          ...(registry.activeProjectIds || {}),
+          [workflowKind]: registry.projects.find((project) => project.workflowKind === workflowKind)?.id,
+        };
+        changed = true;
+      }
+    }
+    if (changed || !fs.existsSync(registryPath)) {
+      writeRegistry(registry);
+    }
+    return registry;
+  };
+  const getProjectFromPayload = (value) => {
+    const workflowKind = pickTechnicalPlanWorkflowKind(value);
+    const registry = ensureRegistry();
+    const requested = typeof value === 'object' && value ? value.projectId || value.project_id : undefined;
+    const projectId = normalizeProjectId(requested || registry.activeProjectIds?.[workflowKind] || registry.projects.find((item) => item.workflowKind === workflowKind)?.id);
+    const project = registry.projects.find((item) => item.workflowKind === workflowKind && item.id === projectId)
+      || registry.projects.find((item) => item.workflowKind === workflowKind && item.id === 'default')
+      || { id: 'default', workflowKind, name: legacyProjectNames[workflowKind] };
+    return { workflowKind, projectId: project.id, project };
+  };
+  const createProjectStore = (workflowKind, projectId) => {
+    if (projectId === 'default') {
+      return { store: baseStores[workflowKind], database: null };
+    }
+    const scopeName = path.join('technical-plan-projects', workflowKind, normalizeProjectId(projectId));
+    const scopedApp = createScopedApp(app, scopeName);
+    const database = createSqliteDatabase(scopedApp);
+    const store = createTechnicalPlanStore({ app: scopedApp, db: database.db, fileService });
+    if (workflowKind === 'existing-plan-expansion') {
+      store.switchWorkflowKind('existing-plan-expansion');
+    }
+    return { store, database };
+  };
+  const pickStore = (value) => {
+    const { workflowKind, projectId } = getProjectFromPayload(value);
+    const key = `${workflowKind}:${projectId}`;
+    if (!storeCache.has(key)) {
+      storeCache.set(key, createProjectStore(workflowKind, projectId));
+    }
+    return storeCache.get(key).store;
+  };
+  const withProjectMeta = (state, value) => {
+    const { workflowKind, projectId, project } = getProjectFromPayload(value);
+    return {
+      ...state,
+      workflowKind,
+      projectId,
+      projectName: project.name || legacyProjectNames[workflowKind],
+    };
+  };
   const withoutWorkflowKind = (payload = {}) => {
-    const { workflowKind: _workflowKind, workflow_kind: _workflowKindSnake, ...rest } = payload || {};
+    const { workflowKind: _workflowKind, workflow_kind: _workflowKindSnake, projectId: _projectId, project_id: _projectIdSnake, ...rest } = payload || {};
     return rest;
   };
   const collectGeneratedContentMarkdown = (outlineItems, level = 1) => {
@@ -101,32 +241,123 @@ function createTechnicalPlanStoreRouter(technicalPlanStore, existingPlanExpansio
   };
 
   return {
-    forWorkflow(workflowKind) {
-      return pickStore(workflowKind);
+    listProjects(workflowKindValue) {
+      const workflowKind = pickTechnicalPlanWorkflowKind(workflowKindValue);
+      const registry = ensureRegistry();
+      const activeProjectId = registry.activeProjectIds?.[workflowKind] || 'default';
+      return {
+        activeProjectId,
+        projects: registry.projects
+          .filter((project) => project.workflowKind === workflowKind)
+          .map((project) => ({ ...project, isActive: project.id === activeProjectId }))
+          .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || ''))),
+      };
     },
-    loadTechnicalPlan(workflowKind) {
-      return pickStore(workflowKind).loadTechnicalPlan();
+    createProject(payload = {}) {
+      const workflowKind = pickTechnicalPlanWorkflowKind(payload);
+      const registry = ensureRegistry();
+      const timestamp = now();
+      const project = {
+        id: createProjectId(),
+        workflowKind,
+        name: String(payload.projectName || payload.name || '').trim() || `技术方案项目 ${registry.projects.filter((item) => item.workflowKind === workflowKind).length + 1}`,
+        created_at: timestamp,
+        updated_at: timestamp,
+      };
+      writeRegistry({
+        ...registry,
+        activeProjectIds: { ...(registry.activeProjectIds || {}), [workflowKind]: project.id },
+        projects: [project, ...registry.projects],
+      });
+      pickStore(project);
+      return { project, projects: this.listProjects(workflowKind) };
+    },
+    renameProject(payload = {}) {
+      const workflowKind = pickTechnicalPlanWorkflowKind(payload);
+      const projectId = normalizeProjectId(payload.projectId || payload.project_id);
+      const name = String(payload.name || payload.projectName || '').trim();
+      if (!name) throw new Error('项目名称不能为空');
+      const registry = ensureRegistry();
+      const projects = registry.projects.map((project) => (
+        project.workflowKind === workflowKind && project.id === projectId
+          ? { ...project, name, updated_at: now() }
+          : project
+      ));
+      writeRegistry({ ...registry, projects });
+      return this.listProjects(workflowKind);
+    },
+    deleteProject(payload = {}) {
+      const workflowKind = pickTechnicalPlanWorkflowKind(payload);
+      const projectId = normalizeProjectId(payload.projectId || payload.project_id);
+      if (projectId === 'default') {
+        throw new Error('历史项目不能直接删除，可以进入后重置内容');
+      }
+      const registry = ensureRegistry();
+      const exists = registry.projects.some((project) => project.workflowKind === workflowKind && project.id === projectId);
+      if (!exists) return this.listProjects(workflowKind);
+      const projects = registry.projects.filter((project) => !(project.workflowKind === workflowKind && project.id === projectId));
+      const nextActiveProjectId = registry.activeProjectIds?.[workflowKind] === projectId
+        ? projects.find((project) => project.workflowKind === workflowKind)?.id
+        : registry.activeProjectIds?.[workflowKind];
+      writeRegistry({
+        ...registry,
+        activeProjectIds: { ...(registry.activeProjectIds || {}), [workflowKind]: nextActiveProjectId },
+        projects,
+      });
+      const key = `${workflowKind}:${projectId}`;
+      const cached = storeCache.get(key);
+      if (cached?.database?.close) cached.database.close();
+      storeCache.delete(key);
+      fs.rmSync(path.join(app.getPath('userData'), 'technical-plan-projects', workflowKind, projectId), { recursive: true, force: true });
+      return this.listProjects(workflowKind);
+    },
+    switchProject(payload = {}) {
+      const workflowKind = pickTechnicalPlanWorkflowKind(payload);
+      const projectId = normalizeProjectId(payload.projectId || payload.project_id);
+      const registry = ensureRegistry();
+      if (!registry.projects.some((project) => project.workflowKind === workflowKind && project.id === projectId)) {
+        throw new Error('项目不存在或已删除');
+      }
+      writeRegistry({
+        ...registry,
+        activeProjectIds: { ...(registry.activeProjectIds || {}), [workflowKind]: projectId },
+      });
+      return withProjectMeta(pickStore({ workflowKind, projectId }).loadTechnicalPlan(), { workflowKind, projectId });
+    },
+    forWorkflow(workflowKind, projectId) {
+      return pickStore({ workflowKind, projectId });
+    },
+    loadTechnicalPlan(payload) {
+      return withProjectMeta(pickStore(payload).loadTechnicalPlan(), payload);
     },
     updateTechnicalPlan(partial = {}) {
-      return pickStore(partial).updateTechnicalPlan(withoutWorkflowKind(partial));
+      return withProjectMeta(pickStore(partial).updateTechnicalPlan(withoutWorkflowKind(partial)), partial);
     },
-    clearTechnicalPlan(workflowKind) {
-      return pickStore(workflowKind).clearTechnicalPlan();
+    clearTechnicalPlan(payload) {
+      const result = pickStore(payload).clearTechnicalPlan();
+      return { ...result, state: withProjectMeta(result.state, payload) };
     },
-    importTenderDocument(workflowKind) {
-      return pickStore(workflowKind).importTenderDocument();
+    importTenderDocument(payload) {
+      const result = pickStore(payload).importTenderDocument();
+      return Promise.resolve(result).then((value) => ({ ...value, state: withProjectMeta(value.state, payload) }));
     },
-    importOriginalPlanDocument(workflowKind) {
-      return pickStore(workflowKind).importOriginalPlanDocument();
+    importOriginalPlanDocument(payload) {
+      const result = pickStore(payload).importOriginalPlanDocument();
+      return Promise.resolve(result).then((value) => ({ ...value, state: withProjectMeta(value.state, payload) }));
     },
-    importGeneratedOriginalPlan() {
-      const sourceState = technicalPlanStore.loadTechnicalPlan();
-      const tenderMarkdown = technicalPlanStore.readTenderMarkdown();
+    importGeneratedOriginalPlan(payload = {}) {
+      const { projectId } = getProjectFromPayload(payload);
+      const sourcePayload = { workflowKind: 'technical-plan', projectId: payload.sourceProjectId || payload.source_project_id || projectId };
+      const targetPayload = { workflowKind: 'existing-plan-expansion', projectId };
+      const sourceStore = pickStore(sourcePayload);
+      const targetStore = pickStore(targetPayload);
+      const sourceState = sourceStore.loadTechnicalPlan();
+      const tenderMarkdown = sourceStore.readTenderMarkdown();
       if (!sourceState?.tenderFile || !String(tenderMarkdown || '').trim()) {
         return {
           success: false,
           message: '技术方案模块尚未导入招标文件',
-          state: existingPlanExpansionStore.loadTechnicalPlan(),
+          state: withProjectMeta(targetStore.loadTechnicalPlan(), targetPayload),
           markdown: '',
           tenderMarkdown: '',
         };
@@ -137,7 +368,7 @@ function createTechnicalPlanStoreRouter(technicalPlanStore, existingPlanExpansio
         return {
           success: false,
           message: '技术方案模块尚未生成目录和正文',
-          state: existingPlanExpansionStore.loadTechnicalPlan(),
+          state: withProjectMeta(targetStore.loadTechnicalPlan(), targetPayload),
           markdown: '',
           tenderMarkdown: '',
         };
@@ -149,63 +380,63 @@ function createTechnicalPlanStoreRouter(technicalPlanStore, existingPlanExpansio
         return {
           success: false,
           message: '技术方案模块尚未生成可导入的正文内容',
-          state: existingPlanExpansionStore.loadTechnicalPlan(),
+          state: withProjectMeta(targetStore.loadTechnicalPlan(), targetPayload),
           markdown: '',
           tenderMarkdown: '',
         };
       }
 
-      existingPlanExpansionStore.importTenderMarkdown({
+      targetStore.importTenderMarkdown({
         fileName: sourceState.tenderFile.fileName || '技术方案招标文件',
         markdown: tenderMarkdown,
         parserLabel: sourceState.tenderFile.parserLabel || '技术方案模块',
       });
-      const result = existingPlanExpansionStore.importOriginalPlanMarkdown({
+      const result = targetStore.importOriginalPlanMarkdown({
         fileName: outlineData.project_name ? `${outlineData.project_name} - 技术方案生成内容` : '技术方案生成内容',
         markdown,
         parserLabel: '技术方案生成内容',
       });
-      const finalState = existingPlanExpansionStore.loadTechnicalPlan();
-      const importedTenderMarkdown = existingPlanExpansionStore.readTenderMarkdown();
-      const importedOriginalMarkdown = existingPlanExpansionStore.readOriginalPlanMarkdown();
+      const finalState = targetStore.loadTechnicalPlan();
+      const importedTenderMarkdown = targetStore.readTenderMarkdown();
+      const importedOriginalMarkdown = targetStore.readOriginalPlanMarkdown();
       return {
         ...result,
-        state: finalState,
+        state: withProjectMeta(finalState, targetPayload),
         markdown: importedOriginalMarkdown || markdown,
         tenderMarkdown: importedTenderMarkdown || tenderMarkdown,
         message: `已导入技术方案模块的招标文件和生成内容，共 ${contentNodeCount} 个正文小节`,
       };
     },
-    readTenderMarkdown(workflowKind) {
-      return pickStore(workflowKind).readTenderMarkdown();
+    readTenderMarkdown(payload) {
+      return pickStore(payload).readTenderMarkdown();
     },
-    readOriginalPlanMarkdown(workflowKind) {
-      return pickStore(workflowKind).readOriginalPlanMarkdown();
+    readOriginalPlanMarkdown(payload) {
+      return pickStore(payload).readOriginalPlanMarkdown();
     },
     updateStep(payload) {
       const step = typeof payload === 'string' ? payload : payload?.step;
-      return pickStore(payload).updateStep(step);
+      return withProjectMeta(pickStore(payload).updateStep(step), payload);
     },
     switchWorkflowKind(workflowKind) {
-      return pickStore(workflowKind).loadTechnicalPlan();
+      return withProjectMeta(pickStore(workflowKind).loadTechnicalPlan(), workflowKind);
     },
     saveOutlineConfig(payload = {}) {
-      return pickStore(payload).saveOutlineConfig(withoutWorkflowKind(payload));
+      return withProjectMeta(pickStore(payload).saveOutlineConfig(withoutWorkflowKind(payload)), payload);
     },
     saveOutline(payload) {
       const outlineData = payload?.outlineData || payload;
-      return pickStore(payload).saveOutline(outlineData);
+      return withProjectMeta(pickStore(payload).saveOutline(outlineData), payload);
     },
     saveGlobalFacts(payload) {
       const globalFacts = Array.isArray(payload) ? payload : payload?.globalFacts;
-      return pickStore(payload).saveGlobalFacts(globalFacts || []);
+      return withProjectMeta(pickStore(payload).saveGlobalFacts(globalFacts || []), payload);
     },
     saveContentGenerationOptions(payload) {
       const contentGenerationOptions = payload?.contentGenerationOptions || payload?.options || payload;
-      return pickStore(payload).saveContentGenerationOptions(contentGenerationOptions);
+      return withProjectMeta(pickStore(payload).saveContentGenerationOptions(contentGenerationOptions), payload);
     },
     saveChapterContent(payload = {}) {
-      return pickStore(payload).saveChapterContent(withoutWorkflowKind(payload));
+      return withProjectMeta(pickStore(payload).saveChapterContent(withoutWorkflowKind(payload)), payload);
     },
   };
 }
@@ -364,6 +595,11 @@ function registerUnavailableTechnicalPlanIpc(error) {
   console.error('[ipc] 工作区数据库初始化失败', error);
   [
     'technical-plan:load-state',
+    'technical-plan:list-projects',
+    'technical-plan:create-project',
+    'technical-plan:rename-project',
+    'technical-plan:delete-project',
+    'technical-plan:switch-project',
     'technical-plan:import-tender-document',
     'technical-plan:import-original-plan-document',
     'technical-plan:import-generated-original-plan',
@@ -449,7 +685,12 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
       fileService,
     });
     existingPlanExpansionStore.switchWorkflowKind('existing-plan-expansion');
-    const technicalPlanStoreRouter = createTechnicalPlanStoreRouter(technicalPlanStore, existingPlanExpansionStore);
+    const technicalPlanStoreRouter = createTechnicalPlanStoreRouter({
+      app,
+      fileService,
+      technicalPlanStore,
+      existingPlanExpansionStore,
+    });
     const duplicateCheckStore = createDuplicateCheckStore({ app, db: sqliteDatabase.db });
     const rejectionCheckStore = createRejectionCheckStore({ app, db: sqliteDatabase.db, fileService, technicalPlanStore: technicalPlanStoreRouter });
     const duplicateCheckService = createDuplicateCheckService({ app, configStore, workspaceStore: duplicateCheckStore });

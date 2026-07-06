@@ -7,6 +7,7 @@ import type { KnowledgeBaseIndex, KnowledgeDocument } from '../../knowledge-base
 import type { OutlineData, OutlineItem, OutlineMode } from '../../../shared/types';
 
 interface OutlineEditPageProps {
+  projectId?: string;
   workflowKind: TechnicalPlanWorkflowKind;
   projectOverview: string;
   techRequirements: string;
@@ -108,6 +109,7 @@ function includesKeyword(value: string, keyword: string) {
 }
 
 function OutlineEditPage({
+  projectId,
   workflowKind,
   projectOverview,
   techRequirements,
@@ -256,6 +258,7 @@ function OutlineEditPage({
       setGenerationDialogOpen(false);
       await window.yibiao?.tasks.startOutlineGeneration({
         workflowKind,
+        projectId,
         mode: draftOutlineMode,
         reference_knowledge_document_ids: draftKnowledgeDocumentIds,
       });

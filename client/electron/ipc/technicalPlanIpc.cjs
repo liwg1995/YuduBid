@@ -1,6 +1,11 @@
 const { ipcMain } = require('electron');
 
 function registerTechnicalPlanIpc({ technicalPlanStore }) {
+  ipcMain.handle('technical-plan:list-projects', (_event, workflowKind) => technicalPlanStore.listProjects(workflowKind));
+  ipcMain.handle('technical-plan:create-project', (_event, payload) => technicalPlanStore.createProject(payload));
+  ipcMain.handle('technical-plan:rename-project', (_event, payload) => technicalPlanStore.renameProject(payload));
+  ipcMain.handle('technical-plan:delete-project', (_event, payload) => technicalPlanStore.deleteProject(payload));
+  ipcMain.handle('technical-plan:switch-project', (_event, payload) => technicalPlanStore.switchProject(payload));
   ipcMain.handle('technical-plan:load-state', (_event, workflowKind) => technicalPlanStore.loadTechnicalPlan(workflowKind));
   ipcMain.handle('technical-plan:import-tender-document', (_event, workflowKind) => technicalPlanStore.importTenderDocument(workflowKind));
   ipcMain.handle('technical-plan:import-original-plan-document', (_event, workflowKind) => technicalPlanStore.importOriginalPlanDocument(workflowKind));

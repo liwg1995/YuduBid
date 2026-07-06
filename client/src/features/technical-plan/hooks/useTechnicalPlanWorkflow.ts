@@ -27,7 +27,7 @@ function createInitialState(workflowKind: TechnicalPlanWorkflowKind): TechnicalP
   };
 }
 
-export function useTechnicalPlanWorkflow(workflowKind: TechnicalPlanWorkflowKind = 'technical-plan') {
+export function useTechnicalPlanWorkflow(workflowKind: TechnicalPlanWorkflowKind = 'technical-plan', projectId?: string) {
   const [state, setState] = useState<TechnicalPlanState>(() => createInitialState(workflowKind));
   const [hydrated, setHydrated] = useState(false);
 
@@ -37,9 +37,9 @@ export function useTechnicalPlanWorkflow(workflowKind: TechnicalPlanWorkflowKind
 
     const loadCache = async () => {
       try {
-        const cachedState = await technicalPlanStorage.load(workflowKind);
+        const cachedState = await technicalPlanStorage.load(workflowKind, projectId);
         if (mounted && cachedState) {
-          setState({ ...createInitialState(workflowKind), ...cachedState, workflowKind });
+          setState({ ...createInitialState(workflowKind), ...cachedState, workflowKind, projectId });
         } else if (mounted) {
           setState(createInitialState(workflowKind));
         }
@@ -58,7 +58,7 @@ export function useTechnicalPlanWorkflow(workflowKind: TechnicalPlanWorkflowKind
     return () => {
       mounted = false;
     };
-  }, [workflowKind]);
+  }, [workflowKind, projectId]);
 
   return {
     hydrated,

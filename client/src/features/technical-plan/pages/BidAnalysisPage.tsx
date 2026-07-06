@@ -4,6 +4,7 @@ import { MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { BackgroundTaskState, BidAnalysisMode, BidAnalysisTasks, BidAnalysisTaskState, TechnicalPlanWorkflowKind } from '../types';
 
 interface BidAnalysisPageProps {
+  projectId?: string;
   workflowKind: TechnicalPlanWorkflowKind;
   hasTenderFile: boolean;
   mode: BidAnalysisMode;
@@ -155,6 +156,7 @@ function JsonResultTable({ content }: { content: string }) {
 }
 
 function BidAnalysisPage({
+  projectId,
   workflowKind,
   hasTenderFile,
   mode,
@@ -230,7 +232,7 @@ function BidAnalysisPage({
         setFullRerunSeenRunning(false);
         setFullRerunLocked(true);
       }
-      await window.yibiao?.tasks.startBidAnalysis({ workflowKind, mode, task_ids: taskIds, force_rerun: forceRerun });
+      await window.yibiao?.tasks.startBidAnalysis({ workflowKind, projectId, mode, task_ids: taskIds, force_rerun: forceRerun });
       showToast(retryTask ? `${retryTask.label}重新解析任务已在后台启动` : '招标文件解析任务已在后台启动', 'success');
     } catch (error) {
       if (forceRerun) {

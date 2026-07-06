@@ -9,7 +9,7 @@ import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectP
 import type { ProjectManagementCommercialInput, ProjectManagementComplianceInput, ProjectManagementDeliveryInput, ProjectManagementDictionaries, ProjectManagementDiscoveryInput, ProjectManagementExecutionInput, ProjectManagementPlanningInput, ProjectManagementProfile, ProjectManagementProjectList, ProjectManagementReportingInput, ProjectManagementRetrospectiveInput, ProjectManagementRiskInput, ProjectManagementStakeholderInput, ProjectManagementState } from '../../features/project-management/types';
 import type { RejectionCheckWorkspaceState, RejectionDocumentRole } from '../../features/rejection-check/types';
 import type { SoftwareCopyrightCodeManifest, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightFields, SoftwareCopyrightOptions, SoftwareCopyrightSelectResult, SoftwareCopyrightState } from '../../features/software-copyright/types';
-import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../../features/technical-plan/types';
+import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanProjectPayload, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../../features/technical-plan/types';
 import type { ThesisTutorGeneratePayload, ThesisTutorHistoryItem, ThesisTutorImportSourceResult, ThesisTutorProfile, ThesisTutorState, ThesisTutorWorkspaceTransferResult } from '../../features/thesis-tutor/types';
 import type { OutlineData, OutlineMode } from './outline';
 
@@ -235,20 +235,25 @@ export interface YuDuBidBridge {
     onEvent: (callback: (event: KnowledgeBaseEvent) => void) => () => void;
   };
   technicalPlan: {
-    loadState: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<TechnicalPlanState>;
-    importTenderDocument: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
-    importOriginalPlanDocument: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
-    importGeneratedOriginalPlan: () => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string; tenderMarkdown?: string }>;
-    readTenderMarkdown: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<string>;
-    readOriginalPlanMarkdown: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<string>;
-    updateStep: (payload: TechnicalPlanStep | { workflowKind?: TechnicalPlanWorkflowKind; step: TechnicalPlanStep }) => Promise<TechnicalPlanState>;
+    listProjects: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<TechnicalPlanProjectList>;
+    createProject: (payload?: { workflowKind?: TechnicalPlanWorkflowKind; projectName?: string; name?: string }) => Promise<{ project: TechnicalPlanProject; projects: TechnicalPlanProjectList }>;
+    renameProject: (payload: TechnicalPlanProjectPayload & { name: string; projectName?: string }) => Promise<TechnicalPlanProjectList>;
+    deleteProject: (payload: TechnicalPlanProjectPayload) => Promise<TechnicalPlanProjectList>;
+    switchProject: (payload: TechnicalPlanProjectPayload) => Promise<TechnicalPlanState>;
+    loadState: (payload?: TechnicalPlanWorkflowKind | (TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind })) => Promise<TechnicalPlanState>;
+    importTenderDocument: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
+    importOriginalPlanDocument: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
+    importGeneratedOriginalPlan: (payload?: TechnicalPlanProjectPayload & { sourceProjectId?: string; source_project_id?: string }) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string; tenderMarkdown?: string }>;
+    readTenderMarkdown: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<string>;
+    readOriginalPlanMarkdown: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<string>;
+    updateStep: (payload: TechnicalPlanStep | (TechnicalPlanProjectPayload & { step: TechnicalPlanStep })) => Promise<TechnicalPlanState>;
     switchWorkflowKind: (workflowKind: TechnicalPlanWorkflowKind) => Promise<TechnicalPlanState>;
-    saveOutlineConfig: (payload: { workflowKind?: TechnicalPlanWorkflowKind; outlineMode: OutlineMode; referenceKnowledgeDocumentIds: string[] }) => Promise<TechnicalPlanState>;
-    saveOutline: (payload: OutlineData | { workflowKind?: TechnicalPlanWorkflowKind; outlineData: OutlineData }) => Promise<TechnicalPlanState>;
-    saveGlobalFacts: (payload: GlobalFactGroupState[] | { workflowKind?: TechnicalPlanWorkflowKind; globalFacts: GlobalFactGroupState[] }) => Promise<TechnicalPlanState>;
-    saveContentGenerationOptions: (payload: ContentGenerationOptions | { workflowKind?: TechnicalPlanWorkflowKind; contentGenerationOptions: ContentGenerationOptions }) => Promise<TechnicalPlanState>;
-    saveChapterContent: (payload: { workflowKind?: TechnicalPlanWorkflowKind; nodeId: string; content: string }) => Promise<TechnicalPlanState>;
-    clear: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState }>;
+    saveOutlineConfig: (payload: TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; outlineMode: OutlineMode; referenceKnowledgeDocumentIds: string[] }) => Promise<TechnicalPlanState>;
+    saveOutline: (payload: OutlineData | (TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; outlineData: OutlineData })) => Promise<TechnicalPlanState>;
+    saveGlobalFacts: (payload: GlobalFactGroupState[] | (TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; globalFacts: GlobalFactGroupState[] })) => Promise<TechnicalPlanState>;
+    saveContentGenerationOptions: (payload: ContentGenerationOptions | (TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; contentGenerationOptions: ContentGenerationOptions })) => Promise<TechnicalPlanState>;
+    saveChapterContent: (payload: TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; nodeId: string; content: string }) => Promise<TechnicalPlanState>;
+    clear: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState }>;
   };
   duplicateCheck: {
     loadState: () => Promise<DuplicateCheckWorkspaceState>;

@@ -14,6 +14,7 @@ function hasGeneratedOutlineContent(items: OutlineItem[] = []): boolean {
 }
 
 interface DocumentAnalysisPageProps {
+  projectId?: string;
   workflowKind: TechnicalPlanWorkflowKind;
   tenderFile: TechnicalPlanTenderFile | null;
   tenderMarkdown: string;
@@ -24,6 +25,7 @@ interface DocumentAnalysisPageProps {
 }
 
 function DocumentAnalysisPage({
+  projectId,
   workflowKind,
   tenderFile,
   tenderMarkdown,
@@ -75,7 +77,7 @@ function DocumentAnalysisPage({
       }
 
       try {
-        const technicalPlan = await window.yibiao.technicalPlan.loadState('technical-plan');
+        const technicalPlan = await window.yibiao.technicalPlan.loadState({ workflowKind: 'technical-plan', projectId });
         const available = Boolean(
           technicalPlan.tenderFile
           && hasGeneratedOutlineContent(technicalPlan.outlineData?.outline || []),
@@ -96,7 +98,7 @@ function DocumentAnalysisPage({
   const importDocument = async () => {
     try {
       setBusy(true);
-      const result = await window.yibiao?.technicalPlan.importTenderDocument(workflowKind);
+      const result = await window.yibiao?.technicalPlan.importTenderDocument({ workflowKind, projectId });
 
       if (!result?.success || !result.markdown) {
         const message = result?.message || '未导入文件';
@@ -128,7 +130,7 @@ function DocumentAnalysisPage({
   const importOriginalPlan = async () => {
     try {
       setBusy(true);
-      const result = await window.yibiao?.technicalPlan.importOriginalPlanDocument(workflowKind);
+      const result = await window.yibiao?.technicalPlan.importOriginalPlanDocument({ workflowKind, projectId });
 
       if (!result?.success || !result.markdown) {
         const message = result?.message || '未导入文件';
@@ -158,15 +160,15 @@ function DocumentAnalysisPage({
   const importGeneratedOriginalPlan = async () => {
     try {
       setBusy(true);
-      const result = await window.yibiao?.technicalPlan.importGeneratedOriginalPlan();
+      const result = await window.yibiao?.technicalPlan.importGeneratedOriginalPlan({ workflowKind, projectId, sourceProjectId: projectId });
 
       if (!result?.success || !result.markdown) {
         showToast(result?.message || '技术方案模块暂无可导入的内容', 'info');
         return;
       }
 
-      const importedTenderMarkdown = result.tenderMarkdown || await window.yibiao?.technicalPlan.readTenderMarkdown('existing-plan-expansion') || '';
-      const importedOriginalMarkdown = result.markdown || await window.yibiao?.technicalPlan.readOriginalPlanMarkdown('existing-plan-expansion') || '';
+      const importedTenderMarkdown = result.tenderMarkdown || await window.yibiao?.technicalPlan.readTenderMarkdown({ workflowKind: 'existing-plan-expansion', projectId }) || '';
+      const importedOriginalMarkdown = result.markdown || await window.yibiao?.technicalPlan.readOriginalPlanMarkdown({ workflowKind: 'existing-plan-expansion', projectId }) || '';
       onFileImported(result.state, importedTenderMarkdown);
       onOriginalPlanImported(result.state, importedOriginalMarkdown);
       setActiveDocument(importedTenderMarkdown ? 'tender' : 'original');

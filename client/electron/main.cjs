@@ -11,9 +11,25 @@ const userDataDir = process.env.YIBIAO_USER_DATA_DIR;
 const iconPath = path.join(__dirname, '../assets/icon.ico');
 const packagedIndexUrl = pathToFileURL(path.join(__dirname, '../dist/index.html')).toString();
 const legacyUserDataNames = ['禹都AI投标助手', 'yudubid-client'];
+let mainWindow = null;
 
 if (userDataDir) {
   app.setPath('userData', path.resolve(userDataDir));
+}
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+  });
 }
 
 protocol.registerSchemesAsPrivileged([{
@@ -131,7 +147,7 @@ function migrateLegacyUserData() {
 }
 
 function createMainWindow() {
-  const mainWindow = new BrowserWindow({
+  const appWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1040,
@@ -148,20 +164,20 @@ function createMainWindow() {
     },
   });
 
-  mainWindow.setMenuBarVisibility(false);
+  appWindow.setMenuBarVisibility(false);
 
   if (rendererUrl) {
-    mainWindow.loadURL(rendererUrl);
+    appWindow.loadURL(rendererUrl);
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    appWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  appWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalUrl(url);
     return { action: 'deny' };
   });
 
-  mainWindow.webContents.on('will-navigate', (event, url) => {
+  appWindow.webContents.on('will-navigate', (event, url) => {
     if (isAllowedAppNavigation(url)) {
       return;
     }
@@ -170,23 +186,31 @@ function createMainWindow() {
     void openExternalUrl(url);
   });
 
-  return mainWindow;
-}
-
-app.whenReady().then(() => {
-  nativeTheme.themeSource = 'light';
-  migrateLegacyUserData();
-  registerAssetProtocol();
-  const mainWindow = createMainWindow();
-  registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall });
-  setupAutoUpdate({ app, mainWindow });
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+  appWindow.on('closed', () => {
+    if (mainWindow === appWindow) {
+      mainWindow = null;
     }
   });
-});
+
+  return appWindow;
+}
+
+if (gotSingleInstanceLock) {
+  app.whenReady().then(() => {
+    nativeTheme.themeSource = 'light';
+    migrateLegacyUserData();
+    registerAssetProtocol();
+    mainWindow = createMainWindow();
+    registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall });
+    setupAutoUpdate({ app, mainWindow });
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        mainWindow = createMainWindow();
+      }
+    });
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

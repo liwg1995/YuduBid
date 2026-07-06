@@ -31,6 +31,7 @@ export interface ContentImageStats {
 export interface BackgroundTaskState {
   task_id: string;
   type: BackgroundTaskType;
+  project_id?: string;
   status: BackgroundTaskStatus;
   progress: number;
   logs: string[];
@@ -175,6 +176,8 @@ export interface TechnicalPlanOriginalPlanFile {
 }
 
 export interface TechnicalPlanState {
+  projectId?: string;
+  projectName?: string;
   workflowKind: TechnicalPlanWorkflowKind;
   step: TechnicalPlanStep;
   tenderFile: TechnicalPlanTenderFile | null;
@@ -196,4 +199,24 @@ export interface TechnicalPlanState {
   contentGenerationPlans: ContentGenerationPlans;
   contentGenerationRuntime?: ContentGenerationRuntimeState;
   outlineData: OutlineData | null;
+}
+
+export interface TechnicalPlanProject {
+  id: string;
+  workflowKind: TechnicalPlanWorkflowKind;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  isActive?: boolean;
+}
+
+export interface TechnicalPlanProjectList {
+  activeProjectId: string;
+  projects: TechnicalPlanProject[];
+}
+
+export interface TechnicalPlanProjectPayload {
+  workflowKind?: TechnicalPlanWorkflowKind;
+  projectId?: string;
+  project_id?: string;
 }

@@ -4,6 +4,7 @@ import type { OutlineData } from '../../../shared/types';
 import type { BackgroundTaskState, GlobalFactGroupState, TechnicalPlanWorkflowKind } from '../types';
 
 interface GlobalFactsPageProps {
+  projectId?: string;
   workflowKind: TechnicalPlanWorkflowKind;
   outlineData: OutlineData | null;
   globalFacts: GlobalFactGroupState[];
@@ -36,7 +37,7 @@ function getProgress(task: BackgroundTaskState | undefined, hasFacts: boolean) {
   return hasFacts ? 100 : 0;
 }
 
-function GlobalFactsPage({ workflowKind, outlineData, globalFacts, task, onGlobalFactsSaved }: GlobalFactsPageProps) {
+function GlobalFactsPage({ projectId, workflowKind, outlineData, globalFacts, task, onGlobalFactsSaved }: GlobalFactsPageProps) {
   const { showToast } = useToast();
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(globalFacts[0]?.id || null);
   const [draftTitle, setDraftTitle] = useState('');
@@ -63,7 +64,7 @@ function GlobalFactsPage({ workflowKind, outlineData, globalFacts, task, onGloba
 
     try {
       setStarting(true);
-      await window.yibiao?.tasks.startGlobalFactsGeneration({ workflowKind });
+      await window.yibiao?.tasks.startGlobalFactsGeneration({ workflowKind, projectId });
       if (!auto) {
         showToast('全局事实设定任务已在后台启动', 'success');
       }

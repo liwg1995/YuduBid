@@ -92,6 +92,11 @@ function getWorkflowKind(payload) {
   return normalizeWorkflowKind(payload?.workflowKind || payload?.workflow_kind);
 }
 
+function getProjectId(payload) {
+  const projectId = payload?.projectId ?? payload?.project_id;
+  return projectId === undefined || projectId === null ? undefined : String(projectId);
+}
+
 function createDuplicateCheckPayloadSignature(payload = {}) {
   const files = [payload.tenderFile, ...(Array.isArray(payload.bidFiles) ? payload.bidFiles : [])]
     .filter(Boolean)
@@ -211,6 +216,7 @@ function createTask(type, payload) {
     type,
     group: definition.group,
     workflow_kind: definition.stateKey === 'technicalPlan' ? getWorkflowKind(payload) : undefined,
+    project_id: definition.stateKey === 'technicalPlan' ? getProjectId(payload) : undefined,
     step: definition.step,
     lock_policy: definition.lockPolicy,
     scope_id: scopeId || undefined,
@@ -240,6 +246,7 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
   function buildTechnicalPlanSnapshot(task, state = {}, eventPatch = {}) {
     const patch = {
       workflowKind: normalizeWorkflowKind(state?.workflowKind || task?.workflow_kind),
+      projectId: state?.projectId || task?.project_id,
       ...(eventPatch.technicalPlanPatch || {}),
     };
     const taskField = getTaskField(task.type);
@@ -335,7 +342,7 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
   function getSnapshotForTask(task) {
     const definition = getTaskDefinition(task.type);
     if (definition.stateKey === 'technicalPlan') {
-      return buildSnapshot(definition, technicalPlanStore.loadTechnicalPlan(task.workflow_kind), task);
+      return buildSnapshot(definition, technicalPlanStore.loadTechnicalPlan({ workflowKind: task.workflow_kind, projectId: task.project_id }), task);
     }
     if (definition.stateKey === 'rejectionCheck') {
       return { rejectionCheck: rejectionCheckStore.loadRejectionCheck() };
@@ -398,7 +405,7 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
     if (!conflict) {
       const definition = getTaskDefinition(type);
       if (definition.group === 'technical-plan') {
-        const technicalPlan = technicalPlanStore.loadTechnicalPlan(getWorkflowKind(payload)) || {};
+        const technicalPlan = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
         const pausedContentTask = technicalPlan.contentGenerationTask;
         if (pausedContentTask?.status === 'paused') {
           if (type === 'content-generation' && payload?.resume) {
@@ -414,9 +421,9 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
     throw new Error(`当前${definition.groupLabel || '任务组'}正在执行“${conflict.definition.label || conflict.task.type}”，请完成后再启动“${definition.label || type}”。`);
   }
 
-  function updateWorkspaceState(definition, partial, workflowKind) {
+  function updateWorkspaceState(definition, partial, workflowKind, projectId) {
     if (definition.stateKey === 'technicalPlan') {
-      return technicalPlanStore.updateTechnicalPlan({ ...partial, workflowKind });
+      return technicalPlanStore.updateTechnicalPlan({ ...partial, workflowKind, projectId });
     }
     if (definition.stateKey === 'rejectionCheck') {
       return rejectionCheckStore.updateRejectionCheck(partial);
@@ -427,9 +434,9 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
     return technicalPlanStore.updateTechnicalPlan(partial);
   }
 
-  function loadWorkspaceState(definition, workflowKind) {
+  function loadWorkspaceState(definition, workflowKind, projectId) {
     if (definition.stateKey === 'technicalPlan') {
-      return technicalPlanStore.loadTechnicalPlan(workflowKind);
+      return technicalPlanStore.loadTechnicalPlan({ workflowKind, projectId });
     }
     if (definition.stateKey === 'rejectionCheck') {
       return rejectionCheckStore.loadRejectionCheck();
@@ -444,9 +451,14 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
     const existingTask = activeTasks.get(type);
     if (existingTask && isActiveTaskStatus(existingTask.status)) {
       const nextWorkflowKind = getWorkflowKind(payload);
+      const nextProjectId = getProjectId(payload);
       if (existingTask.workflow_kind && existingTask.workflow_kind !== nextWorkflowKind) {
         const definition = getTaskDefinition(type);
         throw new Error(`当前${definition.groupLabel || '任务组'}正在执行“${definition.label || type}”，请完成后再启动另一项任务。`);
+      }
+      if (existingTask.project_id && nextProjectId && existingTask.project_id !== nextProjectId) {
+        const definition = getTaskDefinition(type);
+        throw new Error(`当前${definition.groupLabel || '任务组'}正在执行“${definition.label || type}”，请完成后再启动另一项目任务。`);
       }
       const nextPayloadSignature = getPayloadSignature(type, payload);
       if (existingTask.payload_signature && nextPayloadSignature && existingTask.payload_signature !== nextPayloadSignature) {
@@ -462,6 +474,7 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
     const definition = getTaskDefinition(type);
     const task = createTask(type, payload);
     const taskWorkflowKind = task.workflow_kind;
+    const taskProjectId = task.project_id;
     activeTasks.set(type, task);
     const taskField = getTaskField(type);
     let currentTask = task;
@@ -476,7 +489,7 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
           ? currentTask.logs
           : ['已请求暂停，正在等待当前 AI 请求完成。'];
         const pausingTask = updateTask({ status: 'pausing', pause_requested: true, logs: pausedLogs });
-        const state = updateWorkspaceState(definition, { [taskField]: pausingTask }, taskWorkflowKind);
+        const state = updateWorkspaceState(definition, { [taskField]: pausingTask }, taskWorkflowKind, taskProjectId);
         emit(pausingTask, buildSnapshot(definition, state, pausingTask));
         return pausingTask;
       },
@@ -497,24 +510,24 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
       };
       activeTasks.set(type, currentTask);
       if (workspaceState) {
-        const persistedState = taskField ? updateWorkspaceState(definition, { [taskField]: currentTask }, taskWorkflowKind) : workspaceState;
+        const persistedState = taskField ? updateWorkspaceState(definition, { [taskField]: currentTask }, taskWorkflowKind, taskProjectId) : workspaceState;
         emit(currentTask, buildSnapshot(definition, persistedState, currentTask, eventPatch));
       }
       return currentTask;
     };
 
-    const previousState = loadWorkspaceState(definition, taskWorkflowKind) || {};
-    const state = updateWorkspaceState(definition, { ...initialPartial, [taskField]: currentTask }, taskWorkflowKind);
+    const previousState = loadWorkspaceState(definition, taskWorkflowKind, taskProjectId) || {};
+    const state = updateWorkspaceState(definition, { ...initialPartial, [taskField]: currentTask }, taskWorkflowKind, taskProjectId);
     emit(currentTask, buildSnapshot(definition, state, currentTask));
 
     const runnerWorkspaceStore = definition.stateKey === 'technicalPlan'
-      ? (technicalPlanStore.forWorkflow ? technicalPlanStore.forWorkflow(taskWorkflowKind) : technicalPlanStore)
+      ? (technicalPlanStore.forWorkflow ? technicalPlanStore.forWorkflow(taskWorkflowKind, taskProjectId) : technicalPlanStore)
       : definition.stateKey === 'rejectionCheck'
         ? rejectionCheckStore
         : duplicateCheckStore;
     runner({ aiService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, updateTask, payload, taskControl, previousState }).catch((error) => {
       const failedTask = updateTask({ status: 'error', error: error.message || '任务执行失败' });
-      const nextState = updateWorkspaceState(definition, { [taskField]: failedTask }, taskWorkflowKind);
+      const nextState = updateWorkspaceState(definition, { [taskField]: failedTask }, taskWorkflowKind, taskProjectId);
       emit(failedTask, buildSnapshot(definition, nextState, failedTask));
     }).finally(() => {
       activeTasks.delete(type);
@@ -706,7 +719,7 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
         return control.requestPause();
       }
 
-      const technicalPlan = technicalPlanStore.loadTechnicalPlan(getWorkflowKind(payload)) || {};
+      const technicalPlan = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
       const contentTask = technicalPlan.contentGenerationTask;
       if (contentTask?.status === 'paused' || contentTask?.status === 'pausing') {
         return contentTask;

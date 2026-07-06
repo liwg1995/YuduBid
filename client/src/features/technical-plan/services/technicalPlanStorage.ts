@@ -1,4 +1,4 @@
-import type { TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
+import type { TechnicalPlanProjectPayload, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
 
 const validSteps: TechnicalPlanStep[] = [
   'document-analysis',
@@ -14,8 +14,10 @@ function isTechnicalPlanState(state: TechnicalPlanState | null): state is Techni
 }
 
 export const technicalPlanStorage = {
-  async load(workflowKind?: TechnicalPlanWorkflowKind): Promise<TechnicalPlanState | null> {
-    const state = await window.yibiao?.technicalPlan.loadState(workflowKind);
+  async load(workflowKind?: TechnicalPlanWorkflowKind, projectId?: string): Promise<TechnicalPlanState | null> {
+    const payload: TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind } = { workflowKind };
+    if (projectId) payload.projectId = projectId;
+    const state = await window.yibiao?.technicalPlan.loadState(payload);
 
     if (!isTechnicalPlanState(state || null)) {
       return null;

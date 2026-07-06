@@ -9,6 +9,7 @@ import { countReadableWords } from '../../../shared/utils/wordCount';
 import type { BackgroundTaskState, ContentGenerationOptions, ContentGenerationSectionStatus, ContentGenerationSections, ContentImageStats, ContentTableRequirement, TechnicalPlanWorkflowKind } from '../types';
 
 interface ContentEditPageProps {
+  projectId?: string;
   workflowKind?: TechnicalPlanWorkflowKind;
   originalPlanMarkdown?: string;
   outlineData: OutlineData | null;
@@ -322,6 +323,7 @@ const MarkdownContent = memo(function MarkdownContent({ content, onPreviewImage 
 });
 
 function ContentEditPage({
+  projectId,
   workflowKind = 'technical-plan',
   originalPlanMarkdown = '',
   outlineData,
@@ -614,7 +616,7 @@ function ContentEditPage({
 
     setPausePending(true);
     try {
-      await window.yibiao?.tasks.pauseContentGeneration({ workflowKind });
+      await window.yibiao?.tasks.pauseContentGeneration({ workflowKind, projectId });
       showToast('正在暂停正文生成，当前 AI 请求完成后会停止调度新任务', 'info');
     } catch (error) {
       setPausePending(false);
@@ -628,7 +630,7 @@ function ContentEditPage({
     }
 
     try {
-      await window.yibiao?.tasks.startContentGeneration({ workflowKind, resume: true });
+      await window.yibiao?.tasks.startContentGeneration({ workflowKind, projectId, resume: true });
       showToast('已继续正文生成任务', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '继续正文生成失败', 'error');
@@ -677,6 +679,7 @@ function ContentEditPage({
 
     await window.yibiao?.tasks.startContentGeneration({
       workflowKind,
+      projectId,
       regenerate,
       generationOptions: {
         useAiImages: nextImageModelAvailable && savedGenerationOptions.useAiImages,
@@ -781,6 +784,7 @@ function ContentEditPage({
       setImageModelStatus(nextImageModelStatus);
       await window.yibiao?.tasks.startContentGeneration({
         workflowKind,
+        projectId,
         regenerate: true,
         targetItemId: requirementItem.id,
         requirement: regenerateRequirement,
