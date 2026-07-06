@@ -10,6 +10,7 @@ const updateState = {
   updateInfo: null,
   downloadedVersion: '',
   releaseDownloadPromise: null,
+  releaseDownloadAbortController: null,
   releaseInstallerPath: '',
   releaseInstallerVersion: '',
   releaseInstallerName: '',
@@ -71,6 +72,15 @@ function createReleaseDownloadResult(version, installerPath, installerName, mess
     version: normalizeVersion(version),
     path: installerPath,
     fileName: installerName,
+    message,
+  };
+}
+
+function createReleaseDownloadCanceledResult(message = '已取消更新下载') {
+  return {
+    success: false,
+    downloaded: false,
+    canceled: true,
     message,
   };
 }
@@ -139,9 +149,23 @@ function isLikelyNetworkTimeout(value) {
     'enotfound',
     'eai_again',
     'network',
+    'fetch failed',
+    'failed to fetch',
+    'connect',
     'socket hang up',
     'aborted',
   ].some((keyword) => message.includes(keyword));
+}
+
+function getErrorMessage(error, fallbackMessage) {
+  const message = error?.message || String(error || fallbackMessage || '');
+  const causeCode = error?.cause?.code ? String(error.cause.code) : '';
+  const causeMessage = error?.cause?.message ? String(error.cause.message) : '';
+  return [message, causeCode, causeMessage].filter(Boolean).join(' ');
+}
+
+function isAbortError(error) {
+  return error?.name === 'AbortError' || String(error?.message || '').toLowerCase().includes('aborted');
 }
 
 function normalizeUpdateErrorMessage(value) {
@@ -456,6 +480,8 @@ async function downloadReleaseInstaller(options = {}) {
     const updateDir = getManualUpdateDir(app, version);
     const installerPath = path.join(updateDir, installerName);
     const tempPath = `${installerPath}.download`;
+    const abortController = new AbortController();
+    updateState.releaseDownloadAbortController = abortController;
 
     fs.mkdirSync(updateDir, { recursive: true });
     try {
@@ -473,10 +499,17 @@ async function downloadReleaseInstaller(options = {}) {
           Accept: 'application/octet-stream',
           'User-Agent': 'YuDuBid-Client',
         },
+        signal: abortController.signal,
       });
     } catch (error) {
       setProgressBar(options.mainWindow, -1);
-      return { success: false, downloaded: false, message: normalizeUpdateErrorMessage(error?.message || '下载安装包失败') };
+      if (isAbortError(error) || abortController.signal.aborted) {
+        return createReleaseDownloadCanceledResult();
+      }
+      console.warn('[update] 下载安装包请求失败', {
+        message: getErrorMessage(error, '下载安装包失败'),
+      });
+      return { success: false, downloaded: false, message: normalizeUpdateErrorMessage(getErrorMessage(error, '下载安装包失败')) };
     }
 
     if (!response.ok || !response.body) {
@@ -532,7 +565,13 @@ async function downloadReleaseInstaller(options = {}) {
         // 忽略临时文件清理失败。
       }
       setProgressBar(options.mainWindow, -1);
-      return { success: false, downloaded: false, message: normalizeUpdateErrorMessage(error?.message || '安装包下载中断') };
+      if (isAbortError(error) || abortController.signal.aborted) {
+        return createReleaseDownloadCanceledResult();
+      }
+      console.warn('[update] 安装包下载中断', {
+        message: getErrorMessage(error, '安装包下载中断'),
+      });
+      return { success: false, downloaded: false, message: normalizeUpdateErrorMessage(getErrorMessage(error, '安装包下载中断')) };
     }
 
     await new Promise((resolve, reject) => {
@@ -567,9 +606,20 @@ async function downloadReleaseInstaller(options = {}) {
     return createReleaseDownloadResult(version, installerPath, installerName);
   })().finally(() => {
     updateState.releaseDownloadPromise = null;
+    updateState.releaseDownloadAbortController = null;
   });
 
   return updateState.releaseDownloadPromise;
+}
+
+function cancelReleaseInstallerDownload(options = {}) {
+  if (!updateState.releaseDownloadPromise || !updateState.releaseDownloadAbortController) {
+    return { success: true, canceled: false, message: '当前没有正在下载的更新' };
+  }
+
+  updateState.releaseDownloadAbortController.abort();
+  setProgressBar(options.mainWindow, -1);
+  return { success: true, canceled: true, message: '已取消更新下载' };
 }
 
 async function installDownloadedRelease(options = {}) {
@@ -643,6 +693,7 @@ module.exports = {
   checkAndDownloadUpdate,
   triggerUpdateDownload,
   downloadReleaseInstaller,
+  cancelReleaseInstallerDownload,
   installDownloadedRelease,
   getDownloadedReleasePath,
   quitAndInstall,

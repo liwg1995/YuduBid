@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AppRouter from './app/AppRouter';
 import StartupSplash from './app/StartupSplash';
+import { isSectionVisible } from './app/menuConfig';
 import AppShell from './components/AppShell';
+import type { FeatureModuleSettings } from './shared/types';
 import type { SectionId } from './shared/types/navigation';
 
 const sectionIds = new Set<SectionId>([
@@ -48,6 +50,7 @@ function initialSectionFromUrl(): SectionId {
 function App() {
   const [activeSection, setActiveSection] = useState<SectionId>(initialSectionFromUrl);
   const [developerMode, setDeveloperMode] = useState(false);
+  const [featureModuleSettings, setFeatureModuleSettings] = useState<FeatureModuleSettings | null>(null);
   const [startupProgress, setStartupProgress] = useState(6);
   const [startupMessage, setStartupMessage] = useState('正在初始化本地配置...');
   const [startupDone, setStartupDone] = useState(false);
@@ -112,6 +115,7 @@ function App() {
       .then((config) => {
         if (!alive) return;
         setDeveloperMode(Boolean(config?.developer_mode));
+        setFeatureModuleSettings(config?.feature_module_settings || null);
       })
       .catch((error) => console.warn('读取启动配置失败', error))
       .finally(() => {
@@ -133,11 +137,15 @@ function App() {
     };
   }, []);
 
+  const changeSection = useCallback((section: SectionId) => {
+    setActiveSection(isSectionVisible(section, developerMode, featureModuleSettings) ? section : 'home');
+  }, [developerMode, featureModuleSettings]);
+
   useEffect(() => {
-    if (!developerMode && activeSection === 'developer-test') {
-      setActiveSection('technical-plan');
+    if (!isSectionVisible(activeSection, developerMode, featureModuleSettings)) {
+      setActiveSection('home');
     }
-  }, [activeSection, developerMode]);
+  }, [activeSection, developerMode, featureModuleSettings]);
 
   return (
     <>
@@ -145,9 +153,16 @@ function App() {
       <AppShell
         activeSection={activeSection}
         developerMode={developerMode}
-        onSectionChange={setActiveSection}
+        featureModuleSettings={featureModuleSettings}
+        onSectionChange={changeSection}
       >
-        <AppRouter activeSection={activeSection} onSectionChange={setActiveSection} onDeveloperModeChange={setDeveloperMode} />
+        <AppRouter
+          activeSection={activeSection}
+          featureModuleSettings={featureModuleSettings}
+          onSectionChange={changeSection}
+          onDeveloperModeChange={setDeveloperMode}
+          onFeatureModuleSettingsChange={setFeatureModuleSettings}
+        />
       </AppShell>
     </>
   );

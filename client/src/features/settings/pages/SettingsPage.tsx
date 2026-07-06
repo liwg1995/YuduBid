@@ -1,11 +1,12 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
+import { configurableFeatureModules } from '../../../app/menuConfig';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { ClientConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent } from '../../../shared/types';
+import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 
-type SettingsTab = 'general' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'about';
+type SettingsTab = 'general' | 'features' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'about';
 type ReleaseDownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'installing' | 'error';
 
 interface ReleaseDownloadState {
@@ -28,6 +29,7 @@ const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'text-model', label: '文本模型' },
   { id: 'image-model', label: '生图模型' },
   { id: 'file-parser', label: '文件解析' },
+  { id: 'features', label: '功能管理' },
   { id: 'skills', label: '技能管理' },
   { id: 'about', label: '关于' },
 ];
@@ -405,10 +407,20 @@ const initialState: SettingsPageState = {
       },
     },
   },
+  featureModuleSettings: createDefaultFeatureModuleSettings(),
   general: {
     developer_mode: false,
   },
 };
+
+function createDefaultFeatureModuleSettings(): FeatureModuleSettings {
+  return {
+    modules: configurableFeatureModules.reduce((modules, module) => ({
+      ...modules,
+      [module.id]: { id: module.id, enabled: true },
+    }), {} as Record<FeatureModuleId, { id: FeatureModuleId; enabled: boolean }>),
+  };
+}
 
 function normalizeSkillSettings(settings?: Partial<SkillSettings>): SkillSettings {
   return {
@@ -421,8 +433,21 @@ function normalizeSkillSettings(settings?: Partial<SkillSettings>): SkillSetting
   };
 }
 
+function normalizeFeatureModuleSettings(settings?: Partial<FeatureModuleSettings>): FeatureModuleSettings {
+  return {
+    modules: configurableFeatureModules.reduce((modules, module) => ({
+      ...modules,
+      [module.id]: {
+        id: module.id,
+        enabled: settings?.modules?.[module.id]?.enabled !== false,
+      },
+    }), {} as Record<FeatureModuleId, { id: FeatureModuleId; enabled: boolean }>),
+  };
+}
+
 interface SettingsPageProps {
   onDeveloperModeChange?: (developerMode: boolean) => void;
+  onFeatureModuleSettingsChange?: (settings: FeatureModuleSettings) => void;
 }
 
 function getInitialSettingsTab(): SettingsTab {
@@ -432,7 +457,7 @@ function getInitialSettingsTab(): SettingsTab {
   return DEFAULT_SETTINGS_TAB;
 }
 
-function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
+function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: SettingsPageProps) {
   const [state, setState] = useState<SettingsPageState>(initialState);
   const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialSettingsTab);
   const [savedConfig, setSavedConfig] = useState<ClientConfig | null>(null);
@@ -492,6 +517,8 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       const activeImageProfile = normalizeImageModelProfile(config.image_model.provider, config.image_model);
       imageModelProfiles[activeImageProfile.provider] = activeImageProfile;
 
+      const featureModuleSettings = normalizeFeatureModuleSettings(config.feature_module_settings);
+
       setState((prev) => ({
         ...prev,
         textModel: {
@@ -506,12 +533,14 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
           mineru_token: config.file_parser.mineru_token || '',
         },
         skillSettings: normalizeSkillSettings(config.skill_settings),
+        featureModuleSettings,
         general: {
           developer_mode: Boolean(config.developer_mode),
         },
       }));
       setSavedConfig(config);
       onDeveloperModeChange?.(Boolean(config.developer_mode));
+      onFeatureModuleSettingsChange?.(featureModuleSettings);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '加载客户端配置失败';
       showToast(errorMessage, 'error');
@@ -547,6 +576,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
         mineru_token: state.fileParser.mineru_token || '',
       },
       skill_settings: normalizeSkillSettings(state.skillSettings),
+      feature_module_settings: normalizeFeatureModuleSettings(state.featureModuleSettings),
       developer_mode: state.general.developer_mode,
     };
   };
@@ -641,6 +671,14 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
         download_name: latestRelease.download_name,
         size,
       });
+      if (result?.canceled) {
+        setReleaseDownloadState(createInitialReleaseDownloadState({
+          fileName: latestRelease.download_name || '',
+          version: latestRelease.version,
+          total: size,
+        }));
+        return;
+      }
       if (!result?.success) {
         const message = result?.message || '下载安装包失败';
         setReleaseDownloadState((prev) => ({ ...prev, status: 'error', message }));
@@ -662,6 +700,28 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       const message = error instanceof Error ? error.message : '下载安装包失败';
       setReleaseDownloadState((prev) => ({ ...prev, status: 'error', message }));
       showToast(message, 'error');
+    }
+  };
+
+  const cancelReleaseDownload = async () => {
+    if (releaseDownloadState.status !== 'downloading') {
+      return;
+    }
+
+    try {
+      const result = await window.yibiao?.cancelReleaseInstallerDownload();
+      if (result && !result.success) {
+        showToast(result.message || '取消更新下载失败', 'error');
+        return;
+      }
+      setReleaseDownloadState(createInitialReleaseDownloadState({
+        fileName: latestRelease?.download_name || releaseDownloadState.fileName,
+        version: latestRelease?.version || releaseDownloadState.version,
+        total: findReleaseAssetSize(latestRelease),
+      }));
+      showToast(result?.message || '已取消更新下载', 'info');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '取消更新下载失败', 'error');
     }
   };
 
@@ -736,6 +796,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       if (result?.success) {
         setSavedConfig(config);
         onDeveloperModeChange?.(Boolean(config.developer_mode));
+        onFeatureModuleSettingsChange?.(normalizeFeatureModuleSettings(config.feature_module_settings));
       }
       return Boolean(result?.success);
     } catch (error) {
@@ -956,6 +1017,21 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     }));
   };
 
+  const updateFeatureModule = (moduleId: FeatureModuleId, enabled: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      featureModuleSettings: {
+        modules: {
+          ...prev.featureModuleSettings.modules,
+          [moduleId]: {
+            id: moduleId,
+            enabled,
+          },
+        },
+      },
+    }));
+  };
+
   const openConfigFolder = async () => {
     try {
       await window.yibiao?.config.openConfigFolder();
@@ -1123,6 +1199,10 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       return JSON.stringify(normalizeSkillSettings(state.skillSettings)) !== JSON.stringify(normalizeSkillSettings(savedConfig.skill_settings));
     }
 
+    if (activeTab === 'features') {
+      return JSON.stringify(normalizeFeatureModuleSettings(state.featureModuleSettings)) !== JSON.stringify(normalizeFeatureModuleSettings(savedConfig.feature_module_settings));
+    }
+
     return false;
   };
 
@@ -1145,10 +1225,14 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     }
     if (activeTab === 'skills') {
       await saveClientConfig(createClientConfig());
+      return;
+    }
+    if (activeTab === 'features') {
+      await saveClientConfig(createClientConfig());
     }
   };
 
-  const canSaveActiveTab = activeTab === 'general' || activeTab === 'text-model' || activeTab === 'image-model' || activeTab === 'file-parser' || activeTab === 'skills';
+  const canSaveActiveTab = activeTab === 'general' || activeTab === 'text-model' || activeTab === 'image-model' || activeTab === 'file-parser' || activeTab === 'skills' || activeTab === 'features';
   const activeTabDirty = isActiveTabDirty();
   const currentTextProviderDefault = textProviderDefaults[state.textModel.provider];
   const imageModelStatus: ImageModelStatus = state.imageModel.status || 'untested';
@@ -1586,6 +1670,41 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
         </section>
       )}
 
+      {activeTab === 'features' && (
+        <section className="settings-page-section">
+          <div className="settings-section-title">
+            <span />
+            <strong>功能管理</strong>
+          </div>
+          <div className="feature-manager-note">
+            默认显示全部模块。关闭后只隐藏侧边栏入口和首页快捷入口，不删除本机工作区数据，后续可随时重新开启。
+          </div>
+          <div className="settings-list">
+            {configurableFeatureModules.map((module) => {
+              const enabled = state.featureModuleSettings.modules[module.id]?.enabled !== false;
+              return (
+                <label className="settings-row" key={module.id}>
+                  <div className="settings-row-copy">
+                    <strong>{module.label}</strong>
+                    <span>{module.description}</span>
+                  </div>
+                  <span className="settings-switch-control">
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(event) => updateFeatureModule(module.id, event.target.checked)}
+                    />
+                    <span className="settings-switch-track" aria-hidden="true">
+                      <span className="settings-switch-thumb" />
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {activeTab === 'skills' && (
         <section className="settings-page-section">
           <div className="settings-section-title">
@@ -1744,6 +1863,16 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
                   >
                     加速更新下载
                   </button>
+                  {releaseDownloading && (
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      title="取消当前安装包下载"
+                      onClick={() => { void cancelReleaseDownload(); }}
+                    >
+                      取消更新
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="primary-action"

@@ -9,6 +9,7 @@ const bridge = {
   checkUpdate: () => ipcRenderer.invoke('app:check-update'),
   startUpdate: () => ipcRenderer.invoke('app:start-update'),
   downloadReleaseInstaller: (payload) => ipcRenderer.invoke('app:download-release-installer', payload),
+  cancelReleaseInstallerDownload: () => ipcRenderer.invoke('app:cancel-release-installer-download'),
   installDownloadedRelease: () => ipcRenderer.invoke('app:install-downloaded-release'),
   showDownloadedRelease: () => ipcRenderer.invoke('app:show-downloaded-release'),
   quitAndInstall: () => ipcRenderer.invoke('app:quit-and-install'),

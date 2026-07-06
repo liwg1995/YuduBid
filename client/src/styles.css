@@ -15018,6 +15018,16 @@ button {
   border-radius: 18px;
 }
 
+.feature-manager-note {
+  margin: 0 36px 24px;
+  padding: 14px 16px;
+  color: var(--yb-text-soft);
+  line-height: 1.7;
+  background: rgba(33, 116, 253, 0.06);
+  border: 1px solid rgba(33, 116, 253, 0.12);
+  border-radius: 18px;
+}
+
 .skill-manager {
   padding: 0 36px 34px;
   border-top: 1px solid var(--yb-border-soft);

@@ -4,6 +4,7 @@ const { getConfigFilePath } = require('../utils/paths.cjs');
 
 const textModelProviders = ['agnes-ai', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
 const imageModelProviders = ['agnes-ai', 'volcengine', 'google-ai-studio', 'custom'];
+const featureModuleIds = ['bid', 'official-document', 'project-management', 'thesis-tutor', 'copyright', 'patent'];
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
 const agnesAiBaseUrl = 'https://apihub.agnes-ai.com/v1';
 
@@ -110,6 +111,12 @@ const defaultConfig = {
       },
     },
   },
+  feature_module_settings: {
+    modules: featureModuleIds.reduce((modules, id) => ({
+      ...modules,
+      [id]: { id, enabled: true },
+    }), {}),
+  },
   developer_mode: false,
 };
 
@@ -207,6 +214,22 @@ function normalizeSkillSettings(sourceSettings) {
   };
 }
 
+function normalizeFeatureModuleSettings(sourceSettings) {
+  const sourceModules = sourceSettings && typeof sourceSettings === 'object' && sourceSettings.modules && typeof sourceSettings.modules === 'object'
+    ? sourceSettings.modules
+    : {};
+
+  const modules = {};
+  featureModuleIds.forEach((id) => {
+    const sourceModule = sourceModules[id] && typeof sourceModules[id] === 'object' ? sourceModules[id] : {};
+    modules[id] = {
+      id,
+      enabled: sourceModule.enabled === undefined ? true : Boolean(sourceModule.enabled),
+    };
+  });
+  return { modules };
+}
+
 function normalizeConfig(config) {
   const source = config || {};
   const fileParser = source.file_parser ? source.file_parser : {};
@@ -238,6 +261,7 @@ function normalizeConfig(config) {
       mineru_token: fileParser.mineru_token || defaultConfig.file_parser.mineru_token,
     },
     skill_settings: normalizeSkillSettings(source.skill_settings),
+    feature_module_settings: normalizeFeatureModuleSettings(source.feature_module_settings),
     developer_mode: source.developer_mode === undefined ? defaultConfig.developer_mode : Boolean(source.developer_mode),
   };
 }

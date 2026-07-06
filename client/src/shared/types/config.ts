@@ -66,10 +66,28 @@ export interface SkillSettings {
   skills: Record<SkillId, SkillConfig>;
 }
 
+export type FeatureModuleId =
+  | 'bid'
+  | 'official-document'
+  | 'project-management'
+  | 'thesis-tutor'
+  | 'copyright'
+  | 'patent';
+
+export interface FeatureModuleConfig {
+  id: FeatureModuleId;
+  enabled: boolean;
+}
+
+export interface FeatureModuleSettings {
+  modules: Record<FeatureModuleId, FeatureModuleConfig>;
+}
+
 export interface ClientConfig extends AiConfig {
   image_model: ImageModelConfig;
   image_model_profiles: ImageModelProfiles;
   file_parser: FileParserConfig;
   skill_settings?: SkillSettings;
+  feature_module_settings?: FeatureModuleSettings;
   developer_mode?: boolean;
 }

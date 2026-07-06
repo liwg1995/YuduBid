@@ -1,4 +1,14 @@
 import type { AppMenuGroup, AppMenuItem, SectionId } from '../shared/types/navigation';
+import type { FeatureModuleId, FeatureModuleSettings } from '../shared/types';
+
+export const configurableFeatureModules: Array<{ id: FeatureModuleId; label: string; description: string }> = [
+  { id: 'bid', label: '招投标', description: '技术方案、商务标、知识库、查重、废标项检查和投标机会' },
+  { id: 'official-document', label: '公文写作', description: '智能起草、格式检查、润色改写和模板库' },
+  { id: 'project-management', label: '项目协作', description: '项目类型、项目管理和项目历史' },
+  { id: 'thesis-tutor', label: '论文导师', description: '诊断、选题、综述、研究设计、图表、成稿和评审' },
+  { id: 'copyright', label: '软件著作', description: '代码生成和软著申请材料生成' },
+  { id: 'patent', label: '专利生成', description: '专利挖掘、交底书生成、查新分析和修订迭代' },
+];
 
 export const appMenuItems: AppMenuItem[] = [
   {
@@ -176,17 +186,17 @@ const developerMenuItems: AppMenuItem[] = [
   },
 ];
 
-export function getAppMenuGroups(developerMode: boolean): AppMenuGroup[] {
-  const groups: AppMenuGroup[] = [
-    {
-      id: 'workspace',
-      label: '工作台',
-      items: [{
-        id: 'home',
-        label: '首页',
-        description: '产品概览与能力统计',
-      }],
-    },
+function isFeatureModuleEnabled(moduleSettings: FeatureModuleSettings | null | undefined, moduleId: FeatureModuleId) {
+  return moduleSettings?.modules?.[moduleId]?.enabled !== false;
+}
+
+export function getSectionModuleId(sectionId: SectionId): FeatureModuleId | null {
+  const moduleGroups = getFeatureModuleMenuGroups();
+  return moduleGroups.find((group) => group.items.some((item) => item.id === sectionId))?.id as FeatureModuleId | null;
+}
+
+function getFeatureModuleMenuGroups(): Array<AppMenuGroup & { id: FeatureModuleId }> {
+  return [
     {
       id: 'bid',
       label: '招投标',
@@ -218,6 +228,21 @@ export function getAppMenuGroups(developerMode: boolean): AppMenuGroup[] {
       items: patentMenuItems,
     },
   ];
+}
+
+export function getAppMenuGroups(developerMode: boolean, moduleSettings?: FeatureModuleSettings | null): AppMenuGroup[] {
+  const groups: AppMenuGroup[] = [
+    {
+      id: 'workspace',
+      label: '工作台',
+      items: [{
+        id: 'home',
+        label: '首页',
+        description: '产品概览与能力统计',
+      }],
+    },
+    ...getFeatureModuleMenuGroups().filter((group) => isFeatureModuleEnabled(moduleSettings, group.id)),
+  ];
 
   if (!developerMode) {
     return groups;
@@ -233,10 +258,21 @@ export function getAppMenuGroups(developerMode: boolean): AppMenuGroup[] {
   ];
 }
 
-export function getAppMenuItems(developerMode: boolean): AppMenuItem[] {
-  return getAppMenuGroups(developerMode).flatMap((group) => group.items);
+export function getAppMenuItems(developerMode: boolean, moduleSettings?: FeatureModuleSettings | null): AppMenuItem[] {
+  return getAppMenuGroups(developerMode, moduleSettings).flatMap((group) => group.items);
 }
 
-export function getSectionOrder(developerMode: boolean): SectionId[] {
-  return getAppMenuItems(developerMode).map((item) => item.id);
+export function getSectionOrder(developerMode: boolean, moduleSettings?: FeatureModuleSettings | null): SectionId[] {
+  return getAppMenuItems(developerMode, moduleSettings).map((item) => item.id);
+}
+
+export function isSectionVisible(sectionId: SectionId, developerMode: boolean, moduleSettings?: FeatureModuleSettings | null) {
+  if (sectionId === 'settings' || sectionId === 'home') {
+    return true;
+  }
+  if (sectionId === 'developer-test') {
+    return developerMode;
+  }
+  const moduleId = getSectionModuleId(sectionId);
+  return moduleId ? isFeatureModuleEnabled(moduleSettings, moduleId) : true;
 }

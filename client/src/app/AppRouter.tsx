@@ -1,4 +1,5 @@
 import type { SectionId } from '../shared/types/navigation';
+import type { FeatureModuleSettings } from '../shared/types';
 import BidOpportunityPage from '../features/bid-opportunity/pages/BidOpportunityPage';
 import BusinessBidPage from '../features/business-bid/pages/BusinessBidPage';
 import CodeGenerationPage from '../features/code-generation/pages/CodeGenerationPage';
@@ -22,14 +23,16 @@ import ThesisTutorPage, { type ThesisTutorInitialPanel } from '../features/thesi
 
 interface AppRouterProps {
   activeSection: SectionId;
+  featureModuleSettings?: FeatureModuleSettings | null;
   onSectionChange: (section: SectionId) => void;
   onDeveloperModeChange: (developerMode: boolean) => void;
+  onFeatureModuleSettingsChange: (settings: FeatureModuleSettings) => void;
 }
 
-function AppRouter({ activeSection, onSectionChange, onDeveloperModeChange }: AppRouterProps) {
+function AppRouter({ activeSection, featureModuleSettings, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange }: AppRouterProps) {
   switch (activeSection) {
     case 'home':
-      return <HomePage onNavigate={onSectionChange} />;
+      return <HomePage featureModuleSettings={featureModuleSettings} onNavigate={onSectionChange} />;
     case 'technical-plan':
       return <TechnicalPlanHome workflowKind="technical-plan" onSectionChange={onSectionChange} />;
     case 'existing-plan-expansion':
@@ -84,7 +87,7 @@ function AppRouter({ activeSection, onSectionChange, onDeveloperModeChange }: Ap
     case 'developer-test':
       return <DeveloperTestPage />;
     case 'settings':
-      return <SettingsPage onDeveloperModeChange={onDeveloperModeChange} />;
+      return <SettingsPage onDeveloperModeChange={onDeveloperModeChange} onFeatureModuleSettingsChange={onFeatureModuleSettingsChange} />;
     default:
       return null;
   }

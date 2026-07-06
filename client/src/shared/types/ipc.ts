@@ -78,6 +78,7 @@ export interface ReleaseInstallerDownloadRequest {
 export interface ReleaseInstallerDownloadResult {
   success: boolean;
   downloaded?: boolean;
+  canceled?: boolean;
   version?: string;
   path?: string;
   fileName?: string;
@@ -102,6 +103,7 @@ export interface YuDuBidBridge {
   checkUpdate: () => Promise<UpdateCheckResult>;
   startUpdate: () => Promise<UpdateCheckResult>;
   downloadReleaseInstaller: (payload: ReleaseInstallerDownloadRequest) => Promise<ReleaseInstallerDownloadResult>;
+  cancelReleaseInstallerDownload: () => Promise<{ success: boolean; canceled?: boolean; message?: string }>;
   installDownloadedRelease: () => Promise<{ success: boolean; message?: string }>;
   showDownloadedRelease: () => Promise<{ success: boolean; path?: string; fileName?: string; version?: string; message?: string }>;
   quitAndInstall: () => Promise<void>;

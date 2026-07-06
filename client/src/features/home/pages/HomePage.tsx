@@ -1,6 +1,9 @@
+import { getSectionModuleId } from '../../../app/menuConfig';
+import type { FeatureModuleSettings } from '../../../shared/types';
 import type { SectionId } from '../../../shared/types/navigation';
 
 interface HomePageProps {
+  featureModuleSettings?: FeatureModuleSettings | null;
   onNavigate: (section: SectionId) => void;
 }
 
@@ -83,7 +86,17 @@ const quickSignals = [
   { label: '导出能力', value: 'Word', tone: 'violet' },
 ];
 
-function HomePage({ onNavigate }: HomePageProps) {
+function HomePage({ featureModuleSettings, onNavigate }: HomePageProps) {
+  const visibleFeatureCards = featureCards.filter((item) => {
+    const moduleId = getSectionModuleId(item.section);
+    return !moduleId || featureModuleSettings?.modules?.[moduleId]?.enabled !== false;
+  });
+  const visibleOverviewStats = overviewStats.map((item) => (
+    item.label === '核心工作区'
+      ? { ...item, value: `${visibleFeatureCards.length}组` }
+      : item
+  ));
+
   return (
     <div className="home-page">
       <section className="home-hero-card">
@@ -102,7 +115,7 @@ function HomePage({ onNavigate }: HomePageProps) {
           </div>
         </div>
         <div className="home-stat-grid" aria-label="软件能力统计">
-          {overviewStats.map((item) => (
+          {visibleOverviewStats.map((item) => (
             <article className={`is-${item.tone}`} key={item.label}>
               <span className="home-stat-icon" aria-hidden="true">
                 <HomeIcon name={item.icon} />
@@ -125,7 +138,7 @@ function HomePage({ onNavigate }: HomePageProps) {
           </div>
         </div>
         <div className="home-feature-grid">
-          {featureCards.map((item) => (
+          {visibleFeatureCards.map((item) => (
             <article className={`is-${item.tone}`} key={item.title}>
               <span className="home-feature-icon" aria-hidden="true">
                 <HomeIcon name={item.icon} />

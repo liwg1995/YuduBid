@@ -1,12 +1,14 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useEffect, useRef, useState, type ComponentType, type ReactElement, type SVGProps } from 'react';
 import { getAppMenuGroups } from '../app/menuConfig';
+import type { FeatureModuleSettings } from '../shared/types';
 import type { SectionId } from '../shared/types/navigation';
 import logoUrl from '../../assets/icon_256.png';
 
 interface SidebarProps {
   activeSection: SectionId;
   developerMode: boolean;
+  featureModuleSettings?: FeatureModuleSettings | null;
   onSectionChange: (section: SectionId) => void;
 }
 
@@ -63,11 +65,11 @@ function loadInitialCollapsedGroups() {
   }
 }
 
-function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps) {
+function Sidebar({ activeSection, developerMode, featureModuleSettings, onSectionChange }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(loadInitialCollapsed);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(loadInitialCollapsedGroups);
   const navRef = useRef<HTMLElement | null>(null);
-  const menuGroups = getAppMenuGroups(developerMode);
+  const menuGroups = getAppMenuGroups(developerMode, featureModuleSettings);
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));

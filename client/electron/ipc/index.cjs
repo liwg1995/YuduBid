@@ -414,7 +414,7 @@ function registerUnavailableTechnicalPlanIpc(error) {
   ipcMain.on('tasks:subscribe', () => {});
 }
 
-function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall }) {
+function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall }) {
   const configStore = createConfigStore(app);
   const aiService = createAiService({ app, configStore });
   const fileService = createFileService({ app, configStore });
@@ -533,6 +533,8 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
       },
     });
   });
+
+  ipcMain.handle('app:cancel-release-installer-download', () => cancelReleaseInstallerDownload({ mainWindow }));
 
   ipcMain.handle('app:install-downloaded-release', () => installDownloadedRelease({ app, mainWindow }));
 
