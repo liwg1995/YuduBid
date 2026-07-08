@@ -36,29 +36,6 @@ sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
 
 功能能用就行了，要是有免费的我就签了！
 
-## 🆕 v0.7.0 更新 / Release Notes
-
-### 中文
-
-- 新增一级模块「售前工作台」，与招投标模块独立，支持售前项目创建、检索、编辑、删除和元数据管理。
-- 新增项目级售前工作流：项目资料、客户材料、客户分析、调研准备、方案架构、图表草稿和汇报材料页纲，所有结果按项目沉淀。
-- 客户材料支持文件导入和手动录入；客户材料缺失时，可通过项目资料和补充描述继续推进后续分析。
-- 新增售前方案 Word 导出，导出过程显示进度，完成后展示导出路径并可打开所在目录。
-- 优化售前方案 Word 文档结构，包含封面、目录、正文页码、标题层级、图片尺寸约束和目录字体样式。
-- 汇报材料保留「生成汇报页纲」和「导出页纲」能力，方便接入其他演示文稿工具继续制作 PPT。
-- 优化技术方案扩写改写页面布局，突出选择扩写范围和右侧设置区域，降低内容叠加和误操作。
-
-### English
-
-- Added a top-level Presales Workbench module that is independent from the bidding workflows, with project creation, search, editing, deletion, and metadata management.
-- Added project-scoped presales workflows covering project information, customer materials, customer analysis, research preparation, solution architecture, diagram drafts, and presentation outline assets.
-- Customer materials can now be imported or entered manually; workflows can still continue with project information and supplemental notes when customer documents are unavailable.
-- Added Word export for presales proposals, with progress feedback, exported path display, and one-click access to the output folder.
-- Improved Word document structure for presales proposals, including cover page, table of contents, page numbering, heading hierarchy, image sizing constraints, and TOC font styling.
-- Kept presentation-outline generation and outline export so users can continue building slides in external presentation tools.
-- Improved the Technical Plan expansion/rewrite page layout, making the expansion range and settings panels clearer and easier to operate.
-
-
 ## 🎬 如何使用？
 
 ### 使用前的设置
