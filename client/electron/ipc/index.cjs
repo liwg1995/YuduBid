@@ -11,6 +11,7 @@ const { registerFileIpc } = require('./fileIpc.cjs');
 const { registerKnowledgeBaseIpc } = require('./knowledgeBaseIpc.cjs');
 const { registerOfficialDocumentIpc } = require('./officialDocumentIpc.cjs');
 const { registerPatentGenerationIpc } = require('./patentGenerationIpc.cjs');
+const { registerPresalesWorkbenchIpc } = require('./presalesWorkbenchIpc.cjs');
 const { registerProjectManagementIpc } = require('./projectManagementIpc.cjs');
 const { registerRejectionCheckIpc } = require('./rejectionCheckIpc.cjs');
 const { registerSoftwareCopyrightIpc } = require('./softwareCopyrightIpc.cjs');
@@ -28,6 +29,7 @@ const { createKnowledgeBaseService } = require('../services/knowledgeBaseService
 const { createKnowledgeBaseStore } = require('../services/knowledgeBaseStore.cjs');
 const { createOfficialDocumentService } = require('../services/officialDocumentService.cjs');
 const { createPatentGenerationService } = require('../services/patentGenerationService.cjs');
+const { createPresalesWorkbenchService } = require('../services/presalesWorkbenchService.cjs');
 const { createProjectManagementService } = require('../services/projectManagementService.cjs');
 const { createRejectionCheckStore } = require('../services/rejectionCheckStore.cjs');
 const { createSoftwareCopyrightService } = require('../services/softwareCopyrightService.cjs');
@@ -658,6 +660,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const codeGenerationService = createCodeGenerationService({ app });
   const officialDocumentService = createOfficialDocumentService({ app, aiService, configStore });
   const patentGenerationService = createPatentGenerationService({ app, aiService });
+  const presalesWorkbenchService = createPresalesWorkbenchService({ app, fileService, aiService });
   const projectManagementService = createProjectManagementService({ app, aiService, configStore });
   const thesisTutorService = createThesisTutorService({ app, aiService, configStore });
 
@@ -667,6 +670,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   registerExportIpc({ exportService });
   registerCodeGenerationIpc({ codeGenerationService });
   registerOfficialDocumentIpc({ officialDocumentService });
+  registerPresalesWorkbenchIpc({ presalesWorkbenchService });
   registerProjectManagementIpc({ projectManagementService });
   registerThesisTutorIpc({ thesisTutorService });
   registerSoftwareCopyrightIpc({ softwareCopyrightService: createSoftwareCopyrightService({ app, aiService, configStore, codeGenerationService }) });

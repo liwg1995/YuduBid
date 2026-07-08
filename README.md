@@ -4,7 +4,7 @@
 
 # 🌐 禹都AI解决方案助手
 
-🚀 禹都AI解决方案助手是一款面向招投标、公文写作、论文辅导、项目管理、软件著作和国家专利场景的本地 AI 工作台。它把资料导入、内容解析、方案生成、公文起草、论文诊断、项目推进、交底书编写、查重检查、润色修订、版本留档和 Word 导出整合到同一套桌面流程中，帮助团队把分散的文档、代码、方案和经验沉淀成可复用、可交付的成果。
+🚀 禹都AI解决方案助手是一款面向售前支持、招投标、公文写作、论文辅导、项目管理、软件著作和国家专利场景的本地 AI 工作台。它把售前机会管理、资料导入、内容解析、方案生成、公文起草、论文诊断、项目推进、交底书编写、查重检查、润色修订、版本留档和 Word 导出整合到同一套桌面流程中，帮助团队把分散的文档、代码、方案和经验沉淀成可复用、可交付的成果。
 
 🆓 **本软件完全免费**
 
@@ -36,6 +36,28 @@ sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
 
 功能能用就行了，要是有免费的我就签了！
 
+## 🆕 v0.7.0 更新 / Release Notes
+
+### 中文
+
+- 新增一级模块「售前工作台」，与招投标模块独立，支持售前项目创建、检索、编辑、删除和元数据管理。
+- 新增项目级售前工作流：项目资料、客户材料、客户分析、调研准备、方案架构、图表草稿和汇报材料页纲，所有结果按项目沉淀。
+- 客户材料支持文件导入和手动录入；客户材料缺失时，可通过项目资料和补充描述继续推进后续分析。
+- 新增售前方案 Word 导出，导出过程显示进度，完成后展示导出路径并可打开所在目录。
+- 优化售前方案 Word 文档结构，包含封面、目录、正文页码、标题层级、图片尺寸约束和目录字体样式。
+- 汇报材料保留「生成汇报页纲」和「导出页纲」能力，方便接入其他演示文稿工具继续制作 PPT。
+- 优化技术方案扩写改写页面布局，突出选择扩写范围和右侧设置区域，降低内容叠加和误操作。
+
+### English
+
+- Added a top-level Presales Workbench module that is independent from the bidding workflows, with project creation, search, editing, deletion, and metadata management.
+- Added project-scoped presales workflows covering project information, customer materials, customer analysis, research preparation, solution architecture, diagram drafts, and presentation outline assets.
+- Customer materials can now be imported or entered manually; workflows can still continue with project information and supplemental notes when customer documents are unavailable.
+- Added Word export for presales proposals, with progress feedback, exported path display, and one-click access to the output folder.
+- Improved Word document structure for presales proposals, including cover page, table of contents, page numbering, heading hierarchy, image sizing constraints, and TOC font styling.
+- Kept presentation-outline generation and outline export so users can continue building slides in external presentation tools.
+- Improved the Technical Plan expansion/rewrite page layout, making the expansion range and settings panels clearer and easier to operate.
+
 
 ## 🎬 如何使用？
 
@@ -52,6 +74,10 @@ sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
 ### 技术标书
 
 围绕招标资料解析、目录生成、正文编排、已有方案扩写、知识库复用、标书查重和废标项检查形成完整辅助链路，让技术响应、方案撰写、既有方案优化和交付检查更清晰。知识库资产作为技术方案流程中的素材沉淀与复用能力，为后续标书编写提供历史案例、模板和结构化内容支撑。
+
+### 售前工作台
+
+面向售前机会识别、客户沟通和方案准备，提供售前项目管理、客户材料导入或手动录入、客户画像与痛点分析、调研问题整理、方案架构草稿、Mermaid 图表草稿、汇报页纲生成、页纲导出和售前方案 Word 导出能力。售前项目与招投标项目相互独立，适合在正式招投标前沉淀客户背景、需求判断、技术路径和沟通材料。
 
 ### 公文写作
 
@@ -77,14 +103,16 @@ sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
 
 - 本地桌面工作台，资料、草稿和流程状态保存在本机工作区。
 - 文本模型、生图模型和文件解析能力可独立配置。
+- 售前工作台支持按客户机会创建项目，并沉淀客户材料、分析报告、方案架构、汇报页纲和售前方案。
 - 支持 Markdown 编辑/预览、只读审阅、结构化编辑和 Word 文档导出。
 - 长任务在后台执行，页面切换不会中断生成、检查和导出流程。
 - 内置公文写作模板、论文导师流程、检查维度和润色规则，便于从起草、辅导、检查到导出形成闭环。
 - 项目管理支持多项目创建、切换、检索、分类、分组、历史预览和阶段化交付物沉淀。
-- 面向中文办公文档场景设计，覆盖招投标、公文写作、论文辅导、项目管理、软著、专利和知识资产管理。
+- 面向中文办公文档场景设计，覆盖售前支持、招投标、公文写作、论文辅导、项目管理、软著、专利和知识资产管理。
 
 ## 🧩 适用场景
 
+- 售前团队进行客户机会识别、需求调研、方案沟通、汇报页纲整理和售前方案交付。
 - 招投标团队编写技术标书、整理商务响应和检查废标风险。
 - 机关、企事业单位和项目团队起草通知、请示、报告、函、工作方案等公文材料。
 - 本科、硕士、博士等论文写作者梳理选题、开题、综述、研究设计、章节写作、答辩准备和格式检查。

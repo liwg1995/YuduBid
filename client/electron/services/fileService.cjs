@@ -523,7 +523,7 @@ function createFileService({ app, configStore } = {}) {
 
       let fileContent = '';
       try {
-        fileContent = (await parseDocumentWithConfig(app, filePath, config, { assetScope: 'technical-plan', preserveImages: false })).trim();
+        fileContent = (await parseDocumentWithConfig(app, filePath, config, { assetScope: options.assetScope || 'technical-plan', preserveImages: false })).trim();
       } catch (error) {
         return {
           success: false,

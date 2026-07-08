@@ -1,5 +1,7 @@
 export type SectionId =
   | 'home'
+  | 'presales-projects'
+  | 'presales-workbench'
   | 'technical-plan'
   | 'existing-plan-expansion'
   | 'business-bid'

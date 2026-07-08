@@ -49,6 +49,8 @@ const WORD_OPTIMIZATION_IMAGE_MAX_WIDTH = 520;
 const WORD_OPTIMIZATION_IMAGE_MAX_HEIGHT = 620;
 const PROJECT_MANAGEMENT_IMAGE_MAX_WIDTH = 560;
 const PROJECT_MANAGEMENT_IMAGE_MAX_HEIGHT = 620;
+const PRESALES_PROPOSAL_IMAGE_MAX_WIDTH = 430;
+const PRESALES_PROPOSAL_IMAGE_MAX_HEIGHT = 500;
 const WORD_OPTIMIZATION_TABLE_SEQ_ID = 'YDBTable';
 const WORD_OPTIMIZATION_FIGURE_SEQ_ID = 'YDBFigure';
 const WORD_TWO_CHARS_TWIPS = 480;
@@ -632,9 +634,12 @@ function paragraph(children, options = {}) {
   const optimized = Boolean(options.optimized);
   const officialDocument = Boolean(options.officialDocument);
   const projectManagementDocument = Boolean(options.projectManagementDocument);
-  const formalDocument = officialDocument || projectManagementDocument;
+  const presalesProposalDocument = Boolean(options.presalesProposalDocument);
+  const formalDocument = officialDocument || projectManagementDocument || presalesProposalDocument;
   const defaultSpacing = optimized
     ? { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY }
+    : presalesProposalDocument
+      ? { before: options.before || 0, after: options.after ?? 0, line: 360, lineRule: LineRuleType.AUTO }
     : formalDocument
       ? { before: options.before || 0, after: options.after ?? 0, line: 560, lineRule: LineRuleType.EXACTLY }
     : { before: options.before || 0, after: options.after ?? 160, line: 360 };
@@ -766,9 +771,75 @@ function createProjectManagementCover(payload = {}) {
   ];
 }
 
+function createPresalesProposalCover(payload = {}) {
+  const profile = payload.project_profile || payload.projectProfile || {};
+  const documentTitle = payload.document_title || payload.documentTitle || payload.project_name || '售前方案';
+  const projectName = profile.projectName || payload.project_name || '待确认';
+  const customerName = profile.customerName || profile.clientName || '待确认';
+  const industry = profile.industry || '待确认';
+  const currentStage = profile.currentStage || '待确认';
+  const owner = profile.owner || '待确认';
+  const exportDate = new Date().toLocaleDateString('zh-CN');
+  const metaRows = [
+    ['项目名称', projectName],
+    ['客户名称', customerName],
+    ['行业领域', industry],
+    ['当前阶段', currentStage],
+    ['负责人', owner],
+    ['编制单位', '禹都AI解决方案助手'],
+    ['保密级别', '内部资料'],
+    ['导出日期', exportDate],
+  ];
+  const coverTableColumnWidths = [2200, 5400];
+
+  return [
+    paragraph([textRun('售前方案', { font: '黑体', bold: true, size: 52, color: '000000', cleanMarkdown: true })], {
+      alignment: AlignmentType.CENTER,
+      indent: { left: 0, right: 0, firstLine: 0 },
+      before: 620,
+      after: 260,
+    }),
+    paragraph([textRun(documentTitle, { font: '宋体', bold: true, size: 34, color: '000000', cleanMarkdown: true })], {
+      alignment: AlignmentType.CENTER,
+      indent: { left: 0, right: 0, firstLine: 0 },
+      after: 460,
+    }),
+    new Table({
+      width: { size: coverTableColumnWidths.reduce((sum, width) => sum + width, 0), type: WidthType.DXA },
+      columnWidths: coverTableColumnWidths,
+      layout: TableLayoutType.FIXED,
+      alignment: AlignmentType.CENTER,
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+        bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+        left: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+        right: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+        insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+        insideVertical: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+      },
+      rows: metaRows.map(([label, value]) => new TableRow({
+        children: [
+          new TableCell({
+            width: { size: coverTableColumnWidths[0], type: WidthType.DXA },
+            margins: { top: 110, bottom: 110, left: 180, right: 180 },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [paragraph([textRun(label, { font: '宋体', bold: true, size: 24, color: '000000', cleanMarkdown: true })], projectManagementParagraphOptions({ alignment: AlignmentType.CENTER }))],
+          }),
+          new TableCell({
+            width: { size: coverTableColumnWidths[1], type: WidthType.DXA },
+            margins: { top: 110, bottom: 110, left: 220, right: 220 },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [paragraph([textRun(value, { font: '宋体', size: 24, color: '000000', cleanMarkdown: true })], projectManagementParagraphOptions())],
+          }),
+        ],
+      })),
+    }),
+  ];
+}
+
 function createProjectManagementTocPage() {
   return [
-    paragraph([textRun('目录', { font: '楷体_GB2312', bold: true, size: 36, color: '000000' })], {
+    paragraph([textRun('目录', { font: '宋体', bold: true, size: 36, color: '000000' })], {
       alignment: AlignmentType.CENTER,
       indent: { left: 0, right: 0, firstLine: 0 },
       after: 280,
@@ -821,6 +892,27 @@ function createProjectManagementTocStyles() {
     run: {
       font: '仿宋_GB2312',
       size: level === 1 ? 28 : 26,
+      color: '000000',
+    },
+  }));
+}
+
+function createPresalesProposalTocStyles() {
+  return [1, 2, 3, 4].map((level) => ({
+    id: `TOC${level}`,
+    name: `TOC ${level}`,
+    basedOn: 'Normal',
+    next: 'Normal',
+    semiHidden: true,
+    unhideWhenUsed: true,
+    paragraph: {
+      spacing: { before: 0, after: 0, line: 360, lineRule: LineRuleType.AUTO },
+      indent: { left: 0, right: 0, firstLine: 0, hanging: 0 },
+      tabStops: [],
+    },
+    run: {
+      font: { ascii: '宋体', eastAsia: '宋体', hAnsi: '宋体' },
+      size: 24,
       color: '000000',
     },
   }));
@@ -1409,11 +1501,15 @@ async function imageRunFromNode(node, context, options = {}) {
   }
   const maxImageWidth = context.projectManagementDocumentEnabled
     ? PROJECT_MANAGEMENT_IMAGE_MAX_WIDTH
+    : context.presalesProposalDocumentEnabled
+      ? PRESALES_PROPOSAL_IMAGE_MAX_WIDTH
     : context.wordOptimizationEnabled
       ? WORD_OPTIMIZATION_IMAGE_MAX_WIDTH
       : MAX_IMAGE_WIDTH;
   const maxImageHeight = context.projectManagementDocumentEnabled
     ? PROJECT_MANAGEMENT_IMAGE_MAX_HEIGHT
+    : context.presalesProposalDocumentEnabled
+      ? PRESALES_PROPOSAL_IMAGE_MAX_HEIGHT
     : context.wordOptimizationEnabled
       ? WORD_OPTIMIZATION_IMAGE_MAX_HEIGHT
       : Number.POSITIVE_INFINITY;
@@ -1896,18 +1992,22 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
   const optimized = Boolean(context.wordOptimizationEnabled);
   const officialDocument = Boolean(context.officialDocumentEnabled);
   const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
-  const formalDocument = officialDocument || projectManagementDocument;
+  const presalesProposalDocument = Boolean(context.presalesProposalDocumentEnabled);
+  const structuredDocument = projectManagementDocument || presalesProposalDocument;
+  const formalDocument = officialDocument || structuredDocument;
 
   for (const node of nodes) {
     if (node.type === 'heading') {
       const headingDepth = headingNumberingLevel(node.depth);
       const officialHeadingFont = node.depth === 1 ? '小标宋体' : node.depth === 2 ? '黑体' : '楷体_GB2312';
-      const headingRuns = projectManagementDocument
+      const headingRuns = structuredDocument
         ? [textRun(stripLeadingNumbering(stripInlineMarkdownMarkers(nodeText(node))) || stripInlineMarkdownMarkers(nodeText(node)), {
-            font: '楷体_GB2312',
+            font: projectManagementDocument ? '楷体_GB2312' : '黑体',
             bold: true,
             color: '000000',
-            size: node.depth === 1 ? 32 : node.depth === 2 ? 30 : 28,
+            size: projectManagementDocument
+              ? node.depth === 1 ? 32 : node.depth === 2 ? 30 : 28
+              : node.depth === 1 ? 30 : node.depth === 2 ? 28 : 26,
             cleanMarkdown: true,
           })]
         : await inlineRuns(
@@ -1926,8 +2026,9 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         optimized,
         officialDocument,
         projectManagementDocument,
+        presalesProposalDocument,
         keepNext: optimized || formalDocument ? true : undefined,
-        numbering: optimized || projectManagementDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
+        numbering: optimized || structuredDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
         indent: optimized || formalDocument ? { left: 0, right: 0 } : undefined,
         tabStops: optimized || formalDocument ? [] : undefined,
         alignment: officialDocument && node.depth === 1 ? AlignmentType.CENTER : undefined,
@@ -1947,6 +2048,8 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
           ? { optimized }
           : projectManagementDocument
             ? { font: '仿宋_GB2312', size: 32, color: '000000', cleanMarkdown: true }
+          : presalesProposalDocument
+            ? { font: '宋体', size: 24, color: '000000', cleanMarkdown: true }
           : officialDocument
             ? { font: '仿宋_GB2312', size: 32, color: '000000' }
             : {}), {
@@ -1954,6 +2057,7 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
           optimized,
           officialDocument,
           projectManagementDocument,
+          presalesProposalDocument,
           alignment: options.inTable && (optimized || projectManagementDocument)
             ? AlignmentType.CENTER
             : !options.inTable && (isImageOnlyParagraph(node) || isFigureCaptionParagraph(node)) ? AlignmentType.CENTER : undefined,
@@ -2099,20 +2203,22 @@ async function addOutlineItems(children, items, context, level = 1) {
   const optimized = Boolean(context.wordOptimizationEnabled);
   const officialDocument = Boolean(context.officialDocumentEnabled);
   const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
-  const formalDocument = officialDocument || projectManagementDocument;
+  const presalesProposalDocument = Boolean(context.presalesProposalDocumentEnabled);
+  const structuredDocument = projectManagementDocument || presalesProposalDocument;
+  const formalDocument = officialDocument || structuredDocument;
   for (const item of items || []) {
     const rawTitle = item.title || '未命名章节';
-    const title = optimized || projectManagementDocument
+    const title = optimized || structuredDocument
       ? stripLeadingNumbering(rawTitle) || rawTitle
       : `${item.id || ''} ${rawTitle}`.trim();
     const shouldRenderTitle = !(officialDocument && item.hideTitle);
     if (shouldRenderTitle) {
       children.push(paragraph([textRun(title, {
         bold: true,
-        font: projectManagementDocument ? '楷体_GB2312' : optimized || officialDocument ? '黑体' : undefined,
+        font: projectManagementDocument ? '楷体_GB2312' : optimized || officialDocument || presalesProposalDocument ? '黑体' : undefined,
         color: optimized || formalDocument ? '000000' : undefined,
-        size: projectManagementDocument ? (level === 1 ? 32 : 30) : officialDocument ? 32 : undefined,
-        cleanMarkdown: projectManagementDocument,
+        size: projectManagementDocument ? (level === 1 ? 32 : 30) : presalesProposalDocument ? (level === 1 ? 30 : 28) : officialDocument ? 32 : undefined,
+        cleanMarkdown: structuredDocument,
       })], {
         heading: headingLevel(level),
         before: optimized || formalDocument ? 0 : level === 1 ? 320 : 200,
@@ -2120,8 +2226,9 @@ async function addOutlineItems(children, items, context, level = 1) {
         optimized,
         officialDocument,
         projectManagementDocument,
+        presalesProposalDocument,
         keepNext: optimized || formalDocument ? true : undefined,
-        numbering: optimized || projectManagementDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) } : undefined,
+        numbering: optimized || structuredDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) } : undefined,
         indent: optimized || formalDocument ? { left: 0, right: 0 } : undefined,
         tabStops: optimized || formalDocument ? [] : undefined,
       }));
@@ -2145,7 +2252,8 @@ function createNumberingConfig(context) {
   const references = context.numberingReferences || [];
   const optimized = Boolean(context.wordOptimizationEnabled);
   const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
-  const headingNumberingEnabled = optimized || projectManagementDocument;
+  const presalesProposalDocument = Boolean(context.presalesProposalDocumentEnabled);
+  const headingNumberingEnabled = optimized || projectManagementDocument || presalesProposalDocument;
   if (!references.length && !headingNumberingEnabled) {
     return undefined;
   }
@@ -2191,7 +2299,9 @@ async function buildDocxResult(payload, options = {}) {
   const stats = countOutlineStats(payload.outline || []);
   const officialDocumentEnabled = payload.document_profile === 'official-document' || payload.documentProfile === 'official-document';
   const projectManagementDocumentEnabled = payload.document_profile === 'project-management' || payload.documentProfile === 'project-management';
-  const formalDocumentEnabled = officialDocumentEnabled || projectManagementDocumentEnabled;
+  const presalesProposalDocumentEnabled = payload.document_profile === 'presales-proposal' || payload.documentProfile === 'presales-proposal';
+  const structuredDocumentEnabled = projectManagementDocumentEnabled || presalesProposalDocumentEnabled;
+  const formalDocumentEnabled = officialDocumentEnabled || structuredDocumentEnabled;
   const wordOptimizationEnabled = !formalDocumentEnabled && isWordOptimizationEnabled(options.config);
   const context = {
     baseDir: payload.base_dir || payload.baseDir,
@@ -2200,6 +2310,7 @@ async function buildDocxResult(payload, options = {}) {
     stats,
     officialDocumentEnabled,
     projectManagementDocumentEnabled,
+    presalesProposalDocumentEnabled,
     wordOptimizationEnabled,
     convertedLeafCount: 0,
     convertedMermaidCount: 0,
@@ -2211,9 +2322,13 @@ async function buildDocxResult(payload, options = {}) {
     lastParagraphText: '',
     recentParagraphTexts: [],
   };
-  const coverChildren = projectManagementDocumentEnabled ? createProjectManagementCover(payload) : [];
-  const tocChildren = projectManagementDocumentEnabled ? createProjectManagementTocPage() : [];
-  const children = projectManagementDocumentEnabled
+  const coverChildren = projectManagementDocumentEnabled
+    ? createProjectManagementCover(payload)
+    : presalesProposalDocumentEnabled
+    ? createPresalesProposalCover(payload)
+    : [];
+  const tocChildren = structuredDocumentEnabled ? createProjectManagementTocPage() : [];
+  const children = structuredDocumentEnabled
     ? []
     : officialDocumentEnabled
     ? []
@@ -2244,6 +2359,12 @@ async function buildDocxResult(payload, options = {}) {
         alignment: AlignmentType.JUSTIFIED,
         indent: { firstLine: WORD_TWO_CHARS_TWIPS },
       }
+    : presalesProposalDocumentEnabled
+    ? {
+        spacing: { before: 0, after: 0, line: 360, lineRule: LineRuleType.AUTO },
+        alignment: AlignmentType.JUSTIFIED,
+        indent: optimizedBodyIndent(),
+      }
     : wordOptimizationEnabled
     ? {
         spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
@@ -2251,26 +2372,28 @@ async function buildDocxResult(payload, options = {}) {
         indent: optimizedBodyIndent(),
       }
     : { spacing: { line: 360, after: 160 } };
-  const optimizedHeadingStyle = wordOptimizationEnabled || projectManagementDocumentEnabled
+  const optimizedHeadingStyle = wordOptimizationEnabled || structuredDocumentEnabled
     ? {
         basedOn: 'Normal',
         next: 'Normal',
         quickFormat: true,
         run: {
           font: projectManagementDocumentEnabled ? '楷体_GB2312' : '黑体',
-          size: projectManagementDocumentEnabled ? 30 : 24,
+          size: projectManagementDocumentEnabled ? 30 : presalesProposalDocumentEnabled ? 28 : 24,
           bold: true,
           color: '000000',
         },
         paragraph: {
-          spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
+          spacing: presalesProposalDocumentEnabled
+            ? { before: 0, after: 0, line: 360, lineRule: LineRuleType.AUTO }
+            : { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
           alignment: AlignmentType.JUSTIFIED,
           indent: { left: 0, right: 0 },
           tabStops: [],
         },
       }
     : undefined;
-  const sections = projectManagementDocumentEnabled
+  const sections = structuredDocumentEnabled
     ? [
         {
           properties: {
@@ -2324,20 +2447,22 @@ async function buildDocxResult(payload, options = {}) {
 
   const doc = new Document({
     ...(numbering ? { numbering } : {}),
-    ...(wordOptimizationEnabled || projectManagementDocumentEnabled ? { features: { updateFields: true } } : {}),
-    ...(wordOptimizationEnabled || projectManagementDocumentEnabled ? { defaultTabStop: 0 } : {}),
+    ...(wordOptimizationEnabled || structuredDocumentEnabled ? { features: { updateFields: true } } : {}),
+    ...(wordOptimizationEnabled || structuredDocumentEnabled ? { defaultTabStop: 0 } : {}),
     styles: {
       default: {
         document: {
           run: projectManagementDocumentEnabled
             ? { font: '仿宋_GB2312', size: 32, color: '000000' }
+            : presalesProposalDocumentEnabled
+            ? { font: '宋体', size: 24, color: '000000' }
             : officialDocumentEnabled
             ? { font: '仿宋_GB2312', size: 32, color: '000000' }
             : { font: '宋体', size: 24, color: wordOptimizationEnabled ? '000000' : undefined },
           paragraph: defaultParagraphStyle,
         },
       },
-      ...(wordOptimizationEnabled || projectManagementDocumentEnabled ? {
+      ...(wordOptimizationEnabled || structuredDocumentEnabled ? {
         paragraphStyles: [
           ...[1, 2, 3, 4, 5].map((level) => ({
             id: `Heading${level}`,
@@ -2345,9 +2470,12 @@ async function buildDocxResult(payload, options = {}) {
             ...optimizedHeadingStyle,
             run: projectManagementDocumentEnabled
               ? { font: '楷体_GB2312', size: level === 1 ? 32 : level === 2 ? 30 : 28, bold: true, color: '000000' }
+              : presalesProposalDocumentEnabled
+              ? { font: '黑体', size: level === 1 ? 30 : level === 2 ? 28 : 26, bold: true, color: '000000' }
               : optimizedHeadingStyle.run,
           })),
           ...(projectManagementDocumentEnabled ? createProjectManagementTocStyles() : []),
+          ...(presalesProposalDocumentEnabled ? createPresalesProposalTocStyles() : []),
         ],
       } : {}),
     },
@@ -2414,7 +2542,7 @@ async function exportOriginalTemplateWord(payload = {}, onProgress) {
     ? `Word 已按原方案格式导出，已匹配 ${injection.matchedCount} 个原方案章节，请打开文档核对扩写内容位置和分页。`
     : 'Word 已按原方案格式导出，请打开文档核对扩写内容位置和分页。';
   reportProgress(progressContext, 100, message, { phase: 'success' });
-  return { success: true, path: result.filePath, message, warnings: progressContext.warnings };
+  return { success: true, path: result.filePath, filePath: result.filePath, message, warnings: progressContext.warnings };
 }
 
 function createExportService({ configStore } = {}) {
@@ -2455,7 +2583,7 @@ function createExportService({ configStore } = {}) {
         ? `Word 已导出，但有 ${buildResult.warnings.length} 处图片未能插入，请打开文档核对。`
         : 'Word 已导出，请打开文档核对图片、表格和版式。';
       reportProgress({ onProgress, warnings: buildResult.warnings, stats: buildResult.stats }, 100, message, { phase: 'success' });
-      return { success: true, path: result.filePath, message, warnings: buildResult.warnings };
+      return { success: true, path: result.filePath, filePath: result.filePath, message, warnings: buildResult.warnings };
     },
   };
 }

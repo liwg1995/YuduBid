@@ -1,6 +1,6 @@
 {
   "name": "yudubid-client",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
@@ -112,6 +112,7 @@
     "mime-types": "^3.0.2",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^5.7.284",
+    "pptxgenjs": "^4.0.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",

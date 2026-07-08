@@ -67,6 +67,7 @@ export interface SkillSettings {
 }
 
 export type FeatureModuleId =
+  | 'presales'
   | 'bid'
   | 'official-document'
   | 'project-management'

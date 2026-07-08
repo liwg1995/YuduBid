@@ -12,6 +12,8 @@ import PatentDisclosurePage from '../features/patent-generation/pages/PatentDisc
 import PatentIterationPage from '../features/patent-generation/pages/PatentIterationPage';
 import PatentMiningPage from '../features/patent-generation/pages/PatentMiningPage';
 import PatentPriorArtPage from '../features/patent-generation/pages/PatentPriorArtPage';
+import PresalesProjectsPage from '../features/presales-workbench/pages/PresalesProjectsPage';
+import PresalesWorkbenchPage from '../features/presales-workbench/pages/PresalesWorkbenchPage';
 import ProjectHistoryPage from '../features/project-management/pages/ProjectHistoryPage';
 import ProjectManagementPage from '../features/project-management/pages/ProjectManagementPage';
 import ProjectTypesPage from '../features/project-management/pages/ProjectTypesPage';
@@ -33,6 +35,10 @@ function AppRouter({ activeSection, featureModuleSettings, onSectionChange, onDe
   switch (activeSection) {
     case 'home':
       return <HomePage featureModuleSettings={featureModuleSettings} onNavigate={onSectionChange} />;
+    case 'presales-projects':
+      return <PresalesProjectsPage onNavigate={onSectionChange} />;
+    case 'presales-workbench':
+      return <PresalesWorkbenchPage onNavigate={onSectionChange} />;
     case 'technical-plan':
       return <TechnicalPlanHome workflowKind="technical-plan" onSectionChange={onSectionChange} />;
     case 'existing-plan-expansion':

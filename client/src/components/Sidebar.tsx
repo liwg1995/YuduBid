@@ -14,6 +14,8 @@ interface SidebarProps {
 
 const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>> = {
   home: HomeIcon,
+  'presales-projects': ProjectManagementIcon,
+  'presales-workbench': BriefcaseIcon,
   'technical-plan': TechnicalPlanIcon,
   'existing-plan-expansion': PlanExpansionIcon,
   'business-bid': BriefcaseIcon,

@@ -10,13 +10,22 @@ interface HomePageProps {
 type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' | 'book' | 'document' | 'check' | 'thesis' | 'project';
 
 const overviewStats: Array<{ label: string; value: string; detail: string; tone: string; icon: HomeIconName }> = [
-  { label: '核心工作区', value: '6组', detail: '招投标、公文、项目、论文、软著、专利', tone: 'blue', icon: 'flow' },
+  { label: '核心工作区', value: '7组', detail: '售前、招投标、公文、项目、论文、软著、专利', tone: 'blue', icon: 'flow' },
   { label: 'AI生成链路', value: '15+类', detail: '方案、公文、论文辅导、代码、交底书等', tone: 'violet', icon: 'spark' },
   { label: '本地能力', value: '多项', detail: '文件解析、Word导出、SQLite工作区', tone: 'cyan', icon: 'archive' },
   { label: '流程覆盖', value: '全周期', detail: '解析、生成、检查、修订、沉淀、导出', tone: 'green', icon: 'check' },
 ];
 
 const featureCards: Array<{ title: string; text: string; action: string; section: SectionId; tone: string; icon: HomeIconName; tags: string[] }> = [
+  {
+    title: '售前工作台',
+    text: '独立承载客户材料分析、调研准备、方案架构、图表工场和汇报材料规划，形成完整售前交付链路。',
+    action: '进入售前项目',
+    section: 'presales-projects',
+    tone: 'violet',
+    icon: 'spark',
+    tags: ['售前', '架构', '汇报'],
+  },
   {
     title: '招投标工作流',
     text: '围绕招标文件解析、目录生成、正文编排、查重和废标项检查形成完整投标辅助链路。',

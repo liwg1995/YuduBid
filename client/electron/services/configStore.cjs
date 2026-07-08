@@ -4,7 +4,7 @@ const { getConfigFilePath } = require('../utils/paths.cjs');
 
 const textModelProviders = ['agnes-ai', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
 const imageModelProviders = ['agnes-ai', 'volcengine', 'google-ai-studio', 'custom'];
-const featureModuleIds = ['bid', 'official-document', 'project-management', 'thesis-tutor', 'copyright', 'patent'];
+const featureModuleIds = ['presales', 'bid', 'official-document', 'project-management', 'thesis-tutor', 'copyright', 'patent'];
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
 const agnesAiBaseUrl = 'https://apihub.agnes-ai.com/v1';
 

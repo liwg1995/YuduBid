@@ -81,6 +81,10 @@ function getProjectManagementDir(app) {
   return path.join(getWorkspaceDir(app), 'project-management');
 }
 
+function getPresalesWorkbenchDir(app) {
+  return path.join(getWorkspaceDir(app), 'presales-workbench');
+}
+
 function getCodeGenerationDir(app) {
   return path.join(getWorkspaceDir(app), 'code-generation');
 }
@@ -100,6 +104,7 @@ module.exports = {
   getCodeGenerationDir,
   getOfficialDocumentDir,
   getProjectManagementDir,
+  getPresalesWorkbenchDir,
   getThesisTutorDir,
   getPatentGenerationDir,
   getSoftwareCopyrightDir,

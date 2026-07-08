@@ -6,6 +6,7 @@ import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex,
 import type { OfficialDocumentPromptInput } from '../prompts/officialDocument';
 import type { OfficialDocumentImportResult, OfficialDocumentState } from '../../features/official-document/types';
 import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentRevisionResult } from '../../features/patent-generation/types';
+import type { PresalesAnalysisInput, PresalesArchitectureInput, PresalesDiagramInput, PresalesExportRecord, PresalesManualMaterialInput, PresalesMaterialItem, PresalesPresentationInput, PresalesProjectList, PresalesProjectProfile, PresalesProjectState, PresalesResearchInput } from '../../features/presales-workbench/types';
 import type { ProjectManagementCommercialInput, ProjectManagementComplianceInput, ProjectManagementDeliveryInput, ProjectManagementDictionaries, ProjectManagementDiscoveryInput, ProjectManagementExecutionInput, ProjectManagementPlanningInput, ProjectManagementProfile, ProjectManagementProjectList, ProjectManagementReportingInput, ProjectManagementRetrospectiveInput, ProjectManagementRiskInput, ProjectManagementStakeholderInput, ProjectManagementState } from '../../features/project-management/types';
 import type { RejectionCheckWorkspaceState, RejectionDocumentRole } from '../../features/rejection-check/types';
 import type { SoftwareCopyrightCodeManifest, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightFields, SoftwareCopyrightOptions, SoftwareCopyrightSelectResult, SoftwareCopyrightState } from '../../features/software-copyright/types';
@@ -38,6 +39,7 @@ export interface WordExportResult {
   success: boolean;
   canceled?: boolean;
   path?: string;
+  filePath?: string;
   message?: string;
   warnings?: string[];
 }
@@ -187,6 +189,41 @@ export interface YuDuBidBridge {
     saveComplianceResult: (payload: { complianceResult: string }) => Promise<ProjectManagementState>;
     clear: () => Promise<{ success: boolean; state: ProjectManagementState }>;
     onEvent: (callback: (event: ProjectManagementState) => void) => () => void;
+  };
+  presalesWorkbench: {
+    loadState: (projectId?: string) => Promise<PresalesProjectState>;
+    listProjects: () => Promise<PresalesProjectList>;
+    createProject: (payload?: { projectName?: string; profile?: Partial<PresalesProjectProfile> }) => Promise<{ state: PresalesProjectState; projects: PresalesProjectList }>;
+    switchProject: (projectId: string) => Promise<PresalesProjectState>;
+    deleteProject: (projectId: string) => Promise<{ success: boolean; state: PresalesProjectState; projects: PresalesProjectList }>;
+    saveProfile: (profile: PresalesProjectProfile) => Promise<PresalesProjectState>;
+    saveAnalysisInput: (input: PresalesAnalysisInput) => Promise<PresalesProjectState>;
+    saveAnalysisResult: (payload: { markdown: string }) => Promise<PresalesProjectState>;
+    saveResearchInput: (input: PresalesResearchInput) => Promise<PresalesProjectState>;
+    saveResearchResult: (payload: { markdown: string }) => Promise<PresalesProjectState>;
+    saveArchitectureInput: (input: PresalesArchitectureInput) => Promise<PresalesProjectState>;
+    saveArchitectureResult: (payload: { markdown: string }) => Promise<PresalesProjectState>;
+    saveDiagramInput: (input: PresalesDiagramInput) => Promise<PresalesProjectState>;
+    saveDiagramResult: (payload: { markdown: string }) => Promise<PresalesProjectState>;
+    savePresentationInput: (input: PresalesPresentationInput) => Promise<PresalesProjectState>;
+    savePresentationResult: (payload: { markdown: string }) => Promise<PresalesProjectState>;
+    importMaterial: () => Promise<{ success: boolean; message?: string; state: PresalesProjectState; material: PresalesMaterialItem | null }>;
+    saveManualMaterial: (input: PresalesManualMaterialInput) => Promise<{ success: boolean; message?: string; state: PresalesProjectState; material: PresalesMaterialItem | null }>;
+    readMaterialMarkdown: (materialId: string) => Promise<string>;
+    generateAnalysis: () => Promise<PresalesProjectState>;
+    generateResearch: () => Promise<PresalesProjectState>;
+    generateArchitecture: () => Promise<PresalesProjectState>;
+    generateDiagrams: () => Promise<PresalesProjectState>;
+    generatePresentation: () => Promise<PresalesProjectState>;
+    exportProjectPackage: () => Promise<{ success: boolean; canceled?: boolean; message?: string; fileName?: string; filePath?: string; state: PresalesProjectState }>;
+    exportPresentationOutline: () => Promise<{ success: boolean; canceled?: boolean; message?: string; fileName?: string; filePath?: string; state: PresalesProjectState }>;
+    exportPresentationPptx: (options?: { useAiVisuals?: boolean; formats?: Array<'pptx' | 'html'> }) => Promise<{ success: boolean; canceled?: boolean; message?: string; fileName?: string; filePath?: string; outputDir?: string; outputs?: Array<{ type: 'pptx' | 'html'; fileName: string; filePath: string }>; state: PresalesProjectState }>;
+    recordExport: (record: Partial<PresalesExportRecord> & { type: 'pptx' | 'html' | 'word' | 'outline'; filePath: string; fileName?: string }) => Promise<{ success: boolean; state: PresalesProjectState; record: PresalesExportRecord }>;
+    clearExportRecords: () => Promise<{ success: boolean; state: PresalesProjectState }>;
+    showExportFile: (filePath: string) => Promise<{ success: boolean; path: string }>;
+    getImageModelAvailability: () => Promise<{ available: boolean; message?: string }>;
+    previewProjectPackage: () => Promise<{ success: boolean; markdown: string; state: PresalesProjectState }>;
+    clear: () => Promise<{ success: boolean; state: PresalesProjectState }>;
   };
   thesisTutor: {
     loadState: () => Promise<ThesisTutorState>;
