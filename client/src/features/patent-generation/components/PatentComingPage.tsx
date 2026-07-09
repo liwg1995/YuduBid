@@ -12,7 +12,6 @@ import {
   PatentResultPanel,
   PatentRevisionPanels,
   PatentSelectedPointPanel,
-  PatentWorkflowPanel,
   type PatentCaseInfoPatch,
   type PatentMetric,
   type PatentPreviewItem,
@@ -198,6 +197,15 @@ function PatentComingPage({
       qualityWarnings: point.qualityWarnings || [],
     }));
   }, [enableMiningActions, previewItems, state?.miningResult, state?.selectedPatentPointId]);
+  const pageVariant = enableDisclosureDraft
+    ? 'disclosure'
+    : enablePriorArtAnalysis
+      ? 'prior-art'
+      : enableRevision
+        ? 'revision'
+        : enableMiningActions
+          ? 'mining'
+          : 'default';
 
   function updateCaseInfo(partial: PatentCaseInfoPatch) {
     setCaseInfo((prev) => ({
@@ -467,6 +475,83 @@ function PatentComingPage({
       ? handleGenerateDisclosureDraft
       : undefined;
 
+  const casePanel = (
+    <PatentCasePanel
+      caseInfo={caseInfo}
+      loading={loading}
+      saving={saving}
+      selectingProject={selectingProject}
+      mining={mining}
+      isRunning={Boolean(isRunning)}
+      state={state}
+      enableMiningActions={enableMiningActions}
+      onCaseInfoChange={updateCaseInfo}
+      onSaveCaseInfo={handleSaveCaseInfo}
+      onResetCase={() => setResetConfirmOpen(true)}
+      onSelectProject={handleSelectProject}
+      onStartMining={handleStartMining}
+    />
+  );
+
+  const selectedPointPanel = showSelectedPatentPoint ? <PatentSelectedPointPanel selectedPatentPoint={selectedPatentPoint} /> : null;
+  const resultPanel = (
+    <PatentResultPanel
+      previewTitle={previewTitle}
+      items={effectivePreviewItems}
+      enablePatentPointSelection={enablePatentPointSelection}
+      selectingPointId={selectingPointId}
+      onSelectPatentPoint={handleSelectPatentPoint}
+    />
+  );
+  const outputCard = <PatentOutputCard outputTitle={outputTitle} outputItems={outputItems} outputDescription={outputDescription} />;
+  const draftPanel = enableDisclosureDraft ? (
+    <PatentDraftPanel
+      draftFile={draftFile}
+      draftContent={draftContent}
+      draftViewMode={draftViewMode}
+      task={state?.task}
+      savingDraft={savingDraft}
+      exportingWord={exportingWord}
+      exportProgress={exportProgress}
+      generatingDraft={generatingDraft}
+      isRunning={Boolean(isRunning)}
+      selectedPatentPoint={selectedPatentPoint}
+      exportMessage={exportMessage}
+      onDraftContentChange={setDraftContent}
+      onDraftViewModeChange={setDraftViewMode}
+      onSaveDraft={handleSaveDisclosureDraft}
+      onExportWord={handleExportDisclosureWord}
+      onGenerateDraft={handleGenerateDisclosureDraft}
+    />
+  ) : null;
+  const priorArtPanels = enablePriorArtAnalysis ? (
+    <PatentPriorArtPanels
+      sourceText={priorArtSourceText}
+      markdown={priorArtMarkdown}
+      viewMode={priorArtViewMode}
+      generating={generatingPriorArt}
+      saving={savingPriorArt}
+      isRunning={Boolean(isRunning)}
+      onSourceTextChange={setPriorArtSourceText}
+      onMarkdownChange={setPriorArtMarkdown}
+      onViewModeChange={setPriorArtViewMode}
+      onGenerate={handleGeneratePriorArtAnalysis}
+      onSave={handleSavePriorArtMarkdown}
+    />
+  ) : null;
+  const revisionPanels = enableRevision ? (
+    <PatentRevisionPanels
+      state={state}
+      revisionKind={revisionKind}
+      revisionInstruction={revisionInstruction}
+      generatingRevision={generatingRevision}
+      isRunning={Boolean(isRunning)}
+      onRevisionKindChange={setRevisionKind}
+      onRevisionInstructionChange={setRevisionInstruction}
+      onGenerateRevision={handleGenerateRevision}
+    />
+  ) : null;
+
   return (
     <div className="demo-coming-page patent-demo">
       <PatentHero
@@ -486,86 +571,48 @@ function PatentComingPage({
         enableMiningActions={enableMiningActions}
         enableDisclosureDraft={enableDisclosureDraft}
         showUsageHelp={enableMiningActions}
+        workflowSteps={steps}
         onPrimaryAction={primaryAction}
         onReimportProject={handleSelectProject}
       />
 
-      <div className="demo-content-grid">
-        <PatentCasePanel
-          caseInfo={caseInfo}
-          loading={loading}
-          saving={saving}
-          selectingProject={selectingProject}
-          mining={mining}
-          isRunning={Boolean(isRunning)}
-          state={state}
-          enableMiningActions={enableMiningActions}
-          onCaseInfoChange={updateCaseInfo}
-          onSaveCaseInfo={handleSaveCaseInfo}
-          onResetCase={() => setResetConfirmOpen(true)}
-          onSelectProject={handleSelectProject}
-          onStartMining={handleStartMining}
-        />
-
-        <PatentWorkflowPanel kicker={kicker} steps={steps} />
-        {showSelectedPatentPoint && <PatentSelectedPointPanel selectedPatentPoint={selectedPatentPoint} />}
-        <PatentResultPanel
-          previewTitle={previewTitle}
-          items={effectivePreviewItems}
-          enablePatentPointSelection={enablePatentPointSelection}
-          selectingPointId={selectingPointId}
-          onSelectPatentPoint={handleSelectPatentPoint}
-        />
-        <PatentOutputCard outputTitle={outputTitle} outputItems={outputItems} outputDescription={outputDescription} />
-
-        {enableDisclosureDraft && (
-          <PatentDraftPanel
-            draftFile={draftFile}
-            draftContent={draftContent}
-            draftViewMode={draftViewMode}
-            task={state?.task}
-            savingDraft={savingDraft}
-            exportingWord={exportingWord}
-            exportProgress={exportProgress}
-            generatingDraft={generatingDraft}
-            isRunning={Boolean(isRunning)}
-            selectedPatentPoint={selectedPatentPoint}
-            exportMessage={exportMessage}
-            onDraftContentChange={setDraftContent}
-            onDraftViewModeChange={setDraftViewMode}
-            onSaveDraft={handleSaveDisclosureDraft}
-            onExportWord={handleExportDisclosureWord}
-            onGenerateDraft={handleGenerateDisclosureDraft}
-          />
+      <div className={`demo-content-grid patent-content-grid is-${pageVariant}`}>
+        {pageVariant === 'disclosure' && (
+          <>
+            {draftPanel}
+            {outputCard}
+            {selectedPointPanel}
+            {resultPanel}
+          </>
         )}
-
-        {enablePriorArtAnalysis && (
-          <PatentPriorArtPanels
-            sourceText={priorArtSourceText}
-            markdown={priorArtMarkdown}
-            viewMode={priorArtViewMode}
-            generating={generatingPriorArt}
-            saving={savingPriorArt}
-            isRunning={Boolean(isRunning)}
-            onSourceTextChange={setPriorArtSourceText}
-            onMarkdownChange={setPriorArtMarkdown}
-            onViewModeChange={setPriorArtViewMode}
-            onGenerate={handleGeneratePriorArtAnalysis}
-            onSave={handleSavePriorArtMarkdown}
-          />
+        {pageVariant === 'prior-art' && (
+          <>
+            {priorArtPanels}
+            {resultPanel}
+            {outputCard}
+          </>
         )}
-
-        {enableRevision && (
-          <PatentRevisionPanels
-            state={state}
-            revisionKind={revisionKind}
-            revisionInstruction={revisionInstruction}
-            generatingRevision={generatingRevision}
-            isRunning={Boolean(isRunning)}
-            onRevisionKindChange={setRevisionKind}
-            onRevisionInstructionChange={setRevisionInstruction}
-            onGenerateRevision={handleGenerateRevision}
-          />
+        {pageVariant === 'revision' && (
+          <>
+            {revisionPanels}
+            {resultPanel}
+            {outputCard}
+          </>
+        )}
+        {pageVariant === 'mining' && (
+          <>
+            {casePanel}
+            {resultPanel}
+            {outputCard}
+          </>
+        )}
+        {pageVariant === 'default' && (
+          <>
+            {casePanel}
+            {selectedPointPanel}
+            {resultPanel}
+            {outputCard}
+          </>
         )}
       </div>
 

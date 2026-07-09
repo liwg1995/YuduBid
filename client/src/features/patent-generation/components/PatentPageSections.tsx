@@ -156,6 +156,7 @@ interface PatentHeroProps {
   enableMiningActions: boolean;
   enableDisclosureDraft: boolean;
   showUsageHelp?: boolean;
+  workflowSteps: PatentStep[];
   onPrimaryAction?: () => void;
   onReimportProject?: () => void;
 }
@@ -238,6 +239,41 @@ function PatentUsageHelp() {
   );
 }
 
+function PatentWorkflowHelp({ kicker, steps }: { kicker: string; steps: PatentStep[] }) {
+  return (
+    <Dialog.Root>
+      <Dialog.Trigger asChild>
+        <button type="button" className="patent-workflow-help-trigger">流程规划</button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="content-regenerate-modal" />
+        <Dialog.Content className="patent-workflow-help-card">
+          <div className="patent-usage-help-head">
+            <div>
+              <Dialog.Title>{kicker}工作路径</Dialog.Title>
+              <Dialog.Description>
+                这里展示当前模块的推荐流程，不占用主操作区空间。
+              </Dialog.Description>
+            </div>
+            <Dialog.Close className="detail-help-close" type="button" aria-label="关闭流程规划">×</Dialog.Close>
+          </div>
+          <div className="demo-step-list patent-workflow-help-list">
+            {steps.map((step, index) => (
+              <article key={step.title}>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <strong>{step.title}</strong>
+                  <p>{step.text}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 export function PatentHero({
   kicker,
   title,
@@ -255,6 +291,7 @@ export function PatentHero({
   enableMiningActions,
   enableDisclosureDraft,
   showUsageHelp = false,
+  workflowSteps,
   onPrimaryAction,
   onReimportProject,
 }: PatentHeroProps) {
@@ -294,6 +331,7 @@ export function PatentHero({
       <div className="demo-hero-copy">
         <div className="patent-hero-kicker-row">
           <span className="section-kicker">{kicker}</span>
+          <PatentWorkflowHelp kicker={kicker} steps={workflowSteps} />
           {showUsageHelp && <PatentUsageHelp />}
         </div>
         <h2>{title}</h2>
@@ -444,22 +482,26 @@ export function PatentCasePanel({
             onChange={(event) => onCaseInfoChange({ contact: { email: event.target.value } })}
           />
         </label>
-        <button type="button" className="secondary-action" onClick={onSaveCaseInfo} disabled={saving || loading}>
-          {saving ? '保存中...' : '保存案件信息'}
-        </button>
-        <button type="button" className="secondary-action is-danger" onClick={onResetCase} disabled={loading || isRunning}>
-          重置案件
-        </button>
-        {enableMiningActions && (
-          <div className="patent-mining-actions">
-            <button type="button" className="secondary-action" onClick={onSelectProject} disabled={selectingProject || mining || isRunning}>
-              {selectingProject ? '扫描中...' : '选择项目目录'}
+        <div className="patent-case-actions">
+          <div className="patent-case-actions-left">
+            <button type="button" className="secondary-action" onClick={onSaveCaseInfo} disabled={saving || loading}>
+              {saving ? '保存中...' : '保存案件信息'}
             </button>
-            <button type="button" className="primary-action" onClick={onStartMining} disabled={!state?.project || mining || isRunning}>
-              {mining || isRunning ? '挖掘中...' : '开始专利挖掘'}
+            <button type="button" className="secondary-action is-danger" onClick={onResetCase} disabled={loading || isRunning}>
+              重置案件
             </button>
           </div>
-        )}
+          {enableMiningActions && (
+            <div className="patent-mining-actions">
+              <button type="button" className="secondary-action" onClick={onSelectProject} disabled={selectingProject || mining || isRunning}>
+                {selectingProject ? '扫描中...' : '选择项目目录'}
+              </button>
+              <button type="button" className="primary-action" onClick={onStartMining} disabled={!state?.project || mining || isRunning}>
+                {mining || isRunning ? '挖掘中...' : '开始专利挖掘'}
+              </button>
+            </div>
+          )}
+        </div>
         {enableMiningActions && (
           <div className="patent-project-status">
             <strong>{state?.project?.name || '尚未选择项目'}</strong>
