@@ -38,13 +38,29 @@ sudo xattr -rd com.apple.quarantine /Applications/禹都AI解决方案助手.app
 
 ## 🎬 如何使用？
 
-### 使用前的设置
+### 🔩 使用前的设置
 
 - 前往[USE.MD](./guide/USE-CONFIG.md)查阅使用教学
 
-### 新建技术方案（技术标书从无到有生成）
+### 💻 新建技术方案（技术标书从无到有生成）
 
 - 前往[USE-Bid.md](./guide/USE-Bid.md)查阅使用教学
+
+
+> 国内访问查看可能会很慢，可以查看网页版的使用说明
+
+### 🎺 宣传页
+
+[https://bid.olei.me/](https://bid.olei.me/)
+
+### 🔩 使用前的设置
+
+[https://bid.olei.me/guide/use-config.html](https://bid.olei.me/guide/use-config.html)
+
+### 💻 新建技术方案（技术标书从无到有生成）
+
+[https://bid.olei.me/guide/use-bid.html](https://bid.olei.me/guide/use-bid.html)
+
 
 ## 📚 能力概览
 
