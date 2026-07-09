@@ -107,7 +107,7 @@ const defaultConfig = {
     skills: {
       'word-optimization': {
         id: 'word-optimization',
-        enabled: false,
+        enabled: true,
       },
     },
   },
@@ -208,7 +208,7 @@ function normalizeSkillSettings(sourceSettings) {
     skills: {
       'word-optimization': {
         id: 'word-optimization',
-        enabled: Boolean(wordOptimization.enabled),
+        enabled: wordOptimization.enabled === undefined ? true : Boolean(wordOptimization.enabled),
       },
     },
   };

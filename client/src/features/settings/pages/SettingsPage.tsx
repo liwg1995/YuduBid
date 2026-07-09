@@ -403,7 +403,7 @@ const initialState: SettingsPageState = {
     skills: {
       'word-optimization': {
         id: 'word-optimization',
-        enabled: false,
+        enabled: true,
       },
     },
   },
@@ -427,7 +427,7 @@ function normalizeSkillSettings(settings?: Partial<SkillSettings>): SkillSetting
     skills: {
       'word-optimization': {
         id: 'word-optimization',
-        enabled: Boolean(settings?.skills?.['word-optimization']?.enabled),
+        enabled: settings?.skills?.['word-optimization']?.enabled !== false,
       },
     },
   };
@@ -1719,7 +1719,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                     <strong>word-optimization</strong>
                     <span>优化标书生成完成后的 Word 导出版式</span>
                   </div>
-                  <em>{state.skillSettings.skills['word-optimization'].enabled ? '已启用' : '默认关闭'}</em>
+                  <em>{state.skillSettings.skills['word-optimization'].enabled ? '已启用' : '已停用'}</em>
                 </div>
                 <p>启用后，导出 Word 会统一正文、标题、表格、图片、题注、页码和常见编号缩进，便于后续直接制作目录和交付排版。</p>
                 <div className="skill-capability-grid">
