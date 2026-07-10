@@ -405,6 +405,10 @@ const initialState: SettingsPageState = {
         id: 'word-optimization',
         enabled: true,
       },
+      'technical-diagram': {
+        id: 'technical-diagram',
+        enabled: false,
+      },
     },
   },
   featureModuleSettings: createDefaultFeatureModuleSettings(),
@@ -428,6 +432,10 @@ function normalizeSkillSettings(settings?: Partial<SkillSettings>): SkillSetting
       'word-optimization': {
         id: 'word-optimization',
         enabled: settings?.skills?.['word-optimization']?.enabled !== false,
+      },
+      'technical-diagram': {
+        id: 'technical-diagram',
+        enabled: Boolean(settings?.skills?.['technical-diagram']?.enabled),
       },
     },
   };
@@ -1010,6 +1018,21 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           ...prev.skillSettings.skills,
           'word-optimization': {
             id: 'word-optimization',
+            enabled,
+          },
+        },
+      },
+    }));
+  };
+
+  const updateTechnicalDiagramSkill = (enabled: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      skillSettings: {
+        skills: {
+          ...prev.skillSettings.skills,
+          'technical-diagram': {
+            id: 'technical-diagram',
             enabled,
           },
         },
@@ -1737,6 +1760,38 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                     type="checkbox"
                     checked={state.skillSettings.skills['word-optimization'].enabled}
                     onChange={(event) => updateWordOptimizationSkill(event.target.checked)}
+                  />
+                  <span className="settings-switch-track" aria-hidden="true">
+                    <span className="settings-switch-thumb" />
+                  </span>
+                </span>
+              </label>
+            </article>
+            <article className={`skill-card ${state.skillSettings.skills['technical-diagram'].enabled ? 'is-enabled' : ''}`}>
+              <div className="skill-card-main">
+                <div className="skill-card-head">
+                  <div>
+                    <strong>technical-diagram</strong>
+                    <span>为技术方案生成结构化技术图谱</span>
+                  </div>
+                  <em>{state.skillSettings.skills['technical-diagram'].enabled ? '已启用' : '已停用'}</em>
+                </div>
+                <p>启用后，正文生成和已有技术方案扩写会为适合的小节生成架构图、部署拓扑、数据流和复杂流程图，默认使用本地 SVG 技术图资产。</p>
+                <div className="skill-capability-grid">
+                  <span>系统架构、部署拓扑和模块关系图</span>
+                  <span>数据流、业务流程和运维流程图</span>
+                  <span>结构化节点、分层和箭头语义</span>
+                  <span>与 AI 生图、Mermaid 配图自动择优</span>
+                  <span>图片资产保存在本地工作区</span>
+                  <span>默认关闭，需手动启用后生效</span>
+                </div>
+              </div>
+              <label className="skill-toggle">
+                <span className="settings-switch-control">
+                  <input
+                    type="checkbox"
+                    checked={state.skillSettings.skills['technical-diagram'].enabled}
+                    onChange={(event) => updateTechnicalDiagramSkill(event.target.checked)}
                   />
                   <span className="settings-switch-track" aria-hidden="true">
                     <span className="settings-switch-thumb" />

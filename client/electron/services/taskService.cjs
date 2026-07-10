@@ -229,7 +229,7 @@ function createTask(type, payload) {
   };
 }
 
-function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService }) {
+function createTaskService({ aiService, technicalDiagramService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService }) {
   const subscribers = new Set();
   const activeTasks = new Map();
   const activeTaskControls = new Map();
@@ -710,7 +710,7 @@ function createTaskService({ aiService, technicalPlanStore, rejectionCheckStore,
       });
     },
     startContentGeneration(payload) {
-      return startManagedTask('content-generation', payload, runContentGenerationTask);
+      return startManagedTask('content-generation', payload, (context) => runContentGenerationTask({ ...context, technicalDiagramService }));
     },
     pauseContentGeneration(payload) {
       const task = activeTasks.get('content-generation');

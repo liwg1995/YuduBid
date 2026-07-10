@@ -6,6 +6,7 @@ const { app, dialog, nativeImage } = require('electron');
 const AdmZip = require('adm-zip');
 const cheerio = require('cheerio');
 const { imageSize } = require('image-size');
+const { createCanvas, GlobalFonts, loadImage: loadCanvasImage } = require('@napi-rs/canvas');
 const { getGeneratedImagesDir, getImportedImagesDir } = require('../utils/paths.cjs');
 const {
   AlignmentType,
@@ -55,6 +56,8 @@ const WORD_OPTIMIZATION_TABLE_SEQ_ID = 'YDBTable';
 const WORD_OPTIMIZATION_FIGURE_SEQ_ID = 'YDBFigure';
 const WORD_TWO_CHARS_TWIPS = 480;
 const PROJECT_MANAGEMENT_TABLE_FONT_SIZE = 24;
+const CANVAS_CJK_FONT_ALIAS = 'YibiaoCJK';
+let canvasCjkFontsRegistered = false;
 
 function encodeMermaidForInk(code) {
   const state = JSON.stringify({
@@ -1332,18 +1335,190 @@ function imageTypeFromMime(mime) {
   if (mime.includes('gif')) return 'gif';
   if (mime.includes('bmp')) return 'bmp';
   if (mime.includes('webp')) return 'webp';
+  if (mime.includes('svg')) return 'svg';
   return null;
 }
 
 function imageTypeFromPath(filePath) {
   const ext = path.extname(filePath || '').toLowerCase().replace('.', '');
   if (ext === 'jpeg') return 'jpg';
-  return ['png', 'jpg', 'gif', 'bmp', 'webp'].includes(ext) ? ext : null;
+  return ['png', 'jpg', 'gif', 'bmp', 'webp', 'svg'].includes(ext) ? ext : null;
 }
 
-function normalizeImageForDocx(loaded) {
+function registerCanvasCjkFonts() {
+  if (canvasCjkFontsRegistered) return;
+  canvasCjkFontsRegistered = true;
+
+  const fontCandidates = process.platform === 'darwin'
+    ? [
+        '/System/Library/Fonts/STHeiti Medium.ttc',
+        '/System/Library/Fonts/Hiragino Sans GB.ttc',
+        '/System/Library/Fonts/Supplemental/Songti.ttc',
+        '/System/Library/Fonts/STHeiti Light.ttc',
+      ]
+    : process.platform === 'win32'
+      ? [
+          'C:\\Windows\\Fonts\\msyh.ttc',
+          'C:\\Windows\\Fonts\\simhei.ttf',
+          'C:\\Windows\\Fonts\\simsun.ttc',
+        ]
+      : [
+          '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+          '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+          '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+        ];
+
+  for (const fontPath of fontCandidates) {
+    try {
+      if (fs.existsSync(fontPath) && GlobalFonts.registerFromPath(fontPath, CANVAS_CJK_FONT_ALIAS)) {
+        return;
+      }
+    } catch (error) {
+      console.warn('[export-word] register CJK font failed', fontPath, error);
+    }
+  }
+}
+
+function parseSvgClassStyles(svg) {
+  const styles = {};
+  const styleBlocks = String(svg || '').match(/<style[\s\S]*?<\/style>/gi) || [];
+  for (const block of styleBlocks) {
+    const css = block.replace(/<\/?style[^>]*>/gi, '');
+    const classRules = css.matchAll(/\.([a-zA-Z0-9_-]+)\s*\{([^}]*)\}/g);
+    for (const match of classRules) {
+      const style = {};
+      for (const declaration of match[2].split(';')) {
+        const [rawKey, ...rawValue] = declaration.split(':');
+        const key = String(rawKey || '').trim();
+        const value = rawValue.join(':').trim();
+        if (key && value) style[key] = value;
+      }
+      styles[match[1]] = { ...(styles[match[1]] || {}), ...style };
+    }
+  }
+  return styles;
+}
+
+function svgNumeric(value, fallback = 0) {
+  const number = Number.parseFloat(String(value || ''));
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function svgElementStyle($, element, classStyles) {
+  const className = ($(element).attr('class') || '').split(/\s+/).find(Boolean);
+  const fromClass = className ? classStyles[className] || {} : {};
+  const inline = {};
+  const styleAttr = $(element).attr('style') || '';
+  for (const declaration of styleAttr.split(';')) {
+    const [rawKey, ...rawValue] = declaration.split(':');
+    const key = String(rawKey || '').trim();
+    const value = rawValue.join(':').trim();
+    if (key && value) inline[key] = value;
+  }
+  return { ...fromClass, ...inline };
+}
+
+function drawSvgTextOverlay(ctx, svg) {
+  registerCanvasCjkFonts();
+  const $ = cheerio.load(String(svg || ''), { xmlMode: true, decodeEntities: false });
+  const classStyles = parseSvgClassStyles(svg);
+
+  $('text').each((_index, element) => {
+    const text = $(element).text();
+    if (!text) return;
+
+    const style = svgElementStyle($, element, classStyles);
+    const size = svgNumeric($(element).attr('font-size') || style['font-size'], 14);
+    const weight = String($(element).attr('font-weight') || style['font-weight'] || '500').trim();
+    const fill = $(element).attr('fill') || style.fill || '#172a3a';
+    const anchor = $(element).attr('text-anchor') || style['text-anchor'] || 'start';
+    const x = svgNumeric($(element).attr('x'));
+    const y = svgNumeric($(element).attr('y'));
+
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.font = `${weight} ${size}px "${CANVAS_CJK_FONT_ALIAS}", "Microsoft YaHei", "PingFang SC", Arial, sans-serif`;
+    ctx.textAlign = anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  });
+}
+
+function pathPointPairs(d) {
+  const numbers = String(d || '').match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
+  const pairs = [];
+  for (let index = 0; index < numbers.length - 1; index += 2) {
+    pairs.push({ x: numbers[index], y: numbers[index + 1] });
+  }
+  return pairs;
+}
+
+function drawArrowhead(ctx, from, to, color) {
+  if (!from || !to) return;
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const size = 9;
+  const spread = Math.PI / 7;
+  const left = {
+    x: to.x - size * Math.cos(angle - spread),
+    y: to.y - size * Math.sin(angle - spread),
+  };
+  const right = {
+    x: to.x - size * Math.cos(angle + spread),
+    y: to.y - size * Math.sin(angle + spread),
+  };
+  ctx.save();
+  ctx.fillStyle = color || '#2563eb';
+  ctx.beginPath();
+  ctx.moveTo(to.x, to.y);
+  ctx.lineTo(left.x, left.y);
+  ctx.lineTo(right.x, right.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSvgArrowheadOverlay(ctx, svg) {
+  const $ = cheerio.load(String(svg || ''), { xmlMode: true, decodeEntities: false });
+  $('[marker-end]').each((_index, element) => {
+    const color = $(element).attr('stroke') || '#2563eb';
+    if (element.name === 'line') {
+      drawArrowhead(
+        ctx,
+        { x: svgNumeric($(element).attr('x1')), y: svgNumeric($(element).attr('y1')) },
+        { x: svgNumeric($(element).attr('x2')), y: svgNumeric($(element).attr('y2')) },
+        color,
+      );
+      return;
+    }
+
+    const pairs = pathPointPairs($(element).attr('d'));
+    if (pairs.length >= 2) {
+      drawArrowhead(ctx, pairs[pairs.length - 2], pairs[pairs.length - 1], color);
+    }
+  });
+}
+
+async function svgBufferToPngBuffer(buffer) {
+  const svg = String(buffer || '');
+  const image = await loadCanvasImage(buffer);
+  const width = Math.max(1, Math.round(image.width || 1));
+  const height = Math.max(1, Math.round(image.height || 1));
+  const canvas = createCanvas(width, height);
+  const context = canvas.getContext('2d');
+  context.drawImage(image, 0, 0, width, height);
+  drawSvgTextOverlay(context, svg);
+  drawSvgArrowheadOverlay(context, svg);
+  return canvas.toBuffer('image/png');
+}
+
+async function normalizeImageForDocx(loaded) {
   if (!loaded?.buffer || !loaded.type) {
     return loaded;
+  }
+
+  if (loaded.type === 'svg') {
+    return { buffer: await svgBufferToPngBuffer(loaded.buffer), type: 'png' };
   }
 
   if (loaded.type !== 'webp') {
@@ -1484,7 +1659,7 @@ async function imageRunFromNode(node, context, options = {}) {
   }
 
   try {
-    loaded = normalizeImageForDocx(loaded);
+    loaded = await normalizeImageForDocx(loaded);
   } catch (error) {
     const message = `图片无法导出：${imageLabel}，${error.message || '图片格式转换失败'}`;
     addWarning(context, message);

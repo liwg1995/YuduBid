@@ -34,6 +34,7 @@ type ContentGenerationAction = 'start' | 'continue' | 'retry_minimum_words' | 'r
 interface PendingMinimumWordsChoice {
   options: ContentGenerationOptions;
   imageModelAvailable: boolean;
+  technicalDiagramAvailable: boolean;
   config: ClientConfig | null;
   currentWords: number;
   minimumWords: number;
@@ -65,6 +66,7 @@ const defaultContentGenerationOptions: ContentGenerationOptions = {
   useAiImages: false,
   maxAiImages: 6,
   useMermaidImages: true,
+  useTechnicalDiagrams: true,
   tableRequirement: 'heavy',
   minimumWords: 0,
   contentConcurrency: 5,
@@ -76,16 +78,17 @@ function isContentTableRequirement(value: unknown): value is ContentTableRequire
   return tableRequirementOptions.some((option) => option.value === value);
 }
 
-function buildDefaultGenerationOptions(imageModelAvailable: boolean, leafCount: number): ContentGenerationOptions {
+function buildDefaultGenerationOptions(imageModelAvailable: boolean, leafCount: number, technicalDiagramAvailable = false): ContentGenerationOptions {
   return {
     ...defaultContentGenerationOptions,
     useAiImages: imageModelAvailable,
+    useTechnicalDiagrams: technicalDiagramAvailable,
     maxAiImages: Math.min(defaultContentGenerationOptions.maxAiImages, Math.max(1, leafCount)),
   };
 }
 
-function normalizeGenerationOptions(options: ContentGenerationOptions | undefined, imageModelAvailable: boolean, leafCount: number, isExpansionWorkflow = false): ContentGenerationOptions {
-  const fallback = buildDefaultGenerationOptions(imageModelAvailable, leafCount);
+function normalizeGenerationOptions(options: ContentGenerationOptions | undefined, imageModelAvailable: boolean, leafCount: number, isExpansionWorkflow = false, technicalDiagramAvailable = false): ContentGenerationOptions {
+  const fallback = buildDefaultGenerationOptions(imageModelAvailable, leafCount, technicalDiagramAvailable);
   const maxAiImagesLimit = Math.max(1, leafCount);
   const requestedMaxAiImages = Number(options?.maxAiImages ?? fallback.maxAiImages);
   const requestedMinimumWords = Number(options?.minimumWords ?? fallback.minimumWords);
@@ -96,6 +99,7 @@ function normalizeGenerationOptions(options: ContentGenerationOptions | undefine
     useAiImages: Boolean(options?.useAiImages ?? fallback.useAiImages) && imageModelAvailable,
     maxAiImages: Math.max(0, Math.min(Number.isFinite(requestedMaxAiImages) ? Math.round(requestedMaxAiImages) : fallback.maxAiImages, maxAiImagesLimit)),
     useMermaidImages: Boolean(options?.useMermaidImages ?? fallback.useMermaidImages),
+    useTechnicalDiagrams: Boolean(options?.useTechnicalDiagrams ?? fallback.useTechnicalDiagrams) && technicalDiagramAvailable,
     tableRequirement: isContentTableRequirement(tableRequirement) ? tableRequirement : fallback.tableRequirement,
     minimumWords: Math.max(0, Number.isFinite(requestedMinimumWords) ? Math.round(requestedMinimumWords) : fallback.minimumWords),
     contentConcurrency: Math.max(1, Number.isFinite(requestedContentConcurrency) ? Math.round(requestedContentConcurrency) : fallback.contentConcurrency),
@@ -347,6 +351,7 @@ function ContentEditPage({
   const [statsCollapsed, setStatsCollapsed] = useState(false);
   const [developerMode, setDeveloperMode] = useState(false);
   const [imageModelStatus, setImageModelStatus] = useState<ImageModelStatus>('untested');
+  const [technicalDiagramAvailable, setTechnicalDiagramAvailable] = useState(false);
   const [generationDialogOpen, setGenerationDialogOpen] = useState(false);
   const [draftGenerationOptions, setDraftGenerationOptions] = useState<ContentGenerationOptions>(defaultContentGenerationOptions);
   const [pendingMinimumWordsChoice, setPendingMinimumWordsChoice] = useState<PendingMinimumWordsChoice | null>(null);
@@ -477,7 +482,9 @@ function ContentEditPage({
   const imageStats = task?.stats?.images;
   const aiImageStats = normalizeImageStats(imageStats?.ai);
   const mermaidImageStats = normalizeImageStats(imageStats?.mermaid);
+  const technicalDiagramStats = normalizeImageStats(imageStats?.diagram);
   const imageModelAvailable = imageModelStatus === 'available';
+  const technicalDiagramStatusLabel = technicalDiagramAvailable ? '已启用' : '未启用';
 
   const handlePreviewImage = useCallback((src: string, alt: string) => setPreviewImage({ src, alt }), []);
   const selectItem = useCallback((itemId: string) => {
@@ -501,6 +508,7 @@ function ContentEditPage({
       .then((config) => {
         setDeveloperMode(Boolean(config.developer_mode));
         setImageModelStatus(config.image_model?.status || 'untested');
+        setTechnicalDiagramAvailable(Boolean(config.skill_settings?.skills?.['technical-diagram']?.enabled));
       })
       .catch((error) => console.warn('读取开发者模式失败', error));
   }, []);
@@ -534,24 +542,26 @@ function ContentEditPage({
       const config = await window.yibiao?.config.load();
       const nextStatus = config?.image_model?.status || 'untested';
       const available = nextStatus === 'available';
+      const nextTechnicalDiagramAvailable = Boolean(config?.skill_settings?.skills?.['technical-diagram']?.enabled);
       setImageModelStatus(nextStatus);
-      setDraftGenerationOptions(normalizeGenerationOptions(contentGenerationOptions, available, leaves.length, isExpansionWorkflow));
+      setTechnicalDiagramAvailable(nextTechnicalDiagramAvailable);
+      setDraftGenerationOptions(normalizeGenerationOptions(contentGenerationOptions, available, leaves.length, isExpansionWorkflow, nextTechnicalDiagramAvailable));
       setGenerationDialogOpen(true);
     } catch (error) {
       showToast(error instanceof Error ? error.message : '读取生成配置失败', 'error');
     }
   };
 
-  const saveDraftGenerationOptions = async (showSuccess: boolean, imageAvailable = imageModelAvailable) => {
-    const normalizedDraftOptions = normalizeGenerationOptions(draftGenerationOptions, imageAvailable, leaves.length, isExpansionWorkflow);
+  const saveDraftGenerationOptions = async (showSuccess: boolean, imageAvailable = imageModelAvailable, diagramAvailable = technicalDiagramAvailable) => {
+    const normalizedDraftOptions = normalizeGenerationOptions(draftGenerationOptions, imageAvailable, leaves.length, isExpansionWorkflow, diagramAvailable);
     const currentOptions = contentGenerationOptions
       ? { ...defaultContentGenerationOptions, ...contentGenerationOptions }
-      : normalizeGenerationOptions(undefined, imageAvailable, leaves.length, isExpansionWorkflow);
+      : normalizeGenerationOptions(undefined, imageAvailable, leaves.length, isExpansionWorkflow, diagramAvailable);
     const nextOptions = paused
       ? { ...currentOptions, contentConcurrency: normalizedDraftOptions.contentConcurrency }
       : normalizedDraftOptions;
     await onContentGenerationOptionsChange(nextOptions);
-    setDraftGenerationOptions(normalizeGenerationOptions(nextOptions, imageAvailable, leaves.length, isExpansionWorkflow));
+    setDraftGenerationOptions(normalizeGenerationOptions(nextOptions, imageAvailable, leaves.length, isExpansionWorkflow, diagramAvailable));
 
     if (showSuccess) {
       setGenerationDialogOpen(false);
@@ -589,12 +599,15 @@ function ContentEditPage({
       const config = await window.yibiao?.config.load();
       const nextStatus = config?.image_model?.status || 'untested';
       const available = nextStatus === 'available';
-      const savedOptions = normalizeGenerationOptions(contentGenerationOptions, available, leaves.length, isExpansionWorkflow);
+      const nextTechnicalDiagramAvailable = Boolean(config?.skill_settings?.skills?.['technical-diagram']?.enabled);
+      const savedOptions = normalizeGenerationOptions(contentGenerationOptions, available, leaves.length, isExpansionWorkflow, nextTechnicalDiagramAvailable);
       setImageModelStatus(nextStatus);
+      setTechnicalDiagramAvailable(nextTechnicalDiagramAvailable);
       if (shouldAskMinimumWordsChoice(savedOptions)) {
         setPendingMinimumWordsChoice({
           options: savedOptions,
           imageModelAvailable: available,
+          technicalDiagramAvailable: nextTechnicalDiagramAvailable,
           config: config || null,
           currentWords: totalWords,
           minimumWords: savedOptions.minimumWords,
@@ -656,12 +669,14 @@ function ContentEditPage({
   const launchContentGeneration = async ({
     savedGenerationOptions,
     nextImageModelAvailable,
+    nextTechnicalDiagramAvailable,
     config,
     regenerate,
     contentGenerationAction,
   }: {
     savedGenerationOptions: ContentGenerationOptions;
     nextImageModelAvailable: boolean;
+    nextTechnicalDiagramAvailable: boolean;
     config?: ClientConfig | null;
     regenerate: boolean;
     contentGenerationAction: ContentGenerationAction;
@@ -685,6 +700,7 @@ function ContentEditPage({
         useAiImages: nextImageModelAvailable && savedGenerationOptions.useAiImages,
         maxAiImages: savedGenerationOptions.maxAiImages,
         useMermaidImages: savedGenerationOptions.useMermaidImages,
+        useTechnicalDiagrams: nextTechnicalDiagramAvailable && savedGenerationOptions.useTechnicalDiagrams,
         tableRequirement: savedGenerationOptions.tableRequirement,
         minimumWords: savedGenerationOptions.minimumWords,
         contentConcurrency: savedGenerationOptions.contentConcurrency,
@@ -707,12 +723,15 @@ function ContentEditPage({
       const config = await window.yibiao?.config.load();
       const nextImageModelStatus = config?.image_model?.status || 'untested';
       const nextImageModelAvailable = nextImageModelStatus === 'available';
+      const nextTechnicalDiagramAvailable = Boolean(config?.skill_settings?.skills?.['technical-diagram']?.enabled);
       setImageModelStatus(nextImageModelStatus);
-      const savedGenerationOptions = await saveDraftGenerationOptions(false, nextImageModelAvailable);
+      setTechnicalDiagramAvailable(nextTechnicalDiagramAvailable);
+      const savedGenerationOptions = await saveDraftGenerationOptions(false, nextImageModelAvailable, nextTechnicalDiagramAvailable);
       if (shouldAskMinimumWordsChoice(savedGenerationOptions)) {
         setPendingMinimumWordsChoice({
           options: savedGenerationOptions,
           imageModelAvailable: nextImageModelAvailable,
+          technicalDiagramAvailable: nextTechnicalDiagramAvailable,
           config: config || null,
           currentWords: totalWords,
           minimumWords: savedGenerationOptions.minimumWords,
@@ -729,7 +748,7 @@ function ContentEditPage({
           : completedCount > 0
             ? 'continue'
             : 'start';
-      await launchContentGeneration({ savedGenerationOptions, nextImageModelAvailable, config, regenerate, contentGenerationAction });
+      await launchContentGeneration({ savedGenerationOptions, nextImageModelAvailable, nextTechnicalDiagramAvailable, config, regenerate, contentGenerationAction });
     } catch (error) {
       showToast(error instanceof Error ? error.message : '启动正文生成任务失败', 'error');
     }
@@ -744,6 +763,7 @@ function ContentEditPage({
       await launchContentGeneration({
         savedGenerationOptions: pendingMinimumWordsChoice.options,
         nextImageModelAvailable: pendingMinimumWordsChoice.imageModelAvailable,
+        nextTechnicalDiagramAvailable: pendingMinimumWordsChoice.technicalDiagramAvailable,
         config: pendingMinimumWordsChoice.config,
         regenerate: false,
         contentGenerationAction: 'retry_minimum_words',
@@ -762,6 +782,7 @@ function ContentEditPage({
       await launchContentGeneration({
         savedGenerationOptions: pendingMinimumWordsChoice.options,
         nextImageModelAvailable: pendingMinimumWordsChoice.imageModelAvailable,
+        nextTechnicalDiagramAvailable: pendingMinimumWordsChoice.technicalDiagramAvailable,
         config: pendingMinimumWordsChoice.config,
         regenerate: true,
         contentGenerationAction: 'regenerate',
@@ -780,8 +801,10 @@ function ContentEditPage({
       const config = await window.yibiao?.config.load();
       const nextImageModelStatus = config?.image_model?.status || 'untested';
       const nextImageModelAvailable = nextImageModelStatus === 'available';
-      const savedGenerationOptions = normalizeGenerationOptions(contentGenerationOptions, nextImageModelAvailable, leaves.length, isExpansionWorkflow);
+      const nextTechnicalDiagramAvailable = Boolean(config?.skill_settings?.skills?.['technical-diagram']?.enabled);
+      const savedGenerationOptions = normalizeGenerationOptions(contentGenerationOptions, nextImageModelAvailable, leaves.length, isExpansionWorkflow, nextTechnicalDiagramAvailable);
       setImageModelStatus(nextImageModelStatus);
+      setTechnicalDiagramAvailable(nextTechnicalDiagramAvailable);
       await window.yibiao?.tasks.startContentGeneration({
         workflowKind,
         projectId,
@@ -792,6 +815,7 @@ function ContentEditPage({
           useAiImages: nextImageModelAvailable && savedGenerationOptions.useAiImages,
           maxAiImages: savedGenerationOptions.maxAiImages,
           useMermaidImages: savedGenerationOptions.useMermaidImages,
+          useTechnicalDiagrams: nextTechnicalDiagramAvailable && savedGenerationOptions.useTechnicalDiagrams,
           tableRequirement: savedGenerationOptions.tableRequirement,
           contentConcurrency: savedGenerationOptions.contentConcurrency,
           enableConsistencyAudit: savedGenerationOptions.enableConsistencyAudit,
@@ -953,6 +977,7 @@ function ContentEditPage({
         <aside className="content-dev-stats-panel" aria-label="开发者生成统计">
           <strong>配图统计</strong>
           <span>AI 生图 计划 {aiImageStats.planned} / 尝试 {aiImageStats.attempted} / 成功 {aiImageStats.success} / 失败 {aiImageStats.failed} / 跳过 {aiImageStats.skipped}</span>
+          <span>技术图谱 计划 {technicalDiagramStats.planned} / 尝试 {technicalDiagramStats.attempted} / 成功 {technicalDiagramStats.success} / 失败 {technicalDiagramStats.failed} / 跳过 {technicalDiagramStats.skipped}</span>
           <span>Mermaid 计划 {mermaidImageStats.planned} / 尝试 {mermaidImageStats.attempted} / 成功 {mermaidImageStats.success} / 失败 {mermaidImageStats.failed}</span>
         </aside>
       )}
@@ -1179,8 +1204,26 @@ function ContentEditPage({
               </label>
               <label className="content-generation-config-row">
                 <span>
+                  <strong>生成技术图谱</strong>
+                  <small>{technicalDiagramAvailable ? '适合架构、拓扑、数据流、复杂流程和模块关系图；与 AI 生图、Mermaid 择优。' : '请先到 设置 > 技能管理 启用 technical-diagram。'}</small>
+                </span>
+                <div className="content-generation-config-control">
+                  <em className={`content-image-status ${technicalDiagramAvailable ? 'is-available' : 'is-unavailable'}`}>{technicalDiagramStatusLabel}</em>
+                  <Switch.Root
+                    className="content-generation-switch"
+                    checked={draftGenerationOptions.useTechnicalDiagrams && technicalDiagramAvailable}
+                    disabled={generationStrategyLocked || !technicalDiagramAvailable}
+                    onCheckedChange={(checked) => setDraftGenerationOptions((prev) => ({ ...prev, useTechnicalDiagrams: checked }))}
+                    aria-label="是否生成技术图谱"
+                  >
+                    <Switch.Thumb className="content-generation-switch-thumb" />
+                  </Switch.Root>
+                </div>
+              </label>
+              <label className="content-generation-config-row">
+                <span>
                   <strong>生成 Mermaid 图片</strong>
-                  <small>适合简单流程、层级、时间线或关系图；预览在前端渲染，与 AI 生图二选一。</small>
+                  <small>适合简单流程、层级、时间线或关系图；预览在前端渲染，与 AI 生图、技术图谱择优。</small>
                 </span>
                 <Switch.Root
                   className="content-generation-switch"

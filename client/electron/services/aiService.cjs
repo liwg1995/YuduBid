@@ -1027,6 +1027,10 @@ function createAiService({ app, configStore }) {
       return Boolean(configStore.load()?.developer_mode);
     },
 
+    isSkillEnabled(skillId) {
+      return Boolean(configStore.load()?.skill_settings?.skills?.[skillId]?.enabled);
+    },
+
     async generateImage(request) {
       const config = configStore.load();
       return generateImageWithConfig(app, config, request);

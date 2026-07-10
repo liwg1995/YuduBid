@@ -55,7 +55,7 @@ export interface FileParserConfig {
   mineru_token?: string;
 }
 
-export type SkillId = 'word-optimization';
+export type SkillId = 'word-optimization' | 'technical-diagram';
 
 export interface SkillConfig {
   id: SkillId;

@@ -215,9 +215,11 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const [expandConsistencyAudit, setExpandConsistencyAudit] = useState(true);
   const [expandTableRequirement, setExpandTableRequirement] = useState<ContentTableRequirement>('none');
   const [expandUseMermaidImages, setExpandUseMermaidImages] = useState(false);
+  const [expandUseTechnicalDiagrams, setExpandUseTechnicalDiagrams] = useState(false);
   const [expandUseAiImages, setExpandUseAiImages] = useState(false);
   const [expandMaxAiImages, setExpandMaxAiImages] = useState(2);
   const [expandImageModelAvailable, setExpandImageModelAvailable] = useState(false);
+  const [expandTechnicalDiagramAvailable, setExpandTechnicalDiagramAvailable] = useState(false);
   const activeIndex = steps.indexOf(state.step);
   const bidAnalysisReady = areRequiredBidAnalysisTasksReady(state.bidAnalysisTasks);
   const globalFactsReady = state.globalFacts.length > 0 && state.globalFactsTask?.status === 'success';
@@ -325,6 +327,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     setExpandConsistencyAudit(savedOptions?.enableConsistencyAudit ?? true);
     setExpandTableRequirement(savedOptions?.tableRequirement || 'none');
     setExpandUseMermaidImages(Boolean(savedOptions?.useMermaidImages ?? false));
+    setExpandUseTechnicalDiagrams(Boolean(savedOptions?.useTechnicalDiagrams ?? false));
     setExpandUseAiImages(Boolean(savedOptions?.useAiImages ?? false));
     setExpandMaxAiImages(Math.max(0, Math.round(Number(savedOptions?.maxAiImages || 2))));
     setExpandTargetWords((prev) => {
@@ -342,16 +345,25 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     window.yibiao?.config.load()
       .then((config) => {
         const available = config?.image_model?.status === 'available';
+        const technicalDiagramAvailable = Boolean(config?.skill_settings?.skills?.['technical-diagram']?.enabled);
         setExpandImageModelAvailable(available);
+        setExpandTechnicalDiagramAvailable(technicalDiagramAvailable);
         if (!available) {
           setExpandUseAiImages(false);
+        }
+        if (!technicalDiagramAvailable) {
+          setExpandUseTechnicalDiagrams(false);
+        } else if (state.contentGenerationOptions?.useTechnicalDiagrams !== false) {
+          setExpandUseTechnicalDiagrams(true);
         }
       })
       .catch(() => {
         setExpandImageModelAvailable(false);
+        setExpandTechnicalDiagramAvailable(false);
         setExpandUseAiImages(false);
+        setExpandUseTechnicalDiagrams(false);
       });
-  }, [state.step]);
+  }, [state.contentGenerationOptions?.useTechnicalDiagrams, state.step]);
 
   useEffect(() => {
     if (state.step !== 'expand' || !state.outlineData?.outline?.length) {
@@ -416,6 +428,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       useAiImages: expandUseAiImages && expandImageModelAvailable,
       maxAiImages: expandUseAiImages ? Math.max(0, Math.min(Math.round(Number(expandMaxAiImages) || 0), selectedExpandLeaves.length)) : 0,
       useMermaidImages: expandUseMermaidImages,
+      useTechnicalDiagrams: expandUseTechnicalDiagrams && expandTechnicalDiagramAvailable,
       tableRequirement: expandTableRequirement,
       minimumWords: normalizedTargetWords,
       contentConcurrency: normalizedConcurrency,
@@ -1231,6 +1244,20 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                       disabled={isContentGenerating || isContentPaused}
                       onChange={(event) => setExpandUseMermaidImages(event.target.checked)}
                       aria-label="是否在扩写后生成 Mermaid 图"
+                    />
+                  </label>
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>生成技术图谱</strong>
+                      <small>{expandTechnicalDiagramAvailable ? '扩写完成后，为适合架构、拓扑、数据流和复杂流程的小节补充技术图谱。' : '请先到 设置 > 技能管理 启用 technical-diagram。'}</small>
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="content-expand-checkbox"
+                      checked={expandUseTechnicalDiagrams && expandTechnicalDiagramAvailable}
+                      disabled={isContentGenerating || isContentPaused || !expandTechnicalDiagramAvailable}
+                      onChange={(event) => setExpandUseTechnicalDiagrams(event.target.checked)}
+                      aria-label="是否在扩写后生成技术图谱"
                     />
                   </label>
                   <label className="content-generation-config-row">

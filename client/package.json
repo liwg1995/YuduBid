@@ -1,6 +1,6 @@
 {
   "name": "yudubid-client",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
@@ -92,6 +92,7 @@
     "artifactName": "YuDuBid-${version}-${os}-${arch}.${ext}"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.80",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-separator": "^1.1.7",

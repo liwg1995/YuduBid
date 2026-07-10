@@ -36,6 +36,7 @@ const { createSoftwareCopyrightService } = require('../services/softwareCopyrigh
 const { createSqliteDatabase } = require('../services/sqliteDatabase.cjs');
 const { createTaskService } = require('../services/taskService.cjs');
 const { createTechnicalPlanStore } = require('../services/technicalPlanStore.cjs');
+const { createTechnicalDiagramService } = require('../services/technicalDiagramService.cjs');
 const { createThesisTutorService } = require('../services/thesisTutorService.cjs');
 
 const latestReleaseApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases/latest';
@@ -698,7 +699,8 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     const duplicateCheckStore = createDuplicateCheckStore({ app, db: sqliteDatabase.db });
     const rejectionCheckStore = createRejectionCheckStore({ app, db: sqliteDatabase.db, fileService, technicalPlanStore: technicalPlanStoreRouter });
     const duplicateCheckService = createDuplicateCheckService({ app, configStore, workspaceStore: duplicateCheckStore });
-    const taskService = createTaskService({ aiService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService });
+    const technicalDiagramService = createTechnicalDiagramService({ app });
+    const taskService = createTaskService({ aiService, technicalDiagramService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService });
     registerKnowledgeBaseIpc({ knowledgeBaseService });
     registerTechnicalPlanIpc({ technicalPlanStore: technicalPlanStoreRouter });
     registerDuplicateCheckIpc({ duplicateCheckStore });

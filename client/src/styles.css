@@ -12051,7 +12051,9 @@ button {
   left: 50%;
   z-index: 101;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(620px, calc(100vw - 40px));
+  max-height: min(860px, calc(100vh - 48px));
   transform: translate(-50%, -50%);
   gap: 18px;
   padding: 24px;
@@ -12059,6 +12061,7 @@ button {
   border: 1px solid rgba(220, 223, 230, 0.9);
   border-radius: 24px;
   box-shadow: 0 28px 72px rgba(23, 32, 51, 0.24);
+  overflow: hidden;
 }
 
 .export-progress-card {
@@ -12199,6 +12202,9 @@ button {
 .content-generation-config-list {
   display: grid;
   gap: 12px;
+  min-height: 0;
+  padding-right: 4px;
+  overflow: auto;
 }
 
 .content-generation-config-row {
@@ -12694,6 +12700,7 @@ button {
 
 .content-regenerate-actions {
   display: flex;
+  flex-shrink: 0;
   justify-content: flex-end;
   gap: 10px;
 }

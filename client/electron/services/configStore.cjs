@@ -109,6 +109,10 @@ const defaultConfig = {
         id: 'word-optimization',
         enabled: true,
       },
+      'technical-diagram': {
+        id: 'technical-diagram',
+        enabled: false,
+      },
     },
   },
   feature_module_settings: {
@@ -203,12 +207,19 @@ function normalizeSkillSettings(sourceSettings) {
   const wordOptimization = sourceSkills['word-optimization'] && typeof sourceSkills['word-optimization'] === 'object'
     ? sourceSkills['word-optimization']
     : {};
+  const technicalDiagram = sourceSkills['technical-diagram'] && typeof sourceSkills['technical-diagram'] === 'object'
+    ? sourceSkills['technical-diagram']
+    : {};
 
   return {
     skills: {
       'word-optimization': {
         id: 'word-optimization',
         enabled: wordOptimization.enabled === undefined ? true : Boolean(wordOptimization.enabled),
+      },
+      'technical-diagram': {
+        id: 'technical-diagram',
+        enabled: technicalDiagram.enabled === undefined ? false : Boolean(technicalDiagram.enabled),
       },
     },
   };
