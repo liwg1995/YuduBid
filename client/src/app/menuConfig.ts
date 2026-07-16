@@ -5,6 +5,7 @@ export const configurableFeatureModules: Array<{ id: FeatureModuleId; label: str
   { id: 'presales', label: '售前工作台', description: '客户材料分析、调研准备、方案架构、图表和汇报材料' },
   { id: 'bid', label: '招投标', description: '技术方案、商务标、知识库、查重、废标项检查和投标机会' },
   { id: 'official-document', label: '公文写作', description: '智能起草、格式检查、润色改写和模板库' },
+  { id: 'grant-application', label: '课题申报', description: '启动诊断、选题政策、申报书撰写、评审优化和答辩' },
   { id: 'project-management', label: '项目协作', description: '项目类型、项目管理和项目历史' },
   { id: 'thesis-tutor', label: '论文导师', description: '诊断、选题、综述、研究设计、图表、成稿和评审' },
   { id: 'copyright', label: '软件著作', description: '代码生成和软著申请材料生成' },
@@ -113,6 +114,34 @@ const officialDocumentMenuItems: AppMenuItem[] = [
     id: 'official-document-templates',
     label: '模板库',
     description: '常用公文场景模板',
+  },
+];
+
+const grantApplicationMenuItems: AppMenuItem[] = [
+  {
+    id: 'grant-projects',
+    label: '课题项目',
+    description: '创建、检索和管理课题申报项目',
+  },
+  {
+    id: 'grant-diagnosis',
+    label: '启动诊断',
+    description: '级别、学科、材料和流程判断',
+  },
+  {
+    id: 'grant-topic-policy',
+    label: '选题与政策',
+    description: '政策情报、选题评估和文献空白',
+  },
+  {
+    id: 'grant-proposal',
+    label: '申报书撰写',
+    description: '框架、正文、前期基础和导出',
+  },
+  {
+    id: 'grant-review-defense',
+    label: '评审优化与答辩',
+    description: '八维检测、成果汇编和答辩演练',
   },
 ];
 
@@ -225,6 +254,11 @@ function getFeatureModuleMenuGroups(): Array<AppMenuGroup & { id: FeatureModuleI
       id: 'official-document',
       label: '公文写作',
       items: officialDocumentMenuItems,
+    },
+    {
+      id: 'grant-application',
+      label: '课题申报',
+      items: grantApplicationMenuItems,
     },
     {
       id: 'project-management',

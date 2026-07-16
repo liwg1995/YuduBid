@@ -7,11 +7,11 @@ interface HomePageProps {
   onNavigate: (section: SectionId) => void;
 }
 
-type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' | 'book' | 'document' | 'check' | 'thesis' | 'project';
+type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' | 'book' | 'document' | 'check' | 'thesis' | 'project' | 'grant';
 
 const overviewStats: Array<{ label: string; value: string; detail: string; tone: string; icon: HomeIconName }> = [
-  { label: '核心工作区', value: '7组', detail: '售前、招投标、公文、项目、论文、软著、专利', tone: 'blue', icon: 'flow' },
-  { label: 'AI生成链路', value: '15+类', detail: '方案、公文、论文辅导、代码、交底书等', tone: 'violet', icon: 'spark' },
+  { label: '核心工作区', value: '8组', detail: '售前、招投标、公文、课题、项目、论文、软著、专利', tone: 'blue', icon: 'flow' },
+  { label: 'AI生成链路', value: '16+类', detail: '方案、公文、课题申报、论文辅导、代码、交底书等', tone: 'violet', icon: 'spark' },
   { label: '本地能力', value: '多项', detail: '文件解析、Word导出、SQLite工作区', tone: 'cyan', icon: 'archive' },
   { label: '流程覆盖', value: '全周期', detail: '解析、生成、检查、修订、沉淀、导出', tone: 'green', icon: 'check' },
 ];
@@ -52,6 +52,15 @@ const featureCards: Array<{ title: string; text: string; action: string; section
     tone: 'green',
     icon: 'document',
     tags: ['公文', '润色', '导出'],
+  },
+  {
+    title: '课题申报',
+    text: '结合课题申报全生命周期流程，从启动诊断、选题政策、申报书撰写到评审优化和答辩准备，辅助教育科研课题申报推进。',
+    action: '进入启动诊断',
+    section: 'grant-diagnosis',
+    tone: 'green',
+    icon: 'grant',
+    tags: ['选题', '申报书', '答辩'],
   },
   {
     title: '项目管理',
@@ -266,6 +275,16 @@ function HomeIcon({ name }: { name: HomeIconName }) {
           <path d="M14.1 15.6h1.7" />
           <path d="M6.8 3.8v2.6" />
           <path d="M17.2 3.8v2.6" />
+        </svg>
+      );
+    case 'grant':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6.4 4.6h8.1l3.1 3.1v11.7H6.4Z" />
+          <path d="M14.3 4.8v3.1h3" />
+          <path d="M9 11h6" />
+          <path d="M9 14h3.8" />
+          <path d="m14.2 17 1.3 1.3 3.2-3.6" />
         </svg>
       );
     case 'document':

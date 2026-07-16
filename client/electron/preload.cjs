@@ -68,6 +68,38 @@ const bridge = {
       return () => ipcRenderer.removeListener('official-document:event', listener);
     },
   },
+  grantApplication: {
+    loadState: () => ipcRenderer.invoke('grant-application:load-state'),
+    listProjects: () => ipcRenderer.invoke('grant-application:list-projects'),
+    createProject: (payload) => ipcRenderer.invoke('grant-application:create-project', payload),
+    switchProject: (projectId) => ipcRenderer.invoke('grant-application:switch-project', projectId),
+    renameProject: (payload) => ipcRenderer.invoke('grant-application:rename-project', payload),
+    deleteProject: (projectId) => ipcRenderer.invoke('grant-application:delete-project', projectId),
+    saveWorkspace: (payload) => ipcRenderer.invoke('grant-application:save-workspace', payload),
+    saveOutput: (payload) => ipcRenderer.invoke('grant-application:save-output', payload),
+    importMaterial: (payload) => ipcRenderer.invoke('grant-application:import-material', payload),
+    exportWorkspaceJson: () => ipcRenderer.invoke('grant-application:export-workspace-json'),
+    exportFormFields: () => ipcRenderer.invoke('grant-application:export-form-fields'),
+    getFormFields: () => ipcRenderer.invoke('grant-application:get-form-fields'),
+    importProposalTemplate: () => ipcRenderer.invoke('grant-application:import-proposal-template'),
+    exportFilledProposalTemplate: () => ipcRenderer.invoke('grant-application:export-filled-proposal-template'),
+    generate: (payload) => ipcRenderer.invoke('grant-application:generate', payload),
+    generateProposalModule: (payload) => ipcRenderer.invoke('grant-application:generate-proposal-module', payload),
+    saveProposalModule: (payload) => ipcRenderer.invoke('grant-application:save-proposal-module', payload),
+    saveProposalVisualSettings: (payload) => ipcRenderer.invoke('grant-application:save-proposal-visual-settings', payload),
+    polishProposalModule: (payload) => ipcRenderer.invoke('grant-application:polish-proposal-module', payload),
+    combineProposalModules: () => ipcRenderer.invoke('grant-application:combine-proposal-modules'),
+    generateProposalModuleQualityCheck: (payload) => ipcRenderer.invoke('grant-application:generate-proposal-module-quality-check', payload),
+    generateProposalFinalReview: (payload) => ipcRenderer.invoke('grant-application:generate-proposal-final-review', payload),
+    generateQualityReview: (payload) => ipcRenderer.invoke('grant-application:generate-quality-review', payload),
+    clear: () => ipcRenderer.invoke('grant-application:clear'),
+    onEvent: (callback) => {
+      ipcRenderer.send('grant-application:subscribe');
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('grant-application:event', listener);
+      return () => ipcRenderer.removeListener('grant-application:event', listener);
+    },
+  },
   projectManagement: {
     loadState: () => ipcRenderer.invoke('project-management:load-state'),
     listProjects: () => ipcRenderer.invoke('project-management:list-projects'),

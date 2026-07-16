@@ -70,6 +70,7 @@ export type FeatureModuleId =
   | 'presales'
   | 'bid'
   | 'official-document'
+  | 'grant-application'
   | 'project-management'
   | 'thesis-tutor'
   | 'copyright'

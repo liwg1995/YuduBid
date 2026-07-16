@@ -5,6 +5,8 @@ import BusinessBidPage from '../features/business-bid/pages/BusinessBidPage';
 import CodeGenerationPage from '../features/code-generation/pages/CodeGenerationPage';
 import DeveloperTestPage from '../features/developer/pages/DeveloperTestPage';
 import DuplicateCheckPage from '../features/duplicate-check/pages/DuplicateCheckPage';
+import GrantApplicationPage, { type GrantApplicationInitialPanel } from '../features/grant-application/pages/GrantApplicationPage';
+import GrantApplicationProjectsPage from '../features/grant-application/pages/GrantApplicationProjectsPage';
 import HomePage from '../features/home/pages/HomePage';
 import KnowledgeBasePage from '../features/knowledge-base/pages/KnowledgeBasePage';
 import OfficialDocumentDraftingPage from '../features/official-document/pages/OfficialDocumentDraftingPage';
@@ -59,6 +61,13 @@ function AppRouter({ activeSection, featureModuleSettings, onSectionChange, onDe
       return <OfficialDocumentDraftingPage initialPanel="polish" onNavigate={onSectionChange} />;
     case 'official-document-templates':
       return <OfficialDocumentDraftingPage initialPanel="templates" onNavigate={onSectionChange} />;
+    case 'grant-projects':
+      return <GrantApplicationProjectsPage onNavigate={onSectionChange} />;
+    case 'grant-diagnosis':
+    case 'grant-topic-policy':
+    case 'grant-proposal':
+    case 'grant-review-defense':
+      return <GrantApplicationPage initialPanel={activeSection.replace('grant-', '') as GrantApplicationInitialPanel} onNavigate={onSectionChange} />;
     case 'thesis-diagnosis':
     case 'thesis-topic':
     case 'thesis-literature':

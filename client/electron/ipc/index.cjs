@@ -8,6 +8,7 @@ const { registerConfigIpc } = require('./configIpc.cjs');
 const { registerDuplicateCheckIpc } = require('./duplicateCheckIpc.cjs');
 const { registerExportIpc } = require('./exportIpc.cjs');
 const { registerFileIpc } = require('./fileIpc.cjs');
+const { registerGrantApplicationIpc } = require('./grantApplicationIpc.cjs');
 const { registerKnowledgeBaseIpc } = require('./knowledgeBaseIpc.cjs');
 const { registerOfficialDocumentIpc } = require('./officialDocumentIpc.cjs');
 const { registerPatentGenerationIpc } = require('./patentGenerationIpc.cjs');
@@ -25,6 +26,7 @@ const { createDuplicateCheckService } = require('../services/duplicateCheckServi
 const { createDuplicateCheckStore } = require('../services/duplicateCheckStore.cjs');
 const { createExportService } = require('../services/exportService.cjs');
 const { createFileService } = require('../services/fileService.cjs');
+const { createGrantApplicationService } = require('../services/grantApplicationService.cjs');
 const { createKnowledgeBaseService } = require('../services/knowledgeBaseService.cjs');
 const { createKnowledgeBaseStore } = require('../services/knowledgeBaseStore.cjs');
 const { createOfficialDocumentService } = require('../services/officialDocumentService.cjs');
@@ -660,6 +662,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const exportService = createExportService({ configStore });
   const codeGenerationService = createCodeGenerationService({ app });
   const officialDocumentService = createOfficialDocumentService({ app, aiService, configStore });
+  const grantApplicationService = createGrantApplicationService({ app, aiService, configStore });
   const patentGenerationService = createPatentGenerationService({ app, aiService });
   const presalesWorkbenchService = createPresalesWorkbenchService({ app, fileService, aiService });
   const projectManagementService = createProjectManagementService({ app, aiService, configStore });
@@ -671,6 +674,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   registerExportIpc({ exportService });
   registerCodeGenerationIpc({ codeGenerationService });
   registerOfficialDocumentIpc({ officialDocumentService });
+  registerGrantApplicationIpc({ grantApplicationService });
   registerPresalesWorkbenchIpc({ presalesWorkbenchService });
   registerProjectManagementIpc({ projectManagementService });
   registerThesisTutorIpc({ thesisTutorService });
