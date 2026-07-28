@@ -45,10 +45,11 @@ const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
 
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
 const agnesAiRegisterUrl = 'https://agnes-ai.com';
-const agnesAiBaseUrl = 'https://apihub.agnes-ai.com/v1';
+const agnesAiBaseUrl = 'https://apihub.agnes-ai.cn/v1';
+const agnesAiOverseasBaseUrl = 'https://apihub.agnes-ai.com/v1';
 
 const textProviderDefaults: TextModelProfiles = {
-  'agnes-ai': { api_key: '', base_url: agnesAiBaseUrl, model_name: 'agnes-2.0-flash' },
+  'agnes-ai': { api_key: '', base_url: agnesAiBaseUrl, model_name: 'agnes-2.5-flash' },
   volcengine: { api_key: '', base_url: 'https://ark.cn-beijing.volces.com/api/v3', model_name: '' },
   xiaomi: { api_key: '', base_url: 'https://token-plan-cn.xiaomimimo.com/v1', model_name: '' },
   deepseek: { api_key: '', base_url: 'https://api.deepseek.com', model_name: '' },
@@ -1432,6 +1433,9 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               <div className="settings-row-copy">
                 <strong>Base URL</strong>
                 <span>OpenAI Like 接口地址，用于文本生成和分析任务</span>
+                {state.textModel.provider === 'agnes-ai' && (
+                  <small className="settings-region-hint">中国大陆以外请选择自定义，Base URL 为：{agnesAiOverseasBaseUrl}</small>
+                )}
               </div>
               <input
                 type="text"
@@ -1550,6 +1554,9 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               <div className="settings-row-copy">
                 <strong>Base URL</strong>
                 <span>{getImageBaseUrlDescription(state.imageModel.provider)}</span>
+                {state.imageModel.provider === 'agnes-ai' && (
+                  <small className="settings-region-hint">中国大陆以外请选择自定义，Base URL 为：{agnesAiOverseasBaseUrl}</small>
+                )}
               </div>
               <input
                 type="text"

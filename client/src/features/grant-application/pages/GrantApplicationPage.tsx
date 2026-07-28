@@ -269,6 +269,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   const copy = panelCopy[initialPanel] || panelCopy.diagnosis;
   const currentInput = inputs[initialPanel] || { taskText: '', materialText: '' };
   const outputText = outputs[initialPanel] || '';
+  const generateDraftLabel = initialPanel === 'diagnosis' ? 'AI 诊断生成工作稿' : 'AI 生成工作稿';
   const legacyReviewReportInOutput = initialPanel === 'review-defense' && !reviewDefenseReport.trim() && isReviewQualityReportText(outputText);
   const visibleOutputText = legacyReviewReportInOutput ? '' : outputText;
   const visibleReviewDefenseReport = initialPanel === 'review-defense'
@@ -516,7 +517,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   async function generateWithAi() {
     try {
       setGenerating(true);
-      startAiProgress('AI 生成工作稿', `正在生成“${copy.label}”阶段工作稿。`);
+      startAiProgress(generateDraftLabel, `正在生成“${copy.label}”阶段工作稿。`);
       const state = await window.yibiao?.grantApplication.generate({
         panel: initialPanel,
         profile,
@@ -1542,7 +1543,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                   )}
                   {initialPanel !== 'proposal' && (
                     <button type="button" className="primary-action" onClick={generateWithAi} disabled={loading || generating || task?.status === 'running'}>
-                      {isCurrentTaskRunning || generating ? '生成中...' : 'AI 生成工作稿'}
+                      {isCurrentTaskRunning || generating ? '生成中...' : generateDraftLabel}
                     </button>
                   )}
                 </div>
@@ -2201,9 +2202,27 @@ function buildTemplatePackageTitle(projectName: string) {
 }
 
 function normalizeGrantExportMarkdown(markdown: string) {
-  return String(markdown || '').split(/\r?\n/).map((line) => (
-    line.replace(/^(#{1,6})\s+(?:第[一二三四五六七八九十百千万\d]+[章节部分][：:、.\s]*)?(?:(?:\d+(?:\.\d+)*|[一二三四五六七八九十]+)[.、]\s+)/, '$1 ')
-  )).join('\n');
+  let inFence = false;
+  return String(markdown || '').split(/\r?\n/).map((line) => {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      return line;
+    }
+    if (inFence) return line;
+    return cleanupGrantExportLine(line.replace(
+      /^(#{1,6})\s+(?:第[一二三四五六七八九十百千万\d]+[章节部分][：:、.\s]*)?(?:(?:\d+(?:\.\d+)*|[一二三四五六七八九十]+)[.、]\s+)/,
+      '$1 ',
+    ));
+  }).join('\n');
+}
+
+function cleanupGrantExportLine(line: string) {
+  return line
+    .replace(/([\u3400-\u9fff])[\t 　]+(?=[\u3400-\u9fff])/g, '$1')
+    .replace(/([\u3400-\u9fff])[\t 　]+([：:，,。；;、！？!?）】》」』])/g, '$1$2')
+    .replace(/([（【《「『])[\t 　]+(?=[\u3400-\u9fff])/g, '$1')
+    .replace(/\*\*([\u3400-\u9fff])[\t 　]+(?=[\u3400-\u9fff])/g, '**$1')
+    .replace(/([\u3400-\u9fff])[\t 　]+(?=[\u3400-\u9fff][^*]*\*\*)/g, '$1');
 }
 
 function isReviewQualityReportText(value: string) {

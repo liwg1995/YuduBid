@@ -18530,6 +18530,32 @@ button {
   line-height: 1.65;
 }
 
+.settings-region-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #4f8fd8;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.settings-region-hint::before {
+  content: "!";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #22c55e;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .settings-inline-link {
   display: inline;
   padding: 0;

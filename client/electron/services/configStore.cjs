@@ -6,7 +6,7 @@ const textModelProviders = ['agnes-ai', 'volcengine', 'xiaomi', 'deepseek', 'lon
 const imageModelProviders = ['agnes-ai', 'volcengine', 'google-ai-studio', 'custom'];
 const featureModuleIds = ['presales', 'bid', 'official-document', 'project-management', 'thesis-tutor', 'copyright', 'patent'];
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
-const agnesAiBaseUrl = 'https://apihub.agnes-ai.com/v1';
+const agnesAiBaseUrl = 'https://apihub.agnes-ai.cn/v1';
 
 const textProviderBaseUrls = {
   'agnes-ai': agnesAiBaseUrl,
@@ -21,7 +21,7 @@ const defaultTextModelProfiles = {
   'agnes-ai': {
     api_key: '',
     base_url: textProviderBaseUrls['agnes-ai'],
-    model_name: 'agnes-2.0-flash',
+    model_name: 'agnes-2.5-flash',
   },
   volcengine: {
     api_key: '',

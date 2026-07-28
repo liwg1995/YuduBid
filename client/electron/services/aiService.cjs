@@ -9,7 +9,7 @@ const IMAGE_MODEL_TEST_TIMEOUT_MESSAGE = '生图模型测试超时，请检查 B
 const OPENAI_IMAGE_PROVIDER_META = {
   'agnes-ai': {
     label: 'agnes-ai',
-    defaultBaseUrl: 'https://apihub.agnes-ai.com/v1',
+    defaultBaseUrl: 'https://apihub.agnes-ai.cn/v1',
     logProvider: 'agnes-ai',
     modelLabel: '生图模型名称',
   },

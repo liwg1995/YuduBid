@@ -306,8 +306,44 @@ function normalizeProposalTemplateFillReport(report = {}) {
   };
 }
 
-function cloneState(state = {}) {
+function isReviewQualityReportText(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  const hitCount = [
+    /八维检测/,
+    /文本质量参考分/,
+    /总体评分参考/,
+    /总体判断/,
+    /修改优先级/,
+    /不代表.*(立项|评审)/,
+  ].filter((pattern) => pattern.test(text)).length;
+  return hitCount >= 2 && !/答辩问题与参考回答|实施管理建议/.test(text.slice(0, 800));
+}
+
+function migrateMisroutedWorkDraft(state) {
+  const nextState = {
+    ...state,
+    outputs: normalizeOutputs(state.outputs),
+    reviewDefenseReport: String(state.reviewDefenseReport || ''),
+  };
+  const taskType = normalizePanel(state.task?.type || state.activePanel);
+  const misroutedText = nextState.reviewDefenseReport.trim();
+  if (!misroutedText || isReviewQualityReportText(misroutedText)) return nextState;
+  if (nextState.task?.status !== 'success') return nextState;
+  if (!nextState.task?.id || String(nextState.task.id).includes('quality')) return nextState;
+  if (nextState.outputs[taskType]?.trim()) return nextState;
   return {
+    ...nextState,
+    outputs: {
+      ...nextState.outputs,
+      [taskType]: misroutedText,
+    },
+    reviewDefenseReport: '',
+  };
+}
+
+function cloneState(state = {}) {
+  const normalized = {
     ...initialState,
     ...state,
     profile: normalizeProfile(state.profile),
@@ -324,6 +360,7 @@ function cloneState(state = {}) {
     task: state.task,
     updated_at: normalizeString(state.updated_at, 80),
   };
+  return migrateMisroutedWorkDraft(normalized);
 }
 
 function recoverInterruptedTask(state) {
@@ -1445,7 +1482,7 @@ function createGrantApplicationService({ app, aiService, configStore }) {
         activePanel: panel,
         profile,
         inputs: { ...loadState().inputs, [panel]: input },
-        reviewDefenseReport: String(output || '').trim(),
+        outputs: { ...loadState().outputs, [panel]: String(output || '').trim() },
         task: finalTask,
       });
     } catch (error) {
@@ -1799,7 +1836,7 @@ function createGrantApplicationService({ app, aiService, configStore }) {
         activePanel: panel,
         profile,
         inputs: { ...loadState().inputs, [panel]: input },
-        outputs: { ...loadState().outputs, [panel]: String(output || '').trim() },
+        reviewDefenseReport: String(output || '').trim(),
         task: finalTask,
       });
     } catch (error) {
