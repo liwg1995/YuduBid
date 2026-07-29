@@ -1169,7 +1169,13 @@ function headingLevel(level) {
   if (level <= 1) return HeadingLevel.HEADING_1;
   if (level === 2) return HeadingLevel.HEADING_2;
   if (level === 3) return HeadingLevel.HEADING_3;
-  return HeadingLevel.HEADING_4;
+  if (level === 4) return HeadingLevel.HEADING_4;
+  if (level === 5) return HeadingLevel.HEADING_5;
+  return HeadingLevel.HEADING_6;
+}
+
+function headingStyleId(level) {
+  return `Heading${Math.max(1, Math.min(9, Number(level) || 1))}`;
 }
 
 function headingNumberingLevel(level) {
@@ -2274,6 +2280,7 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
           );
       blocks.push(paragraph(headingRuns, {
         heading: headingLevel(node.depth),
+        style: headingStyleId(node.depth),
         before: optimized || formalDocument ? 0 : node.depth === 1 ? 280 : 180,
         after: optimized || formalDocument ? 0 : 120,
         optimized,
@@ -2520,6 +2527,7 @@ async function addOutlineItems(children, items, context, level = 1) {
         cleanMarkdown: structuredDocument,
       })], {
         heading: headingLevel(level),
+        style: headingStyleId(level),
         before: optimized || formalDocument ? 0 : level === 1 ? 320 : 200,
         after: optimized || formalDocument ? 0 : 120,
         optimized,
@@ -2761,9 +2769,9 @@ async function buildDocxResult(payload, options = {}) {
           paragraph: defaultParagraphStyle,
         },
       },
-      ...(wordOptimizationEnabled || structuredDocumentEnabled ? {
-        paragraphStyles: [
-          ...[1, 2, 3, 4, 5].map((level) => ({
+      paragraphStyles: [
+        ...(wordOptimizationEnabled || structuredDocumentEnabled ? [
+          ...Array.from({ length: 9 }, (_item, index) => index + 1).map((level) => ({
             id: `Heading${level}`,
             name: `Heading ${level}`,
             ...optimizedHeadingStyle,
@@ -2773,10 +2781,18 @@ async function buildDocxResult(payload, options = {}) {
               ? { font: '黑体', size: level === 1 ? 30 : level === 2 ? 28 : 26, bold: true, color: '000000' }
               : optimizedHeadingStyle.run,
           })),
-          ...(projectManagementDocumentEnabled ? createProjectManagementTocStyles() : []),
-          ...(presalesProposalDocumentEnabled ? createPresalesProposalTocStyles() : []),
-        ],
-      } : {}),
+        ] : [
+          ...[7, 8, 9].map((level) => ({
+            id: `Heading${level}`,
+            name: `Heading ${level}`,
+            basedOn: 'Heading6',
+            next: 'Normal',
+            quickFormat: true,
+          })),
+        ]),
+        ...(projectManagementDocumentEnabled ? createProjectManagementTocStyles() : []),
+        ...(presalesProposalDocumentEnabled ? createPresalesProposalTocStyles() : []),
+      ],
     },
     sections,
   });
