@@ -2,14 +2,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { getConfigFilePath } = require('../utils/paths.cjs');
 
-const textModelProviders = ['agnes-ai', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
-const imageModelProviders = ['agnes-ai', 'volcengine', 'google-ai-studio', 'custom'];
+const textModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
+const imageModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'volcengine', 'google-ai-studio', 'custom'];
 const featureModuleIds = ['presales', 'bid', 'official-document', 'project-management', 'thesis-tutor', 'copyright', 'patent'];
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
-const agnesAiBaseUrl = 'https://apihub.agnes-ai.cn/v1';
+const agnesAiCnBaseUrl = 'https://apihub.agnes-ai.cn/v1';
+const agnesAiGlobalBaseUrl = 'https://apihub.agnes-ai.com/v1';
 
 const textProviderBaseUrls = {
-  'agnes-ai': agnesAiBaseUrl,
+  'agnes-ai-cn': agnesAiCnBaseUrl,
+  'agnes-ai-global': agnesAiGlobalBaseUrl,
   volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
   xiaomi: 'https://token-plan-cn.xiaomimimo.com/v1',
   deepseek: 'https://api.deepseek.com',
@@ -18,9 +20,14 @@ const textProviderBaseUrls = {
 };
 
 const defaultTextModelProfiles = {
-  'agnes-ai': {
+  'agnes-ai-cn': {
     api_key: '',
-    base_url: textProviderBaseUrls['agnes-ai'],
+    base_url: textProviderBaseUrls['agnes-ai-cn'],
+    model_name: 'agnes-2.5-flash',
+  },
+  'agnes-ai-global': {
+    api_key: '',
+    base_url: textProviderBaseUrls['agnes-ai-global'],
     model_name: 'agnes-2.5-flash',
   },
   volcengine: {
@@ -51,9 +58,18 @@ const defaultTextModelProfiles = {
 };
 
 const defaultImageModelProfiles = {
-  'agnes-ai': {
-    provider: 'agnes-ai',
-    base_url: agnesAiBaseUrl,
+  'agnes-ai-cn': {
+    provider: 'agnes-ai-cn',
+    base_url: agnesAiCnBaseUrl,
+    api_key: '',
+    model_name: 'agnes-image-2.1-flash',
+    status: 'untested',
+    tested_at: '',
+    last_error: '',
+  },
+  'agnes-ai-global': {
+    provider: 'agnes-ai-global',
+    base_url: agnesAiGlobalBaseUrl,
     api_key: '',
     model_name: 'agnes-image-2.1-flash',
     status: 'untested',
@@ -90,13 +106,13 @@ const defaultImageModelProfiles = {
 };
 
 const defaultConfig = {
-  text_model_provider: 'agnes-ai',
+  text_model_provider: 'agnes-ai-cn',
   text_model_profiles: defaultTextModelProfiles,
   api_key: '',
-  base_url: textProviderBaseUrls['agnes-ai'],
-  model_name: defaultTextModelProfiles['agnes-ai'].model_name,
+  base_url: textProviderBaseUrls['agnes-ai-cn'],
+  model_name: defaultTextModelProfiles['agnes-ai-cn'].model_name,
   image_model: {
-    ...defaultImageModelProfiles['agnes-ai'],
+    ...defaultImageModelProfiles['agnes-ai-cn'],
   },
   image_model_profiles: defaultImageModelProfiles,
   file_parser: {
@@ -128,8 +144,16 @@ function isTextModelProvider(value) {
   return textModelProviders.includes(value);
 }
 
+function normalizeTextProviderId(value) {
+  return value === 'agnes-ai' ? 'agnes-ai-cn' : value;
+}
+
 function isImageModelProvider(value) {
   return imageModelProviders.includes(value);
+}
+
+function normalizeImageProviderId(value) {
+  return value === 'agnes-ai' ? 'agnes-ai-cn' : value;
 }
 
 function normalizeTextModelProfile(provider, profile) {
@@ -141,7 +165,7 @@ function normalizeTextModelProfile(provider, profile) {
   return {
     api_key: source.api_key !== undefined ? source.api_key : defaults.api_key,
     base_url: provider === 'xiaomi' && sourceBaseUrl === oldXiaomiBaseUrl ? defaults.base_url : sourceBaseUrl,
-    model_name: provider === 'agnes-ai' && !source.model_name
+    model_name: provider.startsWith('agnes-ai-') && !source.model_name
       ? defaults.model_name
       : source.model_name !== undefined ? source.model_name : defaults.model_name,
   };
@@ -152,7 +176,9 @@ function normalizeTextModelProfiles(sourceProfiles) {
   textModelProviders.forEach((provider) => {
     profiles[provider] = normalizeTextModelProfile(
       provider,
-      sourceProfiles && typeof sourceProfiles === 'object' ? sourceProfiles[provider] : null,
+      sourceProfiles && typeof sourceProfiles === 'object'
+        ? sourceProfiles[provider] || (provider === 'agnes-ai-cn' ? sourceProfiles['agnes-ai'] : null)
+        : null,
     );
   });
   return profiles;
@@ -165,7 +191,7 @@ function textProfileFromFlatConfig(source, fallback, provider) {
   return {
     api_key: source.api_key !== undefined ? source.api_key : fallback.api_key,
     base_url: provider === 'xiaomi' && sourceBaseUrl === oldXiaomiBaseUrl ? fallback.base_url : sourceBaseUrl,
-    model_name: provider === 'agnes-ai' && !source.model_name
+    model_name: provider.startsWith('agnes-ai-') && !source.model_name
       ? fallback.model_name
       : source.model_name !== undefined ? source.model_name : fallback.model_name,
   };
@@ -180,7 +206,7 @@ function normalizeImageModelProfile(provider, profile) {
       ? source.base_url !== undefined ? source.base_url : defaults.base_url
       : defaults.base_url,
     api_key: source.api_key !== undefined ? source.api_key : defaults.api_key,
-    model_name: provider === 'agnes-ai' && !source.model_name
+    model_name: provider.startsWith('agnes-ai-') && !source.model_name
       ? defaults.model_name
       : source.model_name !== undefined ? source.model_name : defaults.model_name,
     status: source.status !== undefined ? source.status : defaults.status,
@@ -194,7 +220,9 @@ function normalizeImageModelProfiles(sourceProfiles) {
   imageModelProviders.forEach((provider) => {
     profiles[provider] = normalizeImageModelProfile(
       provider,
-      sourceProfiles && typeof sourceProfiles === 'object' ? sourceProfiles[provider] : null,
+      sourceProfiles && typeof sourceProfiles === 'object'
+        ? sourceProfiles[provider] || (provider === 'agnes-ai-cn' ? sourceProfiles['agnes-ai'] : null)
+        : null,
     );
   });
   return profiles;
@@ -245,15 +273,17 @@ function normalizeConfig(config) {
   const source = config || {};
   const fileParser = source.file_parser ? source.file_parser : {};
   const hasTextProvider = Object.prototype.hasOwnProperty.call(source, 'text_model_provider');
-  const sourceTextProvider = isTextModelProvider(source.text_model_provider)
-    ? source.text_model_provider
+  const normalizedSourceTextProvider = normalizeTextProviderId(source.text_model_provider);
+  const sourceTextProvider = isTextModelProvider(normalizedSourceTextProvider)
+    ? normalizedSourceTextProvider
     : '';
   const textModelProvider = sourceTextProvider || (hasTextProvider || config ? 'custom' : defaultConfig.text_model_provider);
   const textModelProfiles = normalizeTextModelProfiles(source.text_model_profiles);
   textModelProfiles[textModelProvider] = textProfileFromFlatConfig(source, textModelProfiles[textModelProvider], textModelProvider);
   const activeTextProfile = textModelProfiles[textModelProvider];
   const sourceImageModel = source.image_model && typeof source.image_model === 'object' ? source.image_model : {};
-  const imageModelProvider = isImageModelProvider(sourceImageModel.provider) ? sourceImageModel.provider : defaultConfig.image_model.provider;
+  const normalizedSourceImageProvider = normalizeImageProviderId(sourceImageModel.provider);
+  const imageModelProvider = isImageModelProvider(normalizedSourceImageProvider) ? normalizedSourceImageProvider : defaultConfig.image_model.provider;
   const imageModelProfiles = normalizeImageModelProfiles(source.image_model_profiles);
   imageModelProfiles[imageModelProvider] = normalizeImageModelProfile(imageModelProvider, sourceImageModel);
   const activeImageProfile = imageModelProfiles[imageModelProvider];

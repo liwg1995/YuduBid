@@ -5,7 +5,7 @@ export type TechnicalPlanWorkflowKind = 'technical-plan' | 'existing-plan-expans
 export type BidAnalysisMode = 'key' | 'full';
 export type BidAnalysisTaskStatus = 'idle' | 'running' | 'success' | 'error';
 export type BackgroundTaskType = 'bid-analysis' | 'outline-generation' | 'global-facts-generation' | 'content-generation';
-export type BackgroundTaskStatus = 'running' | 'pausing' | 'paused' | 'success' | 'error';
+export type BackgroundTaskStatus = 'running' | 'pausing' | 'stopping' | 'stopped' | 'paused' | 'success' | 'error';
 export type ContentGenerationSectionStatus = 'idle' | 'running' | 'success' | 'error';
 export type ContentTableRequirement = 'none' | 'light' | 'moderate' | 'heavy';
 
@@ -39,6 +39,8 @@ export interface BackgroundTaskState {
   started_at: string;
   updated_at: string;
   error?: string;
+  pause_requested?: boolean;
+  stop_requested?: boolean;
   stats?: {
     content?: {
       phase: 'planning' | 'generating' | 'outline-expanding' | 'expanding' | 'auditing' | 'illustrating' | 'done';

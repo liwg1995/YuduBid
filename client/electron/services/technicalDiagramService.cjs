@@ -7,9 +7,8 @@ const DIAGRAM_TYPES = new Set(['architecture', 'data-flow', 'flowchart', 'deploy
 const DIAGRAM_STYLES = new Set(['document', 'blueprint', 'clean']);
 const FLOW_TYPES = new Set(['primary', 'data', 'control', 'write', 'read', 'async', 'feedback']);
 const SVG_WIDTH = 1120;
-const DEFAULT_NODE_WIDTH = 172;
-const DEFAULT_NODE_HEIGHT = 58;
-const MAX_TEXT_LENGTH = 28;
+const DEFAULT_NODE_WIDTH = 200;
+const DEFAULT_NODE_HEIGHT = 88;
 
 const styleProfiles = {
   document: {
@@ -61,6 +60,16 @@ const flowColors = {
   read: '#0ea5e9',
   async: '#f59e0b',
   feedback: '#ef4444',
+};
+
+const defaultLegendLabels = {
+  primary: '主流程',
+  data: '数据流',
+  control: '控制关系',
+  write: '写入流',
+  read: '读取流',
+  async: '异步流',
+  feedback: '反馈流',
 };
 
 function clamp(value, min, max) {
@@ -168,12 +177,12 @@ function groupNodes(nodes) {
   return groups;
 }
 
-function layoutDiagram(nodes) {
+function layoutDiagram(nodes, legendRows = 1) {
   const groups = groupNodes(nodes);
-  const contentTop = 118;
-  const rowGap = 116;
-  const minHeight = contentTop + Math.max(1, groups.length) * rowGap + 92;
-  const height = clamp(minHeight, 520, 980);
+  const contentTop = 128;
+  const rowGap = 150;
+  const minHeight = contentTop + Math.max(1, groups.length) * rowGap + 70 + Math.max(0, legendRows - 1) * 30;
+  const height = clamp(minHeight, 520, 1400);
   const positioned = new Map();
   const containers = [];
 
@@ -181,22 +190,27 @@ function layoutDiagram(nodes) {
     const y = contentTop + rowIndex * rowGap;
     const count = group.nodes.length;
     const availableWidth = SVG_WIDTH - 144;
-    const step = count <= 1 ? 0 : availableWidth / (count - 1);
-    const containerY = y - 32;
+    const nodeWidth = count <= 1
+      ? DEFAULT_NODE_WIDTH
+      : clamp(Math.floor(availableWidth / count - 20), 92, DEFAULT_NODE_WIDTH);
+    const step = count <= 1 ? 0 : (availableWidth - nodeWidth) / (count - 1);
+    const containerY = y - 42;
     containers.push({
       label: group.label,
       x: 44,
       y: containerY,
       width: SVG_WIDTH - 88,
-      height: 96,
+      height: 124,
     });
     group.nodes.forEach((node, columnIndex) => {
-      const centerX = count <= 1 ? SVG_WIDTH / 2 : 72 + columnIndex * step;
+      const centerX = count <= 1
+        ? SVG_WIDTH / 2
+        : 68 + nodeWidth / 2 + columnIndex * step;
       positioned.set(node.id, {
         ...node,
-        x: clamp(centerX - DEFAULT_NODE_WIDTH / 2, 68, SVG_WIDTH - 68 - DEFAULT_NODE_WIDTH),
+        x: clamp(centerX - nodeWidth / 2, 68, SVG_WIDTH - 68 - nodeWidth),
         y,
-        width: DEFAULT_NODE_WIDTH,
+        width: nodeWidth,
         height: DEFAULT_NODE_HEIGHT,
       });
     });
@@ -239,9 +253,71 @@ function arrowPath(fromNode, toNode) {
   };
 }
 
+function rectanglesOverlap(a, b, padding = 8) {
+  return a.x - padding < b.x + b.width
+    && a.x + a.width + padding > b.x
+    && a.y - padding < b.y + b.height
+    && a.y + a.height + padding > b.y;
+}
+
+function placeArrowLabel(pathData, label, arrowIndex, nodeMap, placedLabels) {
+  const width = Math.max(42, label.length * 7 + 18);
+  const height = 22;
+  const offsets = [0, -24, 24, -48, 48, -72, 72];
+  for (const offset of offsets) {
+    const candidate = {
+      x: pathData.labelX - width / 2,
+      y: pathData.labelY - height / 2 + offset,
+      width,
+      height,
+    };
+    const touchesNode = [...nodeMap.values()].some((node) => rectanglesOverlap(candidate, node, 5));
+    const touchesLabel = placedLabels.some((item) => rectanglesOverlap(candidate, item, 4));
+    if (!touchesNode && !touchesLabel) {
+      placedLabels.push(candidate);
+      return { ...candidate, centerX: candidate.x + width / 2, centerY: candidate.y + height / 2 };
+    }
+  }
+  const fallback = {
+    x: pathData.labelX - width / 2,
+    y: pathData.labelY - height / 2 + ((arrowIndex % 3) - 1) * 18,
+    width,
+    height,
+  };
+  placedLabels.push(fallback);
+  return { ...fallback, centerX: fallback.x + width / 2, centerY: fallback.y + height / 2 };
+}
+
+function estimateLegendItemWidth(label) {
+  return 28 + 12 + Math.max(42, String(label || '').length * 12) + 20;
+}
+
+function buildLegendLayout(items) {
+  const maxWidth = SVG_WIDTH - 96;
+  const positioned = [];
+  let x = 48;
+  let row = 0;
+
+  for (const item of items) {
+    const width = estimateLegendItemWidth(item.label);
+    if (x > 48 && x + width > maxWidth) {
+      row += 1;
+      x = 48;
+    }
+    positioned.push({ ...item, x, row });
+    x += width;
+  }
+
+  return { items: positioned, rows: row + 1 };
+}
+
 function renderNode(node, style) {
-  const label = escapeXml(node.label.length > MAX_TEXT_LENGTH ? `${node.label.slice(0, MAX_TEXT_LENGTH - 1)}…` : node.label);
-  const sublabel = escapeXml(node.sublabel.length > MAX_TEXT_LENGTH ? `${node.sublabel.slice(0, MAX_TEXT_LENGTH - 1)}…` : node.sublabel);
+  const label = escapeXml(node.label);
+  const sublabel = escapeXml(node.sublabel);
+  const labelFontSize = Math.max(9, Math.min(17, node.width / Math.max(1, node.label.length * 0.92)));
+  const sublabelFontSize = Math.max(9, Math.min(12, node.width / Math.max(1, node.sublabel.length * 0.92)));
+  const titleStyle = `font-size:${labelFontSize.toFixed(1)}px`;
+  const subStyle = `font-size:${sublabelFontSize.toFixed(1)}px`;
   const rx = node.kind === 'decision' ? 4 : 10;
 
   if (node.kind === 'database') {
@@ -249,8 +325,8 @@ function renderNode(node, style) {
       `<g>`,
       `<path d="M ${node.x} ${node.y + 12} C ${node.x} ${node.y - 2}, ${node.x + node.width} ${node.y - 2}, ${node.x + node.width} ${node.y + 12} L ${node.x + node.width} ${node.y + node.height - 12} C ${node.x + node.width} ${node.y + node.height + 2}, ${node.x} ${node.y + node.height + 2}, ${node.x} ${node.y + node.height - 12} Z" fill="${style.nodeFill}" stroke="${style.nodeStroke}" stroke-width="1.6"/>`,
       `<path d="M ${node.x} ${node.y + 12} C ${node.x} ${node.y + 26}, ${node.x + node.width} ${node.y + 26}, ${node.x + node.width} ${node.y + 12}" fill="none" stroke="${style.nodeStroke}" stroke-width="1.4"/>`,
-      `<text x="${node.x + node.width / 2}" y="${node.y + 32}" text-anchor="middle" class="node-title">${label}</text>`,
-      sublabel ? `<text x="${node.x + node.width / 2}" y="${node.y + 49}" text-anchor="middle" class="node-sub">${sublabel}</text>` : '',
+      `<text x="${node.x + node.width / 2}" y="${node.y + 41}" text-anchor="middle" class="node-title" style="${titleStyle}">${label}</text>`,
+      sublabel ? `<text x="${node.x + node.width / 2}" y="${node.y + 61}" text-anchor="middle" class="node-sub" style="${subStyle}">${sublabel}</text>` : '',
       `</g>`,
     ].filter(Boolean).join('\n');
   }
@@ -261,8 +337,8 @@ function renderNode(node, style) {
     return [
       `<g>`,
       `<path d="M ${cx} ${node.y - 4} L ${node.x + node.width + 12} ${cy} L ${cx} ${node.y + node.height + 4} L ${node.x - 12} ${cy} Z" fill="${style.nodeFill}" stroke="${style.nodeStroke}" stroke-width="1.6"/>`,
-      `<text x="${cx}" y="${cy - (sublabel ? 2 : -5)}" text-anchor="middle" class="node-title">${label}</text>`,
-      sublabel ? `<text x="${cx}" y="${cy + 17}" text-anchor="middle" class="node-sub">${sublabel}</text>` : '',
+      `<text x="${cx}" y="${cy - (sublabel ? 5 : -6)}" text-anchor="middle" class="node-title" style="${titleStyle}">${label}</text>`,
+      sublabel ? `<text x="${cx}" y="${cy + 20}" text-anchor="middle" class="node-sub" style="${subStyle}">${sublabel}</text>` : '',
       `</g>`,
     ].filter(Boolean).join('\n');
   }
@@ -270,19 +346,35 @@ function renderNode(node, style) {
   return [
     `<g>`,
     `<rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="${rx}" fill="${style.nodeFill}" stroke="${style.nodeStroke}" stroke-width="1.6"/>`,
-    `<text x="${node.x + node.width / 2}" y="${node.y + (sublabel ? 27 : 36)}" text-anchor="middle" class="node-title">${label}</text>`,
-    sublabel ? `<text x="${node.x + node.width / 2}" y="${node.y + 45}" text-anchor="middle" class="node-sub">${sublabel}</text>` : '',
+    `<text x="${node.x + node.width / 2}" y="${node.y + (sublabel ? 41 : 49)}" text-anchor="middle" class="node-title" style="${titleStyle}">${label}</text>`,
+    sublabel ? `<text x="${node.x + node.width / 2}" y="${node.y + 61}" text-anchor="middle" class="node-sub" style="${subStyle}">${sublabel}</text>` : '',
     `</g>`,
   ].filter(Boolean).join('\n');
 }
 
 function renderSvg(diagram) {
   const style = styleProfiles[diagram.style] || styleProfiles.document;
+  const legendByFlow = new Map();
+  for (const item of diagram.legend) {
+    legendByFlow.set(item.flow, item);
+  }
+  for (const arrow of diagram.arrows) {
+    if (!legendByFlow.has(arrow.flow)) {
+      legendByFlow.set(arrow.flow, { flow: arrow.flow, label: defaultLegendLabels[arrow.flow] || arrow.flow });
+    }
+  }
+  if (!legendByFlow.size) {
+    legendByFlow.set('primary', { flow: 'primary', label: defaultLegendLabels.primary });
+    legendByFlow.set('data', { flow: 'data', label: defaultLegendLabels.data });
+    legendByFlow.set('control', { flow: 'control', label: defaultLegendLabels.control });
+  }
+  const legendItems = Array.from(legendByFlow.values());
+  const legendLayout = buildLegendLayout(legendItems);
   const layout = layoutDiagram(diagram.nodes.length ? diagram.nodes : [
     normalizeNode({ id: 'input', label: '输入信息', group: '输入层' }, 0),
     normalizeNode({ id: 'core', label: '核心处理', group: '处理层' }, 1),
     normalizeNode({ id: 'output', label: '输出成果', group: '输出层' }, 2),
-  ]);
+  ], legendLayout.rows);
   const arrows = diagram.arrows.length ? diagram.arrows : [
     { from: 'input', to: 'core', label: '处理', flow: 'primary' },
     { from: 'core', to: 'output', label: '输出', flow: 'data' },
@@ -296,7 +388,8 @@ function renderSvg(diagram) {
     `<text x="${container.x + 16}" y="${container.y + 23}" class="section">${escapeXml(container.label)}</text>`,
   ].join('\n')).join('\n');
 
-  const arrowSvg = arrows.map((arrow) => {
+  const placedArrowLabels = [];
+  const arrowSvg = arrows.map((arrow, arrowIndex) => {
     const fromNode = layout.nodeMap.get(arrow.from);
     const toNode = layout.nodeMap.get(arrow.to);
     if (!fromNode || !toNode) return '';
@@ -304,20 +397,16 @@ function renderSvg(diagram) {
     const color = flowColors[flow] || style.arrow;
     const pathData = arrowPath(fromNode, toNode);
     const label = singleLine(arrow.label, 34);
+    const labelBox = label ? placeArrowLabel(pathData, label, arrowIndex, layout.nodeMap, placedArrowLabels) : null;
     return [
       `<path d="${pathData.d}" fill="none" stroke="${color}" stroke-width="2.2" marker-end="url(#arrow-${flow})"/>`,
-      label ? `<g><rect x="${pathData.labelX - Math.max(34, label.length * 6) / 2}" y="${pathData.labelY - 15}" width="${Math.max(34, label.length * 6)}" height="20" rx="10" fill="${style.background}" opacity="0.92"/><text x="${pathData.labelX}" y="${pathData.labelY}" text-anchor="middle" class="arrow-label">${escapeXml(label)}</text></g>` : '',
+      label ? `<g><rect x="${labelBox.x}" y="${labelBox.y}" width="${labelBox.width}" height="${labelBox.height}" rx="10" fill="${style.background}" opacity="0.94"/><text x="${labelBox.centerX}" y="${labelBox.centerY + 4}" text-anchor="middle" class="arrow-label">${escapeXml(label)}</text></g>` : '',
     ].filter(Boolean).join('\n');
   }).filter(Boolean).join('\n');
 
-  const legendItems = diagram.legend.length ? diagram.legend : [
-    { flow: 'primary', label: '主流程' },
-    { flow: 'data', label: '数据流' },
-    { flow: 'control', label: '控制关系' },
-  ];
-  const legendSvg = legendItems.map((item, index) => {
-    const x = 48 + index * 138;
-    const y = layout.height - 34;
+  const legendSvg = legendLayout.items.map((item) => {
+    const x = item.x;
+    const y = layout.height - 34 - (legendLayout.rows - 1 - item.row) * 30;
     const flow = normalizeFlow(item.flow);
     const color = flowColors[flow] || style.arrow;
     return `<g><line x1="${x}" y1="${y}" x2="${x + 28}" y2="${y}" stroke="${color}" stroke-width="2.2" marker-end="url(#arrow-${flow})"/><text x="${x + 38}" y="${y + 4}" class="legend">${escapeXml(item.label)}</text></g>`;

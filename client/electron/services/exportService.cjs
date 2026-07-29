@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const { fileURLToPath } = require('node:url');
-const { app, dialog, nativeImage } = require('electron');
+const { app, dialog, nativeImage, shell } = require('electron');
 const AdmZip = require('adm-zip');
 const cheerio = require('cheerio');
 const { imageSize } = require('image-size');
@@ -583,8 +583,9 @@ function isWordOptimizationEnabled(config) {
 
 function textRun(text, options = {}) {
   const sourceText = options.cleanMarkdown ? stripInlineMarkdownMarkers(text) : text;
+  const normalizedText = options.normalizeNumbering ? normalizeLeadingNumbering(sourceText) : sourceText;
   return new TextRun({
-    text: cleanText(sourceText),
+    text: cleanText(normalizedText),
     font: options.font || '宋体',
     size: options.size || 24,
     bold: options.bold,
@@ -593,6 +594,13 @@ function textRun(text, options = {}) {
     color: options.color || (options.optimized ? '000000' : undefined),
     underline: options.underline ? { type: UnderlineType.SINGLE } : undefined,
   });
+}
+
+function normalizeLeadingNumbering(value) {
+  return String(value || '')
+    .replace(/^(\s*)([一二三四五六七八九十百千万]+)[、.．)]/, '$1（$2）')
+    .replace(/^(\s*)(\d+)[、.．)]/, '$1（$2）')
+    .replace(/^(\s*)([a-z])[、.．)]/i, '$1$2）');
 }
 
 function stripInlineMarkdownMarkers(value) {
@@ -618,7 +626,14 @@ function pageBreakParagraph() {
 }
 
 function textRunsWithBreaks(value, options = {}) {
-  const parts = String(value || '').split(/<br\s*\/?\s*>/gi);
+  const source = String(value || '');
+  if (options.optimized) {
+    // Word 优化导出不保留 Markdown/HTML 的手动换行符，让 Word 按页面宽度自然换行。
+    return source.replace(/<br\s*\/?\s*>/gi, '')
+      ? [textRun(source.replace(/<br\s*\/?\s*>/gi, ''), options)]
+      : [];
+  }
+  const parts = source.split(/<br\s*\/?\s*>/gi);
   const runs = [];
 
   parts.forEach((part, index) => {
@@ -1171,6 +1186,44 @@ function isNumberedBodyParagraph(value) {
   return /^\s*(?:\d+[、.)．]|[（(]\d+[）)]|[一二三四五六七八九十]+[、.)．]|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]|[-–—•·●◆◇■□])\s*/.test(String(value || ''));
 }
 
+function isInlineNumberedHeading(node) {
+  const firstChild = node?.children?.[0];
+  return firstChild?.type === 'strong'
+    && node.children.length > 1
+    && isNumberedBodyParagraph(nodeText(firstChild));
+}
+
+function isMarkdownBreakNode(node) {
+  return node?.type === 'break'
+    || (node?.type === 'html' && /^<br\s*\/?\s*>$/i.test(String(node.value || '').trim()));
+}
+
+function trimMarkdownBreakNodes(nodes = []) {
+  const source = Array.isArray(nodes) ? nodes : [];
+  let start = 0;
+  let end = source.length;
+  while (start < end && isMarkdownBreakNode(source[start])) start += 1;
+  while (end > start && isMarkdownBreakNode(source[end - 1])) end -= 1;
+  return source.slice(start, end);
+}
+
+function splitInlineNumberedHeading(node) {
+  const children = trimMarkdownBreakNodes(node?.children || []);
+  if (!children.length) return null;
+  const breakIndex = children.findIndex(isMarkdownBreakNode);
+  if (breakIndex > 0) {
+    const headingChildren = children.slice(0, breakIndex);
+    const headingText = nodeText({ children: headingChildren }).trim();
+    if (isNumberedBodyParagraph(headingText) && headingText.length <= 120) {
+      return { headingChildren, bodyChildren: trimMarkdownBreakNodes(children.slice(breakIndex + 1)) };
+    }
+  }
+  if (isInlineNumberedHeading({ ...node, children })) {
+    return { headingChildren: [children[0]], bodyChildren: trimMarkdownBreakNodes(children.slice(1)) };
+  }
+  return null;
+}
+
 function isManualFigureCaptionText(value) {
   return /^\s*图\s*(?:\d+\s*)?[：:、.．]\s*\S+/.test(String(value || '').trim())
     || /^\s*图\s+\d+\s+\S+/.test(String(value || '').trim());
@@ -1500,16 +1553,29 @@ function drawSvgArrowheadOverlay(ctx, svg) {
 }
 
 async function svgBufferToPngBuffer(buffer) {
-  const svg = String(buffer || '');
-  const image = await loadCanvasImage(buffer);
-  const width = Math.max(1, Math.round(image.width || 1));
-  const height = Math.max(1, Math.round(image.height || 1));
-  const canvas = createCanvas(width, height);
-  const context = canvas.getContext('2d');
-  context.drawImage(image, 0, 0, width, height);
-  drawSvgTextOverlay(context, svg);
-  drawSvgArrowheadOverlay(context, svg);
-  return canvas.toBuffer('image/png');
+  const svg = Buffer.isBuffer(buffer) ? buffer.toString('utf-8') : String(buffer || '');
+  try {
+    // @napi-rs/canvas 在部分平台不会应用 SVG <style> 中的文字样式，
+    // 先移除原文字节点，再由统一的 CJK 文字补绘逻辑绘制，避免文字重影。
+    const svgWithoutText = svg.replace(/<text\b[\s\S]*?<\/text>/gi, '');
+    const image = await loadCanvasImage(Buffer.from(svgWithoutText, 'utf-8'));
+    const width = Math.max(1, Math.round(image.width || 1));
+    const height = Math.max(1, Math.round(image.height || 1));
+    const canvas = createCanvas(width, height);
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0, width, height);
+    drawSvgTextOverlay(context, svg);
+    drawSvgArrowheadOverlay(context, svg);
+    return canvas.toBuffer('image/png');
+  } catch (error) {
+    // Electron 的 nativeImage 对部分包含复杂 CSS/marker 的 SVG 兼容性更好。
+    // 只在 canvas 转换失败时兜底，避免影响现有 SVG 的文字和箭头增强逻辑。
+    const image = nativeImage?.createFromBuffer ? nativeImage.createFromBuffer(Buffer.from(svg, 'utf-8')) : null;
+    if (!image || image.isEmpty()) {
+      throw error;
+    }
+    return image.toPNG();
+  }
 }
 
 async function normalizeImageForDocx(loaded) {
@@ -1728,9 +1794,9 @@ async function inlineRuns(nodes = [], context = {}, marks = {}) {
     } else if (node.type === 'inlineCode') {
       runs.push(new TextRun({ text: cleanText(node.value), font: 'Consolas', size: 22, color: '155BD7' }));
     } else if (node.type === 'break') {
-      runs.push(lineBreakRun());
+      if (!marks.optimized) runs.push(lineBreakRun());
     } else if (node.type === 'html' && /^<br\s*\/?\s*>$/i.test(String(node.value || '').trim())) {
-      runs.push(lineBreakRun());
+      if (!marks.optimized) runs.push(lineBreakRun());
     } else if (node.type === 'html') {
       const $ = cheerio.load(String(node.value || ''), null, false);
       runs.push(...await htmlInlineRuns($, $.root().contents().toArray(), context, marks));
@@ -1785,7 +1851,7 @@ async function htmlInlineRuns($, nodes = [], context = {}, marks = {}) {
 
     const tag = htmlTagName(node);
     if (tag === 'br') {
-      runs.push(lineBreakRun());
+      if (!marks.optimized) runs.push(lineBreakRun());
     } else if (tag === 'strong' || tag === 'b') {
       runs.push(...await htmlInlineRuns($, $(node).contents().toArray(), context, { ...marks, bold: true }));
     } else if (tag === 'em' || tag === 'i') {
@@ -1803,7 +1869,7 @@ async function htmlInlineRuns($, nodes = [], context = {}, marks = {}) {
     } else if (tag === 'img') {
       runs.push(await imageRunFromNode({ url: $(node).attr('src'), alt: $(node).attr('alt') || 'HTML 图片' }, context));
     } else {
-      if (!['span', 'small', 'sub', 'sup'].includes(tag)) {
+      if (!['span', 'small', 'sub', 'sup', 'token'].includes(tag)) {
         addUnsupportedHtmlWarning(context, tag);
       }
       runs.push(...await htmlInlineRuns($, $(node).contents().toArray(), context, marks));
@@ -1895,6 +1961,11 @@ async function htmlNodeToDocxBlocks($, node, context, options = {}) {
   }
 
   const tag = htmlTagName(node);
+  if (['p', 'div', 'section', 'article'].includes(tag)
+    && !$(node).text().replace(/\u00a0/g, ' ').trim()
+    && !$(node).find('img,table,ul,ol').length) {
+    return [];
+  }
   if (tag === 'table') {
     return htmlTableToDocx($, node, context);
   }
@@ -1923,7 +1994,7 @@ async function htmlNodeToDocxBlocks($, node, context, options = {}) {
     })];
   }
   if (tag === 'br') {
-    return [paragraph([lineBreakRun()])];
+    return context.wordOptimizationEnabled ? [] : [paragraph([lineBreakRun()])];
   }
   if (['div', 'section', 'article'].includes(tag) && hasBlockHtmlChildren($, node)) {
     return htmlNodesToDocxBlocks($, $(node).contents().toArray(), context, options);
@@ -1931,7 +2002,7 @@ async function htmlNodeToDocxBlocks($, node, context, options = {}) {
   if (tag === 'p' && hasBlockHtmlChildren($, node)) {
     return htmlNodesToDocxBlocks($, $(node).contents().toArray(), context, options);
   }
-  if (['p', 'div', 'section', 'article', 'span', 'strong', 'b', 'em', 'i', 'a', 'code'].includes(tag)) {
+  if (['p', 'div', 'section', 'article', 'span', 'small', 'sub', 'sup', 'token', 'strong', 'b', 'em', 'i', 'a', 'code'].includes(tag)) {
     return [paragraph(await htmlInlineRuns($, $(node).contents().toArray(), context), {
       alignment: /^图[:：]/.test($(node).text().trim()) ? AlignmentType.CENTER : undefined,
     })];
@@ -1955,7 +2026,14 @@ async function htmlToDocxBlocks(html, context = {}, options = {}) {
     return [];
   }
 
-  const $ = cheerio.load(source, null, false);
+  // 配图类型标记使用 HTML 注释保存于 Markdown 正文中，不应在 Word 中生成告警。
+  // remark 会把单独的注释解析为 html 节点，此时没有可见块内容是正常情况。
+  const visibleSource = source.replace(/<!--[\s\S]*?-->/g, '').trim();
+  if (!visibleSource) {
+    return [];
+  }
+
+  const $ = cheerio.load(visibleSource, null, false);
   const blocks = await htmlNodesToDocxBlocks($, $.root().contents().toArray(), context, options);
   if (!blocks.length) {
     addWarning(context, '部分 HTML 内容未能导出，请核对 Word 内容。');
@@ -2189,9 +2267,9 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
             node.children,
             context,
             optimized
-              ? { font: '黑体', color: '000000', optimized }
+              ? { font: '黑体', color: '000000', optimized, normalizeNumbering: true }
               : officialDocument
-                ? { font: officialHeadingFont, color: '000000', size: node.depth === 1 ? 44 : 32 }
+                ? { font: officialHeadingFont, color: '000000', size: node.depth === 1 ? 44 : 32, normalizeNumbering: true }
                 : {},
           );
       blocks.push(paragraph(headingRuns, {
@@ -2206,11 +2284,54 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         numbering: optimized || structuredDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
         indent: optimized || formalDocument ? { left: 0, right: 0 } : undefined,
         tabStops: optimized || formalDocument ? [] : undefined,
-        alignment: officialDocument && node.depth === 1 ? AlignmentType.CENTER : undefined,
+        // 标题只有一行时不能使用两端对齐，否则中文字符会被拉开。
+        // 保留正式公文一级标题居中，其余标题统一左对齐并保留编号缩进。
+        alignment: officialDocument && node.depth === 1 ? AlignmentType.CENTER : AlignmentType.LEFT,
       }));
       rememberParagraphText(context, nodeText(node));
     } else if (node.type === 'paragraph') {
       const text = nodeText(node).trim();
+      if (!text && !(node.children || []).some((child) => child.type === 'image')) {
+        // Markdown 空行、HTML 空段落不应在 Word 中变成大段垂直留白。
+        continue;
+      }
+      const paragraphChildren = trimMarkdownBreakNodes(node.children);
+      const inlineHeading = splitInlineNumberedHeading({ ...node, children: paragraphChildren });
+      if (!options.inTable && inlineHeading) {
+        const { headingChildren, bodyChildren } = inlineHeading;
+        const headingNode = headingChildren[0];
+        const bodyNodes = bodyChildren;
+        const runMarks = optimized
+          ? { optimized, normalizeNumbering: true }
+          : projectManagementDocument
+            ? { font: '仿宋_GB2312', size: 32, color: '000000', cleanMarkdown: true, normalizeNumbering: true }
+            : presalesProposalDocument
+              ? { font: '宋体', size: 24, color: '000000', cleanMarkdown: true, normalizeNumbering: true }
+              : officialDocument
+                ? { font: '仿宋_GB2312', size: 32, color: '000000', normalizeNumbering: true }
+                : { normalizeNumbering: true };
+        blocks.push(paragraph(await inlineRuns([headingNode], context, { optimized, bold: true, normalizeNumbering: true }), {
+          optimized,
+          officialDocument,
+          projectManagementDocument,
+          presalesProposalDocument,
+          alignment: AlignmentType.LEFT,
+          indent: { left: 360, right: 0 },
+          after: 80,
+          keepNext: true,
+        }));
+        if (bodyNodes.length && nodeText({ children: bodyNodes }).trim()) {
+          blocks.push(paragraph(await inlineRuns(bodyNodes, context, runMarks), {
+            optimized,
+            officialDocument,
+            projectManagementDocument,
+            presalesProposalDocument,
+            after: formalDocument ? 0 : 160,
+          }));
+        }
+        rememberParagraphText(context, text);
+        continue;
+      }
       if (!options.inTable && optimized && isImageOnlyParagraph(node)) {
         const imageNode = (node.children || []).find((child) => child.type === 'image');
         blocks.push(await imageParagraphFromSource(imageNode?.url, imageNode?.alt || '图片', context));
@@ -2219,8 +2340,8 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
       } else if (!options.inTable && optimized && (isManualFigureCaptionText(text) || isManualTableCaptionText(text))) {
         context.lastParagraphText = '';
       } else {
-        blocks.push(paragraph(await inlineRuns(node.children, context, optimized
-          ? { optimized }
+        blocks.push(paragraph(await inlineRuns(paragraphChildren, context, optimized
+          ? { optimized, normalizeNumbering: true }
           : projectManagementDocument
             ? { font: '仿宋_GB2312', size: 32, color: '000000', cleanMarkdown: true }
           : presalesProposalDocument
@@ -2235,6 +2356,8 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
           presalesProposalDocument,
           alignment: options.inTable && (optimized || projectManagementDocument)
             ? AlignmentType.CENTER
+            : isNumberedBodyParagraph(text)
+              ? AlignmentType.LEFT
             : !options.inTable && (isImageOnlyParagraph(node) || isFigureCaptionParagraph(node)) ? AlignmentType.CENTER : undefined,
           indent: projectManagementDocument && options.inTable
             ? optimizedTableCellIndent()
@@ -2244,9 +2367,9 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
             ? options.inTable
               ? optimizedTableCellIndent()
               : isNumberedBodyParagraph(text)
-                ? optimizedNumberedBodyIndent()
-                : undefined
-            : undefined,
+                ? { left: 720, right: 0, hanging: 360 }
+                : { left: 0, right: 0, firstLine: WORD_TWO_CHARS_TWIPS }
+            : { left: 0, right: 0, firstLine: WORD_TWO_CHARS_TWIPS },
           tabStops: optimized || formalDocument ? [] : undefined,
         }));
         if (!options.inTable && text) {
@@ -2269,6 +2392,7 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
           ...listOptions,
           optimized,
           projectManagementDocument,
+          alignment: AlignmentType.LEFT,
           indent: optimized ? optimizedNumberedBodyIndent() : projectManagementDocument ? optimizedNumberedBodyIndent() : undefined,
           tabStops: optimized || projectManagementDocument ? [] : undefined,
         }));
@@ -2445,7 +2569,7 @@ function createNumberingConfig(context) {
           suffix: LevelSuffix.SPACE,
           style: {
             paragraph: {
-              indent: { left: 0, hanging: 0 },
+              indent: { left: 360 + level * 180, hanging: 0 },
               spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
             },
             run: { font: projectManagementDocument ? '楷体_GB2312' : '黑体', size: projectManagementDocument ? 28 : 24, bold: true, color: '000000' },
@@ -2722,6 +2846,14 @@ async function exportOriginalTemplateWord(payload = {}, onProgress) {
 
 function createExportService({ configStore } = {}) {
   return {
+    showExportFile(filePath) {
+      const target = String(filePath || '').trim();
+      if (!target || !path.isAbsolute(target) || !fs.existsSync(target)) {
+        throw new Error('导出的 Word 文件不存在或路径无效');
+      }
+      shell.showItemInFolder(target);
+      return { success: true, path: target };
+    },
     async exportWord(payload = {}, onProgress) {
       if (payload.exportMode === 'original-template') {
         return exportOriginalTemplateWord(payload, onProgress);
@@ -2736,7 +2868,7 @@ function createExportService({ configStore } = {}) {
       reportProgress(progressContext, 2, stats.mermaidCount
         ? `检测到 ${stats.mermaidCount} 张 Mermaid 图，导出时会转换为 Word 图片。`
         : '正在准备 Word 导出。');
-      const defaultFilename = `${sanitizeFilename(payload.project_name || '标书文档')}.docx`;
+      const defaultFilename = `${sanitizeFilename(payload.project_name || '标书文档')}-技术方案.docx`;
       const defaultDir = app?.getPath ? app.getPath('documents') : process.env.USERPROFILE || process.cwd();
       const result = await dialog.showSaveDialog({
         title: '导出 Word 文档',
@@ -2754,8 +2886,11 @@ function createExportService({ configStore } = {}) {
       const buildResult = await buildDocxResult(payload, { onProgress, warnings, config });
       reportProgress({ onProgress, warnings: buildResult.warnings, stats: buildResult.stats }, 96, '正在写入 Word 文件。');
       fs.writeFileSync(result.filePath, buildResult.buffer);
+      const imageWarningCount = buildResult.warnings.filter((warning) => String(warning).startsWith('图片无法导出：')).length;
       const message = buildResult.warnings.length
-        ? `Word 已导出，但有 ${buildResult.warnings.length} 处图片未能插入，请打开文档核对。`
+        ? imageWarningCount
+          ? `Word 已导出，但有 ${imageWarningCount} 处图片未能插入，另有 ${buildResult.warnings.length - imageWarningCount} 条导出提示，请打开文档核对。`
+          : `Word 已导出，但有 ${buildResult.warnings.length} 条导出提示，请打开文档核对。`
         : 'Word 已导出，请打开文档核对图片、表格和版式。';
       reportProgress({ onProgress, warnings: buildResult.warnings, stats: buildResult.stats }, 100, message, { phase: 'success' });
       return { success: true, path: result.filePath, filePath: result.filePath, message, warnings: buildResult.warnings };

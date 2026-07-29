@@ -374,6 +374,7 @@ export interface YuDuBidBridge {
     startGlobalFactsGeneration: (payload: unknown) => Promise<unknown>;
     startContentGeneration: (payload: unknown) => Promise<unknown>;
     pauseContentGeneration: (payload?: unknown) => Promise<unknown>;
+    stopContentGeneration: (payload?: unknown) => Promise<unknown>;
     startRejectionItemsExtraction: (payload: unknown) => Promise<unknown>;
     startRejectionCheck: (payload: unknown) => Promise<unknown>;
     startDuplicateAnalysis: (payload: unknown) => Promise<unknown>;
@@ -381,7 +382,8 @@ export interface YuDuBidBridge {
     onTaskEvent: <TState = unknown, TRejectionCheckState = unknown, TDuplicateCheckState = unknown>(callback: (event: TaskEvent<TState, TRejectionCheckState, TDuplicateCheckState>) => void) => () => void;
   };
   export: {
-    exportWord: (payload: unknown) => Promise<WordExportResult>;
+  exportWord: (payload: unknown) => Promise<WordExportResult>;
+    showExportFile: (filePath: string) => Promise<{ success: boolean; path: string }>;
     onWordExportProgress: (callback: (event: WordExportProgressEvent) => void) => () => void;
   };
 }

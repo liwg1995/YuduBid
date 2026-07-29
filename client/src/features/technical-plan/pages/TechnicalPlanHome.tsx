@@ -95,6 +95,7 @@ interface ExportProgressState {
   message: string;
   warnings: string[];
   mermaidCount: number;
+  filePath?: string;
   error?: string;
 }
 
@@ -187,6 +188,8 @@ function workflowLabel(kind: TechnicalPlanWorkflowKind) {
 const taskStatusLabels: Record<string, string> = {
   running: '运行中',
   pausing: '暂停中',
+  stopping: '停止中',
+  stopped: '已停止',
   paused: '已暂停',
   success: '已完成',
   error: '失败',
@@ -251,7 +254,9 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const expandTaskStatus = state.contentGenerationTask?.status || 'idle';
   const expandContentStats = state.contentGenerationTask?.stats?.content;
   const expandPhase = expandContentStats?.phase || state.contentGenerationRuntime?.phase || '';
-  const expandRunning = expandTaskStatus === 'running' || expandTaskStatus === 'pausing';
+  const expandRunning = expandTaskStatus === 'running' || expandTaskStatus === 'pausing' || expandTaskStatus === 'stopping';
+  const expandStopping = expandTaskStatus === 'stopping';
+  const expandPaused = expandTaskStatus === 'paused';
   const expandDone = expandTaskStatus === 'success';
   const expandFailed = expandTaskStatus === 'error';
   const expandTotal = expandContentStats?.expansion_total || selectedExpandLeaves.length || 0;
@@ -283,6 +288,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     ? '所选小节已扩写完成'
       : expandFailed
       ? state.contentGenerationTask?.error || '扩写失败'
+      : expandTaskStatus === 'stopped'
+        ? '扩写已停止'
       : expandPhase === 'planning'
         ? `配图编排 ${planningCompleted}/${planningTotal || 1}`
         : expandPhase === 'illustrating'
@@ -297,8 +304,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const expandLatestLog = state.contentGenerationTask?.logs?.slice(-1)[0] || '';
   const expandStatusDescription = expandDone
     ? '可返回上一步查看扩写后的正文。'
-    : expandLatestLog || '选择小节并设置扩写参数后即可开始。';
-  const expandStatusClass = ['running', 'pausing', 'paused', 'success', 'error'].includes(expandTaskStatus) ? expandTaskStatus : 'idle';
+    : expandLatestLog || (expandTaskStatus === 'stopped' ? '扩写已停止，已保留当前已完成内容，可重新开始。' : '选择小节并设置扩写参数后即可开始。');
+  const expandStatusClass = ['running', 'pausing', 'stopping', 'stopped', 'paused', 'success', 'error'].includes(expandTaskStatus) ? expandTaskStatus : 'idle';
   const isNextDisabled = activeIndex >= steps.length - 1
     || (state.step === 'document-analysis' && (!state.tenderFile || (requiresOriginalPlan && !state.originalPlanFile)))
     || (state.step === 'bid-analysis' && !bidAnalysisReady)
@@ -447,6 +454,36 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       showToast('继续扩写任务已在后台启动', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '启动继续扩写失败', 'error');
+    }
+  };
+
+  const stopExpand = async () => {
+    if (!expandRunning) return;
+    try {
+      await window.yibiao?.tasks.stopContentGeneration({ workflowKind, projectId });
+      showToast('正在停止扩写，当前 AI 请求完成后会停止调度新任务', 'info');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '停止扩写失败', 'error');
+    }
+  };
+
+  const pauseExpand = async () => {
+    if (!expandRunning || expandStopping) return;
+    try {
+      await window.yibiao?.tasks.pauseContentGeneration({ workflowKind, projectId });
+      showToast('正在暂停扩写，当前 AI 请求完成后会停止调度新任务', 'info');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '暂停扩写失败', 'error');
+    }
+  };
+
+  const resumeExpand = async () => {
+    if (!expandPaused) return;
+    try {
+      await window.yibiao?.tasks.startContentGeneration({ workflowKind, projectId, resume: true });
+      showToast('已继续扩写任务', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '继续扩写失败', 'error');
     }
   };
 
@@ -677,7 +714,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         requestId,
         workflowKind,
         projectId,
-        project_name: state.outlineData.project_name,
+        project_name: state.outlineData.project_name || projectName || state.projectName,
         outline: state.outlineData.outline,
       });
       if (result?.canceled) {
@@ -692,6 +729,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         progress: 100,
         message: result?.message || 'Word 已导出，请打开文档核对图片、表格和版式。',
         warnings: result?.warnings || prev.warnings,
+        filePath: result?.path || result?.filePath,
       }));
       showToast(result?.message || 'Word 已导出', result?.warnings?.length ? 'info' : 'success');
     } catch (error) {
@@ -766,7 +804,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         workflowKind,
         projectId,
         exportMode: 'original-template',
-        project_name: state.outlineData.project_name,
+        project_name: state.outlineData.project_name || projectName || state.projectName,
         outline: state.outlineData.outline,
         originalTemplatePath: state.originalPlanFile.sourcePath,
       });
@@ -782,6 +820,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         progress: 100,
         message: result?.message || 'Word 已按原方案格式导出。',
         warnings: result?.warnings || prev.warnings,
+        filePath: result?.path || result?.filePath,
       }));
       showToast(result?.message || 'Word 已按原方案格式导出', 'success');
     } catch (error) {
@@ -1142,9 +1181,21 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                   <strong>继续扩写</strong>
                   <span>{requiresOriginalPlan ? '保留原方案事实和表达重点，只补深度。' : '保留当前章节结构，只补正文论证厚度。'}</span>
                 </div>
-                <button type="button" className="primary-action" onClick={startExpandOnly} disabled={isContentGenerating || isContentPaused || !selectedExpandLeaves.length}>
-                  {isContentGenerating ? '扩写中...' : '开始继续扩写'}
-                </button>
+                <div className="content-expand-task-actions">
+                  {expandRunning && !expandStopping && (
+                    <>
+                      <button type="button" className="secondary-action" onClick={pauseExpand}>暂停</button>
+                      <button type="button" className="secondary-action is-danger" onClick={stopExpand}>停止</button>
+                    </>
+                  )}
+                  {expandPaused && <button type="button" className="primary-action" onClick={resumeExpand}>继续</button>}
+                  {!expandRunning && !expandPaused && (
+                    <button type="button" className="primary-action" onClick={startExpandOnly} disabled={!selectedExpandLeaves.length}>
+                      {expandStopping ? '停止中...' : '开始继续扩写'}
+                    </button>
+                  )}
+                  {expandStopping && <button type="button" className="secondary-action" disabled>停止中...</button>}
+                </div>
               </div>
 
               <div className="content-expand-meta">
@@ -1409,6 +1460,24 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                 <span style={{ width: `${exportProgress.progress}%` }} />
               </div>
               <p>{exportProgress.message || '正在处理导出任务，请稍候。'}</p>
+              {!exportProgress.running && exportProgress.filePath && (
+                <div className="export-file-path">
+                  <span>生成路径</span>
+                  <button
+                    type="button"
+                    title="点击打开文件所在文件夹"
+                    onClick={async () => {
+                      try {
+                        await window.yibiao?.export.showExportFile(exportProgress.filePath!);
+                      } catch (error) {
+                        showToast(error instanceof Error ? error.message : '打开生成路径失败', 'error');
+                      }
+                    }}
+                  >
+                    {exportProgress.filePath}
+                  </button>
+                </div>
+              )}
               {exportProgress.warnings.length > 0 && (
                 <div className="export-warning-list">
                   <strong>需要核对</strong>

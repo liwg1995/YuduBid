@@ -647,6 +647,7 @@ function registerUnavailableTechnicalPlanIpc(error) {
     'tasks:start-global-facts-generation',
     'tasks:start-content-generation',
     'tasks:pause-content-generation',
+    'tasks:stop-content-generation',
     'tasks:start-rejection-items-extraction',
     'tasks:start-rejection-check',
     'tasks:start-duplicate-analysis',

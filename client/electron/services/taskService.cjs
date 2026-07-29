@@ -112,7 +112,7 @@ function getPayloadSignature(type, payload) {
 }
 
 function isActiveTaskStatus(status) {
-  return status === 'running' || status === 'pausing';
+  return status === 'running' || status === 'pausing' || status === 'stopping';
 }
 
 function hasOwn(value, field) {
@@ -480,8 +480,12 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
     let currentTask = task;
     const taskControl = {
       pauseRequested: false,
+      stopRequested: false,
       isPauseRequested() {
         return this.pauseRequested;
+      },
+      isStopRequested() {
+        return this.stopRequested;
       },
       requestPause() {
         this.pauseRequested = true;
@@ -493,12 +497,22 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
         emit(pausingTask, buildSnapshot(definition, state, pausingTask));
         return pausingTask;
       },
+      requestStop() {
+        this.stopRequested = true;
+        const stoppingLogs = currentTask.logs?.length
+          ? currentTask.logs
+          : ['已请求停止，正在等待当前 AI 请求完成。'];
+        const stoppingTask = updateTask({ status: 'stopping', stop_requested: true, logs: stoppingLogs });
+        const state = updateWorkspaceState(definition, { [taskField]: stoppingTask }, taskWorkflowKind, taskProjectId);
+        emit(stoppingTask, buildSnapshot(definition, state, stoppingTask));
+        return stoppingTask;
+      },
     };
     activeTaskControls.set(type, taskControl);
 
     const updateTask = (partial, workspaceState, eventPatch) => {
-      const nextStatus = currentTask.status === 'pausing' && partial.status === 'running'
-        ? 'pausing'
+      const nextStatus = ['pausing', 'stopping'].includes(currentTask.status) && partial.status === 'running'
+        ? currentTask.status
         : partial.status || currentTask.status;
       currentTask = {
         ...currentTask,
@@ -723,6 +737,20 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
       const contentTask = technicalPlan.contentGenerationTask;
       if (contentTask?.status === 'paused' || contentTask?.status === 'pausing') {
         return contentTask;
+      }
+
+      throw new Error('当前没有正在生成的正文任务。');
+    },
+    stopContentGeneration(payload) {
+      const task = activeTasks.get('content-generation');
+      const control = activeTaskControls.get('content-generation');
+      if (task && isActiveTaskStatus(task.status) && control?.requestStop) {
+        return control.requestStop();
+      }
+
+      const technicalPlan = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
+      if (technicalPlan.contentGenerationTask?.status === 'stopping') {
+        return technicalPlan.contentGenerationTask;
       }
 
       throw new Error('当前没有正在生成的正文任务。');

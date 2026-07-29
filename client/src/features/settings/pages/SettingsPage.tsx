@@ -35,7 +35,8 @@ const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
 ];
 
 const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
-  { value: 'agnes-ai', label: 'agnes-ai【推荐】' },
+  { value: 'agnes-ai-cn', label: 'agnes-ai【中国大陆】' },
+  { value: 'agnes-ai-global', label: 'agnes-ai【国际站】' },
   { value: 'volcengine', label: '火山方舟' },
   { value: 'xiaomi', label: '小米 token plan' },
   { value: 'deepseek', label: 'DeepSeek' },
@@ -44,12 +45,51 @@ const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
 ];
 
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
-const agnesAiRegisterUrl = 'https://agnes-ai.com';
-const agnesAiBaseUrl = 'https://apihub.agnes-ai.cn/v1';
-const agnesAiOverseasBaseUrl = 'https://apihub.agnes-ai.com/v1';
+const agnesAiCnRegisterUrl = 'https://agnes-ai.cn';
+const agnesAiGlobalRegisterUrl = 'https://agnes-ai.com';
+const agnesAiCnBaseUrl = 'https://apihub.agnes-ai.cn/v1';
+const agnesAiGlobalBaseUrl = 'https://apihub.agnes-ai.com/v1';
+const agnesAiNotice = `🔔 Agnes AI 国内站与国际站使用公告
+
+⚠️【重要说明】
+
+原国际站注册用户无需前往国内站重新注册，也无需更换原有 API Key。
+
+中国大陆用户如需继续使用原国际站账户及原有 API Key，只需将原接口 Endpoint 修改为以下地址：
+
+https://apihub.agnes-ai.cn/v1
+
+修改完成后，即可继续使用国际站原有的 API Key。
+
+【国际站】
+
+官网：https://agnes-ai.com
+API 平台：https://platform.agnes-ai.com
+国际 Base URL：
+https://apihub.agnes-ai.com/v1
+
+【国内站】
+
+官网：https://agnes-ai.cn
+API 平台：https://platform.agnes-ai.cn
+Base URL：https://api.agnes-ai.cn/v1
+
+【账户说明】
+
+1. 原国际站注册用户无需在国内站重新注册，可通过修改 Endpoint，继续使用原有 API Key。
+2. 国际站与国内站的账号、API Key 及账户数据不互通。
+3. 如需使用国内站的新账户体系，可自行前往国内站注册。
+4. 国内站新注册的 API Key 请使用国内站 Base URL，不能与国际站 Endpoint 混用。
+
+【注意事项】
+
+1. 修改 Endpoint 后，请重启应用或服务并重新发起请求。
+2. 国内站与国际站的接口文档可能存在差异，请以对应站点的最新文档为准。
+3. 如遇连接超时、401、403 或 Load failed 等问题，请首先检查 API Key 与 Endpoint 是否正确对应。`;
 
 const textProviderDefaults: TextModelProfiles = {
-  'agnes-ai': { api_key: '', base_url: agnesAiBaseUrl, model_name: 'agnes-2.5-flash' },
+  'agnes-ai-cn': { api_key: '', base_url: agnesAiCnBaseUrl, model_name: 'agnes-2.5-flash' },
+  'agnes-ai-global': { api_key: '', base_url: agnesAiGlobalBaseUrl, model_name: 'agnes-2.5-flash' },
   volcengine: { api_key: '', base_url: 'https://ark.cn-beijing.volces.com/api/v3', model_name: '' },
   xiaomi: { api_key: '', base_url: 'https://token-plan-cn.xiaomimimo.com/v1', model_name: '' },
   deepseek: { api_key: '', base_url: 'https://api.deepseek.com', model_name: '' },
@@ -58,7 +98,8 @@ const textProviderDefaults: TextModelProfiles = {
 };
 
 const textProviderApiKeyUrls: Partial<Record<TextModelProvider, string>> = {
-  'agnes-ai': agnesAiRegisterUrl,
+  'agnes-ai-cn': agnesAiCnRegisterUrl,
+  'agnes-ai-global': agnesAiGlobalRegisterUrl,
   volcengine: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
   xiaomi: 'https://platform.xiaomimimo.com/console/api-keys',
   deepseek: 'https://platform.deepseek.com/api_keys',
@@ -78,7 +119,7 @@ function normalizeTextModelProfile(provider: TextModelProvider, profile?: Partia
   return {
     api_key: profile?.api_key ?? defaults.api_key,
     base_url: provider === 'xiaomi' && baseUrl === oldXiaomiBaseUrl ? defaults.base_url : baseUrl,
-    model_name: provider === 'agnes-ai' && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
+    model_name: provider.startsWith('agnes-ai-') && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
   };
 }
 
@@ -140,16 +181,26 @@ function textProfileFromState(textModel: SettingsPageState['textModel']): TextMo
 }
 
 const imageProviders: Array<{ value: ImageModelProvider; label: string }> = [
-  { value: 'agnes-ai', label: 'agnes-ai【推荐】' },
+  { value: 'agnes-ai-cn', label: 'agnes-ai【中国大陆】' },
+  { value: 'agnes-ai-global', label: 'agnes-ai【国际站】' },
   { value: 'volcengine', label: '火山方舟' },
   { value: 'google-ai-studio', label: 'Google AI Studio' },
   { value: 'custom', label: '自定义 OpenAI-like' },
 ];
 
 const imageProviderDefaults: ImageModelProfiles = {
-  'agnes-ai': {
-    provider: 'agnes-ai',
-    base_url: agnesAiBaseUrl,
+  'agnes-ai-cn': {
+    provider: 'agnes-ai-cn',
+    base_url: agnesAiCnBaseUrl,
+    api_key: '',
+    model_name: 'agnes-image-2.1-flash',
+    status: 'untested',
+    tested_at: '',
+    last_error: '',
+  },
+  'agnes-ai-global': {
+    provider: 'agnes-ai-global',
+    base_url: agnesAiGlobalBaseUrl,
     api_key: '',
     model_name: 'agnes-image-2.1-flash',
     status: 'untested',
@@ -186,42 +237,44 @@ const imageProviderDefaults: ImageModelProfiles = {
 };
 
 const imageProviderApiKeyUrls: Record<ImageModelProvider, string> = {
-  'agnes-ai': agnesAiRegisterUrl,
+  'agnes-ai-cn': agnesAiCnRegisterUrl,
+  'agnes-ai-global': agnesAiGlobalRegisterUrl,
   volcengine: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
   'google-ai-studio': 'https://aistudio.google.com/api-keys',
   custom: '',
 };
 
 const imageProviderLabels: Record<ImageModelProvider, string> = {
-  'agnes-ai': 'agnes-ai',
+  'agnes-ai-cn': 'agnes-ai【中国大陆】',
+  'agnes-ai-global': 'agnes-ai【国际站】',
   volcengine: '火山方舟',
   'google-ai-studio': 'Google AI Studio',
   custom: '自定义生图服务',
 };
 
 function getImageBaseUrlDescription(provider: ImageModelProvider) {
-  if (provider === 'agnes-ai') return 'agnes-ai OpenAI 兼容接口地址';
+  if (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global') return 'agnes-ai OpenAI 兼容接口地址';
   if (provider === 'volcengine') return '火山方舟 OpenAI 兼容接口地址';
   if (provider === 'custom') return '填写兼容 OpenAI /images/generations 的接口地址';
   return 'Google Gemini API REST 地址';
 }
 
 function getImageApiKeyDescription(provider: ImageModelProvider) {
-  if (provider === 'agnes-ai') return '用于调用 agnes-ai 图片生成 API';
+  if (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global') return '用于调用 agnes-ai 图片生成 API';
   if (provider === 'volcengine') return '用于调用火山方舟图片生成 API';
   if (provider === 'custom') return '用于调用自定义 OpenAI-like 生图接口';
   return '用于调用 Google AI Studio Gemini API';
 }
 
 function getImageModelDescription(provider: ImageModelProvider) {
-  if (provider === 'agnes-ai') return '填写 agnes-ai 已开通的生图模型名称';
+  if (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global') return '填写 agnes-ai 已开通的生图模型名称';
   if (provider === 'volcengine') return '填写火山方舟控制台中已开通的模型或推理接入点 ID';
   if (provider === 'custom') return '填写自定义接口支持的生图模型名称';
   return '选择或填写支持图片生成的 Gemini 模型';
 }
 
 function getImageModelPlaceholder(provider: ImageModelProvider) {
-  if (provider === 'agnes-ai') return '请输入已开通的生图模型名称';
+  if (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global') return '请输入已开通的生图模型名称';
   if (provider === 'volcengine') return '请输入已开通的模型或推理接入点 ID';
   if (provider === 'custom') return '请输入 OpenAI-like 生图模型名称';
   return 'gemini-3.1-flash-image-preview';
@@ -272,7 +325,7 @@ function normalizeImageModelProfile(provider: ImageModelProvider, profile?: Part
     provider,
     base_url: provider === 'custom' ? profile?.base_url ?? defaults.base_url : defaults.base_url,
     api_key: profile?.api_key ?? defaults.api_key,
-    model_name: provider === 'agnes-ai' && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
+    model_name: provider.startsWith('agnes-ai-') && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
     status: profile?.status ?? defaults.status,
     tested_at: profile?.tested_at ?? defaults.tested_at,
     last_error: profile?.last_error ?? defaults.last_error,
@@ -388,12 +441,12 @@ const parserOptions = [
 
 const initialState: SettingsPageState = {
   textModel: {
-    provider: 'agnes-ai',
-    ...textProviderDefaults['agnes-ai'],
+    provider: 'agnes-ai-cn',
+    ...textProviderDefaults['agnes-ai-cn'],
   },
   textModelProfiles: createDefaultTextModelProfiles(),
   imageModel: {
-    ...imageProviderDefaults['agnes-ai'],
+    ...imageProviderDefaults['agnes-ai-cn'],
   },
   imageModelProfiles: createDefaultImageModelProfiles(),
   fileParser: {
@@ -480,6 +533,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const [checkingLatestRelease, setCheckingLatestRelease] = useState(false);
   const [latestRelease, setLatestRelease] = useState<LatestReleaseInfo | null>(null);
   const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
+  const [agnesNoticeOpen, setAgnesNoticeOpen] = useState(false);
   const [releaseDownloadState, setReleaseDownloadState] = useState<ReleaseDownloadState>(() => createInitialReleaseDownloadState());
   const { showToast } = useToast();
 
@@ -896,9 +950,9 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     }
   };
 
-  const openAgnesAiRegisterPage = async () => {
+  const openAgnesAiRegisterPage = async (url: string) => {
     try {
-      const result = await window.yibiao?.openExternal(agnesAiRegisterUrl);
+      const result = await window.yibiao?.openExternal(url);
       if (result && !result.success) {
         showToast(result.message || '打开 agnes-ai 注册页面失败', 'error');
       }
@@ -1099,7 +1153,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const fetchImageModels = async () => {
     try {
       setLoadingModels('image');
-      if (state.imageModel.provider === 'agnes-ai' || state.imageModel.provider === 'custom') {
+      if (state.imageModel.provider === 'agnes-ai-cn' || state.imageModel.provider === 'agnes-ai-global' || state.imageModel.provider === 'custom') {
         const providerLabel = imageProviderLabels[state.imageModel.provider];
         const baseUrl = state.imageModel.provider === 'custom'
           ? state.imageModel.base_url || ''
@@ -1401,9 +1455,16 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           <div className="settings-list">
             <label className="settings-row">
               <div className="settings-row-copy">
-                <strong>服务提供商</strong>
+                <div className="settings-provider-title">
+                  <strong>服务提供商</strong>
+                  {(state.textModel.provider === 'agnes-ai-cn' || state.textModel.provider === 'agnes-ai-global') && (
+                    <button type="button" className="settings-notice-link" onClick={() => setAgnesNoticeOpen(true)}>
+                      🔔 查看使用公告
+                    </button>
+                  )}
+                </div>
                 <span>选择服务商会自动使用预置 Base URL；只有自定义服务商允许修改</span>
-                {state.textModel.provider === 'agnes-ai' && (
+                {(state.textModel.provider === 'agnes-ai-cn' || state.textModel.provider === 'agnes-ai-global') && (
                   <span>
                     注册地址：
                     <button
@@ -1412,10 +1473,10 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        void openAgnesAiRegisterPage();
+                        void openAgnesAiRegisterPage(state.textModel.provider === 'agnes-ai-cn' ? agnesAiCnRegisterUrl : agnesAiGlobalRegisterUrl);
                       }}
                     >
-                      {agnesAiRegisterUrl}
+                      {state.textModel.provider === 'agnes-ai-cn' ? agnesAiCnRegisterUrl : agnesAiGlobalRegisterUrl}
                     </button>
                   </span>
                 )}
@@ -1433,9 +1494,6 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               <div className="settings-row-copy">
                 <strong>Base URL</strong>
                 <span>OpenAI Like 接口地址，用于文本生成和分析任务</span>
-                {state.textModel.provider === 'agnes-ai' && (
-                  <small className="settings-region-hint">中国大陆以外请选择自定义，Base URL 为：{agnesAiOverseasBaseUrl}</small>
-                )}
               </div>
               <input
                 type="text"
@@ -1519,9 +1577,16 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           <div className="settings-list">
             <label className="settings-row">
               <div className="settings-row-copy">
-                <strong>服务提供商</strong>
+                <div className="settings-provider-title">
+                  <strong>服务提供商</strong>
+                  {(state.imageModel.provider === 'agnes-ai-cn' || state.imageModel.provider === 'agnes-ai-global') && (
+                    <button type="button" className="settings-notice-link" onClick={() => setAgnesNoticeOpen(true)}>
+                      🔔 查看使用公告
+                    </button>
+                  )}
+                </div>
                 <span>各家生图接口不统一，先选择服务商再配置模型</span>
-                {state.imageModel.provider === 'agnes-ai' && (
+                {(state.imageModel.provider === 'agnes-ai-cn' || state.imageModel.provider === 'agnes-ai-global') && (
                   <span>
                     注册地址：
                     <button
@@ -1530,10 +1595,10 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        void openAgnesAiRegisterPage();
+                        void openAgnesAiRegisterPage(state.imageModel.provider === 'agnes-ai-cn' ? agnesAiCnRegisterUrl : agnesAiGlobalRegisterUrl);
                       }}
                     >
-                      {agnesAiRegisterUrl}
+                      {state.imageModel.provider === 'agnes-ai-cn' ? agnesAiCnRegisterUrl : agnesAiGlobalRegisterUrl}
                     </button>
                   </span>
                 )}
@@ -1554,9 +1619,6 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               <div className="settings-row-copy">
                 <strong>Base URL</strong>
                 <span>{getImageBaseUrlDescription(state.imageModel.provider)}</span>
-                {state.imageModel.provider === 'agnes-ai' && (
-                  <small className="settings-region-hint">中国大陆以外请选择自定义，Base URL 为：{agnesAiOverseasBaseUrl}</small>
-                )}
               </div>
               <input
                 type="text"
@@ -1980,6 +2042,23 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           </div>
         </section>
       )}
+      <Dialog.Root open={agnesNoticeOpen} onOpenChange={setAgnesNoticeOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="release-detail-card agnes-notice-card">
+            <div className="release-detail-head">
+              <span>NOTICE</span>
+              <Dialog.Title>Agnes AI 国内站与国际站使用公告</Dialog.Title>
+              <Dialog.Description>请选择与账户对应的注册站点和 Base URL。</Dialog.Description>
+              <Dialog.Close className="release-detail-close" type="button" aria-label="关闭公告">×</Dialog.Close>
+            </div>
+            <pre className="agnes-notice-content">{agnesAiNotice}</pre>
+            <div className="release-detail-actions">
+              <Dialog.Close className="primary-action" type="button">知道了</Dialog.Close>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       </div>
       <FloatingToolbar groups={settingsToolbarGroups} label="设置保存工具条" />
     </div>

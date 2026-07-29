@@ -21,6 +21,10 @@ function registerTaskIpc({ taskService }) {
     taskService.subscribe(event.sender);
     return taskService.pauseContentGeneration(payload);
   });
+  ipcMain.handle('tasks:stop-content-generation', (event, payload) => {
+    taskService.subscribe(event.sender);
+    return taskService.stopContentGeneration(payload);
+  });
   ipcMain.handle('tasks:start-rejection-items-extraction', (event, payload) => {
     taskService.subscribe(event.sender);
     return taskService.startRejectionItemsExtraction(payload);
