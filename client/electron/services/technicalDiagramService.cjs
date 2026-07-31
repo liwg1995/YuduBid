@@ -397,6 +397,18 @@ function renderNode(node, style) {
     ].filter(Boolean).join('\n');
   }
 
+  if (node.kind === 'decision') {
+    const cx = node.x + node.width / 2;
+    const cy = node.y + node.height / 2;
+    return [
+      `<g>`,
+      `<path d="M ${cx} ${node.y - 4} L ${node.x + node.width + 12} ${cy} L ${cx} ${node.y + node.height + 4} L ${node.x - 12} ${cy} Z" fill="${style.nodeFill}" stroke="${style.nodeStroke}" stroke-width="1.6"/>`,
+      `<text x="${cx}" y="${cy - (sublabel ? 5 : -6)}" text-anchor="middle" class="node-title" style="${titleStyle}">${label}</text>`,
+      sublabel ? `<text x="${cx}" y="${cy + 20}" text-anchor="middle" class="node-sub" style="${subStyle}">${sublabel}</text>` : '',
+      `</g>`,
+    ].filter(Boolean).join('\n');
+  }
+
   return [
     `<g>`,
     `<rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="${rx}" fill="${style.nodeFill}" stroke="${style.nodeStroke}" stroke-width="1.6"/>`,
