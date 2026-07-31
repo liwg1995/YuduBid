@@ -2001,7 +2001,7 @@ function buildTechnicalDiagramMessages({ chapter, parentChapters, siblingChapter
 2. 图谱必须服务于投标技术方案表达，专业、克制、结构清晰。
 3. 节点名称要短，优先 2-8 个汉字或简短技术名词；不要把长段落塞进节点。
 4. group 表示分层或区域，例如 用户接入层、应用服务层、数据支撑层、运维保障层。
-5. kind 可取 service、gateway、database、decision、actor；没有把握时用 service。
+5. kind 可取 service、gateway、database、actor；技术图谱不使用 decision 菱形，判断或分支也使用 service，并在节点名称或副标题中说明判断含义；智能体、引擎、中心、平台、系统和服务一律使用 service。
 6. flow 可取 primary、data、control、write、read、async、feedback。
 7. 不要编造与全局事实冲突的时间、地点、设备数量、服务承诺或验收标准。`,
     },

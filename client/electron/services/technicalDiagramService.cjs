@@ -107,16 +107,29 @@ function normalizeFlow(value) {
   return FLOW_TYPES.has(normalized) ? normalized : 'primary';
 }
 
+function normalizeNodeKind(value, label, sublabel) {
+  const kind = ['database', 'decision', 'actor', 'service', 'gateway'].includes(value) ? value : 'service';
+  if (kind !== 'decision') return kind;
+
+  // 技术架构图中的智能体、引擎、中心、平台和服务是组件，不应因模型误标为 decision 而渲染成菱形。
+  const text = `${label || ''} ${sublabel || ''}`;
+  if (/(智能体|引擎|中心|平台|系统|服务|模块|接口|网关|缓存|总线|集群)/.test(text)) {
+    return 'service';
+  }
+  return kind;
+}
+
 function normalizeNode(raw, index) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const id = singleLine(source.id, 48) || `node-${index + 1}`;
   const label = singleLine(source.label || source.name || source.title, 60) || `节点${index + 1}`;
+  const sublabel = singleLine(source.sublabel || source.subtitle || source.type_label || source.type, 56);
   return {
     id,
     label,
-    sublabel: singleLine(source.sublabel || source.subtitle || source.type_label || source.type, 56),
+    sublabel,
     group: singleLine(source.group || source.layer || source.container, 48),
-    kind: ['database', 'decision', 'actor', 'service', 'gateway'].includes(source.kind) ? source.kind : 'service',
+    kind: normalizeNodeKind(source.kind, label, sublabel),
   };
 }
 
@@ -180,41 +193,59 @@ function groupNodes(nodes) {
 function layoutDiagram(nodes, legendRows = 1) {
   const groups = groupNodes(nodes);
   const contentTop = 128;
-  const rowGap = 150;
-  const minHeight = contentTop + Math.max(1, groups.length) * rowGap + 70 + Math.max(0, legendRows - 1) * 30;
-  const height = clamp(minHeight, 520, 1400);
+  const columnGap = 24;
+  const rowGap = 64;
+  const groupGap = 36;
+  const nodeTopPadding = 42;
+  const nodeBottomPadding = 14;
+  const maxColumns = 5;
+  const availableWidth = SVG_WIDTH - 144;
   const positioned = new Map();
   const containers = [];
+  let nextGroupY = contentTop;
 
-  groups.forEach((group, rowIndex) => {
-    const y = contentTop + rowIndex * rowGap;
+  groups.forEach((group) => {
     const count = group.nodes.length;
-    const availableWidth = SVG_WIDTH - 144;
+    const columns = Math.min(count, maxColumns);
+    const rows = Math.max(1, Math.ceil(count / columns));
     const nodeWidth = count <= 1
       ? DEFAULT_NODE_WIDTH
-      : clamp(Math.floor(availableWidth / count - 20), 92, DEFAULT_NODE_WIDTH);
-    const step = count <= 1 ? 0 : (availableWidth - nodeWidth) / (count - 1);
-    const containerY = y - 42;
+      : clamp(Math.floor((availableWidth - (columns - 1) * columnGap) / columns), 132, DEFAULT_NODE_WIDTH);
+    const nodeHeight = DEFAULT_NODE_HEIGHT;
+    const containerHeight = nodeTopPadding
+      + rows * nodeHeight
+      + (rows - 1) * rowGap
+      + nodeBottomPadding;
+    const containerY = nextGroupY - nodeTopPadding;
     containers.push({
       label: group.label,
       x: 44,
       y: containerY,
       width: SVG_WIDTH - 88,
-      height: 124,
+      height: containerHeight,
     });
     group.nodes.forEach((node, columnIndex) => {
-      const centerX = count <= 1
-        ? SVG_WIDTH / 2
-        : 68 + nodeWidth / 2 + columnIndex * step;
+      const rowIndex = Math.floor(columnIndex / columns);
+      const column = columnIndex % columns;
+      const nodesInRow = Math.min(columns, count - rowIndex * columns);
+      const rowWidth = nodesInRow * nodeWidth + (nodesInRow - 1) * columnGap;
+      const rowStartX = (SVG_WIDTH - rowWidth) / 2;
       positioned.set(node.id, {
         ...node,
-        x: clamp(centerX - nodeWidth / 2, 68, SVG_WIDTH - 68 - nodeWidth),
-        y,
+        x: rowStartX + column * (nodeWidth + columnGap),
+        y: nextGroupY + rowIndex * (nodeHeight + rowGap),
         width: nodeWidth,
-        height: DEFAULT_NODE_HEIGHT,
+        height: nodeHeight,
       });
     });
+    nextGroupY += containerHeight + groupGap;
   });
+
+  const contentBottom = containers.length
+    ? containers[containers.length - 1].y + containers[containers.length - 1].height
+    : contentTop;
+  const minHeight = contentBottom + 54 + Math.max(1, legendRows) * 30;
+  const height = clamp(minHeight, 520, 1800);
 
   return {
     width: SVG_WIDTH,
@@ -232,20 +263,55 @@ function nodePort(node, side) {
   return { x: node.x + node.width / 2, y: node.y + node.height };
 }
 
-function arrowPath(fromNode, toNode) {
+function arrowPath(fromNode, toNode, arrowIndex = 0, nodeMap) {
   const sameRow = Math.abs(fromNode.y - toNode.y) < 20;
+  const sameGroup = fromNode.group && fromNode.group === toNode.group;
+  if (!sameRow && sameGroup) {
+    const from = nodePort(fromNode, fromNode.y < toNode.y ? 'bottom' : 'top');
+    const to = nodePort(toNode, fromNode.y < toNode.y ? 'top' : 'bottom');
+    const downward = fromNode.y < toNode.y;
+    const side = arrowIndex % 2 === 0 ? 52 + (arrowIndex % 4) * 14 : 1068 - (arrowIndex % 4) * 14;
+    const laneOffset = ((arrowIndex % 5) - 2) * 10;
+    const direction = downward ? 1 : -1;
+    const startY = from.y + direction * (28 + laneOffset);
+    const endY = to.y - direction * (28 + laneOffset);
+    return {
+      d: `M ${from.x} ${from.y} C ${from.x} ${startY}, ${side} ${startY}, ${side} ${startY} L ${side} ${endY} C ${side} ${endY}, ${to.x} ${endY}, ${to.x} ${to.y}`,
+      labelX: side,
+      labelY: (startY + endY) / 2,
+    };
+  }
   if (sameRow) {
     const from = nodePort(fromNode, fromNode.x < toNode.x ? 'right' : 'left');
     const to = nodePort(toNode, fromNode.x < toNode.x ? 'left' : 'right');
+    const segmentStart = Math.min(from.x, to.x);
+    const segmentEnd = Math.max(from.x, to.x);
+    const hasBlockingNode = [...(nodeMap?.values() || [])].some((node) => {
+      if (node.id === fromNode.id || node.id === toNode.id) return false;
+      return node.x < segmentEnd && node.x + node.width > segmentStart
+        && node.y < fromNode.y + fromNode.height
+        && node.y + node.height > fromNode.y;
+    });
+    if (hasBlockingNode) {
+      const routeY = fromNode.y - 28 - (arrowIndex % 3) * 18;
+      return {
+        d: `M ${from.x} ${from.y} C ${from.x} ${routeY}, ${to.x} ${routeY}, ${to.x} ${to.y}`,
+        labelX: (from.x + to.x) / 2,
+        labelY: routeY - 8,
+      };
+    }
+    const rowOffset = ((arrowIndex % 3) - 1) * 14;
     return {
-      d: `M ${from.x} ${from.y} C ${(from.x + to.x) / 2} ${from.y}, ${(from.x + to.x) / 2} ${to.y}, ${to.x} ${to.y}`,
+      d: `M ${from.x} ${from.y} C ${(from.x + to.x) / 2} ${from.y + rowOffset}, ${(from.x + to.x) / 2} ${to.y + rowOffset}, ${to.x} ${to.y}`,
       labelX: (from.x + to.x) / 2,
-      labelY: from.y - 10,
+      labelY: from.y - 14 + rowOffset,
     };
   }
   const from = nodePort(fromNode, fromNode.y < toNode.y ? 'bottom' : 'top');
   const to = nodePort(toNode, fromNode.y < toNode.y ? 'top' : 'bottom');
-  const middleY = (from.y + to.y) / 2;
+  // 同一层间隙内为不同箭头分配轻微错开的通道，避免多条曲线完全重合。
+  const laneOffset = ((arrowIndex % 5) - 2) * 18;
+  const middleY = (from.y + to.y) / 2 + laneOffset;
   return {
     d: `M ${from.x} ${from.y} C ${from.x} ${middleY}, ${to.x} ${middleY}, ${to.x} ${to.y}`,
     labelX: (from.x + to.x) / 2,
@@ -263,7 +329,7 @@ function rectanglesOverlap(a, b, padding = 8) {
 function placeArrowLabel(pathData, label, arrowIndex, nodeMap, placedLabels) {
   const width = Math.max(42, label.length * 7 + 18);
   const height = 22;
-  const offsets = [0, -24, 24, -48, 48, -72, 72];
+  const offsets = [0, -24, 24, -48, 48, -72, 72, -96, 96, -120, 120];
   for (const offset of offsets) {
     const candidate = {
       x: pathData.labelX - width / 2,
@@ -318,7 +384,7 @@ function renderNode(node, style) {
   const sublabelFontSize = Math.max(9, Math.min(12, node.width / Math.max(1, node.sublabel.length * 0.92)));
   const titleStyle = `font-size:${labelFontSize.toFixed(1)}px`;
   const subStyle = `font-size:${sublabelFontSize.toFixed(1)}px`;
-  const rx = node.kind === 'decision' ? 4 : 10;
+  const rx = 10;
 
   if (node.kind === 'database') {
     return [
@@ -327,18 +393,6 @@ function renderNode(node, style) {
       `<path d="M ${node.x} ${node.y + 12} C ${node.x} ${node.y + 26}, ${node.x + node.width} ${node.y + 26}, ${node.x + node.width} ${node.y + 12}" fill="none" stroke="${style.nodeStroke}" stroke-width="1.4"/>`,
       `<text x="${node.x + node.width / 2}" y="${node.y + 41}" text-anchor="middle" class="node-title" style="${titleStyle}">${label}</text>`,
       sublabel ? `<text x="${node.x + node.width / 2}" y="${node.y + 61}" text-anchor="middle" class="node-sub" style="${subStyle}">${sublabel}</text>` : '',
-      `</g>`,
-    ].filter(Boolean).join('\n');
-  }
-
-  if (node.kind === 'decision') {
-    const cx = node.x + node.width / 2;
-    const cy = node.y + node.height / 2;
-    return [
-      `<g>`,
-      `<path d="M ${cx} ${node.y - 4} L ${node.x + node.width + 12} ${cy} L ${cx} ${node.y + node.height + 4} L ${node.x - 12} ${cy} Z" fill="${style.nodeFill}" stroke="${style.nodeStroke}" stroke-width="1.6"/>`,
-      `<text x="${cx}" y="${cy - (sublabel ? 5 : -6)}" text-anchor="middle" class="node-title" style="${titleStyle}">${label}</text>`,
-      sublabel ? `<text x="${cx}" y="${cy + 20}" text-anchor="middle" class="node-sub" style="${subStyle}">${sublabel}</text>` : '',
       `</g>`,
     ].filter(Boolean).join('\n');
   }
@@ -395,7 +449,7 @@ function renderSvg(diagram) {
     if (!fromNode || !toNode) return '';
     const flow = normalizeFlow(arrow.flow);
     const color = flowColors[flow] || style.arrow;
-    const pathData = arrowPath(fromNode, toNode);
+    const pathData = arrowPath(fromNode, toNode, arrowIndex, layout.nodeMap);
     const label = singleLine(arrow.label, 34);
     const labelBox = label ? placeArrowLabel(pathData, label, arrowIndex, layout.nodeMap, placedArrowLabels) : null;
     return [
