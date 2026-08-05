@@ -256,7 +256,8 @@ const bridge = {
   rejectionCheck: {
     loadState: () => ipcRenderer.invoke('rejection-check:load-state'),
     importDocument: (role) => ipcRenderer.invoke('rejection-check:import-document', role),
-    importTenderFromTechnicalPlan: () => ipcRenderer.invoke('rejection-check:import-tender-from-technical-plan'),
+    importTenderFromTechnicalPlan: (payload) => ipcRenderer.invoke('rejection-check:import-tender-from-technical-plan', payload),
+    importBidFromTechnicalPlan: () => ipcRenderer.invoke('rejection-check:import-bid-from-technical-plan'),
     removeDocument: (role) => ipcRenderer.invoke('rejection-check:remove-document', role),
     saveUiState: (payload) => ipcRenderer.invoke('rejection-check:save-ui-state', payload),
     updateState: (partial) => ipcRenderer.invoke('rejection-check:update-state', partial),

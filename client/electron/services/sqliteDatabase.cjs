@@ -3,7 +3,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const { getWorkspaceDatabasePath } = require('../utils/paths.cjs');
 
-const schemaVersion = 6;
+const schemaVersion = 7;
 
 function createInitialSchema(db) {
   db.exec(`
@@ -655,6 +655,14 @@ function createTechnicalPlanOriginalSourceSchema(db) {
   addColumnIfMissing(db, 'technical_plan_meta', 'original_plan_source_ext', 'TEXT');
 }
 
+function createRejectionCheckTechnicalPlanSourceSchema(db) {
+  const table = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'rejection_check_documents'",
+  ).get();
+  if (!table) return;
+  addColumnIfMissing(db, 'rejection_check_documents', 'source_project_id', 'TEXT');
+}
+
 const migrations = [
   {
     version: 1,
@@ -685,6 +693,11 @@ const migrations = [
     version: 6,
     description: '新增已有方案扩写原方案源文件模板元数据',
     up: createTechnicalPlanOriginalSourceSchema,
+  },
+  {
+    version: 7,
+    description: '记录废标项检查文档关联的技术方案项目',
+    up: createRejectionCheckTechnicalPlanSourceSchema,
   },
 ];
 

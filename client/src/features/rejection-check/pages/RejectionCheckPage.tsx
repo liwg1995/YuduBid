@@ -23,6 +23,13 @@ import type {
   TypoCheckResultState,
 } from '../types';
 
+interface TechnicalPlanProjectOption {
+  id: string;
+  name: string;
+  updated_at?: string;
+  isActive?: boolean;
+}
+
 const steps: RejectionCheckStep[] = ['documents', 'items', 'results'];
 
 const stepLabels: Record<RejectionCheckStep, string> = {
@@ -547,6 +554,11 @@ function RejectionCheckPage() {
   const [draftCheckOptions, setDraftCheckOptions] = useState<RejectionCheckOptions>(defaultCheckOptions);
   const [checkConfigDialogOpen, setCheckConfigDialogOpen] = useState(false);
   const [busy, setBusy] = useState<'technical-plan' | 'tender-upload' | 'bid-upload' | null>(null);
+  const [technicalPlanDialogOpen, setTechnicalPlanDialogOpen] = useState(false);
+  const [technicalPlanImportTarget, setTechnicalPlanImportTarget] = useState<RejectionDocumentRole>('tender');
+  const [technicalPlanProjects, setTechnicalPlanProjects] = useState<TechnicalPlanProjectOption[]>([]);
+  const [selectedTechnicalPlanProjectId, setSelectedTechnicalPlanProjectId] = useState('');
+  const [technicalPlanProjectsLoading, setTechnicalPlanProjectsLoading] = useState(false);
   const hydratedRef = useRef(false);
   const autoStartedSignatureRef = useRef('');
   const activeTaskTypesRef = useRef<Set<string> | null>(null);
@@ -787,24 +799,74 @@ function RejectionCheckPage() {
     }
   }
 
-  async function readTenderFromTechnicalPlan() {
-    if (!window.yibiao?.rejectionCheck?.importTenderFromTechnicalPlan) {
+  async function openTechnicalPlanImportDialog(target: RejectionDocumentRole) {
+    if (!window.yibiao?.technicalPlan?.listProjects) {
+      showToast('技术方案项目接口尚未加载，请重启应用后重试', 'error');
+      return;
+    }
+
+    try {
+      setTechnicalPlanImportTarget(target);
+      setTechnicalPlanProjects([]);
+      setSelectedTechnicalPlanProjectId('');
+      setTechnicalPlanDialogOpen(true);
+      setTechnicalPlanProjectsLoading(true);
+      const result = await window.yibiao.technicalPlan.listProjects('technical-plan');
+      const projects = (result?.projects || []) as TechnicalPlanProjectOption[];
+      setTechnicalPlanProjects(projects);
+      setSelectedTechnicalPlanProjectId(projects.find((project) => project.isActive)?.id || projects[0]?.id || '');
+    } catch (error) {
+      console.error('读取技术方案项目失败', error);
+      showToast(error instanceof Error ? error.message : '读取技术方案项目失败', 'error');
+    } finally {
+      setTechnicalPlanProjectsLoading(false);
+    }
+  }
+
+  async function importFromSelectedTechnicalPlan() {
+    if (!selectedTechnicalPlanProjectId) {
+      showToast('请先选择技术方案项目', 'info');
+      return;
+    }
+    if (!window.yibiao?.rejectionCheck) {
       showToast('废标项检查缓存接口尚未加载，请重启应用后重试', 'error');
       return;
     }
 
     try {
       setBusy('technical-plan');
-      const result = await window.yibiao.rejectionCheck.importTenderFromTechnicalPlan();
+      const result = await window.yibiao.rejectionCheck.importTenderFromTechnicalPlan({ projectId: selectedTechnicalPlanProjectId });
       if (!result?.success) {
-        showToast(result?.message || '技术方案中暂无可读取的招标文件正文', 'info');
+        showToast(result?.message || '技术方案中暂无可读取内容', 'info');
         return;
       }
 
       applyWorkspaceState(result.state);
-      showToast(result.message || '已从技术方案读取招标文件', 'success');
+      setTechnicalPlanDialogOpen(false);
+      showToast(result.message || '已从技术方案读取内容', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '读取技术方案招标文件失败', 'error');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function importGeneratedPlanForCurrentTender() {
+    if (!window.yibiao?.rejectionCheck?.importBidFromTechnicalPlan) {
+      showToast('废标项检查缓存接口尚未加载，请重启应用后重试', 'error');
+      return;
+    }
+    try {
+      setBusy('technical-plan');
+      const result = await window.yibiao.rejectionCheck.importBidFromTechnicalPlan();
+      if (!result?.success) {
+        showToast(result?.message || '暂无匹配的技术方案', 'info');
+        return;
+      }
+      applyWorkspaceState(result.state);
+      showToast(result.message || '已读取对应技术方案生成正文', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '读取对应技术方案失败', 'error');
     } finally {
       setBusy(null);
     }
@@ -1476,8 +1538,8 @@ function RejectionCheckPage() {
                   )}
                 </div>
                 <div className="rejection-upload-actions">
-                  <button type="button" className="secondary-action" onClick={readTenderFromTechnicalPlan} disabled={busy !== null}>
-                    {busy === 'technical-plan' ? '读取中...' : '从技术方案读取'}
+                  <button type="button" className="secondary-action" onClick={() => void openTechnicalPlanImportDialog('tender')} disabled={busy !== null}>
+                    从技术方案读取
                   </button>
                   <button type="button" className="primary-action" onClick={() => void importParsedDocument('tender')} disabled={busy !== null}>
                     {busy === 'tender-upload' ? '解析中...' : tenderDocument ? '替换' : '上传'}
@@ -1501,6 +1563,9 @@ function RejectionCheckPage() {
                   )}
                 </div>
                 <div className="rejection-upload-actions single-action">
+                  <button type="button" className="secondary-action" onClick={() => void importGeneratedPlanForCurrentTender()} disabled={busy !== null}>
+                    {busy === 'technical-plan' ? '读取中...' : '从技术方案读取生成方案'}
+                  </button>
                   <button type="button" className="primary-action" onClick={() => void importParsedDocument('bid')} disabled={busy !== null}>
                     {busy === 'bid-upload' ? '解析中...' : bidDocument ? '替换' : '上传'}
                   </button>
@@ -1820,8 +1885,48 @@ function RejectionCheckPage() {
               </Dialog.Content>
             </Dialog.Portal>
           </Dialog.Root>
+
         </>
       )}
+
+      <Dialog.Root open={technicalPlanDialogOpen} onOpenChange={setTechnicalPlanDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="content-generation-config-card rejection-check-config-card">
+            <div className="content-regenerate-card-head">
+              <span className="section-kicker">技术方案项目</span>
+              <Dialog.Title>选择读取来源</Dialog.Title>
+              <Dialog.Description>
+                先选择具体项目，再读取招标文件中的技术要求或该项目生成的技术方案正文。
+              </Dialog.Description>
+            </div>
+            <div className="content-generation-config-list">
+              {technicalPlanProjectsLoading ? <p>正在读取技术方案项目...</p> : null}
+              {!technicalPlanProjectsLoading && technicalPlanProjects.length === 0 ? <p>暂无技术方案项目。</p> : null}
+              {technicalPlanProjects.map((project) => (
+                <label className="content-generation-config-row" key={project.id}>
+                  <span>
+                    <strong>{project.name || '未命名项目'}</strong>
+                    <small>{project.isActive ? '当前活动项目' : '技术方案项目'}</small>
+                  </span>
+                  <input
+                    type="radio"
+                    name="technical-plan-project"
+                    checked={selectedTechnicalPlanProjectId === project.id}
+                    onChange={() => setSelectedTechnicalPlanProjectId(project.id)}
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="content-regenerate-actions">
+              <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
+              <button type="button" className="primary-action" onClick={() => void importFromSelectedTechnicalPlan()} disabled={technicalPlanProjectsLoading || !selectedTechnicalPlanProjectId || busy !== null}>
+                {busy === 'technical-plan' ? '读取中...' : technicalPlanImportTarget === 'tender' ? '读取技术要求' : '读取生成方案'}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       <FloatingToolbar groups={toolbarGroups} label="废标项检查工具条" />
     </div>

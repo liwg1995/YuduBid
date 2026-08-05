@@ -39,6 +39,7 @@ export interface RejectionDocumentContent {
   content: string;
   source: RejectionDocumentSource;
   parserLabel?: string;
+  sourceProjectId?: string;
   importedAt: string;
 }
 

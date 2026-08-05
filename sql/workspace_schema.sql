@@ -401,6 +401,7 @@ CREATE TABLE IF NOT EXISTS rejection_check_documents (
   content_hash TEXT NOT NULL,
   content_chars INTEGER NOT NULL DEFAULT 0,
   parser_label TEXT,
+  source_project_id TEXT,
   imported_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

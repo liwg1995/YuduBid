@@ -330,7 +330,8 @@ export interface YuDuBidBridge {
   rejectionCheck: {
     loadState: () => Promise<RejectionCheckWorkspaceState>;
     importDocument: (role: RejectionDocumentRole) => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
-    importTenderFromTechnicalPlan: () => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
+    importTenderFromTechnicalPlan: (payload?: { projectId?: string; project_id?: string }) => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
+    importBidFromTechnicalPlan: () => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
     removeDocument: (role: RejectionDocumentRole) => Promise<RejectionCheckWorkspaceState>;
     saveUiState: (payload: Partial<Pick<RejectionCheckWorkspaceState, 'step' | 'activeDocumentTab' | 'activeResultTab' | 'activeCheckResultTab' | 'customCheckItems' | 'checkOptions'>>) => Promise<RejectionCheckWorkspaceState>;
     updateState: (partial: Partial<RejectionCheckWorkspaceState>) => Promise<RejectionCheckWorkspaceState>;

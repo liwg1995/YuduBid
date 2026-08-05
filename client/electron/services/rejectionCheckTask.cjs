@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { splitUserTextByContextLimit } = require('../utils/userTextSplitter.cjs');
 const { runInvalidBidAndRejectionItemsExtraction } = require('./bidAnalysisTask.cjs');
 
 const checkRunStatus = ['idle', 'running', 'success', 'error'];
@@ -265,7 +266,7 @@ function createLineLocationHint(bidContent, position) {
   return `原文第 ${before.split(/\r\n|\r|\n/).length} 行附近`;
 }
 
-function normalizeTypoCheckFindings(parsed, bidContent) {
+function normalizeTypoCheckFindings(parsed, bidContent, options = {}) {
   const seen = new Set();
   const findings = [];
   for (const item of getArrayPayload(parsed, ['findings', 'items', 'typos'])) {
@@ -275,8 +276,11 @@ function normalizeTypoCheckFindings(parsed, bidContent) {
     const originalExcerpt = normalizeText(item.originalExcerpt || item.original_excerpt || item.excerpt || item.context);
     const reason = normalizeText(item.reason || item.riskReason || item.detail) || '疑似错别字，请结合原文复核。';
     if (!wrongText || !correctText || wrongText === correctText) continue;
-    const position = findVerifiedTypoPosition(bidContent, wrongText, originalExcerpt);
-    if (position < 0) continue;
+    const segmentOffset = Number(options.segmentOffset || 0);
+    const segmentContent = options.segmentContent || bidContent;
+    const segmentPosition = findVerifiedTypoPosition(segmentContent, wrongText, originalExcerpt);
+    if (segmentPosition < 0) continue;
+    const position = segmentOffset + segmentPosition;
     const key = `${wrongText}\u0000${correctText}\u0000${position}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -333,6 +337,43 @@ async function runJson(aiService, request, onProgress, _label) {
 }
 
 async function runRejectionItemCheck(aiService, input, onProgress) {
+  const segments = splitUserTextByContextLimit(input.bidContent);
+  if (segments.length > 1) {
+    const findings = [];
+    for (let index = 0; index < segments.length; index += 1) {
+      const segmentInput = { ...input, bidContent: `【投标文件分段 ${index + 1}/${segments.length}】\n${segments[index]}` };
+      onProgress(`正在检查投标文件第 ${index + 1}/${segments.length} 段。`);
+      const analysis = await runText(
+        aiService,
+        { messages: buildRejectionCheckAnalysisMessages(segmentInput), temperature: 0.1 },
+        onProgress,
+        `第 ${index + 1} 段范围分析`,
+      );
+      const draftFindings = await runText(
+        aiService,
+        { messages: buildRejectionCheckInspectionMessages(segmentInput, analysis), temperature: 0.1 },
+        onProgress,
+        `第 ${index + 1} 段检查`,
+      );
+      const payload = await runJson(aiService, {
+        messages: buildRejectionCheckFinalMessages(segmentInput, analysis, draftFindings),
+        temperature: 0.1,
+        schemaName: 'RejectionCheckFindings',
+        progressLabel: `废标项检查结果（第 ${index + 1} 段）`,
+        failureMessage: '废标项检查结果格式无效，请重新检查',
+      }, onProgress, `第 ${index + 1} 段定稿`);
+      findings.push(...normalizeRejectionCheckFindings(payload));
+    }
+
+    const seen = new Set();
+    return findings.filter((item) => {
+      const key = `${item.type}\u0000${item.title}\u0000${item.bidEvidence}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   onProgress('第一轮：正在分析检查范围。');
   const analysis = await runText(
     aiService,
@@ -359,6 +400,32 @@ async function runRejectionItemCheck(aiService, input, onProgress) {
 }
 
 async function runTypoCheck(aiService, input, onProgress) {
+  const segments = splitUserTextByContextLimit(input.bidContent);
+  if (segments.length > 1) {
+    const findings = [];
+    let offset = 0;
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = segments[index];
+      onProgress(`正在识别第 ${index + 1}/${segments.length} 段错别字。`);
+      const payload = await runJson(aiService, {
+        messages: buildTypoCheckMessages({ bidContent: `【投标文件分段 ${index + 1}/${segments.length}】\n${segment}` }),
+        temperature: 0.1,
+        schemaName: 'TypoCheckFindings',
+        progressLabel: `错别字检查（第 ${index + 1} 段）`,
+        failureMessage: '错别字检查结果格式无效，请重新检查',
+      }, onProgress, `错别字检查（第 ${index + 1} 段）`);
+      findings.push(...normalizeTypoCheckFindings(payload, input.bidContent, { segmentContent: segment, segmentOffset: offset }));
+      offset += segment.length;
+    }
+    const seen = new Set();
+    return findings.filter((item) => {
+      const key = `${item.wrongText}\u0000${item.correctText}\u0000${item.locationHint}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   onProgress('正在识别错别字候选。');
   const payload = await runJson(aiService, {
     messages: buildTypoCheckMessages({ bidContent: input.bidContent }),
@@ -372,6 +439,29 @@ async function runTypoCheck(aiService, input, onProgress) {
 }
 
 async function runLogicCheck(aiService, input, onProgress) {
+  const segments = splitUserTextByContextLimit(input.bidContent);
+  if (segments.length > 1) {
+    const findings = [];
+    for (let index = 0; index < segments.length; index += 1) {
+      onProgress(`正在检查第 ${index + 1}/${segments.length} 段逻辑一致性。`);
+      const payload = await runJson(aiService, {
+        messages: buildLogicCheckMessages({ bidContent: `【投标文件分段 ${index + 1}/${segments.length}】\n${segments[index]}` }),
+        temperature: 0.1,
+        schemaName: 'LogicCheckFindings',
+        progressLabel: `逻辑检查（第 ${index + 1} 段）`,
+        failureMessage: '逻辑检查结果格式无效，请重新检查',
+      }, onProgress, `逻辑检查（第 ${index + 1} 段）`);
+      findings.push(...normalizeLogicCheckFindings(payload));
+    }
+    const seen = new Set();
+    return findings.filter((item) => {
+      const key = `${item.title}\u0000${item.fallacyReason}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   onProgress('正在检查逻辑谬误。');
   const payload = await runJson(aiService, {
     messages: buildLogicCheckMessages({ bidContent: input.bidContent }),

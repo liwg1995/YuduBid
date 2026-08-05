@@ -1,3 +1,5 @@
+const { splitUserTextByContextLimit } = require('../utils/userTextSplitter.cjs');
+
 const stableSystemPrompt = `你是专业的招标文件分析助手。请严格基于用户提供的招标文件原文完成提取和总结。
 
 通用要求：
@@ -114,13 +116,73 @@ function buildMessages(fileContent, task) {
   ];
 }
 
+function parseJsonCandidate(value) {
+  const text = String(value || '').trim().replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function mergeSegmentedValues(values) {
+  const parsed = values.map((value) => (
+    value && typeof value === 'object' && !Array.isArray(value) ? value : parseJsonCandidate(value)
+  ));
+  if (parsed.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
+    const merged = {};
+    for (const item of parsed) {
+      for (const [key, value] of Object.entries(item)) {
+        if (Array.isArray(value)) {
+          merged[key] = [...(Array.isArray(merged[key]) ? merged[key] : []), ...value];
+        } else if (value && typeof value === 'object') {
+          merged[key] = { ...(merged[key] || {}), ...value };
+        } else if (value !== undefined && value !== null && String(value).trim() && value !== '没有提及') {
+          const previous = String(merged[key] || '').trim();
+          merged[key] = previous && previous !== String(value).trim() ? `${previous}\n${value}` : value;
+        } else if (merged[key] === undefined) {
+          merged[key] = value;
+        }
+      }
+    }
+    return JSON.stringify(merged, null, 2);
+  }
+
+  return values.map((value, index) => `【原文第 ${index + 1} 段】\n${String(value || '').trim()}`).join('\n\n');
+}
+
 async function runSingleBidAnalysisPromptTask({ aiService, fileContent, task }) {
-  return aiService.chat({
-    messages: buildMessages(fileContent, task),
-    temperature: 0.1,
-    response_format: task.output === 'json' ? { type: 'json_object' } : undefined,
-    logTitle: `招标解析-${task.label}`,
-  });
+  const segments = splitUserTextByContextLimit(fileContent);
+  if (segments.length === 1) {
+    return aiService.chat({
+      messages: buildMessages(fileContent, task),
+      temperature: 0.1,
+      response_format: task.output === 'json' ? { type: 'json_object' } : undefined,
+      logTitle: `招标解析-${task.label}`,
+    });
+  }
+
+  const results = [];
+  for (let index = 0; index < segments.length; index += 1) {
+    const request = {
+      messages: buildMessages(`【招标文件分段 ${index + 1}/${segments.length}】\n${segments[index]}`, task),
+      temperature: 0.1,
+      response_format: task.output === 'json' ? { type: 'json_object' } : undefined,
+      logTitle: `招标解析-${task.label}-分段${index + 1}`,
+    };
+    if (task.output === 'json' && typeof aiService.collectJsonResponse === 'function') {
+      results.push(await aiService.collectJsonResponse({
+        ...request,
+        schemaName: `BidAnalysis-${task.id}`,
+        progressLabel: `招标解析-${task.label}-分段${index + 1}`,
+        failureMessage: `招标解析-${task.label}分段结果格式无效，请重新解析`,
+      }));
+    } else {
+      results.push(await aiService.chat(request));
+    }
+  }
+
+  return mergeSegmentedValues(results);
 }
 
 function runInvalidBidAndRejectionItemsExtraction({ aiService, fileContent }) {

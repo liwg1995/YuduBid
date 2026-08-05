@@ -2,6 +2,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { getAiLogsDir, getGeneratedImagesDir } = require('../utils/paths.cjs');
+const {
+  isRetryableHttpStatus,
+  markAiRequestError,
+  runWithAiRetry,
+} = require('../utils/aiRetry.cjs');
 
 const AI_REQUEST_TIMEOUT_MS = 300000;
 const MAX_AI_LOG_TITLE_LENGTH = 64;
@@ -229,7 +234,10 @@ async function ensureOk(response, fallbackMessage) {
     detail = await response.text().catch(() => '');
   }
 
-  throw new Error(detail || fallbackMessage);
+  throw markAiRequestError(new Error(detail || fallbackMessage), {
+    status: response.status,
+    retryable: isRetryableHttpStatus(response.status),
+  });
 }
 
 async function fetchOpenAICompatibleImageResponse(baseUrl, apiKey, requestBody, fallbackMessage, options = {}) {
@@ -629,12 +637,16 @@ async function fetchChatCompletion(app, config, body, options = {}) {
   const timer = controller ? setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS) : null;
   try {
     const baseUrl = requireBaseUrl(config.base_url, '请先在设置中配置文本模型 Base URL');
-    return await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: createHeaders(config.api_key),
-      body: JSON.stringify(body),
-      signal: options.signal || controller.signal,
-    });
+    try {
+      return await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: createHeaders(config.api_key),
+        body: JSON.stringify(body),
+        signal: options.signal || controller.signal,
+      });
+    } catch (error) {
+      throw markAiRequestError(error, { retryable: true });
+    }
   } finally {
     if (timer) {
       clearTimeout(timer);
@@ -659,7 +671,6 @@ async function chatWithConfig(app, config, request) {
   let responseData = null;
   let errorMessage = '';
   const timeoutMs = normalizeRequestTimeoutMs(request);
-  const timeout = createOperationTimeout(timeoutMs);
 
   try {
     writeAiLog(app, config, {
@@ -671,20 +682,35 @@ async function chatWithConfig(app, config, request) {
       status: 'pending',
       created_at: new Date().toISOString(),
     });
-    let response = await timeout.run(fetchChatCompletion(app, config, requestBody, { signal: timeout.signal }));
-    if (!response.ok && request.response_format) {
-      const detail = await timeout.run(response.text().catch(() => ''));
-      if (isResponseFormatUnsupported(detail)) {
-        requestBody = createChatRequestBody(config, request, { omitResponseFormat: true });
-        response = await timeout.run(fetchChatCompletion(app, config, requestBody, { signal: timeout.signal }));
-      } else {
-        throw new Error(detail || 'AI 请求失败');
-      }
-    }
+    const result = await runWithAiRetry(async () => {
+      const timeout = createOperationTimeout(timeoutMs);
+      try {
+        let response = await timeout.run(fetchChatCompletion(app, config, requestBody, { signal: timeout.signal }));
+        if (!response.ok && request.response_format) {
+          const detail = await timeout.run(response.text().catch(() => ''));
+          if (isResponseFormatUnsupported(detail)) {
+            requestBody = createChatRequestBody(config, request, { omitResponseFormat: true });
+            response = await timeout.run(fetchChatCompletion(app, config, requestBody, { signal: timeout.signal }));
+          } else {
+            throw markAiRequestError(new Error(detail || 'AI 请求失败'), {
+              status: response.status,
+              retryable: isRetryableHttpStatus(response.status),
+            });
+          }
+        }
 
-    await timeout.run(ensureOk(response, 'AI 请求失败'));
-    responseData = await timeout.run(response.json());
-    const content = responseData.choices?.[0]?.message?.content || '';
+        await timeout.run(ensureOk(response, 'AI 请求失败'));
+        const data = await timeout.run(response.json());
+        return { data, content: data.choices?.[0]?.message?.content || '' };
+      } finally {
+        timeout.clear();
+      }
+    }, {
+      maxAttempts: request.max_request_attempts ?? 3,
+      onRetry: ({ attempt }) => emitProgress(request.progressCallback, `${logTitle}第 ${attempt + 1} 次请求失败，正在重试。`),
+    });
+    responseData = result.data;
+    const content = result.content;
     writeAiLog(app, config, {
       request_id: requestId,
       log_title: logTitle,
@@ -711,8 +737,6 @@ async function chatWithConfig(app, config, request) {
       created_at: new Date().toISOString(),
     });
     throw new Error(errorMessage || 'AI 请求失败');
-  } finally {
-    timeout.clear();
   }
 }
 

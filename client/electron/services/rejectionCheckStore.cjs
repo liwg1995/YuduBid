@@ -135,6 +135,19 @@ function getTechnicalPlanDiscardedBids(technicalPlan) {
   return task?.status === 'success' && task.content?.trim() ? stripTripleQuoteWrapper(task.content) : '';
 }
 
+function collectGeneratedTechnicalPlanMarkdown(items, level = 1) {
+  const chunks = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    const title = String(item?.title || '').trim();
+    const content = String(item?.content || '').trim();
+    const children = collectGeneratedTechnicalPlanMarkdown(item?.children || [], Math.min(level + 1, 6));
+    if (title) chunks.push(`${'#'.repeat(Math.max(1, Math.min(level, 6)))} ${title}`);
+    if (content) chunks.push(content);
+    if (children) chunks.push(children);
+  }
+  return chunks.join('\n\n');
+}
+
 function taskFromRow(row) {
   if (!row) return undefined;
   return {
@@ -212,9 +225,9 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     const timestamp = now();
     db.prepare(`
       INSERT INTO rejection_check_documents (
-        role, source, file_name, markdown_path, content_hash, content_chars, parser_label, imported_at, updated_at
+        role, source, file_name, markdown_path, content_hash, content_chars, parser_label, source_project_id, imported_at, updated_at
       ) VALUES (
-        @role, @source, @file_name, @markdown_path, @content_hash, @content_chars, @parser_label, @imported_at, @updated_at
+        @role, @source, @file_name, @markdown_path, @content_hash, @content_chars, @parser_label, @source_project_id, @imported_at, @updated_at
       ) ON CONFLICT(role) DO UPDATE SET
         source = excluded.source,
         file_name = excluded.file_name,
@@ -222,6 +235,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
         content_hash = excluded.content_hash,
         content_chars = excluded.content_chars,
         parser_label = excluded.parser_label,
+        source_project_id = excluded.source_project_id,
         imported_at = excluded.imported_at,
         updated_at = excluded.updated_at
     `).run({
@@ -232,6 +246,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       content_hash: stableHash(markdown),
       content_chars: markdown.length,
       parser_label: document.parserLabel ? String(document.parserLabel) : null,
+      source_project_id: document.sourceProjectId ? String(document.sourceProjectId) : null,
       imported_at: document.importedAt || timestamp,
       updated_at: timestamp,
     });
@@ -247,6 +262,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       content: readDocumentMarkdown(documentRole),
       source: row.source === 'technical-plan' ? 'technical-plan' : 'upload',
       parserLabel: row.parser_label || undefined,
+      sourceProjectId: row.source_project_id || undefined,
       importedAt: row.imported_at,
     };
   }
@@ -594,20 +610,23 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     return { success: true, message: result.message || '文件解析完成', state: loadRejectionCheck() };
   }
 
-  async function importTenderFromTechnicalPlan() {
+  async function importTenderFromTechnicalPlan(payload = {}) {
     if (!technicalPlanStore?.readTenderMarkdown || !technicalPlanStore?.loadTechnicalPlan) {
       throw new Error('技术方案缓存接口尚未初始化');
     }
-    const markdown = technicalPlanStore.readTenderMarkdown();
+    const sourceProjectId = String(payload?.projectId || payload?.project_id || '').trim();
+    const projectPayload = { workflowKind: 'technical-plan', projectId: sourceProjectId };
+    const markdown = technicalPlanStore.readTenderMarkdown(projectPayload);
     if (!markdown.trim()) {
       return { success: false, message: '技术方案中暂无可读取的招标文件正文', state: loadRejectionCheck() };
     }
-    const technicalPlan = technicalPlanStore.loadTechnicalPlan();
+    const technicalPlan = technicalPlanStore.loadTechnicalPlan(projectPayload);
     const document = {
       role: 'tender',
       fileName: technicalPlan?.tenderFile?.fileName || '技术方案招标文件',
       content: markdown,
       source: 'technical-plan',
+      sourceProjectId,
       importedAt: now(),
     };
     const discardedBids = getTechnicalPlanDiscardedBids(technicalPlan);
@@ -628,6 +647,39 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     });
     transaction();
     return { success: true, message: '已从技术方案读取招标文件', state: loadRejectionCheck() };
+  }
+
+  async function importBidFromTechnicalPlan() {
+    if (!technicalPlanStore?.loadTechnicalPlan) {
+      throw new Error('技术方案缓存接口尚未初始化');
+    }
+    const tenderDocument = loadDocument('tender');
+    const sourceProjectId = String(tenderDocument?.sourceProjectId || '').trim();
+    if (!sourceProjectId) {
+      return { success: false, message: '当前招标文件未关联技术方案项目，请先从技术方案读取招标文件', state: loadRejectionCheck() };
+    }
+    const projectPayload = { workflowKind: 'technical-plan', projectId: sourceProjectId };
+    const technicalPlan = technicalPlanStore.loadTechnicalPlan(projectPayload);
+    const markdown = collectGeneratedTechnicalPlanMarkdown(technicalPlan?.outlineData?.outline);
+    if (!markdown.trim()) {
+      return { success: false, message: '该技术方案项目尚未生成可读取的正文内容', state: loadRejectionCheck() };
+    }
+    const document = {
+      role: 'bid',
+      fileName: `${technicalPlan?.projectName || technicalPlan?.tenderFile?.fileName || '技术方案'} - 生成正文.md`,
+      content: markdown,
+      source: 'technical-plan',
+      sourceProjectId,
+      parserLabel: '技术方案生成正文',
+      importedAt: now(),
+    };
+    const transaction = db.transaction(() => {
+      saveDocument(document);
+      clearCheckResults();
+      updateMeta({ active_document_tab: 'bid' });
+    });
+    transaction();
+    return { success: true, message: '已从技术方案读取生成正文', state: loadRejectionCheck() };
   }
 
   function removeDocument(role) {
@@ -678,6 +730,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     clearRejectionCheck,
     importDocument,
     importTenderFromTechnicalPlan,
+    importBidFromTechnicalPlan,
     removeDocument,
     readDocumentMarkdown,
     createDocumentSignature,
