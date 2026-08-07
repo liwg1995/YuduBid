@@ -32,12 +32,17 @@ const bridge = {
     load: () => ipcRenderer.invoke('config:load'),
     save: (config) => ipcRenderer.invoke('config:save', config),
     listModels: (config) => ipcRenderer.invoke('config:list-models', config),
+    getModelCapabilities: (config) => ipcRenderer.invoke('config:get-model-capabilities', config),
     openConfigFolder: () => ipcRenderer.invoke('config:open-config-folder'),
   },
   ai: {
     chat: (request) => ipcRenderer.invoke('ai:chat', request),
     requestJson: (request) => ipcRenderer.invoke('ai:request-json', request),
     testImageModel: (config) => ipcRenderer.invoke('ai:test-image-model', config),
+  },
+  usageStats: {
+    getSummary: (range) => ipcRenderer.invoke('usage-stats:get-summary', range),
+    clear: () => ipcRenderer.invoke('usage-stats:clear'),
   },
   file: {
     selectDuplicateCheckFiles: (options) => ipcRenderer.invoke('file:select-duplicate-check-files', options),
@@ -256,6 +261,7 @@ const bridge = {
   rejectionCheck: {
     loadState: () => ipcRenderer.invoke('rejection-check:load-state'),
     importDocument: (role) => ipcRenderer.invoke('rejection-check:import-document', role),
+    importBidDocuments: () => ipcRenderer.invoke('rejection-check:import-bid-documents'),
     importTenderFromTechnicalPlan: (payload) => ipcRenderer.invoke('rejection-check:import-tender-from-technical-plan', payload),
     importBidFromTechnicalPlan: () => ipcRenderer.invoke('rejection-check:import-bid-from-technical-plan'),
     removeDocument: (role) => ipcRenderer.invoke('rejection-check:remove-document', role),

@@ -7,8 +7,20 @@ const {
   markAiRequestError,
   runWithAiRetry,
 } = require('../utils/aiRetry.cjs');
+const {
+  createCapabilityCacheKey,
+  getKnownCapability,
+  isCapabilityCacheFresh,
+  normalizeCapabilityPayload,
+} = require('../utils/modelCapabilities.cjs');
+const {
+  assertRemoteHttpUrl,
+  fetchWithTimeout,
+  readResponseBuffer,
+} = require('../utils/secureHttp.cjs');
 
 const AI_REQUEST_TIMEOUT_MS = 300000;
+const GENERATED_IMAGE_MAX_BYTES = 32 * 1024 * 1024;
 const MAX_AI_LOG_TITLE_LENGTH = 64;
 const IMAGE_MODEL_TEST_TIMEOUT_MESSAGE = '生图模型测试超时，请检查 Base URL、API Key 或模型名称';
 const OPENAI_IMAGE_PROVIDER_META = {
@@ -37,6 +49,7 @@ const OPENAI_IMAGE_PROVIDER_META = {
     modelLabel: '生图模型名称',
   },
 };
+const AGNES_IMAGE_PROVIDERS = new Set(['agnes-ai-cn', 'agnes-ai-global']);
 
 function trimBaseUrl(baseUrl) {
   return String(baseUrl || '').trim().replace(/\/+$/, '');
@@ -199,10 +212,11 @@ function safeImageResponse(data) {
 }
 
 async function downloadImage(url) {
-  const response = await fetch(url);
+  const safeUrl = assertRemoteHttpUrl(url, '生图服务返回了不安全的图片地址');
+  const response = await fetchWithTimeout(safeUrl, { timeoutMs: 30000 });
   await ensureOk(response, '图片下载失败');
   return {
-    buffer: Buffer.from(await response.arrayBuffer()),
+    buffer: await readResponseBuffer(response, GENERATED_IMAGE_MAX_BYTES),
     mime_type: response.headers.get('content-type') || 'image/png',
   };
 }
@@ -517,7 +531,7 @@ function normalizeJsonPayload(request, parsed) {
   return normalized;
 }
 
-async function repairJsonResponse(app, config, invalidContent, issues, temperature, responseFormat, progressCallback, progressLabel, repairMessagesBuilder, logTitle) {
+async function repairJsonResponse(app, config, invalidContent, issues, temperature, responseFormat, progressCallback, progressLabel, repairMessagesBuilder, logTitle, usageStatsStore) {
   await emitProgress(progressCallback, `${progressLabel}格式校验失败，正在基于当前结果进行修复。`);
   return chatWithConfig(app, config, {
     messages: repairMessagesBuilder
@@ -526,10 +540,10 @@ async function repairJsonResponse(app, config, invalidContent, issues, temperatu
     temperature,
     response_format: responseFormat,
     logTitle: logTitle ? `${logTitle}修复` : `${progressLabel}修复`,
-  });
+  }, usageStatsStore);
 }
 
-async function parseOrRepairJsonResponseWithConfig(app, config, request, content) {
+async function parseOrRepairJsonResponseWithConfig(app, config, request, content, usageStatsStore) {
   const temperature = request.temperature ?? 0.7;
   const responseFormat = request.response_format || { type: 'json_object' };
   const progressLabel = request.progressLabel || 'JSON结果';
@@ -552,6 +566,7 @@ async function parseOrRepairJsonResponseWithConfig(app, config, request, content
         progressLabel,
         request.repairMessagesBuilder,
         logTitle,
+        usageStatsStore,
       );
       return normalizeJsonPayload(request, parseJsonContent(repairedContent));
     } catch {
@@ -560,7 +575,7 @@ async function parseOrRepairJsonResponseWithConfig(app, config, request, content
   }
 }
 
-async function collectJsonResponseWithConfig(app, config, request) {
+async function collectJsonResponseWithConfig(app, config, request, usageStatsStore) {
   const maxRetries = request.max_retries ?? 2;
   const totalAttempts = maxRetries + 1;
   const temperature = request.temperature ?? 0.7;
@@ -578,7 +593,7 @@ async function collectJsonResponseWithConfig(app, config, request) {
       timeout_ms: request.timeout_ms,
       timeout_message: request.timeout_message,
       logTitle,
-    });
+    }, usageStatsStore);
 
     try {
       const parsed = parseJsonContent(content);
@@ -599,6 +614,7 @@ async function collectJsonResponseWithConfig(app, config, request) {
           progressLabel,
           request.repairMessagesBuilder,
           logTitle,
+          usageStatsStore,
         );
         const repairedParsed = parseJsonContent(repairedContent);
         return normalizeJsonPayload(request, repairedParsed);
@@ -624,6 +640,24 @@ function createChatRequestBody(config, request, options = {}) {
     messages: request.messages,
     temperature: request.temperature ?? 0.3,
   };
+
+  if (request.chat_template_kwargs && typeof request.chat_template_kwargs === 'object') {
+    body.chat_template_kwargs = request.chat_template_kwargs;
+  }
+  if (request.thinking && typeof request.thinking === 'object') {
+    body.thinking = request.thinking;
+  }
+  if (!request.chat_template_kwargs && !request.thinking
+    && ['agnes-ai-cn', 'agnes-ai-global', 'deepseek', 'longcat'].includes(config.text_model_provider)
+    && config.text_model_options?.thinking_enabled) {
+    body.thinking = { type: 'enabled' };
+    if (config.text_model_provider === 'agnes-ai-cn' || config.text_model_provider === 'agnes-ai-global') {
+      body.thinking.budget_tokens = Math.max(256, Math.min(65536, Number(config.text_model_options.thinking_budget_tokens) || 2048));
+    }
+    if (config.text_model_provider === 'deepseek') {
+      body.reasoning_effort = config.text_model_options.thinking_effort === 'max' ? 'max' : 'high';
+    }
+  }
 
   if (request.response_format && !options.omitResponseFormat) {
     body.response_format = request.response_format;
@@ -654,7 +688,7 @@ async function fetchChatCompletion(app, config, body, options = {}) {
   }
 }
 
-async function chatWithConfig(app, config, request) {
+async function chatWithConfig(app, config, request, usageStatsStore) {
   if (!config.api_key) {
     throw new Error('请先在设置中配置文本模型 API Key');
   }
@@ -711,6 +745,16 @@ async function chatWithConfig(app, config, request) {
     });
     responseData = result.data;
     const content = result.content;
+    try {
+      usageStatsStore?.record({
+        provider: config.text_model_provider,
+        model: config.model_name,
+        usage: responseData?.usage,
+        request_id: requestId,
+      });
+    } catch (usageError) {
+      console.warn('[ai-usage] 保存本地 Token 统计失败', usageError);
+    }
     writeAiLog(app, config, {
       request_id: requestId,
       log_title: logTitle,
@@ -757,12 +801,20 @@ async function testOpenAICompatibleImageModel(app, config, provider) {
   const timeout = createOperationTimeout(AI_REQUEST_TIMEOUT_MS);
 
   try {
-    const requestBody = {
-      model: imageConfig.model_name,
-      prompt: 'a simple blue dot on a white background',
-      size: '2048x2048',
-      response_format: 'url',
-    };
+    const requestBody = AGNES_IMAGE_PROVIDERS.has(provider)
+      ? {
+        model: imageConfig.model_name,
+        prompt: 'a simple blue dot on a white background',
+        size: imageConfig.model_name === 'agnes-image-2.1-flash' ? '1K' : '2048x2048',
+        ...(imageConfig.model_name === 'agnes-image-2.1-flash' ? { ratio: '1:1' } : {}),
+        extra_body: { response_format: 'url' },
+      }
+      : {
+        model: imageConfig.model_name,
+        prompt: 'a simple blue dot on a white background',
+        size: '2048x2048',
+        response_format: 'url',
+      };
     let response = null;
     try {
       response = await timeout.run(fetchOpenAICompatibleImageResponse(
@@ -860,12 +912,20 @@ async function generateOpenAICompatibleImage(app, config, request, provider) {
   const meta = OPENAI_IMAGE_PROVIDER_META[provider] || OPENAI_IMAGE_PROVIDER_META.volcengine;
   const requestId = createRequestId();
   const logTitle = resolveAiLogTitle(request, request.title ? `AI生图-${request.title}` : 'AI生图');
-  const requestBody = {
-    model: imageConfig.model_name,
-    prompt: normalizeImagePrompt(request),
-    size: request.size || '2048x2048',
-    response_format: 'url',
-  };
+  const requestBody = AGNES_IMAGE_PROVIDERS.has(provider)
+    ? {
+      model: imageConfig.model_name,
+      prompt: normalizeImagePrompt(request),
+      size: request.size || imageConfig.size || (imageConfig.model_name === 'agnes-image-2.1-flash' ? '2K' : '2048x2048'),
+      ...(imageConfig.model_name === 'agnes-image-2.1-flash' ? { ratio: request.ratio || imageConfig.ratio || '1:1' } : {}),
+      extra_body: { response_format: 'url' },
+    }
+    : {
+      model: imageConfig.model_name,
+      prompt: normalizeImagePrompt(request),
+      size: request.size || '2048x2048',
+      response_format: 'url',
+    };
   const baseUrl = requireBaseUrl(imageConfig.base_url, `${meta.label} Base URL 缺失，请重新选择服务商后保存配置`);
   let responseData = null;
 
@@ -1015,26 +1075,27 @@ async function generateImageWithConfig(app, config, request) {
   throw new Error('当前生图服务商暂不支持正文配图');
 }
 
-function createAiService({ app, configStore }) {
+function createAiService({ app, configStore, usageStatsStore }) {
   return {
     async chat(request) {
       const config = configStore.load();
-      return chatWithConfig(app, config, request);
+      const content = await chatWithConfig(app, config, request, usageStatsStore);
+      return content;
     },
 
     async requestJson(request) {
       const config = configStore.load();
-      return collectJsonResponseWithConfig(app, config, request);
+      return collectJsonResponseWithConfig(app, config, request, usageStatsStore);
     },
 
     async collectJsonResponse(request) {
       const config = configStore.load();
-      return collectJsonResponseWithConfig(app, config, request);
+      return collectJsonResponseWithConfig(app, config, request, usageStatsStore);
     },
 
     async parseJsonResponseContent(request, content) {
       const config = configStore.load();
-      return parseOrRepairJsonResponseWithConfig(app, config, request, content);
+      return parseOrRepairJsonResponseWithConfig(app, config, request, content, usageStatsStore);
     },
 
     async testImageModel(config) {
@@ -1090,6 +1151,44 @@ function createAiService({ app, configStore }) {
         message: '模型列表已更新',
         models: Array.isArray(data.data) ? data.data.map((item) => item.id).filter(Boolean) : [],
       };
+    },
+
+    async getModelCapabilities(configOverride) {
+      const config = configOverride || configStore.load();
+      const baseUrl = trimBaseUrl(config.base_url);
+      const model = String(config.model_name || '').trim();
+      if (!config.api_key) return { success: false, message: '请先填写文本模型 API Key', source: 'default' };
+      if (!baseUrl) return { success: false, message: '请先填写文本模型 Base URL', source: 'default' };
+      if (!model) return { success: false, message: '请先填写文本模型名称', source: 'default' };
+
+      const cacheKey = createCapabilityCacheKey({ provider: config.text_model_provider, baseUrl, model });
+      const cached = config.model_capabilities_cache?.[cacheKey];
+      if (isCapabilityCacheFresh(cached)) {
+        return { success: true, message: '已使用本地缓存的模型能力信息', source: 'cache', ...cached };
+      }
+
+      try {
+        const response = await fetch(`${baseUrl}/models/${encodeURIComponent(model)}`, {
+          method: 'GET',
+          headers: createHeaders(config.api_key),
+        });
+        await ensureOk(response, '获取模型能力信息失败');
+        const capability = {
+          ...normalizeCapabilityPayload(await response.json(), { provider: config.text_model_provider, model }),
+          fetchedAt: new Date().toISOString(),
+        };
+        configStore.save({ model_capabilities_cache: { ...(config.model_capabilities_cache || {}), [cacheKey]: capability } });
+        return { success: true, message: '模型能力信息已更新', source: 'remote', ...capability };
+      } catch (error) {
+        if (cached) return { success: false, message: `远程探测失败，已保留上次结果：${error.message}`, source: 'cache', ...cached };
+        const knownCapability = getKnownCapability({ provider: config.text_model_provider, model });
+        return {
+          success: false,
+          message: knownCapability ? `远程探测失败，已使用 Agnes 官方模型基础信息：${error.message}` : `当前服务未提供标准能力信息：${error.message}`,
+          source: 'default',
+          ...(knownCapability || { provider: config.text_model_provider, model }),
+        };
+      }
     },
   };
 }

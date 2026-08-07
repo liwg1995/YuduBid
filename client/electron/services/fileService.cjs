@@ -5,6 +5,12 @@ const { dialog } = require('electron');
 const AdmZip = require('adm-zip');
 const { formatDocumentParseError, isLibreOfficeMissingError, normalizeDocumentParseError } = require('./documentParseErrors.cjs');
 const { getImportedImagesDir } = require('../utils/paths.cjs');
+const {
+  assertRemoteHttpUrl,
+  fetchWithTimeout,
+  readResponseBuffer,
+  readResponseText,
+} = require('../utils/secureHttp.cjs');
 
 const parserLabels = {
   local: '本地解析',
@@ -21,6 +27,9 @@ const mineruAccurateSupportedExtensions = new Set([
 ]);
 const duplicateCheckSupportedExtensions = new Set(['.doc', '.docx', '.wps', '.pdf', '.md', '.markdown']);
 const remoteImageTimeoutMs = 10000;
+const MINERU_REQUEST_TIMEOUT_MS = 30000;
+const MINERU_TEXT_MAX_BYTES = 32 * 1024 * 1024;
+const MINERU_RESULT_MAX_BYTES = 256 * 1024 * 1024;
 const markdownImagePattern = /!\[(?<alt>[^\]]*)\]\((?<target><[^>]+>|[^)\s]+)(?<title>\s+"[^"]*")?\)/gi;
 const htmlImageSrcPattern = /(<img\b[^>]*?\bsrc=["'])(?<src>[^"']+)(["'][^>]*>)/gi;
 
@@ -89,7 +98,7 @@ function formatImportError(error, filePath) {
 
 async function parseWithMineruAgent(filePath, options = {}) {
   const fileName = path.basename(filePath);
-  const createResponse = await fetch('https://mineru.net/api/v1/agent/parse/file', {
+  const createResponse = await fetchWithTimeout('https://mineru.net/api/v1/agent/parse/file', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -100,7 +109,7 @@ async function parseWithMineruAgent(filePath, options = {}) {
       enable_formula: true,
     }),
   });
-  const createResult = await createResponse.json();
+  const createResult = JSON.parse(await readResponseText(createResponse));
   if (!createResponse.ok || createResult.code !== 0) {
     throw new Error(`申请 MinerU-Agent 上传链接失败：HTTP ${createResponse.status}，${JSON.stringify(createResult)}`);
   }
@@ -130,8 +139,8 @@ async function pollMineruAgent(taskId, fileName) {
   const intervalMs = 3000;
 
   while (Date.now() - startedAt < timeoutMs) {
-    const response = await fetch(`https://mineru.net/api/v1/agent/parse/${taskId}`);
-    const result = await response.json();
+    const response = await fetchWithTimeout(`https://mineru.net/api/v1/agent/parse/${taskId}`, { timeoutMs: MINERU_REQUEST_TIMEOUT_MS });
+    const result = JSON.parse(await readResponseText(response));
     if (!response.ok || result.code !== 0) {
       throw new Error(`查询 MinerU-Agent 任务失败：HTTP ${response.status}，${JSON.stringify(result)}`);
     }
@@ -156,7 +165,7 @@ async function parseWithMineruAccurate(filePath, token, options = {}) {
   }
 
   const fileName = path.basename(filePath);
-  const createResponse = await fetch('https://mineru.net/api/v4/file-urls/batch', {
+  const createResponse = await fetchWithTimeout('https://mineru.net/api/v4/file-urls/batch', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -170,7 +179,7 @@ async function parseWithMineruAccurate(filePath, token, options = {}) {
       enable_formula: true,
     }),
   });
-  const createResult = await createResponse.json();
+  const createResult = JSON.parse(await readResponseText(createResponse));
   if (!createResponse.ok || createResult.code !== 0) {
     throw new Error(`申请 MinerU 精准解析上传链接失败：HTTP ${createResponse.status}，${JSON.stringify(createResult)}`);
   }
@@ -197,10 +206,11 @@ async function pollMineruAccurate(token, batchId, fileName) {
   const intervalMs = 5000;
 
   while (Date.now() - startedAt < timeoutMs) {
-    const response = await fetch(`https://mineru.net/api/v4/extract-results/batch/${batchId}`, {
+    const response = await fetchWithTimeout(`https://mineru.net/api/v4/extract-results/batch/${batchId}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: '*/*' },
+      timeoutMs: MINERU_REQUEST_TIMEOUT_MS,
     });
-    const result = await response.json();
+    const result = JSON.parse(await readResponseText(response));
     if (!response.ok || result.code !== 0) {
       throw new Error(`查询 MinerU 精准解析任务失败：HTTP ${response.status}，${JSON.stringify(result)}`);
     }
@@ -222,26 +232,29 @@ async function pollMineruAccurate(token, batchId, fileName) {
 
 async function uploadFile(fileUrl, filePath) {
   const buffer = await fs.readFile(filePath);
-  const response = await fetch(fileUrl, { method: 'PUT', body: buffer });
+  const safeUrl = assertRemoteHttpUrl(fileUrl, '解析服务返回了不安全的上传地址');
+  const response = await fetchWithTimeout(safeUrl, { method: 'PUT', body: buffer, timeoutMs: 120000 });
   if (!response.ok) {
-    throw new Error(`文件上传失败：HTTP ${response.status}，${await response.text()}`);
+    throw new Error(`文件上传失败：HTTP ${response.status}，${await readResponseText(response)}`);
   }
 }
 
 async function downloadText(url, fallbackMessage) {
-  const response = await fetch(url);
+  const safeUrl = assertRemoteHttpUrl(url, '解析服务返回了不安全的下载地址');
+  const response = await fetchWithTimeout(safeUrl, { timeoutMs: 120000 });
   if (!response.ok) {
     throw new Error(`${fallbackMessage}：HTTP ${response.status}`);
   }
-  return response.text();
+  return readResponseText(response, MINERU_TEXT_MAX_BYTES);
 }
 
 async function downloadBuffer(url) {
-  const response = await fetch(url);
+  const safeUrl = assertRemoteHttpUrl(url, '解析服务返回了不安全的下载地址');
+  const response = await fetchWithTimeout(safeUrl, { timeoutMs: 120000 });
   if (!response.ok) {
     throw new Error(`下载 MinerU 精准解析结果失败：HTTP ${response.status}`);
   }
-  return Buffer.from(await response.arrayBuffer());
+  return readResponseBuffer(response, MINERU_RESULT_MAX_BYTES);
 }
 
 async function extractMarkdownFromZip(zipBuffer, options = {}) {
@@ -345,17 +358,12 @@ function parseDataUrl(value) {
 }
 
 async function loadRemoteImage(url) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), remoteImageTimeoutMs);
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) return null;
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType && !/^image\//i.test(contentType)) return null;
-    return { buffer: Buffer.from(await response.arrayBuffer()), mime: contentType };
-  } finally {
-    clearTimeout(timeout);
-  }
+  const safeUrl = assertRemoteHttpUrl(url, '文档图片地址不安全');
+  const response = await fetchWithTimeout(safeUrl, { timeoutMs: remoteImageTimeoutMs });
+  if (!response.ok) return null;
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType && !/^image\//i.test(contentType)) return null;
+  return { buffer: await readResponseBuffer(response, 16 * 1024 * 1024), mime: contentType };
 }
 
 function findZipEntryImage(zipEntries, imagePath, markdownEntryName) {
@@ -602,6 +610,39 @@ function createFileService({ app, configStore } = {}) {
         parser_provider: parser.provider,
         parser_label: parserLabels[parser.provider] || '本地解析',
       };
+    },
+
+    async importRejectionCheckDocuments() {
+      const config = configStore ? configStore.load() : { file_parser: { provider: 'local' } };
+      const provider = config.file_parser?.provider || 'local';
+      const supportedExtensions = getSelectableExtensions(provider);
+      const result = await dialog.showOpenDialog({
+        title: '选择投标文件（可多选）',
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+          { name: parserLabels[provider] || '投标文件', extensions: [...supportedExtensions].map((item) => item.slice(1)) },
+          { name: '所有文件', extensions: ['*'] },
+        ],
+      });
+      if (result.canceled || !result.filePaths.length) return { success: false, message: '已取消选择' };
+      const documents = [];
+      for (const filePath of result.filePaths) {
+        const ext = path.extname(filePath).toLowerCase();
+        const parser = resolveFileParser(config, filePath);
+        if (!supportedExtensions.has(ext)) return { success: false, message: `当前${parserLabels[provider] || '解析方式'}不支持文件：${path.basename(filePath)}` };
+        try {
+          const content = (await parseDocumentWithConfig(app, filePath, config, { assetScope: 'rejection-check-bid', preserveImages: false })).trim();
+          if (!content) throw new Error('未提取到有效 Markdown 内容');
+          documents.push({
+            file_name: path.basename(filePath),
+            file_content: content,
+            parser_label: parserLabels[parser.provider] || '本地解析',
+          });
+        } catch (error) {
+          return { success: false, message: `${path.basename(filePath)}：${formatImportError(error, filePath)}` };
+        }
+      }
+      return { success: true, message: `已解析 ${documents.length} 份投标文件`, documents };
     },
 
     async selectDuplicateCheckFiles(options = {}) {

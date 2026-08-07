@@ -84,6 +84,14 @@ const tasks = [
 
 若没有明确技术评分表，请根据上下文判断技术评分相关内容。直接返回提取结果。`,
   },
+  {
+    id: 'responseFileRequirements', label: '响应文件要求', required: false, output: 'markdown', description: '提取响应文件组成、技术文件目录和编制要求。',
+    prompt: () => `任务：提取招标文件中的响应文件要求。
+
+重点识别“投标文件组成”“响应文件组成”“技术文件”“技术标文件”“技术方案目录”“投标文件编制要求”“文件格式和章节要求”等内容。
+
+只保留与技术文件、技术标、技术方案直接相关的组成目录和编制要求；不要提取报价文件、商务文件、资格证明、授权委托书、承诺函等非技术文件内容。保留原文顺序、章节名称、附件要求、格式要求和必须响应的重点。若原文没有明确响应文件目录，请明确写“原文未明确技术文件目录”。直接返回整理后的 Markdown。`,
+  },
   { id: 'projectInfo', label: '项目信息', required: true, output: 'json', description: '项目名称、编号、类型、预算和地址。', prompt: () => jsonTask('提取项目信息', '提取项目名称、项目编号、项目类型、项目预算、项目地址。', `{"project_name":"项目名称","project_number":"项目编号","project_type":"项目类型","project_budget":"项目预算","project_address":"项目地址"}`) },
   { id: 'partAInfo', label: '甲方信息', required: true, output: 'json', description: '招标人公司、地址、联系人和电话。', prompt: () => jsonTask('提取甲方信息', '提取公司名称、地址、联系人、联系电话。', `{"company_name":"公司名称","address":"地址","contact_person":"联系人","contact_phone":"联系电话"}`) },
   { id: 'deliveryAndServiceRequirements', label: '交货和服务要求', required: true, output: 'json', description: '实施周期、交付范围、地点、验收、质保、售后、响应、培训和文档要求。', prompt: () => jsonTask('提取交货和服务要求', '提取实施周期/工期/交付期限、交付范围、交付/实施地点、验收要求、质保期、售后服务要求、响应时限、培训要求、资料/文档交付要求。', `{"implementation_period":"实施周期/工期/交付期限","delivery_scope":"交付范围","delivery_location":"交付/实施地点","acceptance_requirements":"验收要求","warranty_period":"质保期","after_sales_service":"售后服务要求","response_time":"响应时限","training_requirements":"培训要求","documentation_requirements":"资料/文档交付要求"}`) },

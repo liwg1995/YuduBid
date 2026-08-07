@@ -1,6 +1,6 @@
 import type { ChatCompletionRequest, JsonCompletionRequest } from './ai';
 import type { DuplicateCheckWorkspaceState, FileSelectionResult } from './bid';
-import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelListResult } from './config';
+import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelCapabilityInfo, ModelListResult } from './config';
 import type { CodeGenerationSelectResult, CodeGenerationState } from '../../features/code-generation/types';
 import type { GrantApplicationPanel, GrantApplicationProfile, GrantApplicationProject, GrantApplicationProjectList, GrantApplicationState, GrantFormFieldMapping, GrantProposalModuleKey, GrantProposalTemplateMapping, GrantProposalVisualSettings, GrantTemplateFillReport } from '../../features/grant-application/types';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeItem } from '../../features/knowledge-base/types';
@@ -97,6 +97,17 @@ export interface UpdateProgressEvent {
   version?: string;
 }
 
+export type UsageTrendRange = '1h' | '6h' | '1d' | '7d' | '14d';
+
+export interface UsageStatsSummary {
+  version: number;
+  updated_at?: string | null;
+  totals: { requests: number; prompt_tokens: number; completion_tokens: number; reasoning_tokens: number; total_tokens: number };
+  daily: Array<{ date: string; requests: number; prompt_tokens: number; completion_tokens: number; reasoning_tokens: number; total_tokens: number }>;
+  trend: Array<{ date: string; requests: number; prompt_tokens: number; completion_tokens: number; reasoning_tokens: number; total_tokens: number }>;
+  by_model: Array<{ provider: string; model: string; requests: number; total_tokens: number }>;
+}
+
 export interface YuDuBidBridge {
   appName: string;
   platform: string;
@@ -117,12 +128,17 @@ export interface YuDuBidBridge {
     load: () => Promise<ClientConfig>;
     save: (config: ClientConfig) => Promise<ConfigSaveResult>;
     listModels: (config?: ClientConfig) => Promise<ModelListResult>;
+    getModelCapabilities: (config?: ClientConfig) => Promise<ModelCapabilityInfo>;
     openConfigFolder: () => Promise<{ success: boolean; path: string }>;
   };
   ai: {
     chat: (request: ChatCompletionRequest) => Promise<string>;
     requestJson: <TResult = unknown>(request: JsonCompletionRequest) => Promise<TResult>;
     testImageModel: (config: ClientConfig) => Promise<ImageModelTestResult>;
+  };
+  usageStats: {
+    getSummary: (range?: UsageTrendRange) => Promise<UsageStatsSummary>;
+    clear: () => Promise<{ success: boolean }>;
   };
   file: {
     selectDuplicateCheckFiles: (options?: { multiple?: boolean }) => Promise<FileSelectionResult>;
@@ -330,6 +346,7 @@ export interface YuDuBidBridge {
   rejectionCheck: {
     loadState: () => Promise<RejectionCheckWorkspaceState>;
     importDocument: (role: RejectionDocumentRole) => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
+    importBidDocuments: () => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
     importTenderFromTechnicalPlan: (payload?: { projectId?: string; project_id?: string }) => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
     importBidFromTechnicalPlan: () => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
     removeDocument: (role: RejectionDocumentRole) => Promise<RejectionCheckWorkspaceState>;

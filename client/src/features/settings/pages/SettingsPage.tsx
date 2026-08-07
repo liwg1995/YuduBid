@@ -3,10 +3,10 @@ import { useEffect, useState } from 'react';
 import { configurableFeatureModules } from '../../../app/menuConfig';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent } from '../../../shared/types';
+import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelCapabilityInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 
-type SettingsTab = 'general' | 'features' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'about';
+type SettingsTab = 'general' | 'features' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'usage' | 'about';
 type ReleaseDownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'installing' | 'error';
 
 interface ReleaseDownloadState {
@@ -31,6 +31,7 @@ const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'file-parser', label: '文件解析' },
   { id: 'features', label: '功能管理' },
   { id: 'skills', label: '技能管理' },
+  { id: 'usage', label: '用量统计' },
   { id: 'about', label: '关于' },
 ];
 
@@ -92,10 +93,15 @@ const textProviderDefaults: TextModelProfiles = {
   'agnes-ai-global': { api_key: '', base_url: agnesAiGlobalBaseUrl, model_name: 'agnes-2.5-flash' },
   volcengine: { api_key: '', base_url: 'https://ark.cn-beijing.volces.com/api/v3', model_name: '' },
   xiaomi: { api_key: '', base_url: 'https://token-plan-cn.xiaomimimo.com/v1', model_name: '' },
-  deepseek: { api_key: '', base_url: 'https://api.deepseek.com', model_name: '' },
-  longcat: { api_key: '', base_url: 'https://api.longcat.chat/openai/v1', model_name: '' },
+  deepseek: { api_key: '', base_url: 'https://api.deepseek.com', model_name: 'deepseek-v4-flash' },
+  longcat: { api_key: '', base_url: 'https://api.longcat.chat/openai/v1', model_name: 'LongCat-2.0' },
   custom: { api_key: '', base_url: '', model_name: '' },
 };
+
+const agnesTextModelNames = ['agnes-2.5-flash', 'agnes-2.0-flash', 'agnes-2.5-pro', 'agnes-2.5-pro-alpha'];
+const agnesImageModelNames = ['agnes-image-2.1-flash', 'agnes-image-2.0-flash'];
+const deepseekTextModelNames = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+const longcatTextModelNames = ['LongCat-2.0'];
 
 const textProviderApiKeyUrls: Partial<Record<TextModelProvider, string>> = {
   'agnes-ai-cn': agnesAiCnRegisterUrl,
@@ -113,13 +119,31 @@ function createDefaultTextModelProfiles(): TextModelProfiles {
   }), {} as TextModelProfiles);
 }
 
+function getAgnesTextModels(provider: TextModelProvider): string[] {
+  return provider === 'agnes-ai-cn' || provider === 'agnes-ai-global' ? [...agnesTextModelNames] : [];
+}
+
+function getBuiltInTextModels(provider: TextModelProvider): string[] {
+  if (provider === 'deepseek') return [...deepseekTextModelNames];
+  if (provider === 'longcat') return [...longcatTextModelNames];
+  return getAgnesTextModels(provider);
+}
+
+function supportsThinkingSettings(provider: TextModelProvider): boolean {
+  return provider === 'agnes-ai-cn' || provider === 'agnes-ai-global' || provider === 'deepseek' || provider === 'longcat';
+}
+
+function getAgnesImageModels(provider: ImageModelProvider): string[] {
+  return provider === 'agnes-ai-cn' || provider === 'agnes-ai-global' ? [...agnesImageModelNames] : [];
+}
+
 function normalizeTextModelProfile(provider: TextModelProvider, profile?: Partial<TextModelConfig>): TextModelConfig {
   const defaults = textProviderDefaults[provider];
   const baseUrl = provider === 'custom' ? profile?.base_url ?? defaults.base_url : defaults.base_url;
   return {
     api_key: profile?.api_key ?? defaults.api_key,
     base_url: provider === 'xiaomi' && baseUrl === oldXiaomiBaseUrl ? defaults.base_url : baseUrl,
-    model_name: provider.startsWith('agnes-ai-') && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
+    model_name: profile?.model_name || defaults.model_name,
   };
 }
 
@@ -194,6 +218,8 @@ const imageProviderDefaults: ImageModelProfiles = {
     base_url: agnesAiCnBaseUrl,
     api_key: '',
     model_name: 'agnes-image-2.1-flash',
+    size: '2K',
+    ratio: '1:1',
     status: 'untested',
     tested_at: '',
     last_error: '',
@@ -203,6 +229,8 @@ const imageProviderDefaults: ImageModelProfiles = {
     base_url: agnesAiGlobalBaseUrl,
     api_key: '',
     model_name: 'agnes-image-2.1-flash',
+    size: '2K',
+    ratio: '1:1',
     status: 'untested',
     tested_at: '',
     last_error: '',
@@ -326,6 +354,8 @@ function normalizeImageModelProfile(provider: ImageModelProvider, profile?: Part
     base_url: provider === 'custom' ? profile?.base_url ?? defaults.base_url : defaults.base_url,
     api_key: profile?.api_key ?? defaults.api_key,
     model_name: provider.startsWith('agnes-ai-') && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
+    size: profile?.size ?? defaults.size,
+    ratio: profile?.ratio ?? defaults.ratio,
     status: profile?.status ?? defaults.status,
     tested_at: profile?.tested_at ?? defaults.tested_at,
     last_error: profile?.last_error ?? defaults.last_error,
@@ -345,6 +375,8 @@ function imageProfileFromState(imageModel: ImageModelConfig): ImageModelConfig {
     base_url: imageModel.provider === 'custom' ? imageModel.base_url || '' : imageProviderDefaults[imageModel.provider].base_url,
     api_key: imageModel.api_key,
     model_name: imageModel.model_name,
+    size: imageModel.size,
+    ratio: imageModel.ratio,
     status: imageModel.status || 'untested',
     tested_at: imageModel.tested_at || '',
     last_error: imageModel.last_error || '',
@@ -445,6 +477,11 @@ const initialState: SettingsPageState = {
     ...textProviderDefaults['agnes-ai-cn'],
   },
   textModelProfiles: createDefaultTextModelProfiles(),
+  textModelOptions: {
+    thinking_enabled: false,
+    thinking_budget_tokens: 2048,
+    thinking_effort: 'high',
+  },
   imageModel: {
     ...imageProviderDefaults['agnes-ai-cn'],
   },
@@ -512,6 +549,31 @@ interface SettingsPageProps {
   onFeatureModuleSettingsChange?: (settings: FeatureModuleSettings) => void;
 }
 
+function UsageTrendChart({ trend, range }: { trend: UsageStatsSummary['trend']; range: UsageTrendRange }) {
+  const points = trend.length ? trend : Array.from({ length: 7 }, (_, index) => ({ date: `--${String(index + 1).padStart(2, '0')}`, requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, total_tokens: 0 }));
+  const width = 760;
+  const height = 230;
+  const padding = { top: 18, right: 24, bottom: 34, left: 42 };
+  const maxValue = Math.max(1, ...points.map((item) => Number(item.total_tokens || 0)));
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const coordinate = (value: number, index: number) => ({
+    x: padding.left + (points.length === 1 ? chartWidth / 2 : (index / (points.length - 1)) * chartWidth),
+    y: padding.top + chartHeight - (value / maxValue) * chartHeight,
+  });
+  const line = points.map((item, index) => coordinate(Number(item.total_tokens || 0), index)).map((point, index) => `${index ? 'L' : 'M'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
+  return (
+    <div className="usage-trend-card">
+      <div className="usage-trend-head"><div><strong>{({ '1h': '近 1 小时', '6h': '近 6 小时', '1d': '近 1 天', '7d': '近 7 天', '14d': '近 14 天' } as Record<UsageTrendRange, string>)[range]} Token 趋势</strong><span>{range === '1h' ? '按 5 分钟聚合' : range === '6h' || range === '1d' ? '按小时聚合' : '按每日聚合'}</span></div><em>峰值 {maxValue.toLocaleString()}</em></div>
+      <svg className="usage-trend-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="近十四天 Token 使用趋势">
+        {[0, 0.5, 1].map((ratio) => { const y = padding.top + chartHeight * ratio; return <line key={ratio} x1={padding.left} x2={width - padding.right} y1={y} y2={y} className="usage-trend-grid" />; })}
+        <path d={line} className="usage-trend-line" />
+        {points.map((item, index) => { const point = coordinate(Number(item.total_tokens || 0), index); return <g key={item.date}><circle cx={point.x} cy={point.y} r="4" className="usage-trend-point" /><text x={point.x} y={height - 10} textAnchor="middle" className="usage-trend-label">{item.date.slice(5)}</text></g>; })}
+      </svg>
+    </div>
+  );
+}
+
 function getInitialSettingsTab(): SettingsTab {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS_TAB;
   const storedTab = window.localStorage.getItem(SETTINGS_ACTIVE_TAB_KEY) as SettingsTab | null;
@@ -524,6 +586,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialSettingsTab);
   const [savedConfig, setSavedConfig] = useState<ClientConfig | null>(null);
   const [textModels, setTextModels] = useState<string[]>([]);
+  const [textModelCapabilities, setTextModelCapabilities] = useState<ModelCapabilityInfo | null>(null);
   const [imageModels, setImageModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState<'text' | 'image' | null>(null);
   const [testingTextModel, setTestingTextModel] = useState(false);
@@ -535,12 +598,28 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
   const [agnesNoticeOpen, setAgnesNoticeOpen] = useState(false);
   const [releaseDownloadState, setReleaseDownloadState] = useState<ReleaseDownloadState>(() => createInitialReleaseDownloadState());
+  const [usageStats, setUsageStats] = useState<UsageStatsSummary | null>(null);
+  const [usageRange, setUsageRange] = useState<UsageTrendRange>('14d');
   const { showToast } = useToast();
 
   useEffect(() => {
     void loadTextConfig();
     void window.yibiao?.getVersion().then(setAppVersion);
   }, []);
+
+  useEffect(() => {
+    void window.yibiao?.usageStats?.getSummary(usageRange).then(setUsageStats).catch(() => undefined);
+  }, [usageRange]);
+
+  const clearUsageStats = async () => {
+    try {
+      await window.yibiao?.usageStats?.clear();
+      setUsageStats(await window.yibiao?.usageStats?.getSummary(usageRange) || null);
+      showToast('本地用量统计已清空', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '清空用量统计失败', 'error');
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = window.yibiao?.onUpdateProgress?.((event: UpdateProgressEvent) => {
@@ -589,6 +668,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           ...activeTextProfile,
         },
         textModelProfiles,
+        textModelOptions: {
+          thinking_enabled: Boolean(config.text_model_options?.thinking_enabled),
+          thinking_budget_tokens: Number(config.text_model_options?.thinking_budget_tokens || 2048),
+          thinking_effort: config.text_model_options?.thinking_effort === 'max' ? 'max' : 'high',
+        },
         imageModel: activeImageProfile,
         imageModelProfiles,
         fileParser: {
@@ -602,6 +686,8 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
         },
       }));
       setSavedConfig(config);
+      setTextModels(getBuiltInTextModels(config.text_model_provider));
+      setImageModels(getAgnesImageModels(activeImageProfile.provider));
       onDeveloperModeChange?.(Boolean(config.developer_mode));
       onFeatureModuleSettingsChange?.(featureModuleSettings);
     } catch (error) {
@@ -629,6 +715,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     return {
       text_model_provider: state.textModel.provider,
       text_model_profiles: textModelProfiles,
+      text_model_options: state.textModelOptions,
       api_key: activeTextProfile.api_key,
       base_url: activeTextProfile.base_url,
       model_name: activeTextProfile.model_name,
@@ -840,7 +927,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   };
 
   const updateImageModelProvider = (provider: ImageModelProvider) => {
-    setImageModels([]);
+    setImageModels(getAgnesImageModels(provider));
     setImageTestPreview(null);
     setState((prev) => ({
       ...prev,
@@ -882,7 +969,8 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   };
 
   const updateTextModelProvider = (provider: TextModelProvider) => {
-    setTextModels([]);
+    setTextModels(getBuiltInTextModels(provider));
+    setTextModelCapabilities(null);
     setState((prev) => ({
       ...prev,
       textModelProfiles: {
@@ -899,6 +987,9 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const updateTextModelConfig = (partial: Partial<TextModelConfig>, options: { clearModels?: boolean } = {}) => {
     if (options.clearModels) {
       setTextModels([]);
+    }
+    if (partial.base_url !== undefined || partial.api_key !== undefined || partial.model_name !== undefined) {
+      setTextModelCapabilities(null);
     }
 
     setState((prev) => ({
@@ -1123,7 +1214,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     try {
       setLoadingModels('text');
       const result = await window.yibiao?.config.listModels(createClientConfig());
-      const models = result?.models || [];
+      const models = result?.models?.length ? result.models : getBuiltInTextModels(state.textModel.provider);
       setTextModels(models);
       if (result?.success && models.length > 0) {
         setState((prev) => ({
@@ -1147,6 +1238,17 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       showToast(error instanceof Error ? error.message : '获取文本模型失败', 'error');
     } finally {
       setLoadingModels(null);
+    }
+  };
+
+  const fetchTextModelCapabilities = async () => {
+    try {
+      setTextModelCapabilities(null);
+      const result = await window.yibiao?.config.getModelCapabilities(createClientConfig());
+      if (result) setTextModelCapabilities(result);
+      showToast(result?.message || '未获取到模型能力信息', result?.success ? 'success' : 'info');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '探测模型能力失败', 'error');
     }
   };
 
@@ -1178,7 +1280,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           base_url: baseUrl,
           model_name: state.imageModel.model_name,
         });
-        const models = result?.models || [];
+        const models = result?.models?.length ? result.models : getAgnesImageModels(state.imageModel.provider);
         setImageModels(models);
         if (result?.success && models.length > 0) {
           setState((prev) => ({
@@ -1553,8 +1655,78 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                   {testingTextModel && <span className="inline-spinner" aria-hidden="true" />}
                   {testingTextModel ? '测试中' : '测试'}
                 </button>
+                <button type="button" className="inline-action" onClick={() => { void fetchTextModelCapabilities(); }}>
+                  探测能力
+                </button>
               </div>
+              {textModelCapabilities && (
+                <div className="model-capability-summary">
+                  <span className="model-capability-source">{textModelCapabilities.source === 'remote' ? '远程信息' : textModelCapabilities.source === 'cache' ? '本地缓存' : textModelCapabilities.known ? '官方信息' : '基础信息'}</span>
+                  {textModelCapabilities.contextLength ? <span>上下文 {textModelCapabilities.contextLength.toLocaleString()} tokens</span> : null}
+                  {textModelCapabilities.maxOutputTokens ? <span>最大输出 {textModelCapabilities.maxOutputTokens.toLocaleString()} tokens</span> : null}
+                  {textModelCapabilities.supportsVision ? <span>支持视觉</span> : null}
+                  {textModelCapabilities.supportsThinking ? <span>支持思考</span> : null}
+                  {textModelCapabilities.supportsJsonMode ? <span>支持 JSON</span> : null}
+                  {!textModelCapabilities.contextLength && !textModelCapabilities.maxOutputTokens && !textModelCapabilities.supportsVision && !textModelCapabilities.supportsThinking && !textModelCapabilities.supportsJsonMode ? <span>服务商未返回标准能力字段，现有生成逻辑不受影响</span> : null}
+                </div>
+              )}
             </label>
+            {supportsThinkingSettings(state.textModel.provider) && (
+              <label className="settings-row">
+                <div className="settings-row-copy">
+                  <strong>Thinking 模式与推理设置</strong>
+                  <span>{state.textModel.provider === 'deepseek' ? 'DeepSeek 使用 High / Max 推理强度；开启后会增加推理时间和 Token 消耗。' : state.textModel.provider === 'longcat' ? 'LongCat 使用 Thinking 开关，由模型自动控制推理预算。' : 'Agnes 开启后使用更深度的推理 Token 预算，默认关闭。'}</span>
+                </div>
+                <div className="settings-control-with-action thinking-settings-control">
+                  <select
+                    value={state.textModelOptions.thinking_enabled ? 'enabled' : 'disabled'}
+                    onChange={(event) => setState((prev) => ({
+                      ...prev,
+                      textModelOptions: { ...prev.textModelOptions, thinking_enabled: event.target.value === 'enabled' },
+                    }))}
+                  >
+                    <option value="disabled">关闭</option>
+                    <option value="enabled">开启</option>
+                  </select>
+                  {state.textModel.provider === 'deepseek' ? (
+                    <select
+                      value={state.textModelOptions.thinking_effort || 'high'}
+                      onChange={(event) => setState((prev) => ({
+                        ...prev,
+                        textModelOptions: { ...prev.textModelOptions, thinking_effort: event.target.value === 'max' ? 'max' : 'high' },
+                      }))}
+                      disabled={!state.textModelOptions.thinking_enabled}
+                      aria-label="DeepSeek 推理强度"
+                    >
+                      <option value="high">High</option>
+                      <option value="max">Max</option>
+                    </select>
+                  ) : state.textModel.provider === 'longcat' ? (
+                    <span className="thinking-settings-note">模型自动控制</span>
+                  ) : (
+                    <div className="thinking-budget-field">
+                    <input
+                      type="number"
+                      min={256}
+                      max={65536}
+                      step={256}
+                      value={state.textModelOptions.thinking_budget_tokens}
+                      onChange={(event) => setState((prev) => ({
+                        ...prev,
+                        textModelOptions: {
+                          ...prev.textModelOptions,
+                          thinking_budget_tokens: Math.max(256, Math.min(65536, Number(event.target.value) || 2048)),
+                        },
+                      }))}
+                      disabled={!state.textModelOptions.thinking_enabled}
+                      aria-label="Thinking 推理 Token 预算"
+                    />
+                    <span>Token</span>
+                    </div>
+                  )}
+                </div>
+              </label>
+            )}
           </div>
         </section>
       )}
@@ -1679,6 +1851,31 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 </button>
               </div>
             </label>
+            {(state.imageModel.provider === 'agnes-ai-cn' || state.imageModel.provider === 'agnes-ai-global') && (
+              <label className="settings-row">
+                <div className="settings-row-copy">
+                  <strong>输出质量与比例</strong>
+                  <span>Agnes Image 2.1 使用质量档位与宽高比；Image 2.0 会继续使用兼容尺寸。</span>
+                </div>
+                <div className="settings-control-with-action image-generation-options-control">
+                  <select
+                    value={state.imageModel.size || '2K'}
+                    onChange={(event) => updateImageModelConfig({ size: event.target.value })}
+                  >
+                    <option value="1K">1K</option>
+                    <option value="2K">2K</option>
+                    <option value="3K">3K</option>
+                    <option value="4K">4K</option>
+                  </select>
+                  <select
+                    value={state.imageModel.ratio || '1:1'}
+                    onChange={(event) => updateImageModelConfig({ ratio: event.target.value })}
+                  >
+                    {['1:1', '16:9', '9:16', '4:3', '3:4', '2:3', '3:2', '21:9'].map((ratio) => <option value={ratio} key={ratio}>{ratio}</option>)}
+                  </select>
+                </div>
+              </label>
+            )}
           </div>
           {imageTestPreview && (
             <div className="image-test-preview">
@@ -1869,6 +2066,42 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               </label>
             </article>
           </div>
+        </section>
+      )}
+
+      {activeTab === 'usage' && (
+        <section className="settings-page-section usage-stats-section">
+          <div className="settings-section-title usage-section-title">
+            <span />
+            <strong>本地用量统计</strong>
+            <button type="button" className="inline-action usage-clear-action" onClick={() => void clearUsageStats()} disabled={!usageStats?.totals.requests}>清空本地统计</button>
+          </div>
+          <div className="feature-manager-note">仅统计本机通过客户端完成的文本模型请求，不上传到任何远程统计服务；服务商未返回 Token 时不会估算。</div>
+          <div className="usage-kpi-grid">
+            {[
+              ['请求次数', '已完成文本请求', usageStats?.totals.requests || 0],
+              ['输入 Token', '提示词和上下文', usageStats?.totals.prompt_tokens || 0],
+              ['输出 Token', '模型返回内容', usageStats?.totals.completion_tokens || 0],
+              ['总 Token', '输入与输出合计', usageStats?.totals.total_tokens || 0],
+            ].map(([label, description, value]) => <article className="usage-kpi-card" key={String(label)}><span>{label}</span><strong>{Number(value).toLocaleString()}</strong><small>{description}</small></article>)}
+          </div>
+          <div className="usage-range-control">
+            <label htmlFor="usage-trend-range">趋势范围</label>
+            <select id="usage-trend-range" value={usageRange} onChange={(event) => setUsageRange(event.target.value as UsageTrendRange)}>
+              <option value="1h">近 1 小时</option>
+              <option value="6h">近 6 小时</option>
+              <option value="1d">近 1 天</option>
+              <option value="7d">近 7 天</option>
+              <option value="14d">近 14 天</option>
+            </select>
+          </div>
+          <UsageTrendChart trend={usageStats?.trend || []} range={usageRange} />
+          <div className="usage-thinking-note">Thinking Token：{(usageStats?.totals.reasoning_tokens || 0).toLocaleString()}（仅服务商返回该字段时统计）</div>
+          {usageStats?.by_model?.length ? (
+            <div className="settings-list">
+              {usageStats.by_model.map((item) => <div className="settings-row" key={`${item.provider}-${item.model}`}><div className="settings-row-copy"><strong>{item.model}</strong><span>{item.provider} · {item.requests} 次请求</span></div><strong>{item.total_tokens.toLocaleString()} Token</strong></div>)}
+            </div>
+          ) : <div className="parser-note">暂无已记录的文本模型用量。</div>}
         </section>
       )}
 

@@ -3,7 +3,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const { getWorkspaceDatabasePath } = require('../utils/paths.cjs');
 
-const schemaVersion = 7;
+const schemaVersion = 8;
 
 function createInitialSchema(db) {
   db.exec(`
@@ -402,6 +402,7 @@ function createRejectionCheckSchema(db) {
       input_signature TEXT,
       active_finding_id TEXT,
       progress_message TEXT,
+      compliance_matrix_json TEXT,
       error TEXT,
       updated_at TEXT
     );
@@ -663,6 +664,10 @@ function createRejectionCheckTechnicalPlanSourceSchema(db) {
   addColumnIfMissing(db, 'rejection_check_documents', 'source_project_id', 'TEXT');
 }
 
+function createRejectionCheckComplianceSchema(db) {
+  addColumnIfMissing(db, 'rejection_check_results', 'compliance_matrix_json', 'TEXT');
+}
+
 const migrations = [
   {
     version: 1,
@@ -698,6 +703,11 @@ const migrations = [
     version: 7,
     description: '记录废标项检查文档关联的技术方案项目',
     up: createRejectionCheckTechnicalPlanSourceSchema,
+  },
+  {
+    version: 8,
+    description: '新增废标检查符合性矩阵',
+    up: createRejectionCheckComplianceSchema,
   },
 ];
 

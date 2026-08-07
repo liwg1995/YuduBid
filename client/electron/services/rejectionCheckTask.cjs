@@ -156,6 +156,16 @@ JSON 格式：
       "riskReason": "为什么该证据可能构成无效标或废标项风险",
       "suggestion": "建议用户如何处理或复核"
     }
+  ],
+  "complianceMatrix": [
+    {
+      "requirement": "招标文件中的可核查要求",
+      "response": "投标文件中的响应概述",
+      "evidence": "章节、文件名或原文摘录",
+      "status": "met",
+      "risk": "未满足或需要复核时填写",
+      "sourceFile": "对应投标文件名"
+    }
   ]
 }
 
@@ -231,6 +241,27 @@ function normalizeRejectionCheckFindings(parsed) {
       };
     })
     .filter((item) => item.title && item.bidEvidence && item.riskReason);
+}
+
+function normalizeComplianceMatrix(parsed) {
+  return getArrayPayload(parsed, ['complianceMatrix', 'compliance_matrix', 'matrix'])
+    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => {
+      const rawStatus = normalizeText(item.status).toLowerCase();
+      const status = rawStatus === 'met' || rawStatus.includes('满足') ? 'met'
+        : rawStatus === 'partial' || rawStatus.includes('部分') ? 'partial'
+          : rawStatus === 'missing' || rawStatus.includes('缺') ? 'missing' : 'unclear';
+      return {
+        id: normalizeText(item.id) || createId('compliance'),
+        requirement: normalizeText(item.requirement || item.requirementText),
+        response: normalizeText(item.response || item.bidResponse),
+        evidence: normalizeText(item.evidence || item.bidEvidence),
+        status,
+        risk: normalizeText(item.risk || item.riskReason),
+        sourceFile: normalizeText(item.sourceFile || item.fileName || item.file_name),
+      };
+    })
+    .filter((item) => item.requirement && item.evidence);
 }
 
 function findVerifiedTypoPosition(bidContent, wrongText, originalExcerpt) {
@@ -340,6 +371,7 @@ async function runRejectionItemCheck(aiService, input, onProgress) {
   const segments = splitUserTextByContextLimit(input.bidContent);
   if (segments.length > 1) {
     const findings = [];
+    const complianceMatrix = [];
     for (let index = 0; index < segments.length; index += 1) {
       const segmentInput = { ...input, bidContent: `【投标文件分段 ${index + 1}/${segments.length}】\n${segments[index]}` };
       onProgress(`正在检查投标文件第 ${index + 1}/${segments.length} 段。`);
@@ -363,15 +395,16 @@ async function runRejectionItemCheck(aiService, input, onProgress) {
         failureMessage: '废标项检查结果格式无效，请重新检查',
       }, onProgress, `第 ${index + 1} 段定稿`);
       findings.push(...normalizeRejectionCheckFindings(payload));
+      complianceMatrix.push(...normalizeComplianceMatrix(payload));
     }
 
     const seen = new Set();
-    return findings.filter((item) => {
+    return { findings: findings.filter((item) => {
       const key = `${item.type}\u0000${item.title}\u0000${item.bidEvidence}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    });
+    }), complianceMatrix };
   }
 
   onProgress('第一轮：正在分析检查范围。');
@@ -396,7 +429,7 @@ async function runRejectionItemCheck(aiService, input, onProgress) {
     progressLabel: '废标项检查结果',
     failureMessage: '废标项检查结果格式无效，请重新检查',
   }, onProgress, '第三轮定稿');
-  return normalizeRejectionCheckFindings(payload);
+  return { findings: normalizeRejectionCheckFindings(payload), complianceMatrix: normalizeComplianceMatrix(payload) };
 }
 
 async function runTypoCheck(aiService, input, onProgress) {
@@ -599,14 +632,17 @@ async function runRejectionCheckTask({ aiService, workspaceStore, updateTask, pa
 
   async function runOne(kind, label, runner, resultKey, inputSignature) {
     try {
-      const findings = await runner((message) => {
+      const runnerResult = await runner((message) => {
         updateOverall(`${label}：${message}`, { [resultKey]: createRunningResult(inputSignature, message) });
       });
+      const findings = Array.isArray(runnerResult) ? runnerResult : runnerResult.findings || [];
+      const complianceMatrix = Array.isArray(runnerResult) ? undefined : runnerResult.complianceMatrix;
       completed += 1;
       updateOverall(`${label}完成。`, {
         [resultKey]: {
           status: 'success',
           findings,
+          ...(resultKey === 'rejectionCheckResult' ? { complianceMatrix: complianceMatrix || [] } : {}),
           inputSignature,
           activeFindingId: findings[0]?.id,
           progressMessage: findings.length ? `${label}发现 ${findings.length} 项` : `${label}未发现问题`,

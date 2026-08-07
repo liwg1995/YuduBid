@@ -9,7 +9,7 @@ export interface OutlineItem {
   content?: string;
 }
 
-export type OutlineMode = 'free' | 'aligned';
+export type OutlineMode = 'free' | 'aligned' | 'response-file';
 
 export interface OutlineData {
   outline: OutlineItem[];

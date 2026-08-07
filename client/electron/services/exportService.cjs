@@ -1,6 +1,5 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const zlib = require('node:zlib');
 const { fileURLToPath } = require('node:url');
 const { app, dialog, nativeImage, shell } = require('electron');
 const AdmZip = require('adm-zip');
@@ -8,6 +7,9 @@ const cheerio = require('cheerio');
 const { imageSize } = require('image-size');
 const { createCanvas, GlobalFonts, loadImage: loadCanvasImage } = require('@napi-rs/canvas');
 const { getGeneratedImagesDir, getImportedImagesDir } = require('../utils/paths.cjs');
+const { createLocalImageRenderService } = require('./localImageRenderService.cjs');
+const { assertRemoteHttpUrl, fetchWithTimeout, readResponseBuffer } = require('../utils/secureHttp.cjs');
+const localImageRenderService = createLocalImageRenderService();
 const {
   AlignmentType,
   BorderStyle,
@@ -42,9 +44,6 @@ const MAX_IMAGE_WIDTH = 520;
 const NUMBERING_REFERENCE_PREFIX = 'technical-plan-numbering';
 const DOCX_TABLE_WIDTH_TWIPS = 9000;
 const REMOTE_IMAGE_FETCH_TIMEOUT_MS = 12000;
-const MERMAID_EXPORT_FETCH_TIMEOUT_MS = 8000;
-const MERMAID_EXPORT_RETRY_ATTEMPTS = 6;
-const MERMAID_EXPORT_RETRY_DELAY_MS = 1000;
 const WORD_OPTIMIZATION_HEADING_REFERENCE = 'word-optimization-heading-numbering';
 const WORD_OPTIMIZATION_IMAGE_MAX_WIDTH = 520;
 const WORD_OPTIMIZATION_IMAGE_MAX_HEIGHT = 620;
@@ -58,18 +57,6 @@ const WORD_TWO_CHARS_TWIPS = 480;
 const PROJECT_MANAGEMENT_TABLE_FONT_SIZE = 24;
 const CANVAS_CJK_FONT_ALIAS = 'YibiaoCJK';
 let canvasCjkFontsRegistered = false;
-
-function encodeMermaidForInk(code) {
-  const state = JSON.stringify({
-    code: String(code || ''),
-    mermaid: { theme: 'default' },
-  });
-  return `pako:${zlib.deflateSync(Buffer.from(state, 'utf-8')).toString('base64url')}`;
-}
-
-function mermaidInkUrl(code) {
-  return `https://mermaid.ink/img/${encodeMermaidForInk(code)}?type=png&bgColor=!white`;
-}
 
 function horizontalizeMermaidForProjectManagement(code) {
   const source = String(code || '');
@@ -123,24 +110,13 @@ function delay(ms) {
 }
 
 async function fetchImageWithTimeout(url, timeoutMs = REMOTE_IMAGE_FETCH_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Math.max(1000, Number(timeoutMs) || REMOTE_IMAGE_FETCH_TIMEOUT_MS));
-
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) {
-      return { response, arrayBuffer: null };
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    return { response, arrayBuffer };
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw new Error(`请求超时，已等待 ${Math.round((Number(timeoutMs) || REMOTE_IMAGE_FETCH_TIMEOUT_MS) / 1000)} 秒`);
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
+  const safeUrl = assertRemoteHttpUrl(url, '导出图片地址不安全');
+  const response = await fetchWithTimeout(safeUrl, {
+    timeoutMs: Math.max(1000, Number(timeoutMs) || REMOTE_IMAGE_FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) return { response, arrayBuffer: null };
+  const buffer = await readResponseBuffer(response, 16 * 1024 * 1024);
+  return { response, arrayBuffer: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) };
 }
 
 function clampPercent(value) {
@@ -1713,7 +1689,7 @@ async function imageRunFromNode(node, context, options = {}) {
     const detail = compactText(error.message || '下载失败', 120);
     const warning = `图片无法导出：${imageLabel}，${detail}`;
     const message = isMermaidImage
-      ? `图片无法导出：Mermaid 图，远程转换服务暂时不可用，已重试 ${MERMAID_EXPORT_RETRY_ATTEMPTS} 次。可重新导出，或点击打开远程图片链接手动插入。远程链接：${compactText(node.url || '', 96)}`
+      ? `图片无法导出：Mermaid 图，图片数据不可用。请重新导出或检查图表内容。`
       : warning;
     addWarning(context, warning);
     if (isMermaidImage && /^https?:\/\//i.test(String(node.url || ''))) {
@@ -2448,20 +2424,18 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
       if (String(node.lang || '').toLowerCase() === 'mermaid') {
         const nextIndex = (context.convertedMermaidCount || 0) + 1;
         const total = context.stats?.mermaidCount || nextIndex;
-        reportConversionProgress(context, `正在转换 Mermaid 图 ${nextIndex}/${total}，失败时最多重试 ${MERMAID_EXPORT_RETRY_ATTEMPTS} 次。`);
+        reportConversionProgress(context, `正在本地转换 Mermaid 图 ${nextIndex}/${total}。`);
         const mermaidCode = context.projectManagementDocumentEnabled
           ? normalizeMermaidForProjectManagementExport(node.value)
           : node.value;
-        blocks.push(await imageParagraphFromSource(mermaidInkUrl(mermaidCode), 'Mermaid 图', context, {
-          loadRetry: {
-            timeoutMs: MERMAID_EXPORT_FETCH_TIMEOUT_MS,
-            retryAttempts: MERMAID_EXPORT_RETRY_ATTEMPTS,
-            retryDelayMs: MERMAID_EXPORT_RETRY_DELAY_MS,
-            onRetry: (attempt) => {
-              reportConversionProgress(context, `Mermaid 图 ${nextIndex}/${total} 转换超时或失败，正在第 ${attempt}/${MERMAID_EXPORT_RETRY_ATTEMPTS} 次重试。`);
-            },
-          },
-        }));
+        try {
+          const imageDataUrl = await localImageRenderService.renderMermaidToDataUrl(mermaidCode);
+          blocks.push(await imageParagraphFromSource(imageDataUrl, 'Mermaid 图', context));
+        } catch (error) {
+          const message = `图片无法导出：Mermaid 图，本地渲染失败：${compactText(error?.message || '未知错误', 120)}`;
+          addWarning(context, message);
+          blocks.push(textRun(`[${message}]`, { color: 'C83220' }));
+        }
         if (optimized) {
           blocks.push(createCaptionParagraph(context, 'figure', `Mermaid 图 ${nextIndex}`, 'Mermaid 图'));
         }

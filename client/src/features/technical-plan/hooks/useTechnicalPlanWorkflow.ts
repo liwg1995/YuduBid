@@ -10,6 +10,7 @@ function createInitialState(workflowKind: TechnicalPlanWorkflowKind): TechnicalP
     originalPlanFile: null,
     projectOverview: '',
     techRequirements: '',
+    responseFileRequirements: '',
     bidAnalysisMode: 'key',
     bidAnalysisTasks: {},
     bidAnalysisProgress: 0,

@@ -48,17 +48,19 @@ export type {
   ImageModelProvider,
   ImageModelProfiles,
   ImageModelStatus,
+  ModelCapabilityInfo,
   ModelListResult,
   SkillConfig,
   SkillId,
   SkillSettings,
   TextModelConfig,
+  TextModelOptions,
   TextModelProvider,
   TextModelProfiles,
 } from './config';
 export type { AppMenuGroup, AppMenuItem, SectionId } from './navigation';
 export type { OutlineData, OutlineItem, OutlineMode, TechnicalRequirementGroup } from './outline';
-export type { LatestReleaseInfo, ReleaseInstallerDownloadRequest, ReleaseInstallerDownloadResult, UpdateCheckResult, UpdateProgressEvent, WordExportProgressEvent, WordExportResult, YuDuBidBridge } from './ipc';
+export type { LatestReleaseInfo, ReleaseInstallerDownloadRequest, ReleaseInstallerDownloadResult, UpdateCheckResult, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange, WordExportProgressEvent, WordExportResult, YuDuBidBridge } from './ipc';
 export type {
   SoftwareCopyrightAnalysis,
   SoftwareCopyrightAnalysisFile,

@@ -43,12 +43,12 @@ const defaultTextModelProfiles = {
   deepseek: {
     api_key: '',
     base_url: textProviderBaseUrls.deepseek,
-    model_name: '',
+    model_name: 'deepseek-v4-flash',
   },
   longcat: {
     api_key: '',
     base_url: textProviderBaseUrls.longcat,
-    model_name: '',
+    model_name: 'LongCat-2.0',
   },
   custom: {
     api_key: '',
@@ -111,6 +111,11 @@ const defaultConfig = {
   api_key: '',
   base_url: textProviderBaseUrls['agnes-ai-cn'],
   model_name: defaultTextModelProfiles['agnes-ai-cn'].model_name,
+  text_model_options: {
+    thinking_enabled: false,
+    thinking_budget_tokens: 2048,
+    thinking_effort: 'high',
+  },
   image_model: {
     ...defaultImageModelProfiles['agnes-ai-cn'],
   },
@@ -138,6 +143,7 @@ const defaultConfig = {
     }), {}),
   },
   developer_mode: false,
+  model_capabilities_cache: {},
 };
 
 function isTextModelProvider(value) {
@@ -165,7 +171,7 @@ function normalizeTextModelProfile(provider, profile) {
   return {
     api_key: source.api_key !== undefined ? source.api_key : defaults.api_key,
     base_url: provider === 'xiaomi' && sourceBaseUrl === oldXiaomiBaseUrl ? defaults.base_url : sourceBaseUrl,
-    model_name: provider.startsWith('agnes-ai-') && !source.model_name
+    model_name: (provider.startsWith('agnes-ai-') || provider === 'deepseek' || provider === 'longcat') && !source.model_name
       ? defaults.model_name
       : source.model_name !== undefined ? source.model_name : defaults.model_name,
   };
@@ -209,6 +215,8 @@ function normalizeImageModelProfile(provider, profile) {
     model_name: provider.startsWith('agnes-ai-') && !source.model_name
       ? defaults.model_name
       : source.model_name !== undefined ? source.model_name : defaults.model_name,
+    size: source.size !== undefined ? source.size : defaults.size,
+    ratio: source.ratio !== undefined ? source.ratio : defaults.ratio,
     status: source.status !== undefined ? source.status : defaults.status,
     tested_at: source.tested_at !== undefined ? source.tested_at : defaults.tested_at,
     last_error: source.last_error !== undefined ? source.last_error : defaults.last_error,
@@ -282,6 +290,12 @@ function normalizeConfig(config) {
   textModelProfiles[textModelProvider] = textProfileFromFlatConfig(source, textModelProfiles[textModelProvider], textModelProvider);
   const activeTextProfile = textModelProfiles[textModelProvider];
   const sourceImageModel = source.image_model && typeof source.image_model === 'object' ? source.image_model : {};
+  const sourceCapabilityCache = source.model_capabilities_cache && typeof source.model_capabilities_cache === 'object'
+    ? source.model_capabilities_cache
+    : {};
+  const sourceTextModelOptions = source.text_model_options && typeof source.text_model_options === 'object'
+    ? source.text_model_options
+    : {};
   const normalizedSourceImageProvider = normalizeImageProviderId(sourceImageModel.provider);
   const imageModelProvider = isImageModelProvider(normalizedSourceImageProvider) ? normalizedSourceImageProvider : defaultConfig.image_model.provider;
   const imageModelProfiles = normalizeImageModelProfiles(source.image_model_profiles);
@@ -295,6 +309,14 @@ function normalizeConfig(config) {
     api_key: activeTextProfile.api_key,
     base_url: activeTextProfile.base_url,
     model_name: activeTextProfile.model_name,
+    text_model_options: {
+      thinking_enabled: Boolean(sourceTextModelOptions.thinking_enabled),
+      thinking_budget_tokens: Number.isFinite(Number(sourceTextModelOptions.thinking_budget_tokens))
+        && Number(sourceTextModelOptions.thinking_budget_tokens) >= 256
+        ? Math.min(65536, Math.floor(Number(sourceTextModelOptions.thinking_budget_tokens)))
+        : defaultConfig.text_model_options.thinking_budget_tokens,
+      thinking_effort: sourceTextModelOptions.thinking_effort === 'max' ? 'max' : 'high',
+    },
     image_model: activeImageProfile,
     image_model_profiles: imageModelProfiles,
     file_parser: {
@@ -304,6 +326,7 @@ function normalizeConfig(config) {
     skill_settings: normalizeSkillSettings(source.skill_settings),
     feature_module_settings: normalizeFeatureModuleSettings(source.feature_module_settings),
     developer_mode: source.developer_mode === undefined ? defaultConfig.developer_mode : Boolean(source.developer_mode),
+    model_capabilities_cache: Object.fromEntries(Object.entries(sourceCapabilityCache).slice(-50)),
   };
 }
 
@@ -311,8 +334,24 @@ function createConfigStore(app) {
   const configFile = getConfigFilePath(app);
 
   function persist(config) {
-    fs.mkdirSync(path.dirname(configFile), { recursive: true });
-    fs.writeFileSync(configFile, JSON.stringify(config, null, 2), 'utf-8');
+    const directory = path.dirname(configFile);
+    fs.mkdirSync(directory, { recursive: true });
+    const temporaryFile = `${configFile}.${process.pid}.${Date.now()}.tmp`;
+    const content = `${JSON.stringify(config, null, 2)}\n`;
+    try {
+      fs.writeFileSync(temporaryFile, content, { encoding: 'utf-8', mode: 0o600 });
+      fs.renameSync(temporaryFile, configFile);
+    } catch (error) {
+      // Windows may not replace an existing file with renameSync. Keep the
+      // fallback narrowly scoped to this exact configuration file.
+      if (error?.code === 'EEXIST' || error?.code === 'EPERM' || error?.code === 'ENOTEMPTY') {
+        fs.copyFileSync(temporaryFile, configFile);
+        fs.rmSync(temporaryFile, { force: true });
+      } else {
+        if (fs.existsSync(temporaryFile)) fs.rmSync(temporaryFile, { force: true });
+        throw error;
+      }
+    }
   }
 
   return {

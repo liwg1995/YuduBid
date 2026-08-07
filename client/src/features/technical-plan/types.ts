@@ -188,6 +188,7 @@ export interface TechnicalPlanState {
   originalPlanFile: TechnicalPlanOriginalPlanFile | null;
   projectOverview: string;
   techRequirements: string;
+  responseFileRequirements: string;
   bidAnalysisMode: BidAnalysisMode;
   bidAnalysisTasks: BidAnalysisTasks;
   bidAnalysisProgress: number;

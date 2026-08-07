@@ -11,6 +11,7 @@ interface OutlineEditPageProps {
   workflowKind: TechnicalPlanWorkflowKind;
   projectOverview: string;
   techRequirements: string;
+  responseFileRequirements: string;
   outlineMode: OutlineMode;
   referenceKnowledgeDocumentIds: string[];
   outlineData: OutlineData | null;
@@ -24,6 +25,7 @@ const emptyKnowledgeIndex: KnowledgeBaseIndex = { folders: [], documents: [] };
 const outlineModeLabels: Record<OutlineMode, string> = {
   free: '自由生成',
   aligned: '按评分项对齐',
+  'response-file': '按响应文件目录',
 };
 
 function collectOutlineIds(items: OutlineItem[], ids = new Set<string>()) {
@@ -113,6 +115,7 @@ function OutlineEditPage({
   workflowKind,
   projectOverview,
   techRequirements,
+  responseFileRequirements,
   outlineMode,
   referenceKnowledgeDocumentIds,
   outlineData,
@@ -260,6 +263,7 @@ function OutlineEditPage({
         workflowKind,
         projectId,
         mode: draftOutlineMode,
+        responseFileRequirements,
         reference_knowledge_document_ids: draftKnowledgeDocumentIds,
       });
       showToast('目录生成任务已在后台启动', 'success');
@@ -720,6 +724,15 @@ function OutlineEditPage({
                   <strong>按评分项对齐</strong>
                   <span>一级目录完全和技术评分项要求一致，二三级目录由 AI 生成。</span>
                 </button>
+                <button
+                  type="button"
+                  className={`outline-generation-mode-card${draftOutlineMode === 'response-file' ? ' is-active' : ''}`}
+                  onClick={() => setDraftOutlineMode('response-file')}
+                  disabled={generating}
+                >
+                  <strong>按响应文件目录</strong>
+                  <span>优先按招标文件中的技术文件组成和编制要求组织一级目录，二三级目录由 AI 生成。</span>
+                </button>
               </div>
             </section>
 
@@ -736,6 +749,9 @@ function OutlineEditPage({
               <button type="button" className="secondary-action" onClick={saveOutlineConfig} disabled={generating}>
                 保存配置
               </button>
+              {draftOutlineMode === 'response-file' && !responseFileRequirements ? (
+                <span className="outline-generation-config-hint">未找到独立的响应文件要求，将退回使用技术评分要求。</span>
+              ) : null}
               <button type="button" className="primary-action" onClick={generateOutline} disabled={generating || !projectOverview || !techRequirements}>
                 开始生成
               </button>

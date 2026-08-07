@@ -38,6 +38,7 @@ const resetState = {
   originalPlanFile: null,
   projectOverview: '',
   techRequirements: '',
+  responseFileRequirements: '',
   bidAnalysisMode: 'key' as const,
   bidAnalysisTasks: {},
   bidAnalysisProgress: 0,
@@ -1103,6 +1104,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           workflowKind={workflowKind}
           projectOverview={state.projectOverview}
           techRequirements={state.techRequirements}
+          responseFileRequirements={state.responseFileRequirements}
           outlineMode={state.outlineMode}
           referenceKnowledgeDocumentIds={state.referenceKnowledgeDocumentIds}
           outlineData={state.outlineData}

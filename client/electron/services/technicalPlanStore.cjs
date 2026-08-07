@@ -16,6 +16,7 @@ const initialState = {
   originalPlanFile: null,
   projectOverview: '',
   techRequirements: '',
+  responseFileRequirements: '',
   bidAnalysisMode: 'key',
   bidAnalysisTasks: {},
   bidAnalysisProgress: 0,
@@ -101,7 +102,7 @@ function isValidBidMode(value) {
 }
 
 function isValidOutlineMode(value) {
-  return value === 'free' || value === 'aligned';
+  return value === 'free' || value === 'aligned' || value === 'response-file';
 }
 
 function collectLeafItems(items) {
@@ -739,6 +740,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       originalPlanFile,
       projectOverview: bidAnalysisTasks.projectOverview?.status === 'success' ? bidAnalysisTasks.projectOverview.content : '',
       techRequirements: bidAnalysisTasks.techRequirements?.status === 'success' ? bidAnalysisTasks.techRequirements.content : '',
+      responseFileRequirements: bidAnalysisTasks.responseFileRequirements?.status === 'success' ? bidAnalysisTasks.responseFileRequirements.content : '',
       bidAnalysisMode,
       bidAnalysisTasks,
       bidAnalysisProgress: calculateBidProgress(bidAnalysisMode, bidAnalysisTasks),

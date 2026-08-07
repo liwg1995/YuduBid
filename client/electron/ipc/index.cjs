@@ -40,6 +40,8 @@ const { createTaskService } = require('../services/taskService.cjs');
 const { createTechnicalPlanStore } = require('../services/technicalPlanStore.cjs');
 const { createTechnicalDiagramService } = require('../services/technicalDiagramService.cjs');
 const { createThesisTutorService } = require('../services/thesisTutorService.cjs');
+const { createUsageStatsStore } = require('../services/usageStatsStore.cjs');
+const { registerUsageStatsIpc } = require('./usageStatsIpc.cjs');
 
 const latestReleaseApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases/latest';
 const releasesApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases';
@@ -658,7 +660,8 @@ function registerUnavailableTechnicalPlanIpc(error) {
 
 function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall }) {
   const configStore = createConfigStore(app);
-  const aiService = createAiService({ app, configStore });
+  const usageStatsStore = createUsageStatsStore(app);
+  const aiService = createAiService({ app, configStore, usageStatsStore });
   const fileService = createFileService({ app, configStore });
   const exportService = createExportService({ configStore });
   const codeGenerationService = createCodeGenerationService({ app });
@@ -670,6 +673,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const thesisTutorService = createThesisTutorService({ app, aiService, configStore });
 
   registerConfigIpc({ configStore, aiService });
+  registerUsageStatsIpc({ usageStatsStore });
   registerAiIpc({ aiService });
   registerFileIpc({ fileService });
   registerExportIpc({ exportService });

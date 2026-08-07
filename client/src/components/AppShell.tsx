@@ -4,6 +4,7 @@ import type { FeatureModuleSettings } from '../shared/types';
 import type { SectionId } from '../shared/types/navigation';
 import Sidebar from './Sidebar';
 import ThemeSwitcher from './ThemeSwitcher';
+import TaskMonitor from './TaskMonitor';
 
 interface AppShellProps {
   activeSection: SectionId;
@@ -24,6 +25,7 @@ function AppShell({ activeSection, children, developerMode, featureModuleSetting
 
         <main className="main-area">
           <ThemeSwitcher />
+          <TaskMonitor />
           <section className="content-shell" aria-label="主内容">
             {children}
           </section>

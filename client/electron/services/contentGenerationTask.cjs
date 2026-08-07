@@ -1,12 +1,12 @@
-const zlib = require('node:zlib');
 const { countReadableWords } = require('../utils/wordCount.cjs');
+const { createLocalImageRenderService } = require('./localImageRenderService.cjs');
+const localImageRenderService = createLocalImageRenderService();
 
 const IMAGE_STYLES = new Set(['engineering_diagram', 'realistic_photo']);
 const TECHNICAL_DIAGRAM_TYPES = new Set(['architecture', 'data-flow', 'flowchart', 'deployment', 'process', 'topology']);
 const TECHNICAL_DIAGRAM_STYLES = new Set(['document', 'blueprint', 'clean']);
 const DEFAULT_CONTENT_CONCURRENCY = 5;
 const MERMAID_REPAIR_ATTEMPTS = 3;
-const MERMAID_RENDER_TIMEOUT_MS = 15000;
 const AI_IMAGE_CONCURRENCY = 2;
 const MERMAID_IMAGE_CONCURRENCY = 5;
 const TECHNICAL_DIAGRAM_CONCURRENCY = 3;
@@ -141,18 +141,6 @@ function normalizeMermaidCode(value) {
     .trim();
 }
 
-function encodeMermaidForInk(code) {
-  const state = JSON.stringify({
-    code: String(code || ''),
-    mermaid: { theme: 'default' },
-  });
-  return `pako:${zlib.deflateSync(Buffer.from(state, 'utf-8')).toString('base64url')}`;
-}
-
-function mermaidInkUrl(code) {
-  return `https://mermaid.ink/img/${encodeMermaidForInk(code)}?type=png&bgColor=!white`;
-}
-
 function compactError(value, maxLength = 220) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
@@ -177,39 +165,10 @@ function assertMermaidPreviewCompatible(code) {
   }
 }
 
-async function readResponseSnippet(response) {
-  try {
-    const text = await response.text();
-    return compactError(text, 240);
-  } catch (_error) {
-    return '';
-  }
-}
-
 async function validateMermaidRender(code) {
   const normalized = normalizeMermaidCode(code);
   assertMermaidPreviewCompatible(normalized);
-  if (typeof fetch !== 'function') {
-    throw new Error('当前运行环境不支持 Mermaid 渲染校验');
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), MERMAID_RENDER_TIMEOUT_MS);
-  try {
-    const response = await fetch(mermaidInkUrl(normalized), { signal: controller.signal });
-    const contentType = response.headers?.get?.('content-type') || '';
-    if (!response.ok || !/image\//i.test(contentType)) {
-      const detail = await readResponseSnippet(response);
-      throw new Error(`Mermaid 渲染失败：HTTP ${response.status || 'unknown'}${detail ? `，${detail}` : ''}`);
-    }
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw new Error('Mermaid 渲染校验超时');
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
+  await localImageRenderService.renderMermaidToDataUrl(normalized);
 }
 
 function normalizePriority(value) {

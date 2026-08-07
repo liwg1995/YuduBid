@@ -163,11 +163,13 @@ function generateTopLevelOutlineMessages({ overview, requirements, suggestions }
   ];
 }
 
-function extractRequirementGroupsMessages(requirements, suggestions) {
-  const systemPrompt = `你是一个专业的招标文件分析专家。请从技术评分要求中提取适合作为技术标一级目录的评分大类。
+function extractRequirementGroupsMessages(requirements, suggestions, outlineMode = 'aligned') {
+  const responseFileMode = outlineMode === 'response-file';
+  const sourceLabel = responseFileMode ? '响应文件要求中的技术文件组成和编制要求' : '技术评分要求';
+  const systemPrompt = `你是一个专业的招标文件分析专家。请从${sourceLabel}中提取适合作为技术标一级目录的${responseFileMode ? '技术文件目录大类' : '评分大类'}。
 
 要求：
-1. 只提取技术评分大类，不要提取商务、报价、资质等非技术类条目
+1. 只提取技术${responseFileMode ? '文件目录' : '评分'}大类，不要提取商务、报价、资质等非技术类条目
 2. 每个大类都必须适合作为技术标一级目录标题，标题要专业、简洁、完整
 3. 同一大类下的细项、子项、分值说明、评分标准要归入 detail_points，不要拆成多个一级目录
 4. requirement_id 必须唯一，使用 R1、R2、R3 这种格式
@@ -188,23 +190,25 @@ JSON 格式要求：
 }`;
   return [
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: `技术评分要求：\n${requirements}` },
-    { role: 'user', content: `请提取所有适合作为技术标一级目录的技术评分大类，保持顺序稳定，并把每个大类下的评分细项归入 detail_points。${formatSuggestions(suggestions)}` },
+    { role: 'user', content: `${sourceLabel}：\n${requirements}` },
+    { role: 'user', content: `请提取所有适合作为技术标一级目录的${responseFileMode ? '技术文件目录大类' : '技术评分大类'}，保持顺序稳定，并把每个大类下的细项归入 detail_points。${formatSuggestions(suggestions)}` },
   ];
 }
 
-function generateAlignedChildrenMessages({ overview, requirements, parentItem, group, suggestions }) {
+function generateAlignedChildrenMessages({ overview, requirements, outlineMode, parentItem, group, suggestions }) {
+  const responseFileMode = outlineMode === 'response-file';
+  const sourceLabel = responseFileMode ? '响应文件技术文件目录' : '技术评分大类';
   const detailLines = (group.detail_points || [])
     .filter((item) => typeof item === 'string' && item.trim())
     .map((item) => `- ${item}`)
     .join('\n');
-  const detailContent = detailLines || '- 未提供明确细项，请根据评分大类描述合理展开';
-  const systemPrompt = `你是一个专业的标书编写专家。请围绕指定的技术评分大类，为已经固定好的一级目录生成二级和三级目录。
+  const detailContent = detailLines || `- 未提供明确细项，请根据${sourceLabel}描述合理展开`;
+  const systemPrompt = `你是一个专业的标书编写专家。请围绕指定的${sourceLabel}，为已经固定好的一级目录生成二级和三级目录。
 
 要求：
 1. 一级目录标题和顺序已经固定，不能修改、重命名、合并或删除一级目录
 2. 只输出当前一级目录下的二级和三级目录，不要重复输出一级目录本身
-3. 二级和三级目录要覆盖当前技术评分大类及其细项，不能越界写入其他评分大类内容
+3. 二级和三级目录要覆盖当前${sourceLabel}及其细项，不能越界写入其他一级目录内容
 4. 返回标准 JSON，格式为 {"children": [...]}，children 中只能包含当前一级目录的直接子目录
 5. 每个节点必须包含 id、title、description，三级目录继续使用 children 字段
 6. 章节编号必须以给定的一级目录编号为前缀，例如父级是 2，则二级目录编号从 2.1 开始，三级目录编号从 2.1.1 开始
@@ -214,7 +218,7 @@ function generateAlignedChildrenMessages({ overview, requirements, parentItem, g
     { role: 'user', content: `项目概述：\n${overview}` },
     { role: 'user', content: `技术评分要求原文：\n${requirements}` },
     { role: 'user', content: `当前固定一级目录：\n编号：${parentItem.id}\n标题：${parentItem.title}\n描述：${parentItem.description || ''}` },
-    { role: 'user', content: `当前对应的技术评分大类：\nrequirement_id：${group.requirement_id}\n标题：${group.title}\n描述：${group.description}\n细项：\n${detailContent}` },
+    { role: 'user', content: `当前对应的${sourceLabel}：\nrequirement_id：${group.requirement_id}\n标题：${group.title}\n描述：${group.description}\n细项：\n${detailContent}` },
   ];
   messages.push({ role: 'user', content: `请仅生成该一级目录下的二级、三级目录，一级目录标题必须保持为当前给定标题，返回格式必须是 {"children": [...]}。${formatSuggestions(suggestions)}` });
   return messages;
@@ -856,9 +860,9 @@ async function freeWorkflow(aiService, payload, log) {
   return second;
 }
 
-async function extractRequirementGroups(aiService, requirements, suggestions, log) {
+async function extractRequirementGroups(aiService, requirements, suggestions, log, outlineMode = 'aligned') {
   const response = await collectJson(aiService, {
-    messages: extractRequirementGroupsMessages(requirements, suggestions),
+    messages: extractRequirementGroupsMessages(requirements, suggestions, outlineMode),
     temperature: 0.3,
     normalizer: normalizeRequirementGroupsResponse,
     validator: validateRequirementGroups,
@@ -901,9 +905,11 @@ async function buildAligned(aiService, payload, groups, suggestions, log, progre
 }
 
 async function alignedWorkflow(aiService, payload, log) {
-  log('开始提取技术评分大类。', 10);
-  const groups = await extractRequirementGroups(aiService, payload.requirements, undefined, log);
-  log('技术评分大类提取完成，正在构建一级目录。', 24);
+  const responseFileMode = payload.mode === 'response-file';
+  const sourceLabel = responseFileMode ? '响应文件技术文件目录' : '技术评分大类';
+  log(`开始提取${sourceLabel}。`, 10);
+  const groups = await extractRequirementGroups(aiService, payload.requirements, undefined, log, payload.mode);
+  log(`${sourceLabel}提取完成，正在构建一级目录。`, 24);
   const first = await buildAligned(aiService, payload, groups, undefined, log, { start: 30, end: 75 });
   log('目录生成完成，正在审核与技术评分项的对应关系。', 82);
   const firstReview = await reviewAlignedOutline(aiService, payload, groups, first, log, '首次审核', 82);
@@ -918,7 +924,7 @@ async function alignedWorkflow(aiService, payload, log) {
   let second;
   try {
     log('正在根据审核建议重新提取技术评分大类。', 90);
-    revisedGroups = await extractRequirementGroups(aiService, payload.requirements, suggestions, log);
+    revisedGroups = await extractRequirementGroups(aiService, payload.requirements, suggestions, log, payload.mode);
     second = await buildAligned(aiService, payload, revisedGroups, suggestions, log, { start: 91, end: 96 });
   } catch {
     log('根据审核建议重新生成失败，已回退到首次生成结果。', 97);
@@ -998,7 +1004,10 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
   const referenceKnowledgeDocumentIds = normalizeReferenceDocumentIds(payload);
   const storedPlan = workspaceStore.loadTechnicalPlan() || {};
   const overview = storedPlan.projectOverview || '';
-  const requirements = storedPlan.techRequirements || '';
+  const responseFileRequirements = String(payload.responseFileRequirements || storedPlan.responseFileRequirements || '').trim();
+  const requirements = payload.mode === 'response-file' && responseFileRequirements
+    ? responseFileRequirements
+    : storedPlan.techRequirements || '';
   const missingRequiredBidAnalysisLabels = getMissingRequiredBidAnalysisLabels(storedPlan);
   if (missingRequiredBidAnalysisLabels.length) {
     throw new Error(`请先完成关键招标文件解析项：${missingRequiredBidAnalysisLabels.join('、')}`);
@@ -1013,6 +1022,7 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
     ...payload,
     overview,
     requirements,
+    responseFileRequirements,
     reference_knowledge_document_ids: referenceKnowledgeDocumentIds,
   };
   let outline = taskPayload.mode === 'aligned' ? await alignedWorkflow(aiService, taskPayload, log) : await freeWorkflow(aiService, taskPayload, log);

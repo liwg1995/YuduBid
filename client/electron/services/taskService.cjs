@@ -255,7 +255,7 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
     }
 
     if (task.type === 'bid-analysis') {
-      copyPatchFields(patch, state, ['bidAnalysisMode', 'bidAnalysisProgress', 'projectOverview', 'techRequirements', 'bidAnalysisTasks']);
+      copyPatchFields(patch, state, ['bidAnalysisMode', 'bidAnalysisProgress', 'projectOverview', 'techRequirements', 'responseFileRequirements', 'bidAnalysisTasks']);
       if (state.outlineData === null) {
         copyPatchFields(patch, state, [
           'outlineData',

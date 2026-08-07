@@ -165,6 +165,7 @@ function taskFromRow(row) {
 
 function createRejectionCheckStore({ app, db, fileService, technicalPlanStore }) {
   const rejectionCheckDir = getRejectionCheckDir(app);
+  const bidDocumentsPath = path.join(rejectionCheckDir, 'bid-documents.json');
 
   function ensureMetaRow() {
     const existing = db.prepare('SELECT * FROM rejection_check_meta WHERE id = 1').get();
@@ -267,6 +268,34 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     };
   }
 
+  function loadBidDocuments() {
+    if (!fs.existsSync(bidDocumentsPath)) {
+      const legacy = loadDocument('bid');
+      return legacy ? [{ ...legacy, documentId: stableHash(`${legacy.fileName}\n${legacy.content}`).slice(0, 16) }] : [];
+    }
+    const parsed = safeJsonParse(fs.readFileSync(bidDocumentsPath, 'utf-8'), []);
+    return Array.isArray(parsed) ? parsed.filter((item) => item?.documentId && item?.content).map((item) => ({
+      role: 'bid',
+      documentId: String(item.documentId),
+      fileName: String(item.fileName || '投标文件'),
+      content: String(item.content),
+      source: item.source === 'technical-plan' ? 'technical-plan' : 'upload',
+      parserLabel: item.parserLabel ? String(item.parserLabel) : undefined,
+      importedAt: item.importedAt || now(),
+    })) : [];
+  }
+
+  function saveBidDocuments(documents) {
+    fs.mkdirSync(rejectionCheckDir, { recursive: true });
+    const tempPath = `${bidDocumentsPath}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tempPath, `${JSON.stringify(documents || [], null, 2)}\n`, 'utf-8');
+    fs.renameSync(tempPath, bidDocumentsPath);
+  }
+
+  function clearBidDocuments() {
+    if (fs.existsSync(bidDocumentsPath)) fs.rmSync(bidDocumentsPath, { force: true });
+  }
+
   function clearDocument(role) {
     const documentRole = normalizeDocumentRole(role);
     db.prepare('DELETE FROM rejection_check_documents WHERE role = ?').run(documentRole);
@@ -276,6 +305,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     if (documentRole === 'tender') {
       clearExtractionAndCheckResults();
     } else {
+      clearBidDocuments();
       clearCheckResults();
     }
   }
@@ -365,13 +395,14 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       return;
     }
     db.prepare(`
-      INSERT INTO rejection_check_results (result_type, status, input_signature, active_finding_id, progress_message, error, updated_at)
-      VALUES (@result_type, @status, @input_signature, @active_finding_id, @progress_message, @error, @updated_at)
+      INSERT INTO rejection_check_results (result_type, status, input_signature, active_finding_id, progress_message, compliance_matrix_json, error, updated_at)
+      VALUES (@result_type, @status, @input_signature, @active_finding_id, @progress_message, @compliance_matrix_json, @error, @updated_at)
       ON CONFLICT(result_type) DO UPDATE SET
         status = excluded.status,
         input_signature = excluded.input_signature,
         active_finding_id = excluded.active_finding_id,
         progress_message = excluded.progress_message,
+        compliance_matrix_json = excluded.compliance_matrix_json,
         error = excluded.error,
         updated_at = excluded.updated_at
     `).run({
@@ -380,6 +411,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       input_signature: result.inputSignature ? String(result.inputSignature) : null,
       active_finding_id: result.activeFindingId ? String(result.activeFindingId) : null,
       progress_message: result.progressMessage ? String(result.progressMessage) : null,
+      compliance_matrix_json: resultType === 'rejection' ? jsonOrNull(result.complianceMatrix || []) : null,
       error: result.error ? String(result.error) : null,
       updated_at: result.updatedAt || now(),
     });
@@ -472,6 +504,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       inputSignature: row.input_signature || undefined,
       activeFindingId: row.active_finding_id || undefined,
       progressMessage: row.progress_message || undefined,
+      complianceMatrix: resultType === 'rejection' ? safeJsonParse(row.compliance_matrix_json, []) : undefined,
       error: row.error || undefined,
       updatedAt: row.updated_at || undefined,
     };
@@ -560,6 +593,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       ...initialState,
       tenderDocument: loadDocument('tender'),
       bidDocument: loadDocument('bid'),
+      bidDocuments: loadBidDocuments(),
       activeDocumentTab: normalizeDocumentRole(meta.active_document_tab),
       step: normalizeStep(meta.step),
       activeResultTab: normalizeResultTab(meta.active_result_tab),
@@ -601,6 +635,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       importedAt: now(),
     };
     const transaction = db.transaction(() => {
+      if (documentRole === 'bid') clearBidDocuments();
       saveDocument(document);
       if (documentRole === 'tender') clearExtractionAndCheckResults();
       else clearCheckResults();
@@ -608,6 +643,33 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     });
     transaction();
     return { success: true, message: result.message || '文件解析完成', state: loadRejectionCheck() };
+  }
+
+  async function importBidDocuments() {
+    if (!fileService?.importRejectionCheckDocuments) throw new Error('文件导入服务尚未初始化');
+    const result = await fileService.importRejectionCheckDocuments();
+    if (!result?.success || !Array.isArray(result.documents) || !result.documents.length) {
+      return { success: false, message: result?.message || '未导入投标文件', state: loadRejectionCheck() };
+    }
+    const documents = result.documents.map((item) => ({
+      role: 'bid',
+      documentId: stableHash(`${item.file_name}\n${item.file_content}`).slice(0, 16),
+      fileName: item.file_name,
+      content: item.file_content,
+      source: 'upload',
+      parserLabel: item.parser_label,
+      importedAt: now(),
+    }));
+    const aggregate = documents.map((item) => `\n\n<!-- 投标文件：${item.fileName} -->\n# 文件：${item.fileName}\n\n${item.content}`).join('\n');
+    const primary = { role: 'bid', fileName: `${documents.length} 份投标文件`, content: aggregate, source: 'upload', parserLabel: '多文件解析', importedAt: now() };
+    const transaction = db.transaction(() => {
+      saveDocument(primary);
+      saveBidDocuments(documents);
+      clearCheckResults();
+      updateMeta({ active_document_tab: 'bid' });
+    });
+    transaction();
+    return { success: true, message: result.message, state: loadRejectionCheck() };
   }
 
   async function importTenderFromTechnicalPlan(payload = {}) {
@@ -729,6 +791,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     updateRejectionCheck,
     clearRejectionCheck,
     importDocument,
+    importBidDocuments,
     importTenderFromTechnicalPlan,
     importBidFromTechnicalPlan,
     removeDocument,

@@ -11,6 +11,13 @@ export type TextModelProfiles = Record<TextModelProvider, TextModelConfig>;
 export interface AiConfig extends TextModelConfig {
   text_model_provider: TextModelProvider;
   text_model_profiles: TextModelProfiles;
+  text_model_options?: TextModelOptions;
+}
+
+export interface TextModelOptions {
+  thinking_enabled: boolean;
+  thinking_budget_tokens: number;
+  thinking_effort?: 'high' | 'max';
 }
 
 export interface ConfigSaveResult {
@@ -23,6 +30,23 @@ export interface ModelListResult {
   success: boolean;
   message: string;
   models: string[];
+}
+
+export interface ModelCapabilityInfo {
+  success: boolean;
+  message: string;
+  source: 'remote' | 'cache' | 'default';
+  known?: boolean;
+  provider?: string;
+  model?: string;
+  fetchedAt?: string;
+  contextLength?: number;
+  maxOutputTokens?: number;
+  supportsTemperature?: boolean;
+  supportsThinking?: boolean;
+  supportsVision?: boolean;
+  supportsJsonMode?: boolean;
+  modalities?: string[];
 }
 
 export interface ImageModelTestResult {
@@ -41,6 +65,8 @@ export interface ImageModelConfig {
   base_url?: string;
   api_key: string;
   model_name: string;
+  size?: string;
+  ratio?: string;
   status?: ImageModelStatus;
   tested_at?: string;
   last_error?: string;
@@ -92,4 +118,5 @@ export interface ClientConfig extends AiConfig {
   skill_settings?: SkillSettings;
   feature_module_settings?: FeatureModuleSettings;
   developer_mode?: boolean;
+  model_capabilities_cache?: Record<string, Omit<ModelCapabilityInfo, 'success' | 'message' | 'source'>>;
 }

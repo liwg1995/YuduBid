@@ -43,9 +43,26 @@ export interface RejectionDocumentContent {
   importedAt: string;
 }
 
+export interface RejectionBidDocument extends RejectionDocumentContent {
+  documentId: string;
+}
+
+export type RejectionComplianceStatus = 'met' | 'partial' | 'missing' | 'unclear';
+
+export interface RejectionComplianceItem {
+  id: string;
+  requirement: string;
+  response: string;
+  evidence: string;
+  status: RejectionComplianceStatus;
+  risk?: string;
+  sourceFile?: string;
+}
+
 export interface RejectionCheckWorkspaceState {
   tenderDocument: RejectionDocumentContent | null;
   bidDocument: RejectionDocumentContent | null;
+  bidDocuments?: RejectionBidDocument[];
   activeDocumentTab: RejectionDocumentRole;
   step?: RejectionCheckStep;
   activeResultTab?: RejectionResultTab;
@@ -90,6 +107,7 @@ export interface RejectionCheckFinding {
 export interface RejectionCheckResultState {
   status: RejectionCheckRunStatus;
   findings: RejectionCheckFinding[];
+  complianceMatrix?: RejectionComplianceItem[];
   inputSignature?: string;
   activeFindingId?: string;
   progressMessage?: string;

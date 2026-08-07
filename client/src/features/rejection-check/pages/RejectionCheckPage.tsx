@@ -5,9 +5,12 @@ import { FloatingToolbar, isLibreOfficeRequiredMessage, MarkdownEditor, Markdown
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type {
   LogicCheckFinding,
+  RejectionBidDocument,
   LogicCheckResultState,
   RejectionBackgroundTaskState,
   RejectionCheckFinding,
+  RejectionComplianceItem,
+  RejectionComplianceStatus,
   RejectionCheckStep,
   RejectionCheckOptions,
   RejectionCheckResultState,
@@ -204,11 +207,25 @@ function normalizeRejectionCheckResultState(state?: Partial<RejectionCheckResult
     : [];
   const status = ['idle', 'running', 'success', 'error'].includes(state.status || '') ? state.status : 'idle';
   const activeFindingId = findings.some((item) => item.id === state.activeFindingId) ? state.activeFindingId : undefined;
+  const complianceMatrix = Array.isArray(state.complianceMatrix) ? state.complianceMatrix.map((item, index) => {
+    const status: RejectionComplianceStatus = item.status === 'met' || item.status === 'partial' || item.status === 'missing' ? item.status : 'unclear';
+    const row: RejectionComplianceItem = {
+      id: typeof item.id === 'string' && item.id.trim() ? item.id : `compliance-${index + 1}`,
+      requirement: String(item.requirement || '').trim(),
+      response: String(item.response || '').trim(),
+      evidence: String(item.evidence || '').trim(),
+      status,
+      risk: String(item.risk || '').trim() || undefined,
+      sourceFile: String(item.sourceFile || '').trim() || undefined,
+    };
+    return row;
+  }).filter((item) => item.requirement && item.evidence) : [];
 
   return {
     ...state,
     status: status as RejectionCheckRunStatus,
     findings,
+    complianceMatrix,
     activeFindingId,
   };
 }
@@ -540,6 +557,7 @@ function RejectionCheckPage() {
   const [step, setStep] = useState<RejectionCheckStep>('documents');
   const [tenderDocument, setTenderDocument] = useState<RejectionDocumentContent | null>(null);
   const [bidDocument, setBidDocument] = useState<RejectionDocumentContent | null>(null);
+  const [bidDocuments, setBidDocuments] = useState<RejectionBidDocument[]>([]);
   const [activeDocumentTab, setActiveDocumentTab] = useState<RejectionDocumentRole>('tender');
   const [activeResultTab, setActiveResultTab] = useState<RejectionResultTab>('analysis');
   const [activeCheckResultTab, setActiveCheckResultTab] = useState<RejectionCheckResultTab>('rejection');
@@ -553,7 +571,7 @@ function RejectionCheckPage() {
   const [checkOptions, setCheckOptions] = useState<RejectionCheckOptions>(defaultCheckOptions);
   const [draftCheckOptions, setDraftCheckOptions] = useState<RejectionCheckOptions>(defaultCheckOptions);
   const [checkConfigDialogOpen, setCheckConfigDialogOpen] = useState(false);
-  const [busy, setBusy] = useState<'technical-plan' | 'tender-upload' | 'bid-upload' | null>(null);
+  const [busy, setBusy] = useState<'technical-plan' | 'tender-upload' | 'bid-upload' | 'bid-multi-upload' | null>(null);
   const [technicalPlanDialogOpen, setTechnicalPlanDialogOpen] = useState(false);
   const [technicalPlanImportTarget, setTechnicalPlanImportTarget] = useState<RejectionDocumentRole>('tender');
   const [technicalPlanProjects, setTechnicalPlanProjects] = useState<TechnicalPlanProjectOption[]>([]);
@@ -620,6 +638,7 @@ function RejectionCheckPage() {
   );
   const visibleRejectionCheckStatus: RejectionCheckRunStatus = rejectionCheckMatchesInput ? rejectionCheckResult.status : 'idle';
   const visibleRejectionFindings = rejectionCheckMatchesInput ? rejectionCheckResult.findings : [];
+  const visibleComplianceMatrix = rejectionCheckMatchesInput ? (rejectionCheckResult.complianceMatrix || []) : [];
   const visibleTypoCheckStatus: RejectionCheckRunStatus = typoCheckMatchesInput ? typoCheckResult.status : 'idle';
   const visibleTypoFindings = typoCheckMatchesInput ? typoCheckResult.findings : [];
   const visibleLogicCheckStatus: RejectionCheckRunStatus = logicCheckMatchesInput ? logicCheckResult.status : 'idle';
@@ -653,6 +672,7 @@ function RejectionCheckPage() {
     const syncViewState = options.syncViewState !== false;
     setTenderDocument(state.tenderDocument || null);
     setBidDocument(state.bidDocument || null);
+    setBidDocuments(Array.isArray(state.bidDocuments) ? state.bidDocuments : state.bidDocument ? [{ ...state.bidDocument, documentId: `${state.bidDocument.fileName}-${state.bidDocument.importedAt}` }] : []);
     if (syncViewState) {
       setActiveDocumentTab(state.activeDocumentTab === 'bid' ? 'bid' : 'tender');
       setStep(state.step === 'items' || state.step === 'results' ? state.step : 'documents');
@@ -794,6 +814,23 @@ function RejectionCheckPage() {
         return;
       }
       showToast(message, 'error');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function importMultipleBidDocuments() {
+    try {
+      setBusy('bid-multi-upload');
+      const result = await window.yibiao?.rejectionCheck.importBidDocuments();
+      if (!result?.success) {
+        showToast(result?.message || '未导入投标文件', result?.message === '已取消选择' ? 'info' : 'error');
+        return;
+      }
+      applyWorkspaceState(result.state);
+      showToast(result.message || '投标文件解析完成', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '多文件投标文件解析失败', 'error');
     } finally {
       setBusy(null);
     }
@@ -1554,7 +1591,10 @@ function RejectionCheckPage() {
                 </div>
                 <div className="rejection-upload-content">
                   {bidDocument ? (
-                    <DocumentFilePill document={bidDocument} onRemove={() => removeDocument('bid')} />
+                    <div className="rejection-multi-document-list">
+                      <DocumentFilePill document={bidDocument} onRemove={() => removeDocument('bid')} />
+                      {bidDocuments.length > 1 && <small>已合并 {bidDocuments.length} 份文件，检查结果会保留文件名作为证据来源。</small>}
+                    </div>
                   ) : (
                     <div className="rejection-empty-upload">
                       <strong>等待投标文件</strong>
@@ -1568,6 +1608,9 @@ function RejectionCheckPage() {
                   </button>
                   <button type="button" className="primary-action" onClick={() => void importParsedDocument('bid')} disabled={busy !== null}>
                     {busy === 'bid-upload' ? '解析中...' : bidDocument ? '替换' : '上传'}
+                  </button>
+                  <button type="button" className="secondary-action" onClick={() => void importMultipleBidDocuments()} disabled={busy !== null}>
+                    {busy === 'bid-multi-upload' ? '多文件解析中...' : '多文件导入'}
                   </button>
                 </div>
               </article>
@@ -1801,18 +1844,37 @@ function RejectionCheckPage() {
                         重新检查废标项
                       </button>
                     </div>
-                  ) : visibleRejectionFindings.length ? (
-                    <div className="rejection-finding-list">
-                      {visibleRejectionFindings.map((finding) => (
-                        <RejectionFindingItem
-                          key={finding.id}
-                          finding={finding}
-                          expanded={rejectionCheckResult.activeFindingId === finding.id}
-                          onToggle={() => toggleFinding(finding.id)}
-                          onDelete={() => deleteFinding(finding.id)}
-                        />
-                      ))}
-                    </div>
+                  ) : visibleRejectionFindings.length || visibleComplianceMatrix.length ? (
+                    <>
+                      {visibleComplianceMatrix.length > 0 && (
+                        <div className="rejection-compliance-section">
+                          <div className="section-kicker">符合性矩阵</div>
+                          <div className="rejection-compliance-table-wrap">
+                            <table className="rejection-compliance-table">
+                              <thead><tr><th>招标要求</th><th>投标响应</th><th>证据位置</th><th>状态</th><th>风险</th></tr></thead>
+                              <tbody>{visibleComplianceMatrix.map((item) => (
+                                <tr key={item.id}>
+                                  <td>{item.requirement}</td><td>{item.response || '未明确响应'}</td><td>{item.sourceFile ? `${item.sourceFile}：` : ''}{item.evidence}</td>
+                                  <td><span className={`rejection-compliance-status is-${item.status}`}>{({ met: '满足', partial: '部分满足', missing: '缺失', unclear: '待复核' } as Record<RejectionComplianceStatus, string>)[item.status]}</span></td>
+                                  <td>{item.risk || '—'}</td>
+                                </tr>
+                              ))}</tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                      {visibleRejectionFindings.length > 0 && <div className="rejection-finding-list">
+                        {visibleRejectionFindings.map((finding) => (
+                          <RejectionFindingItem
+                            key={finding.id}
+                            finding={finding}
+                            expanded={rejectionCheckResult.activeFindingId === finding.id}
+                            onToggle={() => toggleFinding(finding.id)}
+                            onDelete={() => deleteFinding(finding.id)}
+                          />
+                        ))}
+                      </div>}
+                    </>
                   ) : (
                     <div className="markdown-empty-state rejection-finding-empty">
                       <strong>{visibleRejectionCheckStatus === 'success' ? '暂未发现废标项风险' : hasStaleRejectionCheckResult ? '检查输入已变化' : '等待废标项检查'}</strong>
