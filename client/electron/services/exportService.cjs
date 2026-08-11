@@ -4,7 +4,7 @@ const { fileURLToPath } = require('node:url');
 const { app, dialog, nativeImage, shell } = require('electron');
 const AdmZip = require('adm-zip');
 const cheerio = require('cheerio');
-const { imageSize } = require('image-size');
+const { getSafeImageDimensions } = require('../utils/safeImageDimensions.cjs');
 const { createCanvas, GlobalFonts, loadImage: loadCanvasImage } = require('@napi-rs/canvas');
 const { getGeneratedImagesDir, getImportedImagesDir } = require('../utils/paths.cjs');
 const { createLocalImageRenderService } = require('./localImageRenderService.cjs');
@@ -1716,7 +1716,7 @@ async function imageRunFromNode(node, context, options = {}) {
 
   let size;
   try {
-    size = imageSize(loaded.buffer);
+    size = getSafeImageDimensions(loaded.buffer);
   } catch (error) {
     const message = `图片无法导出：${imageLabel}，图片尺寸识别失败`;
     addWarning(context, message);

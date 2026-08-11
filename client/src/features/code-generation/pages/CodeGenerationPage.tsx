@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useToast } from '../../../shared/ui/ToastProvider';
+import type { SectionId } from '../../../shared/types/navigation';
+import type { SoftwareCopyrightCase } from '../../software-copyright/types';
 import type { CodeGenerationState } from '../types';
+import { SourceFileWorkspace } from '../components/SourceFileWorkspace';
 
-const categoryOrder = ['全部', '入口', '路由', '页面', '业务服务', '状态数据', '组件', '通用能力', '源码', '样式'];
+interface CodeGenerationPageProps {
+  onNavigate: (section: SectionId) => void;
+}
 
 interface AiCopyrightNoticeBlock {
   heading?: string;
@@ -117,7 +122,7 @@ const aiCopyrightNoticeSections: AiCopyrightNoticeSection[] = [
         list: [
           '开发阶段留存全证据：需求文档、架构图、AI 对话 prompt 截图、Git 迭代日志、调试记录、人工修改对比文件；',
           '对 AI 产出代码做结构性重写、逻辑优化、注释重构，拉高人工原创占比；',
-          '撰写 500–1300 字详细软件功能说明（新版强制加长篇幅，杜绝 AI 模板套话），全部人工撰写；',
+          '撰写 500 至 1300 字详细软件功能说明（新版强制加长篇幅，杜绝 AI 模板套话），全部人工撰写；',
           '评估 AI 占比：人工主导改写充足→正常签署标准承诺书；AI 占比较高→附加 AI 开发说明材料；',
           '源代码、说明书全部人工校验排版、页眉页脚、命名规范，清除 AI 生成水印、冗余注释。',
         ],
@@ -137,31 +142,32 @@ const aiCopyrightNoticeSections: AiCopyrightNoticeSection[] = [
   },
 ];
 
-function CodeGenerationPage() {
+function CodeGenerationPage({ onNavigate }: CodeGenerationPageProps) {
   const { showToast } = useToast();
   const [state, setState] = useState<CodeGenerationState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [category, setCategory] = useState('全部');
   const [noticeOpen, setNoticeOpen] = useState(false);
-
-  const selectedSet = useMemo(() => new Set(state?.selectedPaths || []), [state?.selectedPaths]);
-  const files = useMemo(() => {
-    const candidates = state?.analysis?.candidates || [];
-    return category === '全部' ? candidates : candidates.filter((item) => item.category === category);
-  }, [category, state?.analysis]);
-  const categories = useMemo(() => {
-    const present = new Set((state?.analysis?.candidates || []).map((item) => item.category));
-    return categoryOrder.filter((item) => item === '全部' || present.has(item));
-  }, [state?.analysis]);
-  const canConfirm = Boolean(state?.project && state.selectedPaths.length);
+  const [rescanOpen, setRescanOpen] = useState(false);
+  const [savingSelection, setSavingSelection] = useState(false);
+  const [activeProject, setActiveProject] = useState<SoftwareCopyrightCase | null>(null);
+  const selectedComposition = useMemo(() => {
+    const files = state?.summary.selectedFiles || [];
+    return Array.from(new Set(files.map((file) => file.extension.replace('.', '').toUpperCase()).filter(Boolean))).slice(0, 6).join('、');
+  }, [state?.summary.selectedFiles]);
+  const canConfirm = Boolean(state?.project && state.selectedPaths.length && !savingSelection);
 
   useEffect(() => {
     let mounted = true;
-    window.yibiao?.codeGeneration.loadState()
-      .then((nextState) => {
-        if (mounted) setState(nextState);
+    Promise.all([
+      window.yibiao?.codeGeneration.loadState(),
+      window.yibiao?.softwareCopyright.listCases(true),
+    ])
+      .then(([nextState, projects]) => {
+        if (!mounted) return;
+        if (nextState) setState(nextState);
+        setActiveProject(projects?.cases.find((project) => project.id === projects.activeCaseId) || null);
       })
-      .catch((error) => showToast(error.message || '读取代码生成状态失败', 'error'))
+      .catch((error) => showToast(error.message || '读取源码准备状态失败', 'error'))
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -180,44 +186,56 @@ function CodeGenerationPage() {
       setState(result.state);
       showToast('源码扫描完成，已自动选择一批候选文件', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '选择项目失败', 'error');
+      showToast(error instanceof Error ? error.message : '选择源码目录失败', 'error');
     }
   }
 
-  async function saveSelection(nextPaths: string[]) {
+  async function saveSelection(nextPaths: string[], sortMode?: CodeGenerationState['sortMode']) {
+    setSavingSelection(true);
     try {
-      const nextState = await window.yibiao?.codeGeneration.updateSelection({ selectedPaths: nextPaths });
+      const nextState = await window.yibiao?.codeGeneration.updateSelection({ selectedPaths: nextPaths, sortMode });
       if (nextState) setState(nextState);
     } catch (error) {
       showToast(error instanceof Error ? error.message : '保存选择失败', 'error');
+    } finally {
+      setSavingSelection(false);
     }
   }
 
-  function toggleFile(filePath: string) {
-    const next = new Set(selectedSet);
-    if (next.has(filePath)) {
-      next.delete(filePath);
-    } else {
-      next.add(filePath);
+  async function handleRescan() {
+    setRescanOpen(false);
+    setSavingSelection(true);
+    try {
+      const nextState = await window.yibiao?.codeGeneration.rescan();
+      if (nextState) setState(nextState);
+      showToast('源码重新扫描完成，旧确认状态已失效', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '重新扫描失败', 'error');
+    } finally {
+      setSavingSelection(false);
     }
-    void saveSelection(Array.from(next));
   }
 
   async function handleConfirm() {
     try {
       const nextState = await window.yibiao?.codeGeneration.confirmSelection();
       if (nextState) setState(nextState);
-      showToast('代码素材已确认，软著生成可以直接使用', 'success');
+      showToast('源码素材已确认，可以继续生成软著材料', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '确认失败', 'error');
     }
+  }
+
+  function handleContinueToMaterials() {
+    window.localStorage.setItem('software-copyright-open-workbench', 'true');
+    onNavigate('software-copyright');
   }
 
   async function handleClear() {
     try {
       const result = await window.yibiao?.codeGeneration.clear();
       if (result) setState(result.state);
-      showToast('代码生成工作区已清空', 'success');
+      showToast('当前项目的源码准备工作区已清空', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '清空失败', 'error');
     }
@@ -231,16 +249,24 @@ function CodeGenerationPage() {
     <div className="code-generation-page">
       <section className="code-generation-header">
         <div>
-          <span className="section-kicker">代码生成</span>
-          <h2>准备软著生成可复用的源码素材</h2>
-          <p>当前先用于扫描真实项目源码、确认用于软著的代码文件范围。后续软著生成可直接读取这里确认过的代码素材。</p>
+          <span className="section-kicker">源码准备</span>
+          <h2>为当前软著项目确认源码材料</h2>
+          <p>源码扫描、文件范围和确认状态跟随当前软著项目独立保存，切换软著项目后不会互相覆盖。</p>
+          <div className="code-generation-project-context">
+            <span>当前软著项目</span>
+            <strong>{activeProject?.name || '未命名软著项目'}</strong>
+            <small>{activeProject?.softwareName || '尚未填写软件全称'} / {activeProject?.version || 'V1.0'}</small>
+          </div>
           <button type="button" className="code-generation-notice-link" onClick={() => setNoticeOpen(true)}>
             关于AI生成软著的必看事项
           </button>
         </div>
         <div className="software-copyright-header-actions">
-          <button type="button" className="secondary-action" onClick={handleSelectProject}>选择项目</button>
-          <button type="button" className="danger-action" onClick={handleClear}>清空</button>
+          <button type="button" className="secondary-action" onClick={() => onNavigate('software-copyright')} disabled={savingSelection}>切换软著项目</button>
+          <button type="button" className="secondary-action" onClick={handleSelectProject} disabled={savingSelection}>{state?.project ? '更换源码目录' : '选择源码目录'}</button>
+          <button type="button" className="secondary-action" onClick={() => setRescanOpen(true)} disabled={!state?.project || savingSelection}>{savingSelection ? '处理中' : '重新扫描'}</button>
+          <button type="button" className="primary-action" onClick={handleContinueToMaterials} disabled={!state?.confirmed || savingSelection}>进入材料生成</button>
+          <button type="button" className="danger-action" onClick={handleClear} disabled={savingSelection}>清空</button>
         </div>
       </section>
 
@@ -249,7 +275,7 @@ function CodeGenerationPage() {
           <section className="software-copyright-panel">
             <div className="software-copyright-panel-head">
               <div>
-                <span className="section-kicker">项目来源</span>
+                <span className="section-kicker">源码来源</span>
                 <h3>{state?.project?.name || '尚未选择项目'}</h3>
               </div>
               {state?.confirmed && <span className="code-generation-confirmed">已确认</span>}
@@ -262,7 +288,7 @@ function CodeGenerationPage() {
                 <article><span>预计页数</span><strong>{state.summary.estimatedPages}</strong></article>
               </div>
             ) : (
-              <div className="software-copyright-empty">请选择需要整理软著代码素材的项目目录。</div>
+              <div className="software-copyright-empty">请为“{activeProject?.name || '当前软著项目'}”选择源码目录。</div>
             )}
           </section>
 
@@ -274,32 +300,14 @@ function CodeGenerationPage() {
               </div>
               <button type="button" className="primary-action" onClick={handleConfirm} disabled={!canConfirm}>确认素材</button>
             </div>
-
-            <div className="code-generation-filter" role="tablist" aria-label="源码类型筛选">
-              {categories.map((item) => (
-                <button
-                  type="button"
-                  className={item === category ? 'is-active' : ''}
-                  onClick={() => setCategory(item)}
-                  key={item}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-
-            {files.length ? (
-              <div className="code-generation-file-list">
-                {files.map((file) => (
-                  <label className="code-generation-file-row" key={file.path}>
-                    <input type="checkbox" checked={selectedSet.has(file.path)} onChange={() => toggleFile(file.path)} />
-                    <span className="code-generation-file-main">
-                      <strong>{file.path}</strong>
-                      <small>{file.category} · {file.extension} · {file.line_count} 行</small>
-                    </span>
-                  </label>
-                ))}
-              </div>
+            {state?.analysis ? (
+              <SourceFileWorkspace
+                analysis={state.analysis}
+                selectedPaths={state.selectedPaths}
+                sortMode={state.sortMode || 'smart'}
+                disabled={savingSelection}
+                onChange={(paths, sortMode) => void saveSelection(paths, sortMode)}
+              />
             ) : (
               <div className="software-copyright-empty">暂无可选源码文件。</div>
             )}
@@ -310,17 +318,25 @@ function CodeGenerationPage() {
           <section className="software-copyright-panel">
             <div className="software-copyright-panel-head">
               <div>
-                <span className="section-kicker">联动</span>
-                <h3>软著生成</h3>
+                <span className="section-kicker">下一步</span>
+                <h3>生成软著材料</h3>
               </div>
             </div>
             <div className="code-generation-flow">
-              <span>选择项目并扫描源码</span>
+              <span>选择当前项目的源码目录</span>
               <span>确认代码素材范围</span>
-              <span>软著生成选择代码生成结果</span>
+              <span>材料生成选择源码准备结果</span>
               <span>导出代码鉴别材料</span>
             </div>
-            <p>确认后，软著生成会读取这里的项目目录和已选文件，不再重新自动挑选源码。</p>
+            {state?.analysis && (
+              <div className="code-generation-selection-summary">
+                <span>当前排序</span><strong>{state.sortMode === 'path' ? '路径排序' : state.sortMode === 'manual' ? '手动排序' : '入口优先'}</strong>
+                <span>已选语言</span><strong>{selectedComposition || '未选择'}</strong>
+                <span>最后扫描</span><strong>{state.scannedAt ? new Date(state.scannedAt).toLocaleString() : '历史数据'}</strong>
+              </div>
+            )}
+            <p>确认后，进入当前项目的材料生成工作台，选择“使用源码准备结果”即可继续。</p>
+            <button type="button" className="primary-action code-generation-next-action" onClick={handleContinueToMaterials} disabled={!state?.confirmed || savingSelection}>进入材料生成</button>
           </section>
         </aside>
       </div>
@@ -360,6 +376,22 @@ function CodeGenerationPage() {
 
             <div className="code-generation-ai-notice-actions">
               <Dialog.Close className="primary-action" type="button">我已知晓</Dialog.Close>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={rescanOpen} onOpenChange={setRescanOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="code-generation-rescan-card">
+            <Dialog.Title>重新扫描当前项目</Dialog.Title>
+            <Dialog.Description>
+              将重新读取磁盘源码，保留仍然存在的文件选择和排序。已删除文件会自动移除，新文件不会自动纳入，旧确认状态会立即失效。
+            </Dialog.Description>
+            <div className="code-generation-rescan-actions">
+              <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
+              <button className="primary-action" type="button" onClick={() => void handleRescan()}>开始扫描</button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>

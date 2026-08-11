@@ -1,7 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const AdmZip = require('adm-zip');
 const { dialog, shell } = require('electron');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const { getSafeImageDimensions } = require('../utils/safeImageDimensions.cjs');
 const {
   AlignmentType,
   BorderStyle,
@@ -10,6 +13,7 @@ const {
   Header,
   HeadingLevel,
   ImageRun,
+  LineRuleType,
   Packer,
   PageNumber,
   PageOrientation,
@@ -18,19 +22,31 @@ const {
   TableCell,
   TableRow,
   TextRun,
+  TabStopPosition,
+  TabStopType,
   WidthType,
 } = require('docx');
 const { getSoftwareCopyrightDir } = require('../utils/paths.cjs');
 const {
   buildBusinessContextMessages,
   buildManualIllustrationPrompt,
+  buildManualIllustrationPromptMessages,
   buildManualMarkdownMessages,
 } = require('./softwareCopyrightPrompts.cjs');
+const {
+  DEFAULT_CLEAN_OPTIONS,
+  LINES_PER_PAGE,
+  buildCodeMaterial,
+  normalizeCleanOptions,
+  readSourceFile,
+} = require('./softwareCopyrightCodePipeline.cjs');
+const { createSoftwareCopyrightDraftHistory } = require('./softwareCopyrightDraftHistory.cjs');
+const { createSoftwareCopyrightCaseStore } = require('./softwareCopyrightCaseStore.cjs');
+const { detectProjectTechnologies } = require('./softwareProjectTechnologyDetector.cjs');
 
-const CODE_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.css', '.scss', '.less', '.html', '.vue', '.svelte', '.astro', '.py', '.java', '.go', '.rs', '.cs', '.sql']);
+const CODE_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.css', '.scss', '.less', '.html', '.htm', '.xml', '.vue', '.svelte', '.astro', '.py', '.java', '.kt', '.kts', '.go', '.rs', '.c', '.h', '.cc', '.cpp', '.hpp', '.cs', '.swift', '.m', '.mm', '.php', '.rb', '.dart', '.lua', '.scala', '.sql', '.sh']);
 const SKIP_DIRS = new Set(['.git', '.hg', '.svn', '.idea', '.vscode', 'node_modules', 'dist', 'build', 'release', 'coverage', 'archive', '软件著作权申请资料']);
 const SKIP_FILES = new Set(['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'tsconfig.tsbuildinfo']);
-const LINES_PER_PAGE = 24;
 const SPLIT_PAGES = 60;
 const CORE_CODE_CATEGORIES = ['入口', '路由', '页面', '业务服务', '状态数据', '组件', '通用能力'];
 const CATEGORY_SELECTION_WEIGHT = {
@@ -68,6 +84,8 @@ const A4_PAGE_SIZE = {
   height: 16838,
   orientation: PageOrientation.PORTRAIT,
 };
+
+const SOFTWARE_COPYRIGHT_SCHEMA_VERSION = 4;
 const STANDARD_PAGE_MARGIN = {
   top: 1417,
   right: 1417,
@@ -106,6 +124,7 @@ const initialFields = {
 };
 
 const initialState = {
+  schemaVersion: SOFTWARE_COPYRIGHT_SCHEMA_VERSION,
   step: 'setup',
   project: null,
   analysis: null,
@@ -122,6 +141,7 @@ const initialState = {
     },
     codeExcludedPaths: [],
     codeIncludedPaths: [],
+    codeClean: DEFAULT_CLEAN_OPTIONS,
   },
   imageModel: {
     available: false,
@@ -132,12 +152,152 @@ const initialState = {
   drafts: {},
   draftConfirmed: false,
   draftConfirmedAt: '',
+  confirmedSnapshot: null,
+  exportBatches: [],
   draftDir: '',
   outputRoot: '',
   outputDir: '',
   outputs: [],
+  manualScreenshots: [],
+  aiIllustrations: [],
+  aiIllustrationSettings: {
+    prompt: '',
+    style: 'engineering_diagram',
+  },
+  manualPlaceholders: [],
+  manualReview: {
+    checks: {
+      ownership: false,
+      identity: false,
+      dates: false,
+      sourceEvidence: false,
+      localRequirements: false,
+    },
+    notes: '',
+    confirmedAt: '',
+    snapshotId: '',
+  },
+  codeMaterialReview: {
+    checks: {
+      pageRange: false,
+      sourceScope: false,
+      readability: false,
+    },
+    notes: '',
+    confirmedAt: '',
+    manifestHash: '',
+  },
+  manualAssetReview: {
+    checks: {
+      content: false,
+      captionPlacement: false,
+    },
+    notes: '',
+    confirmedAt: '',
+    mode: '',
+  },
+  generatedFieldsSourceDraftDir: '',
   updated_at: '',
 };
+
+function migrateSoftwareCopyrightState(saved, options = {}) {
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved)) {
+    return { state: null, changed: false, fromVersion: 0 };
+  }
+  const fromVersion = Number.isInteger(saved.schemaVersion) ? saved.schemaVersion : 0;
+  if (fromVersion > SOFTWARE_COPYRIGHT_SCHEMA_VERSION) {
+    throw new Error(`软著工作区版本 ${fromVersion} 高于当前客户端支持版本 ${SOFTWARE_COPYRIGHT_SCHEMA_VERSION}，请升级客户端后再使用`);
+  }
+
+  const next = { ...saved };
+  const legacyFieldAliases = {
+    software_name: 'softwareName',
+    short_name: 'shortName',
+    development_completed_date: 'developmentCompletedDate',
+    copyright_owner: 'copyrightOwner',
+    development_hardware: 'developmentHardware',
+    running_hardware: 'runningHardware',
+    development_os: 'developmentOs',
+    development_tools: 'developmentTools',
+    running_platform: 'runningPlatform',
+    runtime_support: 'runtimeSupport',
+    programming_language: 'programmingLanguage',
+    source_line_count: 'sourceLineCount',
+    development_purpose: 'developmentPurpose',
+    main_functions: 'mainFunctions',
+    technical_features: 'technicalFeatures',
+    page_count: 'pageCount',
+  };
+  const legacyFields = next.fields && typeof next.fields === 'object' && !Array.isArray(next.fields) ? { ...next.fields } : {};
+  for (const [legacyKey, currentKey] of Object.entries(legacyFieldAliases)) {
+    if (!legacyFields[currentKey] && legacyFields[legacyKey] != null) legacyFields[currentKey] = legacyFields[legacyKey];
+    delete legacyFields[legacyKey];
+  }
+  next.fields = legacyFields;
+
+  const legacyOptions = next.options && typeof next.options === 'object' && !Array.isArray(next.options) ? { ...next.options } : {};
+  if (!legacyOptions.screenshotMode && typeof legacyOptions.useAiImages === 'boolean') {
+    legacyOptions.screenshotMode = legacyOptions.useAiImages ? 'ai' : 'skip';
+  }
+  if (!['project', 'code-generation'].includes(legacyOptions.sourceMode)) legacyOptions.sourceMode = 'project';
+  if (!['skip', 'manual', 'ai'].includes(legacyOptions.screenshotMode)) legacyOptions.screenshotMode = 'skip';
+  legacyOptions.codeExcludedPaths = Array.isArray(legacyOptions.codeExcludedPaths) ? legacyOptions.codeExcludedPaths.filter((item) => typeof item === 'string') : [];
+  legacyOptions.codeIncludedPaths = Array.isArray(legacyOptions.codeIncludedPaths) ? legacyOptions.codeIncludedPaths.filter((item) => typeof item === 'string') : [];
+  next.options = legacyOptions;
+
+  next.drafts = next.drafts && typeof next.drafts === 'object' && !Array.isArray(next.drafts) ? next.drafts : {};
+  next.outputs = Array.isArray(next.outputs) ? next.outputs.filter((item) => item?.name && item?.path) : [];
+  next.exportBatches = Array.isArray(next.exportBatches)
+    ? next.exportBatches.filter((batch) => batch?.id && batch?.directory && batch?.zipPath).slice(0, 20).map((batch) => ({
+      ...batch,
+      files: Array.isArray(batch.files) ? batch.files.filter((item) => item?.name && item?.path && item?.sha256) : [],
+    }))
+    : [];
+  next.manualScreenshots = Array.isArray(next.manualScreenshots) ? next.manualScreenshots : [];
+  next.aiIllustrations = Array.isArray(next.aiIllustrations) ? next.aiIllustrations : [];
+
+  const snapshotAvailable = Boolean(next.confirmedSnapshot?.id && next.confirmedSnapshot?.path && next.confirmedSnapshot?.stateFile
+    && fs.existsSync(next.confirmedSnapshot.path) && fs.existsSync(next.confirmedSnapshot.stateFile));
+  if (next.draftConfirmed && !snapshotAvailable) {
+    next.draftConfirmed = false;
+    next.draftConfirmedAt = '';
+    next.confirmedSnapshot = null;
+    next.outputDir = '';
+    next.outputs = [];
+  }
+  if (!next.draftConfirmed) {
+    next.draftConfirmedAt = '';
+    next.confirmedSnapshot = null;
+  }
+
+  if (next.task?.status === 'running' && !options.hasActiveTask) {
+    next.task = {
+      ...next.task,
+      status: 'error',
+      progress: 100,
+      error: '上次任务在客户端退出前未完成，请重新执行',
+      recovery: {
+        title: '上次任务未完成',
+        message: '已保留项目、申请字段和已生成文件，可从当前步骤重新执行。',
+        actions: ['检查项目目录和模型配置', '重新生成草稿或导出正式资料'],
+      },
+      logs: [...(Array.isArray(next.task.logs) ? next.task.logs : []), '检测到客户端异常退出，任务已标记为可重试'],
+      updated_at: now(),
+    };
+    next.step = next.drafts && Object.keys(next.drafts).length ? 'draft' : 'setup';
+  }
+
+  if (!['setup', 'generating', 'draft', 'exporting', 'result'].includes(next.step)) next.step = 'setup';
+  next.schemaVersion = SOFTWARE_COPYRIGHT_SCHEMA_VERSION;
+  if (fromVersion < SOFTWARE_COPYRIGHT_SCHEMA_VERSION) {
+    next.migration = {
+      fromVersion,
+      toVersion: SOFTWARE_COPYRIGHT_SCHEMA_VERSION,
+      migratedAt: now(),
+    };
+  }
+  return { state: next, changed: JSON.stringify(next) !== JSON.stringify(saved), fromVersion };
+}
 
 const draftConfirmRequiredFields = [
   ['softwareName', '软件全称'],
@@ -162,6 +322,33 @@ const requiredDraftFiles = [
   ['application', '申请表信息'],
   ['manual', '操作手册'],
   ['codeManifest', '代码提取清单'],
+];
+
+const submissionFieldDefinitions = [
+  { group: '软件基本信息', key: 'softwareName', label: '软件全称', required: true, maxLength: 50, note: '应与申请表、手册和代码页眉一致' },
+  { group: '软件基本信息', key: 'shortName', label: '软件简称', maxLength: 20, note: '无简称时可按受理系统要求留空' },
+  { group: '软件基本信息', key: 'version', label: '版本号', required: true, maxLength: 20, note: '建议使用 V1.0 等稳定表达' },
+  { group: '软件基本信息', key: 'category', label: '软件分类', required: true, maxLength: 20, note: '以登记系统实际选项为准' },
+  { group: '软件基本信息', key: 'developmentCompletedDate', label: '开发完成日期', required: true, maxLength: 10, note: '格式 YYYY-MM-DD，应有开发证据支持' },
+  { group: '软件基本信息', key: 'developmentMode', label: '开发方式', required: true, maxLength: 20, note: '例如单独开发、合作开发或委托开发' },
+  { group: '权利与发表', key: 'copyrightOwner', label: '著作权人', required: true, maxLength: 200, note: '名称、地区、类型和证件信息需人工核对' },
+  { group: '权利与发表', key: 'rightsScope', label: '权利范围', required: true, maxLength: 30, note: '通常为全部权利，以实际权属为准' },
+  { group: '权利与发表', key: 'rightsAcquisition', label: '权利取得方式', required: true, maxLength: 30, note: '原始取得或继受取得需与权属证据一致' },
+  { group: '权利与发表', key: 'publishStatus', label: '发表状态', required: true, maxLength: 20, note: '已发表时还需核对首次发表日期和地点' },
+  { group: '权利与发表', key: 'firstPublishDate', label: '首次发表日期', maxLength: 10, note: '未发表时通常留空' },
+  { group: '开发与运行环境', key: 'developmentHardware', label: '开发硬件环境', required: true, maxLength: 50, note: '使用简洁的硬件配置描述' },
+  { group: '开发与运行环境', key: 'runningHardware', label: '运行硬件环境', required: true, maxLength: 50, note: '填写用户运行软件所需配置' },
+  { group: '开发与运行环境', key: 'developmentOs', label: '开发操作系统', required: true, maxLength: 50, note: '例如 Windows 11 或 macOS 15' },
+  { group: '开发与运行环境', key: 'developmentTools', label: '开发工具', required: true, maxLength: 50, note: '开发环境与工具名称应与实际一致' },
+  { group: '开发与运行环境', key: 'runningPlatform', label: '运行平台', required: true, maxLength: 50, note: '填写支持的操作系统或平台' },
+  { group: '开发与运行环境', key: 'runtimeSupport', label: '运行支撑环境', required: true, maxLength: 50, note: '例如 Electron、Chromium、Node.js' },
+  { group: '开发与运行环境', key: 'programmingLanguage', label: '编程语言', required: true, maxLength: 50, note: '应与代码材料中的文件类型相符' },
+  { group: '功能与规模', key: 'sourceLineCount', label: '源程序量', required: true, maxLength: 12, note: '仅填数字，应与代码抽取清单一致' },
+  { group: '功能与规模', key: 'developmentPurpose', label: '开发目的', required: true, maxLength: 50, note: '建议一句话说明要解决的业务问题' },
+  { group: '功能与规模', key: 'industry', label: '面向领域 / 行业', required: true, maxLength: 50, note: '使用明确的行业或应用领域名称' },
+  { group: '功能与规模', key: 'mainFunctions', label: '软件主要功能', required: true, maxLength: 200, note: '按实际功能概括，避免使用未实现的表述' },
+  { group: '功能与规模', key: 'technicalFeatures', label: '软件技术特点', required: true, maxLength: 100, note: '概括架构、平台、数据或交付特点' },
+  { group: '功能与规模', key: 'pageCount', label: '代码材料页数', required: true, maxLength: 6, note: '应与代码提取清单页数一致' },
 ];
 
 function now() {
@@ -190,21 +377,33 @@ function sanitizeFilename(value, fallback = '软著资料') {
 }
 
 function readText(filePath, limit) {
-  const buffer = fs.readFileSync(filePath);
-  const data = limit ? buffer.subarray(0, limit) : buffer;
-  for (const encoding of ['utf-8', 'utf8', 'gb18030', 'latin1']) {
-    try {
-      return data.toString(encoding);
-    } catch {
-      // Try next encoding.
-    }
-  }
-  return data.toString('utf-8');
+  const { text } = readSourceFile(filePath);
+  return limit ? text.slice(0, limit) : text;
 }
 
 function writeJson(filePath, data) {
   ensureDir(path.dirname(filePath));
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function sha256File(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function listFilesRecursive(root, current = root, results = []) {
+  if (!fs.existsSync(current)) return results;
+  for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+    const filePath = path.join(current, entry.name);
+    if (entry.isDirectory()) listFilesRecursive(root, filePath, results);
+    else if (entry.isFile()) results.push({
+      name: entry.name,
+      path: filePath,
+      relativePath: path.relative(root, filePath).split(path.sep).join('/'),
+      size: fs.statSync(filePath).size,
+      sha256: sha256File(filePath),
+    });
+  }
+  return results;
 }
 
 function readJson(filePath, fallback) {
@@ -303,10 +502,6 @@ function pickRepresentativeCodeFile(items) {
 }
 
 function analyzeProject(projectDir) {
-  const packagePath = ['package.json', 'client/package.json', 'frontend/package.json', 'web/package.json']
-    .map((name) => path.join(projectDir, name))
-    .find((candidate) => fs.existsSync(candidate));
-  const packageJson = packagePath ? readJson(packagePath, {}) : {};
   const files = walkFiles(projectDir).map((item) => {
     const relativePath = rel(item.filePath, projectDir);
     const text = readText(item.filePath, 400_000);
@@ -323,11 +518,8 @@ function analyzeProject(projectDir) {
   });
 
   files.sort((a, b) => categoryPriority(a.category) - categoryPriority(b.category) || b.line_count - a.line_count);
-  const dependencies = {
-    ...(packageJson.dependencies || {}),
-    ...(packageJson.devDependencies || {}),
-  };
-  const frameworks = Object.keys(dependencies).filter((name) => ['react', 'vue', 'vite', 'electron', 'next', 'typescript'].some((key) => name.toLowerCase().includes(key)));
+  const technology = detectProjectTechnologies(projectDir, files);
+  const packageJson = technology.packageJson;
   const lineCount = files.reduce((sum, item) => sum + item.line_count, 0);
   const languages = Array.from(new Set(files.map((item) => item.extension.replace('.', '')).filter(Boolean))).slice(0, 8);
 
@@ -337,11 +529,11 @@ function analyzeProject(projectDir) {
     packageName: packageJson.name || '',
     packageVersion: packageJson.version || '',
     scripts: packageJson.scripts || {},
-    frameworks,
+    frameworks: technology.frameworks,
     languages,
     fileCount: files.length,
     lineCount,
-    candidates: files.slice(0, 180).map(({ file_path, ...item }) => item),
+    candidates: files.map(({ file_path, ...item }) => item),
     readmeExcerpt: readReadme(projectDir),
   };
 }
@@ -427,39 +619,16 @@ function selectCodeFiles(analysis, excludedPaths = [], includedPaths = []) {
 }
 
 function createCodeMaterial(projectDir, selectedFiles, fields, draftDir) {
-  const allLines = [];
-  const files = [];
-  for (const item of selectedFiles) {
-    const filePath = path.join(projectDir, item.path);
-    if (!fs.existsSync(filePath)) continue;
-    const text = readText(filePath);
-    const sourceLines = text.split(/\r?\n/);
-    const start = allLines.length + 1;
-    allLines.push(`// File: ${item.path}`);
-    allLines.push(...sourceLines);
-    allLines.push('');
-    files.push({
-      path: item.path,
-      category: item.category,
-      selection_score: Number.isFinite(item.selection_score) ? Number(item.selection_score.toFixed(2)) : undefined,
-      source_line_count: sourceLines.length,
-      material_line_start: start,
-      material_line_end: allLines.length,
-    });
-  }
-
-  const pages = [];
-  for (let index = 0; index < allLines.length; index += LINES_PER_PAGE) {
-    pages.push(allLines.slice(index, index + LINES_PER_PAGE));
-  }
+  const material = buildCodeMaterial(projectDir, selectedFiles, fields, fields.codeClean);
+  const { pages, files, audit, cleanOptions, totalLines, truncated } = material;
 
   const softwareName = fields.softwareName || '软件';
   const version = fields.version || 'V1.0';
   const outputs = [];
   const writePages = (fileName, title, pageItems) => {
     const lines = [];
-    for (const [pageNo, pageLines] of pageItems) {
-      lines.push(`## 第 ${pageNo} 页`, '', '```text', ...pageLines, '```', '');
+    for (const page of pageItems) {
+      lines.push(`## 第 ${page.no} 页`, '', '```text', ...page.lines, '```', '');
     }
     const target = path.join(draftDir, fileName);
     fs.writeFileSync(target, lines.join('\n'), 'utf-8');
@@ -467,10 +636,10 @@ function createCodeMaterial(projectDir, selectedFiles, fields, draftDir) {
   };
 
   if (pages.length >= SPLIT_PAGES) {
-    writePages('代码-前30页.md', '代码材料（前30页）', pages.slice(0, 30).map((page, index) => [index + 1, page]));
-    writePages('代码-后30页.md', '代码材料（后30页）', pages.slice(-30).map((page, index) => [pages.length - 29 + index, page]));
+    writePages('代码-前30页.md', '代码材料（前30页）', pages.slice(0, 30));
+    writePages('代码-后30页.md', '代码材料（后30页）', pages.slice(-30));
   } else {
-    writePages('代码-全部.md', '代码材料（全部）', pages.map((page, index) => [index + 1, page]));
+    writePages('代码-全部.md', '代码材料（全部）', pages);
   }
 
   const manifest = {
@@ -480,8 +649,11 @@ function createCodeMaterial(projectDir, selectedFiles, fields, draftDir) {
     lines_per_page: LINES_PER_PAGE,
     total_pages: pages.length,
     mode: pages.length >= SPLIT_PAGES ? 'front30_back30' : 'all_under_60_pages',
-    material_line_count: allLines.length,
-    selection_strategy: 'core-category-score-v1',
+    material_line_count: pages.reduce((sum, page) => sum + page.lines.length, 0),
+    cleaned_line_count: totalLines,
+    truncated,
+    selection_strategy: 'clean-audit-front-back-v2',
+    clean_options: cleanOptions,
     excluded_paths: normalizePathList(fields.codeExcludedPaths),
     included_paths: normalizePathList(fields.codeIncludedPaths),
     category_summary: files.reduce((summary, item) => {
@@ -489,6 +661,8 @@ function createCodeMaterial(projectDir, selectedFiles, fields, draftDir) {
       return summary;
     }, {}),
     files,
+    pages,
+    audit,
   };
   writeJson(path.join(draftDir, '代码提取清单.json'), manifest);
   fs.writeFileSync(path.join(draftDir, '代码提取清单.md'), [
@@ -497,12 +671,17 @@ function createCodeMaterial(projectDir, selectedFiles, fields, draftDir) {
     `- 软件名称：${softwareName}`,
     `- 版本号：${version}`,
     `- 总页数：${pages.length}`,
-    `- 材料代码行数：${allLines.length}`,
-    `- 选择策略：核心类别覆盖 + 源码权重排序`,
+    `- 材料代码行数：${pages.reduce((sum, page) => sum + page.lines.length, 0)}`,
+    `- 清洗后源码行数：${totalLines}`,
+    `- 选择策略：核心类别覆盖 + 清洗脱敏 + 50 行显式分页`,
     '',
-    '| 文件 | 类型 | 源码行数 | 材料行范围 |',
-    '| --- | --- | ---: | --- |',
-    ...files.map((item) => `| \`${item.path}\` | ${item.category} | ${item.source_line_count} | ${item.material_line_start}-${item.material_line_end} |`),
+    '| 文件 | 类型 | 编码 | 原始行数 | 清洗后行数 |',
+    '| --- | --- | --- | ---: | ---: |',
+    ...files.map((item) => `| \`${item.path}\` | ${item.category} | ${item.encoding} | ${item.source_line_count} | ${item.cleaned_line_count} |`),
+    '',
+    '## 合规审查',
+    '',
+    ...audit.map((item) => `- ${item.status === 'pass' ? '通过' : item.status === 'warn' ? '警告' : '退回风险'}：${item.name}。${item.detail}`),
     '',
   ].join('\n'), 'utf-8');
   return { manifest, outputs };
@@ -540,6 +719,115 @@ function asArrayText(value, fallback = []) {
   if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
   if (typeof value === 'string' && value.trim()) return value.split(/[；;\n、]+/).map((item) => item.trim()).filter(Boolean);
   return fallback;
+}
+
+function normalizeGeneratedField(value, maxLength) {
+  const text = Array.isArray(value) ? value.map((item) => String(item || '').trim()).filter(Boolean).join('、') : String(value || '').trim();
+  return maxLength && text.length > maxLength ? text.slice(0, maxLength) : text;
+}
+
+function enrichFieldsFromBusiness(fields, business, analysis = {}) {
+  const featureNames = asArrayText(business?.business_features, ['信息管理', '业务处理', '结果查看']);
+  const softwareName = fields.softwareName || analysis.projectName || '本软件';
+  const fallbackMainFunctions = `${softwareName}主要提供${featureNames.join('、')}等功能，支持用户完成资料录入、流程处理、结果查看和资料导出。`;
+  const technologyNames = [...(analysis.frameworks || []), ...(analysis.languages || []).map((item) => String(item).toUpperCase())].slice(0, 8);
+  const fallbackTechnicalFeatures = technologyNames.length
+    ? `采用${technologyNames.join('、')}等技术构建，支持业务数据处理、状态反馈和结果导出。`
+    : '采用模块化软件架构，支持业务数据处理、状态反馈和结果导出。';
+  return {
+    ...fields,
+    industry: fields.industry || normalizeGeneratedField(business?.industry, 50),
+    mainFunctions: fields.mainFunctions || normalizeGeneratedField(business?.main_functions || fallbackMainFunctions, 200),
+    technicalFeatures: fields.technicalFeatures || normalizeGeneratedField(business?.technical_characteristics || fallbackTechnicalFeatures, 100),
+  };
+}
+
+async function generateTechnicalFeaturesField(aiService, analysis = {}, fields = {}) {
+  const frameworks = asArrayText(analysis.frameworks).join('、') || '未识别';
+  const languages = asArrayText(analysis.languages).join('、') || fields.programmingLanguage || '未识别';
+  const candidateCategories = Array.from(new Set((analysis.candidates || []).map((item) => item.category).filter(Boolean))).slice(0, 8).join('、');
+  const content = await aiService.chat({
+    logTitle: '软著-AI生成技术特点',
+    temperature: 0.2,
+    timeout_ms: 180000,
+    messages: [
+      {
+        role: 'system',
+        content: '你是中国软件著作权登记材料助手。请依据项目证据撰写“软件的技术特点”字段，只输出一段中文纯文本，不要标题、列表、引号或解释，不得编造未提供的技术，控制在100个汉字以内。重点说明技术架构、主要技术栈、数据处理或跨平台等可验证特点，避免营销口号和单纯重复软件功能。',
+      },
+      {
+        role: 'user',
+        content: [
+          `软件全称：${fields.softwareName || analysis.projectName || '本软件'}`,
+          `技术栈：${frameworks}`,
+          `编程语言：${languages}`,
+          `源码类别：${candidateCategories || '未分类'}`,
+          `主要功能：${fields.mainFunctions || '尚未填写'}`,
+          `开发目的：${fields.developmentPurpose || '尚未填写'}`,
+          `应用领域：${fields.industry || '尚未填写'}`,
+          `项目说明摘录：${String(analysis.readmeExcerpt || '').slice(0, 1200)}`,
+        ].join('\n'),
+      },
+    ],
+  });
+  const normalized = normalizeGeneratedField(String(content || '')
+    .replace(/^```(?:text)?\s*/i, '')
+    .replace(/```$/i, '')
+    .replace(/^软件的技术特点[：:]?\s*/i, '')
+    .replace(/[\r\n]+/g, ' ')
+    .trim(), 100);
+  if (!normalized) throw new Error('文本模型未返回有效的技术特点，请重试');
+  return normalized;
+}
+
+function backfillGeneratedFieldsFromDrafts(state) {
+  if (!state?.draftDir || (!state.drafts?.business && !state.drafts?.application)) return { state, changed: false };
+  if (state.generatedFieldsSourceDraftDir === state.draftDir) return { state, changed: false };
+  let business = {};
+  const businessJsonPath = path.join(state.draftDir, '业务理解.json');
+  if (fs.existsSync(businessJsonPath)) business = readJson(businessJsonPath, {});
+  let fields = enrichFieldsFromBusiness({ ...(state.fields || {}) }, business, state.analysis || {});
+  const applicationPath = state.drafts?.application || path.join(state.draftDir, '申请表信息.md');
+  if (fs.existsSync(applicationPath)) {
+    const application = fs.readFileSync(applicationPath, 'utf-8');
+    const extract = (label) => application.match(new RegExp(`^➤${label}：(.*)$`, 'mu'))?.[1]?.trim() || '';
+    if (!fields.mainFunctions) fields.mainFunctions = normalizeGeneratedField(extract('软件的主要功能'), 200);
+    if (!fields.technicalFeatures) fields.technicalFeatures = normalizeGeneratedField(extract('软件的技术特点'), 100);
+  }
+  const changed = JSON.stringify(fields) !== JSON.stringify(state.fields || {});
+  if (!changed) return { state, changed: false };
+  return {
+    changed: true,
+    state: {
+      ...state,
+      fields,
+      draftConfirmed: false,
+      draftConfirmedAt: '',
+      confirmedSnapshot: null,
+      outputDir: '',
+      outputs: [],
+      generatedFieldsSourceDraftDir: state.draftDir,
+    },
+  };
+}
+
+function backfillAnalysisTechnologies(state) {
+  const projectDir = state?.project?.path || state?.analysis?.projectRoot;
+  if (!projectDir || !fs.existsSync(projectDir) || state?.analysis?.frameworks?.length) return { state, changed: false };
+  const technology = detectProjectTechnologies(projectDir, state.analysis?.candidates || []);
+  if (!technology.frameworks.length) return { state, changed: false };
+  return {
+    changed: true,
+    state: {
+      ...state,
+      analysis: {
+        ...(state.analysis || {}),
+        frameworks: technology.frameworks,
+        packageName: state.analysis?.packageName || technology.packageJson?.name || '',
+        packageVersion: state.analysis?.packageVersion || technology.packageJson?.version || '',
+      },
+    },
+  };
 }
 
 function createApplicationMarkdown(fields, business, manifest) {
@@ -732,6 +1020,7 @@ function paragraph(text, options = {}) {
     heading: options.heading,
     alignment: options.alignment,
     pageBreakBefore: options.pageBreakBefore,
+    keepNext: options.keepNext,
     spacing: { after: options.after ?? 120, line: options.line ?? 360 },
     children: options.children || [new TextRun({ text: String(text || ''), font: options.font || '宋体', size: options.size || 24, bold: options.bold, color: options.color || '000000' })],
   });
@@ -896,6 +1185,7 @@ function markdownToDocxChildren(markdown, options = {}) {
   let inCode = false;
   let codeLines = [];
   let codeMaterialPageHeadingCount = 0;
+  let inlineFigureCount = 0;
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const rawLine = lines[lineIndex];
     const line = rawLine.trimEnd();
@@ -922,7 +1212,18 @@ function markdownToDocxChildren(markdown, options = {}) {
       children.push(new Paragraph({ text: '', spacing: { after: 80 } }));
       continue;
     }
-    if (line.startsWith('# ')) {
+    const placeholderMatch = line.trim().match(/^【截图预留：([^】]+)】$/u);
+    const inlineImages = placeholderMatch
+      ? (options.inlineImages || []).filter((item) => item?.placement === placeholderMatch[1].trim() && item?.path && fs.existsSync(item.path))
+      : [];
+    if (inlineImages.length) {
+      for (const item of inlineImages) {
+        inlineFigureCount += 1;
+        children.push(...createImageFigureChildren(item, inlineFigureCount, {
+          assetName: options.inlineAssetName || 'manual-inline-image',
+        }));
+      }
+    } else if (line.startsWith('# ')) {
       children.push(paragraph(line.slice(2), { heading: HeadingLevel.TITLE, size: 32, bold: true, alignment: AlignmentType.CENTER, after: 220 }));
     } else if (line.startsWith('## ')) {
       const isCodeMaterialPageHeading = options.kind === 'code' && /^第\s*\d+\s*页/u.test(line.slice(3).trim());
@@ -988,6 +1289,48 @@ function markdownToDocxChildren(markdown, options = {}) {
   return children;
 }
 
+function createImageFigureChildren(item, index, options = {}) {
+  try {
+    const buffer = fs.readFileSync(item.path);
+    const size = getSafeImageDimensions(buffer);
+    const sourceWidth = Number(size.width) || 960;
+    const sourceHeight = Number(size.height) || 600;
+    const ratio = Math.min(1, (options.maxWidth || 500) / sourceWidth, (options.maxHeight || 560) / sourceHeight);
+    const extension = path.extname(item.path).toLowerCase();
+    const caption = String(item.caption || item.name || `界面截图 ${index}`).trim();
+    return [
+      paragraph(`图 ${index}  ${caption}`, {
+        size: 21,
+        bold: true,
+        alignment: AlignmentType.CENTER,
+        pageBreakBefore: Boolean(options.pageBreakBefore),
+        keepNext: true,
+        after: 120,
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 180 },
+        children: [new ImageRun({
+          type: extension === '.png' ? 'png' : 'jpg',
+          data: buffer,
+          transformation: {
+            width: Math.max(1, Math.round(sourceWidth * ratio)),
+            height: Math.max(1, Math.round(sourceHeight * ratio)),
+          },
+          altText: { title: caption, description: caption, name: `${options.assetName || 'manual-image'}-${index}` },
+        })],
+      }),
+    ];
+  } catch {
+    return [paragraph(`图 ${index}  ${item.caption || item.name || '图片读取失败'}（图片无法读取，请人工补充）`, {
+      size: 21,
+      color: 'B42318',
+      pageBreakBefore: Boolean(options.pageBreakBefore),
+      after: 160,
+    })];
+  }
+}
+
 function createManualCoverChildren(fields, softwareName, version) {
   return [
     paragraph(`${softwareName} 操作手册`, { size: 38, bold: true, alignment: AlignmentType.CENTER, after: 420 }),
@@ -1000,9 +1343,36 @@ function createManualCoverChildren(fields, softwareName, version) {
   ];
 }
 
+function extractScreenshotPlaceholders(markdown) {
+  return Array.from(String(markdown || '').matchAll(/【截图预留：([^】]+)】/gu), (match) => match[1].trim()).filter(Boolean);
+}
+
+function createSupplementImageChildren(screenshots = [], heading = '附录、界面截图', assetName = 'manual-screenshot') {
+  const valid = screenshots.filter((item) => item?.path && fs.existsSync(item.path));
+  if (!valid.length) return [];
+  const children = [paragraph(heading, {
+    heading: HeadingLevel.HEADING_1,
+    size: 28,
+    bold: true,
+    pageBreakBefore: true,
+    after: 180,
+  })];
+  valid.forEach((item, index) => {
+    children.push(...createImageFigureChildren(item, index + 1, { assetName, pageBreakBefore: index > 0 }));
+  });
+  return children;
+}
+
 async function writeDocx(markdown, outPath, headerText = '', options = {}) {
   const coverChildren = options.kind === 'manual'
     ? createManualCoverChildren(options.fields || {}, options.softwareName || headerText || '软件', options.version || '')
+    : [];
+  const screenshotChildren = options.kind === 'manual'
+    ? createSupplementImageChildren(
+      options.supplementImages || options.manualScreenshots || [],
+      options.supplementHeading || '附录、界面截图',
+      options.supplementAssetName || 'manual-screenshot',
+    )
     : [];
   const doc = new Document({
     sections: [{
@@ -1022,27 +1392,110 @@ async function writeDocx(markdown, outPath, headerText = '', options = {}) {
         ...coverChildren,
         ...markdownToDocxChildren(markdown, options.kind === 'code'
           ? { kind: 'code', bodyFont: '宋体', bodySize: 21, bodyLine: 240, bodyAfter: 0 }
-          : { kind: options.kind, bodyFont: '宋体', bodySize: 24, bodyLine: 360, bodyAfter: 120 }),
+          : {
+            kind: options.kind,
+            bodyFont: '宋体',
+            bodySize: 24,
+            bodyLine: 360,
+            bodyAfter: 120,
+            inlineImages: options.inlineImages || [],
+            inlineAssetName: options.inlineAssetName,
+          }),
+        ...screenshotChildren,
       ],
     }],
   });
   fs.writeFileSync(outPath, await Packer.toBuffer(doc));
 }
 
-async function maybeGenerateIllustration(aiService, enabled, fields) {
-  if (!enabled) return null;
-  try {
-    const availability = aiService.getImageModelAvailability();
-    if (!availability.available) return null;
-    return await aiService.generateImage({
-      title: '软著操作手册示意图',
-      prompt: buildManualIllustrationPrompt(fields),
-      size: '1024x1024',
-      logTitle: '软著-操作手册示意图',
-    });
-  } catch (error) {
-    return { success: false, message: error.message || '生图失败' };
+async function writeCodeDocx(pages, outPath, headerText) {
+  const codeAsciiFont = process.platform === 'darwin' ? 'Menlo' : 'Consolas';
+  const eastAsiaCodeFont = process.platform === 'darwin' ? 'Songti SC' : process.platform === 'win32' ? 'SimSun' : 'Noto Sans CJK SC';
+  const eastAsiaHeaderFont = process.platform === 'darwin' ? 'PingFang SC' : process.platform === 'win32' ? 'Microsoft YaHei' : 'Noto Sans CJK SC';
+  const codeFont = { ascii: codeAsciiFont, hAnsi: codeAsciiFont, eastAsia: codeAsciiFont, cs: codeAsciiFont };
+
+  function createMixedFontRuns(value, options = {}) {
+    const text = String(value || ' ');
+    const segments = [];
+    let current = '';
+    let currentIsCjk = null;
+    for (const character of Array.from(text)) {
+      const isCjk = character.codePointAt(0) > 0x2e7f;
+      if (current && isCjk !== currentIsCjk) {
+        segments.push({ text: current, isCjk: currentIsCjk });
+        current = '';
+      }
+      current += character;
+      currentIsCjk = isCjk;
+    }
+    if (current) segments.push({ text: current, isCjk: currentIsCjk });
+    return segments.map((segment) => new TextRun({
+      text: segment.text,
+      font: segment.isCjk ? options.eastAsiaFont : options.asciiFont,
+      size: options.size,
+      color: options.color,
+    }));
   }
+
+  const children = [];
+  pages.forEach((page, pageIndex) => {
+    page.lines.forEach((line, lineIndex) => {
+      children.push(new Paragraph({
+        pageBreakBefore: pageIndex > 0 && lineIndex === 0,
+        spacing: { before: 0, after: 0, line: 230, lineRule: LineRuleType.EXACT },
+        indent: { left: 0, right: 0, firstLine: 0 },
+        children: createMixedFontRuns(line, {
+          asciiFont: codeAsciiFont,
+          eastAsiaFont: eastAsiaCodeFont,
+          size: 19,
+          color: '111827',
+        }),
+      }));
+    });
+  });
+  const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: { font: codeFont, size: 19, color: '111827' },
+          paragraph: { spacing: { before: 0, after: 0, line: 230, lineRule: LineRuleType.EXACT } },
+        },
+      },
+    },
+    sections: [{
+      properties: {
+        page: {
+          size: A4_PAGE_SIZE,
+          margin: { top: 1040, right: 900, bottom: 720, left: 900, header: 420, footer: 360 },
+        },
+      },
+      headers: {
+        default: new Header({
+          children: [new Paragraph({
+            tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
+            spacing: { before: 0, after: 80 },
+            border: { bottom: { color: 'CBD5E1', space: 5, style: BorderStyle.SINGLE, size: 4 } },
+            children: [
+              ...createMixedFontRuns(headerText, {
+                asciiFont: 'Arial',
+                eastAsiaFont: eastAsiaHeaderFont,
+                size: 18,
+                color: '475569',
+              }),
+              new TextRun({ children: ['\t'], font: 'Arial', size: 18, color: '475569' }),
+              new TextRun({ children: [PageNumber.CURRENT], font: 'Arial', size: 18, color: '475569' }),
+            ],
+          })],
+        }),
+      },
+      children,
+    }],
+  });
+  fs.writeFileSync(outPath, await Packer.toBuffer(doc));
+}
+
+function writeCodeTxt(pages, outPath) {
+  fs.writeFileSync(outPath, pages.map((page) => page.lines.join('\n')).join('\n'), 'utf-8');
 }
 
 function createTask(type) {
@@ -1126,17 +1579,199 @@ function createExportReadmeText({ fields, manifest, state, exportItems, finalOut
   ].join('\n');
 }
 
+function buildSubmissionReview(state, verifiedBatches = []) {
+  const fields = state.fields || {};
+  const placeholderPattern = /待补充|待确认|待填|示例|example/i;
+  const fieldMappings = submissionFieldDefinitions.map((definition) => {
+    const value = String(fields[definition.key] || '').trim();
+    let status = 'pass';
+    let message = definition.note;
+    if (definition.required && !value) {
+      status = 'blocked';
+      message = '必填字段尚未填写';
+    } else if (value && placeholderPattern.test(value)) {
+      status = 'blocked';
+      message = '字段中仍包含待补充或示例内容';
+    } else if (definition.maxLength && value.length > definition.maxLength) {
+      status = 'warning';
+      message = `当前 ${value.length} 字符，建议控制在 ${definition.maxLength} 字符以内`;
+    }
+    if (definition.key === 'developmentCompletedDate' && value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      status = 'blocked';
+      message = '日期格式应为 YYYY-MM-DD';
+    }
+    if (definition.key === 'firstPublishDate' && fields.publishStatus === '已发表' && !value) {
+      status = 'blocked';
+      message = '已发表软件需填写首次发表日期';
+    }
+    if ((definition.key === 'sourceLineCount' || definition.key === 'pageCount') && value && !/^\d+$/.test(value)) {
+      status = 'blocked';
+      message = '请仅填写数字';
+    }
+    return { ...definition, value, length: value.length, status, message };
+  });
+
+  const fieldBlockedCount = fieldMappings.filter((item) => item.status === 'blocked').length;
+  const fieldWarningCount = fieldMappings.filter((item) => item.status === 'warning').length;
+  const latestBatch = state.confirmedSnapshot?.id
+    ? verifiedBatches.find((batch) => batch.snapshotId === state.confirmedSnapshot.id) || null
+    : null;
+  const checks = [];
+  const deliveryChecks = [];
+  checks.push({
+    id: 'project-source',
+    label: '项目与源码',
+    status: state.project?.path || state.codeGeneration?.project?.path ? 'pass' : 'blocked',
+    detail: state.project?.path || state.codeGeneration?.project?.path || '尚未选择软件项目',
+    recommendation: '确认申报软件与当前源码目录一致',
+  });
+  checks.push({
+    id: 'form-fields',
+    label: '官网填报字段',
+    status: fieldBlockedCount ? 'blocked' : fieldWarningCount ? 'warning' : 'pass',
+    detail: fieldBlockedCount ? `${fieldBlockedCount} 项必填字段待处理` : fieldWarningCount ? `${fieldWarningCount} 项字段建议精简` : `${fieldMappings.length} 项字段已完成映射`,
+    recommendation: '逐项复制到实际登记系统后再人工校对',
+  });
+  checks.push({
+    id: 'draft-confirmation',
+    label: '草稿与确认快照',
+    status: state.draftConfirmed && state.confirmedSnapshot?.id ? 'pass' : 'blocked',
+    detail: state.draftConfirmed && state.confirmedSnapshot?.id ? `已绑定确认快照 ${state.confirmedSnapshot.id.slice(0, 20)}` : '尚未生成可追溯的确认快照',
+    recommendation: '完成草稿检查并点击确认草稿',
+  });
+  deliveryChecks.push({
+    id: 'delivery-integrity',
+    label: '正式交付包',
+    status: !latestBatch ? 'pending' : latestBatch.status === 'pass' ? 'pass' : 'blocked',
+    detail: !latestBatch ? '尚未导出正式资料' : latestBatch.status === 'pass' ? `${latestBatch.files?.length || 0} 个文件完整性通过` : latestBatch.status === 'missing' ? '交付包存在缺失文件' : '交付文件已被修改',
+    recommendation: !latestBatch ? '提交前检查通过后导出正式资料' : '使用最新完整性通过的 ZIP 交付包',
+  });
+
+  let namingStatus = 'pending';
+  let namingDetail = '导出正式资料后检查文件命名';
+  if (latestBatch) {
+    const names = (latestBatch.files || []).map((item) => item.name);
+    const invalidName = names.find((name) => /[<>:"/\\|?*]/.test(name));
+    const missingNames = [];
+    if (latestBatch.exportItems?.application && !names.includes('申请表信息.txt')) missingNames.push('申请表信息');
+    if (latestBatch.exportItems?.manual && !names.some((name) => name.endsWith('_操作手册.docx'))) missingNames.push('操作手册');
+    if (latestBatch.exportItems?.code && !names.some((name) => name.includes('代码(') && name.endsWith('.docx'))) missingNames.push('代码材料');
+    if (!latestBatch.zipPath || (!latestBatch.projected && !fs.existsSync(latestBatch.zipPath))) missingNames.push('ZIP 交付包');
+    namingStatus = invalidName || missingNames.length ? 'blocked' : 'pass';
+    namingDetail = invalidName ? `文件名包含非法字符：${invalidName}` : missingNames.length ? `缺少：${missingNames.join('、')}` : '申请表、手册、代码材料和 ZIP 命名正常';
+  }
+  deliveryChecks.push({
+    id: 'file-naming',
+    label: '文件命名与组成',
+    status: namingStatus,
+    detail: namingDetail,
+    recommendation: '不要手工改名 ZIP 内的文件，如需调整请重新导出批次',
+  });
+  const manualReview = {
+    ...initialState.manualReview,
+    ...(state.manualReview || {}),
+    checks: {
+      ...initialState.manualReview.checks,
+      ...(state.manualReview?.checks || {}),
+    },
+  };
+  const currentSnapshotId = state.confirmedSnapshot?.id || '';
+  const manualReviewIsCurrent = Boolean(manualReview.confirmedAt && currentSnapshotId && manualReview.snapshotId === currentSnapshotId
+    && Object.values(manualReview.checks).every(Boolean));
+  checks.push({
+    id: 'manual-review',
+    label: '人工复核与证据链',
+    status: manualReviewIsCurrent ? 'pass' : 'warning',
+    detail: manualReviewIsCurrent ? `已完成人工复核，并绑定确认快照 ${manualReview.snapshotId.slice(0, 20)}` : '尚未针对当前确认快照完成人工复核',
+    recommendation: manualReviewIsCurrent ? `复核时间：${manualReview.confirmedAt}` : '点击“开始复核”，逐项核对权属、主体证件、日期、源码证据和当地受理要求',
+  });
+
+  const counts = {
+    pass: checks.filter((item) => item.status === 'pass').length,
+    warning: checks.filter((item) => item.status === 'warning').length,
+    blocked: checks.filter((item) => item.status === 'blocked').length,
+    pending: checks.filter((item) => item.status === 'pending').length,
+  };
+  const readyToSubmit = counts.blocked === 0 && counts.pending === 0 && counts.warning === 0;
+  const overallStatus = counts.blocked ? 'blocked' : counts.pending ? 'pending' : counts.warning ? 'warning' : 'pass';
+  const checkedAt = now();
+  const guideMarkdown = [
+    `# ${fields.softwareName || '软件著作权'}申报提交说明`,
+    '',
+    `- 版本号：${fields.version || '待填写'}`,
+    `- 检查时间：${checkedAt}`,
+    `- 检查结果：${readyToSubmit ? '提交前检查已通过，可以导出正式资料' : '存在待处理、待完成或需复核项'}`,
+    '',
+    '## 官网填报字段',
+    '',
+    '| 字段 | 建议填写内容 | 状态 |',
+    '| --- | --- | --- |',
+    ...fieldMappings.map((item) => `| ${item.label} | ${item.value.replace(/\|/g, '\\|') || '待填写'} | ${item.status === 'pass' ? '通过' : item.status === 'warning' ? '需精简' : '待处理'} |`),
+    '',
+    '## 提交前检查',
+    '',
+    ...checks.map((item) => `- [${item.status === 'pass' ? 'x' : ' '}] ${item.label}：${item.detail}；建议：${item.recommendation}`),
+    '',
+    '## 提交顺序建议',
+    '',
+    '1. 将字段映射表逐项填入实际登记系统。',
+    '2. 核对软件全称、版本号、著作权人和开发完成日期。',
+    '3. 打开操作手册和代码材料，检查页眉、页码、图片和代码连续性。',
+    '4. 使用完整性通过的最新 ZIP 交付包作为提交底稿。',
+    '5. 根据当地受理系统要求调整格式，保留最终提交版和回执。',
+    '',
+    '## 重要提醒',
+    '',
+    '本说明仅用于材料整理和人工复核，不代替登记机构的最新要求或专业法律意见。',
+    '',
+  ].join('\n');
+
+  return {
+    checkedAt,
+    overallStatus,
+    readyToSubmit,
+    counts,
+    fieldMappings,
+    checks,
+    deliveryChecks,
+    latestBatch,
+    guideMarkdown,
+    manualReview: {
+      ...manualReview,
+      currentSnapshotId,
+      isCurrent: manualReviewIsCurrent,
+    },
+  };
+}
+
 function createSoftwareCopyrightService({ app, aiService, configStore, codeGenerationService }) {
   const rootDir = getSoftwareCopyrightDir(app);
   const statePath = path.join(rootDir, 'state.json');
+  const manualScreenshotsDir = path.join(rootDir, 'manual-screenshots');
+  const aiIllustrationsDir = path.join(rootDir, 'ai-illustrations');
+  const draftHistory = createSoftwareCopyrightDraftHistory({ rootDir });
+  const caseStore = createSoftwareCopyrightCaseStore({ rootDir });
   const subscribers = new Set();
   let activeTask = null;
 
   function loadState() {
     ensureDir(rootDir);
-    const saved = readJson(statePath, null);
+    const migration = migrateSoftwareCopyrightState(readJson(statePath, null), { hasActiveTask: activeTask?.status === 'running' });
+    const technologyBackfill = backfillAnalysisTechnologies(migration.state);
+    const generatedFieldBackfill = backfillGeneratedFieldsFromDrafts(technologyBackfill.state);
+    const saved = generatedFieldBackfill.state;
+    if ((migration.changed || technologyBackfill.changed || generatedFieldBackfill.changed) && saved) writeJson(statePath, saved);
+    caseStore.ensureMigrated(saved || initialState);
     const availability = aiService.getImageModelAvailability();
     const codeGenerationMaterials = codeGenerationService?.getConfirmedMaterials?.() || null;
+    const manualScreenshots = (Array.isArray(saved?.manualScreenshots) ? saved.manualScreenshots : [])
+      .filter((item) => item?.id && item?.path && fs.existsSync(item.path));
+    const aiIllustrations = (Array.isArray(saved?.aiIllustrations) ? saved.aiIllustrations : [])
+      .filter((item) => item?.id && item?.path && fs.existsSync(item.path));
+    const manualDraftPath = saved?.drafts?.manual;
+    const manualPlaceholders = manualDraftPath && fs.existsSync(manualDraftPath)
+      ? Array.from(new Set(extractScreenshotPlaceholders(fs.readFileSync(manualDraftPath, 'utf-8'))))
+      : [];
     return {
       ...initialState,
       ...(saved || {}),
@@ -1144,12 +1779,44 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       options: {
         ...initialState.options,
         ...(saved?.options || {}),
+        codeClean: normalizeCleanOptions(saved?.options?.codeClean),
         exportItems: {
           ...initialState.options.exportItems,
           ...(saved?.options?.exportItems || {}),
         },
       },
       imageModel: availability,
+      manualScreenshots,
+      aiIllustrations,
+      aiIllustrationSettings: {
+        ...initialState.aiIllustrationSettings,
+        ...(saved?.aiIllustrationSettings || {}),
+      },
+      manualReview: {
+        ...initialState.manualReview,
+        ...(saved?.manualReview || {}),
+        checks: {
+          ...initialState.manualReview.checks,
+          ...(saved?.manualReview?.checks || {}),
+        },
+      },
+      codeMaterialReview: {
+        ...initialState.codeMaterialReview,
+        ...(saved?.codeMaterialReview || {}),
+        checks: {
+          ...initialState.codeMaterialReview.checks,
+          ...(saved?.codeMaterialReview?.checks || {}),
+        },
+      },
+      manualAssetReview: {
+        ...initialState.manualAssetReview,
+        ...(saved?.manualAssetReview || {}),
+        checks: {
+          ...initialState.manualAssetReview.checks,
+          ...(saved?.manualAssetReview?.checks || {}),
+        },
+      },
+      manualPlaceholders,
       codeGeneration: codeGenerationMaterials
         ? {
           available: true,
@@ -1176,6 +1843,7 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       updated_at: now(),
     };
     writeJson(statePath, next);
+    caseStore.touch(next);
     return next;
   }
 
@@ -1193,6 +1861,38 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
     if (!webContents || webContents.isDestroyed() || subscribers.has(webContents)) return;
     subscribers.add(webContents);
     webContents.once('destroyed', () => subscribers.delete(webContents));
+  }
+
+  function screenshotStateUpdate(partial) {
+    const next = saveState({
+      ...partial,
+      manualAssetReview: initialState.manualAssetReview,
+      draftConfirmed: false,
+      draftConfirmedAt: '',
+      confirmedSnapshot: null,
+      outputDir: '',
+      outputs: [],
+    });
+    emit(next);
+    return next;
+  }
+
+  function managedScreenshot(state, id) {
+    const item = (state.manualScreenshots || []).find((screenshot) => screenshot.id === id);
+    if (!item) throw new Error('截图素材不存在');
+    const baseDir = path.resolve(manualScreenshotsDir);
+    const filePath = path.resolve(item.path);
+    if (!filePath.startsWith(`${baseDir}${path.sep}`)) throw new Error('截图素材路径无效');
+    return { item, filePath };
+  }
+
+  function managedAiIllustration(state, id) {
+    const item = (state.aiIllustrations || []).find((illustration) => illustration.id === id);
+    if (!item) throw new Error('AI 插图不存在');
+    const baseDir = path.resolve(aiIllustrationsDir);
+    const filePath = path.resolve(item.path);
+    if (!filePath.startsWith(`${baseDir}${path.sep}`)) throw new Error('AI 插图路径无效');
+    return { item, filePath };
   }
 
   function updateTask(partial, statePartial = {}) {
@@ -1223,9 +1923,104 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
     return normalizedFilePath;
   }
 
+  function createConfirmedSnapshot(state) {
+    const snapshotId = `${new Date().toISOString().replace(/\D/g, '').slice(0, 17)}-${crypto.randomUUID()}`;
+    const snapshotDir = path.join(state.outputRoot || rootDir, '确认快照', snapshotId);
+    const snapshotDraftDir = path.join(snapshotDir, '草稿');
+    ensureDir(snapshotDraftDir);
+    fs.cpSync(state.draftDir, snapshotDraftDir, { recursive: true });
+
+    const snapshotAssetsDir = ensureDir(path.join(snapshotDir, '图片'));
+    function snapshotAssets(items = [], prefix) {
+      return items.map((item, index) => {
+        if (!item?.path || !fs.existsSync(item.path)) return item;
+        const extension = path.extname(item.path).toLowerCase() || '.png';
+        const targetPath = path.join(snapshotAssetsDir, `${prefix}-${index + 1}${extension}`);
+        fs.copyFileSync(item.path, targetPath);
+        return { ...item, path: targetPath };
+      });
+    }
+
+    const snapshotDrafts = Object.fromEntries(Object.entries(state.drafts || {}).map(([key, filePath]) => [
+      key,
+      path.join(snapshotDraftDir, path.relative(state.draftDir, filePath)),
+    ]));
+    const snapshotState = {
+      ...state,
+      draftDir: snapshotDraftDir,
+      drafts: snapshotDrafts,
+      manualScreenshots: snapshotAssets(state.manualScreenshots, 'manual'),
+      aiIllustrations: snapshotAssets(state.aiIllustrations, 'ai'),
+      draftMeta: state.draftMeta ? {
+        ...state.draftMeta,
+        manifestPath: path.join(snapshotDraftDir, path.basename(state.draftMeta.manifestPath || '代码提取清单.json')),
+        codeMarkdownFiles: (state.draftMeta.codeMarkdownFiles || []).map((filePath) => path.join(snapshotDraftDir, path.basename(filePath))),
+      } : null,
+      confirmedSnapshot: null,
+      exportBatches: [],
+      outputs: [],
+      outputDir: '',
+    };
+    const stateFile = path.join(snapshotDir, '快照状态.json');
+    writeJson(stateFile, snapshotState);
+    const files = listFilesRecursive(snapshotDir).map(({ path: _path, ...item }) => item);
+    const manifest = {
+      id: snapshotId,
+      path: snapshotDir,
+      stateFile,
+      createdAt: now(),
+      fileCount: files.length,
+      files,
+      contentHash: crypto.createHash('sha256').update(JSON.stringify(files)).digest('hex'),
+    };
+    writeJson(path.join(snapshotDir, '快照清单.json'), manifest);
+    return manifest;
+  }
+
+  function loadConfirmedSnapshot(state) {
+    const snapshot = state.confirmedSnapshot;
+    if (!snapshot?.path || !snapshot?.stateFile) throw new Error('确认快照不存在，请重新检查并确认草稿');
+    const normalizedRoot = path.resolve(rootDir);
+    const normalizedPath = path.resolve(snapshot.path);
+    if (!normalizedPath.startsWith(`${normalizedRoot}${path.sep}`) || !fs.existsSync(snapshot.stateFile)) {
+      throw new Error('确认快照已丢失，请重新确认草稿');
+    }
+    for (const item of snapshot.files || []) {
+      const filePath = path.join(snapshot.path, item.relativePath);
+      if (!fs.existsSync(filePath) || sha256File(filePath) !== item.sha256) {
+        throw new Error(`确认快照完整性检查失败：${item.relativePath}`);
+      }
+    }
+    return readJson(snapshot.stateFile, null);
+  }
+
+  function listExportBatches(state = loadState()) {
+    return (state.exportBatches || []).map((batch) => {
+      let status = 'pass';
+      for (const item of batch.files || []) {
+        if (!fs.existsSync(item.path)) {
+          status = 'missing';
+          break;
+        }
+        if (sha256File(item.path) !== item.sha256) status = 'changed';
+      }
+      return { ...batch, status };
+    });
+  }
+
   function validateDraftCompleteness(state = loadState()) {
     const issues = [];
     const fields = state.fields || {};
+    const consistencyChecks = [];
+    const draftContents = {};
+    let manifest = null;
+
+    function recordConsistency({ id, label, status, detail, target, issueKey, issueMessage }) {
+      consistencyChecks.push({ id, label, status, detail, target });
+      if (status === 'fail' && issueMessage) {
+        issues.push({ type: 'consistency', severity: 'error', key: issueKey, message: issueMessage });
+      }
+    }
 
     if (!state.draftDir || !fs.existsSync(state.draftDir)) {
       issues.push({ type: 'draft', severity: 'error', message: '请先生成草稿。' });
@@ -1257,6 +2052,7 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       try {
         const draftPath = getDraftPath(state, key);
         const content = fs.readFileSync(draftPath, 'utf-8').trim();
+        draftContents[key] = content;
         if (!content) {
           issues.push({ type: 'draft', severity: 'error', key, message: `${label}草稿内容为空。` });
         }
@@ -1273,11 +2069,39 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       issues.push({ type: 'code', severity: 'error', message: '缺少代码材料草稿。' });
     }
 
+    if (state.options?.screenshotMode === 'manual') {
+      const screenshots = Array.isArray(state.manualScreenshots) ? state.manualScreenshots : [];
+      if (!screenshots.length) {
+        issues.push({ type: 'draft', severity: 'warning', key: 'manual', message: '已选择手动截图模式，但尚未导入操作手册截图。' });
+      } else if (screenshots.some((item) => !item.path || !fs.existsSync(item.path))) {
+        issues.push({ type: 'draft', severity: 'warning', key: 'manual', message: '部分操作手册截图已丢失，请重新导入或移除失效素材。' });
+      }
+    }
+    if (state.options?.screenshotMode === 'ai') {
+      const illustrations = Array.isArray(state.aiIllustrations) ? state.aiIllustrations : [];
+      if (!illustrations.length) {
+        issues.push({ type: 'draft', severity: 'warning', key: 'ai', message: '已选择 AI 示意图模式，但尚未生成并确认插图。' });
+      } else if (illustrations.some((item) => !item.path || !fs.existsSync(item.path))) {
+        issues.push({ type: 'draft', severity: 'warning', key: 'ai', message: '部分 AI 插图已丢失，请重新生成或移除失效素材。' });
+      }
+    }
+    const activeImages = state.options?.screenshotMode === 'manual'
+      ? state.manualScreenshots || []
+      : state.options?.screenshotMode === 'ai' ? state.aiIllustrations || [] : [];
+    const manualDraftPath = state.drafts?.manual;
+    if (activeImages.some((item) => item.placement) && manualDraftPath && fs.existsSync(manualDraftPath)) {
+      const placeholders = new Set(extractScreenshotPlaceholders(fs.readFileSync(manualDraftPath, 'utf-8')));
+      const invalidPlacements = activeImages.filter((item) => item.placement && !placeholders.has(item.placement));
+      if (invalidPlacements.length) {
+        issues.push({ type: 'draft', severity: 'warning', key: 'image-placement', message: `${invalidPlacements.length} 张图片关联的截图预留位已不存在，导出时将转入附录。` });
+      }
+    }
+
     const manifestPath = state.draftMeta?.manifestPath || (state.draftDir ? path.join(state.draftDir, '代码提取清单.json') : '');
     if (!manifestPath || !fs.existsSync(manifestPath)) {
       issues.push({ type: 'code', severity: 'error', message: '缺少代码提取清单 JSON，无法核对代码页数。' });
     } else {
-      const manifest = readJson(manifestPath, {});
+      manifest = readJson(manifestPath, {});
       if (!Number.isFinite(Number(manifest.total_pages)) || Number(manifest.total_pages) <= 0) {
         issues.push({ type: 'code', severity: 'error', message: '代码提取清单中的总页数无效。' });
       }
@@ -1287,11 +2111,90 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       if (!Array.isArray(manifest.files) || !manifest.files.length) {
         issues.push({ type: 'code', severity: 'error', message: '代码提取清单中没有源码文件记录。' });
       }
+      for (const item of Array.isArray(manifest.audit) ? manifest.audit : []) {
+        if (item.status === 'fail') {
+          issues.push({ type: 'code', severity: 'error', message: `${item.name}：${item.detail}` });
+        } else if (item.status === 'warn') {
+          issues.push({ type: 'code', severity: 'warning', message: `${item.name}：${item.detail}` });
+        }
+      }
     }
 
+    const applicationContent = draftContents.application || '';
+    const manualContent = draftContents.manual || '';
+    const identityValues = [fields.softwareName, fields.version, fields.copyrightOwner, fields.developmentCompletedDate].map((value) => String(value || '').trim());
+    const identityLabels = ['软件全称', '版本号', '著作权人', '开发完成日期'];
+    const identityReady = identityValues.every(Boolean);
+    const applicationIdentityMatches = identityReady && Boolean(applicationContent)
+      && identityValues.every((value, index) => applicationContent.includes(`➤${identityLabels[index]}：${value}`));
+    recordConsistency({
+      id: 'application-identity',
+      label: '申请表登记信息',
+      status: !identityReady || !applicationContent ? 'pending' : applicationIdentityMatches ? 'pass' : 'fail',
+      detail: !identityReady ? '请先补全软件名称、版本号、著作权人和开发完成日期' : !applicationContent ? '等待申请表草稿生成' : applicationIdentityMatches ? '名称、版本、著作权人和日期与登记字段一致' : '申请表中的登记信息与当前字段不一致',
+      target: 'application',
+      issueKey: 'application',
+      issueMessage: '申请表中的软件名称、版本号、著作权人或开发完成日期与当前登记字段不一致。',
+    });
+
+    const softwareName = String(fields.softwareName || '').trim();
+    const manualNameMatches = Boolean(softwareName && manualContent && manualContent.includes(`# ${softwareName} 操作手册`));
+    recordConsistency({
+      id: 'manual-name',
+      label: '操作手册软件名称',
+      status: !softwareName || !manualContent ? 'pending' : manualNameMatches ? 'pass' : 'fail',
+      detail: !softwareName ? '请先填写软件全称' : !manualContent ? '等待操作手册草稿生成' : manualNameMatches ? '手册标题与软件全称一致' : '手册标题与软件全称不一致',
+      target: 'manual',
+      issueKey: 'manual',
+      issueMessage: '操作手册标题中的软件名称与当前软件全称不一致。',
+    });
+
+    const version = String(fields.version || '').trim();
+    const manifestIdentityReady = Boolean(manifest && softwareName && version);
+    const manifestIdentityMatches = manifestIdentityReady
+      && String(manifest.software_name || '').trim() === softwareName
+      && String(manifest.version || '').trim() === version;
+    recordConsistency({
+      id: 'code-identity',
+      label: '代码材料名称与版本',
+      status: !manifestIdentityReady ? 'pending' : manifestIdentityMatches ? 'pass' : 'fail',
+      detail: !manifest ? '等待代码提取清单生成' : !softwareName || !version ? '请先补全软件全称和版本号' : manifestIdentityMatches ? '代码页眉信息与登记字段一致' : '代码清单中的名称或版本不一致',
+      target: 'code',
+      issueKey: 'codeManifest',
+      issueMessage: '代码提取清单中的软件名称或版本号与当前登记字段不一致，请重新抽取代码材料。',
+    });
+
+    const pageCount = Number(fields.pageCount);
+    const manifestPageCount = Number(manifest?.total_pages);
+    const pageCountReady = Number.isFinite(pageCount) && pageCount > 0 && Number.isFinite(manifestPageCount) && manifestPageCount > 0 && Boolean(applicationContent);
+    const pageCountMatches = pageCountReady && pageCount === manifestPageCount && applicationContent.includes(`➤页数：${pageCount}`);
+    recordConsistency({
+      id: 'page-count',
+      label: '代码材料页数',
+      status: !pageCountReady ? 'pending' : pageCountMatches ? 'pass' : 'fail',
+      detail: !pageCountReady ? '等待申请表和代码清单形成有效页数' : pageCountMatches ? `申请表与代码清单均为 ${pageCount} 页` : '申请表字段与代码清单页数不一致',
+      target: 'code',
+      issueKey: 'codeManifest',
+      issueMessage: '申请表中的代码材料页数与代码提取清单不一致，请重新抽取代码材料。',
+    });
+
+    const sourceLineCount = Number(fields.sourceLineCount);
+    const sourceLineReady = Number.isFinite(sourceLineCount) && sourceLineCount > 0 && Boolean(applicationContent);
+    const sourceLineMatches = sourceLineReady && applicationContent.includes(`➤源程序量：${sourceLineCount}`);
+    recordConsistency({
+      id: 'source-line-count',
+      label: '源程序量',
+      status: !sourceLineReady ? 'pending' : sourceLineMatches ? 'pass' : 'fail',
+      detail: !sourceLineReady ? '等待申请表形成有效源程序量' : sourceLineMatches ? `申请表源程序量为 ${sourceLineCount} 行` : '申请表源程序量与当前项目统计不一致',
+      target: 'fields',
+      issueKey: 'sourceLineCount',
+      issueMessage: '申请表中的源程序量与当前登记字段不一致。',
+    });
+
     return {
-      valid: issues.length === 0,
+      valid: !issues.some((issue) => issue.severity === 'error'),
       issues,
+      consistencyChecks,
       checkedAt: now(),
     };
   }
@@ -1302,7 +2205,7 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
     const codeGenerationMaterials = sourceMode === 'code-generation' ? codeGenerationService?.getConfirmedMaterials?.() : null;
     const projectDir = codeGenerationMaterials?.project?.path || state.project?.path;
     if (!projectDir || !fs.existsSync(projectDir)) {
-      throw new Error(sourceMode === 'code-generation' ? '请先在代码生成中确认源码材料' : '请先选择有效的项目目录');
+      throw new Error(sourceMode === 'code-generation' ? '请先在源码准备中确认当前项目的源码材料' : '请先选择有效的源码目录');
     }
     const outRoot = ensureDir(path.join(rootDir, 'outputs', new Date().toISOString().replace(/[:.]/g, '-')));
     const draftDir = ensureDir(path.join(outRoot, '草稿'));
@@ -1314,7 +2217,7 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
 
     push('正在分析项目源码', 8);
     const analysis = codeGenerationMaterials?.analysis || analyzeProject(projectDir);
-    const fields = createInitialFieldsFromAnalysis(analysis, { ...state.fields, ...(payload.fields || {}) });
+    let fields = createInitialFieldsFromAnalysis(analysis, { ...state.fields, ...(payload.fields || {}) });
     saveState({
       analysis,
       fields,
@@ -1322,6 +2225,7 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       drafts: {},
       draftConfirmed: false,
       draftConfirmedAt: '',
+      confirmedSnapshot: null,
       draftDir,
       outputRoot: outRoot,
       outputDir: '',
@@ -1331,9 +2235,11 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
 
     push('正在生成业务理解', 22);
     const business = await generateBusinessContext(aiService, analysis, fields);
+    fields = enrichFieldsFromBusiness(fields, business, analysis);
+    saveState({ fields, generatedFieldsSourceDraftDir: draftDir });
     writeJson(path.join(draftDir, '业务理解.json'), business);
     const businessMarkdown = createBusinessMarkdown(business);
-    fs.writeFileSync(path.join(draftDir, '业务理解.md'), businessMarkdown, 'utf-8');
+    fs.writeFileSync(path.join(draftDir, '业务理解.md'), normalizeDraftContent('business', businessMarkdown), 'utf-8');
 
     push('正在抽取真实源码材料', 40);
     const codeExcludedPaths = normalizePathList(payload.codeExcludedPaths || state.options.codeExcludedPaths);
@@ -1341,7 +2247,8 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
     const selectedFiles = codeGenerationMaterials?.selectedFiles?.length
       ? codeGenerationMaterials.selectedFiles.filter((item) => !codeExcludedPaths.includes(item.path))
       : selectCodeFiles(analysis, codeExcludedPaths, codeIncludedPaths);
-    const { manifest, outputs: codeMarkdownFiles } = createCodeMaterial(projectDir, selectedFiles, { ...fields, codeExcludedPaths, codeIncludedPaths }, draftDir);
+    const codeClean = normalizeCleanOptions(payload.codeClean || state.options.codeClean);
+    const { manifest, outputs: codeMarkdownFiles } = createCodeMaterial(projectDir, selectedFiles, { ...fields, codeExcludedPaths, codeIncludedPaths, codeClean }, draftDir);
     const nextFields = { ...fields, sourceLineCount: fields.sourceLineCount || String(analysis.lineCount), pageCount: String(manifest.total_pages) };
 
     push('正在整理申请表信息草稿', 55);
@@ -1349,11 +2256,7 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
     fs.writeFileSync(path.join(draftDir, '申请表信息.md'), applicationMarkdown, 'utf-8');
 
     push('正在生成操作手册草稿', 70);
-    let manualMarkdown = await createManualMarkdown(aiService, analysis, nextFields, business);
-    const illustration = await maybeGenerateIllustration(aiService, state.options.useAiImages || payload.useAiImages, nextFields);
-    if (illustration?.success && illustration.file_path) {
-      manualMarkdown += `\n\n## 附录、示意图\n\n![软著操作手册示意图](${illustration.file_path})\n`;
-    }
+    const manualMarkdown = await createManualMarkdown(aiService, analysis, nextFields, business);
     fs.writeFileSync(path.join(draftDir, '操作手册.md'), manualMarkdown, 'utf-8');
     writeJson(path.join(draftDir, '操作手册自检记录.json'), {
       rounds: [
@@ -1379,8 +2282,12 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       analysis,
       project: codeGenerationMaterials?.project || state.project,
       fields: nextFields,
+      options: { codeClean },
       drafts,
       draftConfirmed: false,
+      draftConfirmedAt: '',
+      confirmedSnapshot: null,
+      codeMaterialReview: initialState.codeMaterialReview,
       draftDir,
       outputRoot: outRoot,
       outputDir: '',
@@ -1388,21 +2295,24 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       draftMeta: {
         manifestPath: path.join(draftDir, '代码提取清单.json'),
         codeMarkdownFiles,
-        illustration,
       },
     });
   }
 
   async function runFinalExport() {
-    const state = loadState();
-    if (!state.draftDir || !fs.existsSync(state.draftDir)) {
+    const liveState = loadState();
+    if (!liveState.draftDir || !fs.existsSync(liveState.draftDir)) {
       throw new Error('请先生成草稿');
     }
-    if (!state.draftConfirmed) {
+    if (!liveState.draftConfirmed) {
       throw new Error('请先确认草稿后再导出正式资料');
     }
+    const state = loadConfirmedSnapshot(liveState);
+    if (!state) throw new Error('确认快照不可读取，请重新确认草稿');
 
-    const finalDir = ensureDir(path.join(state.outputRoot || path.dirname(state.draftDir), '正式资料'));
+    const batchId = `${new Date().toISOString().replace(/\D/g, '').slice(0, 17)}-${crypto.randomUUID().slice(0, 8)}`;
+    const deliveryRoot = ensureDir(path.join(liveState.outputRoot || path.dirname(liveState.draftDir), '正式资料'));
+    const finalDir = ensureDir(path.join(deliveryRoot, `批次-${batchId}`));
     const applicationPath = path.join(state.draftDir, '申请表信息.md');
     const manualPath = path.join(state.draftDir, '操作手册.md');
     const manifestPath = state.draftMeta?.manifestPath || path.join(state.draftDir, '代码提取清单.json');
@@ -1429,26 +2339,39 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
     if (exportItems.manual) {
       const manualMarkdown = fs.readFileSync(manualPath, 'utf-8');
       const manualDocxPath = path.join(finalDir, `${softwareName}_操作手册.docx`);
+      const sourceImages = state.options?.screenshotMode === 'manual'
+        ? state.manualScreenshots || []
+        : state.options?.screenshotMode === 'ai' ? state.aiIllustrations || [] : [];
+      const placeholderNames = new Set(extractScreenshotPlaceholders(manualMarkdown));
+      const inlineImages = sourceImages.filter((item) => item.placement && placeholderNames.has(item.placement));
+      const supplementImages = sourceImages.filter((item) => !item.placement || !placeholderNames.has(item.placement));
       await writeDocx(manualMarkdown, manualDocxPath, `${softwareName} ${version}`, {
         kind: 'manual',
         fields,
         softwareName,
         version,
+        inlineImages,
+        inlineAssetName: state.options?.screenshotMode === 'ai' ? 'ai-inline-illustration' : 'manual-inline-screenshot',
+        supplementImages,
+        supplementHeading: state.options?.screenshotMode === 'ai' ? '附录、AI 功能示意图' : '附录、界面截图',
+        supplementAssetName: state.options?.screenshotMode === 'ai' ? 'ai-illustration' : 'manual-screenshot',
       });
       finalOutputs.push(manualDocxPath);
     }
 
     if (exportItems.code) {
-      const codeMarkdownFiles = Array.isArray(state.draftMeta?.codeMarkdownFiles) && state.draftMeta.codeMarkdownFiles.length
-        ? state.draftMeta.codeMarkdownFiles
-        : Object.values(state.drafts || {}).filter((filePath) => /^代码-.*\.md$/u.test(path.basename(String(filePath || ''))));
-      for (const mdPath of codeMarkdownFiles) {
-        if (!fs.existsSync(mdPath)) continue;
-        const md = fs.readFileSync(mdPath, 'utf-8');
-        const suffix = path.basename(mdPath).replace(/^代码-/, '').replace(/\.md$/, '');
-        const docxPath = path.join(finalDir, `${softwareName}-代码(${suffix}).docx`);
-        await writeDocx(md, docxPath, `${softwareName} ${version} 源程序`, { kind: 'code' });
+      const materialPages = Array.isArray(manifest.pages) ? manifest.pages : [];
+      if (!materialPages.length) throw new Error('代码材料缺少分页数据，请重新抽取代码材料');
+      const groups = materialPages.length >= SPLIT_PAGES
+        ? [{ suffix: '前30页', pages: materialPages.slice(0, 30) }, { suffix: '后30页', pages: materialPages.slice(-30) }]
+        : [{ suffix: '全部', pages: materialPages }];
+      for (const group of groups) {
+        const docxPath = path.join(finalDir, `${softwareName}-代码(${group.suffix}).docx`);
+        const txtPath = path.join(finalDir, `${softwareName}-代码(${group.suffix}).txt`);
+        await writeCodeDocx(group.pages, docxPath, `${softwareName} ${version} 源程序`);
+        writeCodeTxt(group.pages, txtPath);
         finalOutputs.push(docxPath);
+        finalOutputs.push(txtPath);
       }
     }
 
@@ -1467,7 +2390,8 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
         `- 草稿确认时间：${state.draftConfirmedAt || ''}`,
         `- 导出时间：${exportedAt}`,
         `- 导出选项：${Object.entries(exportItems).filter(([, enabled]) => enabled).map(([key]) => exportItemLabel(key)).join('、')}`,
-        state.draftMeta?.illustration?.success ? `- 生图结果：${state.draftMeta.illustration.file_path}` : '- 生图结果：未使用或未生成',
+        `- AI 示意图：${state.options?.screenshotMode === 'ai' ? (state.aiIllustrations || []).length : 0} 张`,
+        `- 手动截图：${state.options?.screenshotMode === 'manual' ? (state.manualScreenshots || []).length : 0} 张`,
         '',
         '## 输出文件',
         '',
@@ -1475,8 +2399,8 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
         '',
         '## 格式说明',
         '',
-        exportItems.manual ? '- 操作手册 DOCX 包含封面、页眉和页码。' : '',
-        exportItems.code ? '- 代码材料 DOCX 使用等宽字体和紧凑行距，便于核对源程序内容。' : '',
+        exportItems.manual ? `- 操作手册 DOCX 包含封面、页眉、页码${state.options?.screenshotMode === 'manual' && state.manualScreenshots?.length ? '和界面截图附录' : state.options?.screenshotMode === 'ai' && state.aiIllustrations?.length ? '和 AI 功能示意图附录' : ''}。` : '',
+        exportItems.code ? '- 代码材料 DOCX 使用宋体 10.5 磅、50 行显式分页，同时提供 TXT 备查文件。' : '',
         '',
       ].filter((line) => line !== '').join('\n'), 'utf-8');
       finalOutputs.push(reportPath);
@@ -1493,16 +2417,187 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
     }), 'utf-8');
     finalOutputs.push(readmePath);
 
+    const zipPath = path.join(deliveryRoot, `${softwareName}_${version}_${batchId}.zip`);
+    const submissionGuidePath = path.join(finalDir, '申报提交说明.md');
+    const projectedBatch = {
+      id: batchId,
+      softwareName,
+      version,
+      snapshotId: liveState.confirmedSnapshot.id,
+      confirmedAt: liveState.draftConfirmedAt,
+      exportedAt,
+      exportItems,
+      directory: finalDir,
+      zipPath,
+      status: 'pass',
+      projected: true,
+      files: [...finalOutputs, submissionGuidePath].map((filePath) => ({ name: path.basename(filePath), path: filePath })),
+    };
+    const submissionReview = buildSubmissionReview({
+      ...state,
+      draftConfirmed: true,
+      draftConfirmedAt: liveState.draftConfirmedAt,
+      confirmedSnapshot: liveState.confirmedSnapshot,
+    }, [projectedBatch]);
+    fs.writeFileSync(submissionGuidePath, submissionReview.guideMarkdown, 'utf-8');
+    finalOutputs.push(submissionGuidePath);
+
+    const deliveryManifestPath = path.join(finalDir, '交付清单.json');
+    const deliveryFiles = finalOutputs.map((filePath) => ({
+      name: path.basename(filePath),
+      path: filePath,
+      size: fs.statSync(filePath).size,
+      sha256: sha256File(filePath),
+    }));
+    writeJson(deliveryManifestPath, {
+      batchId,
+      softwareName,
+      version,
+      snapshotId: liveState.confirmedSnapshot.id,
+      confirmedAt: liveState.draftConfirmedAt,
+      exportedAt,
+      exportItems,
+      files: deliveryFiles.map(({ path: _path, ...item }) => item),
+    });
+    finalOutputs.push(deliveryManifestPath);
+
+    const zip = new AdmZip();
+    zip.addLocalFolder(finalDir);
+    zip.writeZip(zipPath);
+    const batchFiles = [...finalOutputs, zipPath].map((filePath) => ({
+      name: path.basename(filePath),
+      path: filePath,
+      size: fs.statSync(filePath).size,
+      sha256: sha256File(filePath),
+    }));
+    const batch = {
+      id: batchId,
+      softwareName,
+      version,
+      snapshotId: liveState.confirmedSnapshot.id,
+      confirmedAt: liveState.draftConfirmedAt,
+      exportedAt,
+      exportItems,
+      directory: finalDir,
+      zipPath,
+      files: batchFiles,
+    };
+
     updateTask({ status: 'success', progress: 100, logs: ['正式资料导出完成'] }, {
       step: 'result',
-      outputs: finalOutputs.map((filePath) => ({ name: path.basename(filePath), path: filePath })),
+      outputs: batchFiles.map((item) => ({ name: item.name, path: item.path })),
       outputDir: finalDir,
+      exportBatches: [batch, ...(liveState.exportBatches || [])].slice(0, 20),
     });
   }
 
   return {
     subscribe,
     loadState,
+    getSubmissionReview() {
+      const state = loadState();
+      const guideDir = path.join(state.outputRoot || rootDir, '申报辅助');
+      const latestGuide = fs.existsSync(guideDir)
+        ? fs.readdirSync(guideDir, { withFileTypes: true })
+          .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+          .map((entry) => {
+            const filePath = path.join(guideDir, entry.name);
+            return { path: filePath, generatedAt: fs.statSync(filePath).mtime.toISOString() };
+          })
+          .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt))[0] || null
+        : null;
+      return { ...buildSubmissionReview(state, listExportBatches(state)), latestGuide };
+    },
+    saveManualReview(payload = {}) {
+      const state = loadState();
+      if (!state.confirmedSnapshot?.id) throw new Error('请先完成草稿检查并确认草稿，再进行人工复核');
+      const checks = {
+        ...initialState.manualReview.checks,
+        ...(payload.checks || {}),
+      };
+      if (!Object.values(checks).every(Boolean)) throw new Error('请完成全部人工复核项目后再确认');
+      const next = saveState({
+        manualReview: {
+          checks,
+          notes: String(payload.notes || '').trim().slice(0, 500),
+          confirmedAt: now(),
+          snapshotId: state.confirmedSnapshot.id,
+        },
+      });
+      emit(next);
+      return next.manualReview;
+    },
+    generateSubmissionGuide() {
+      const state = loadState();
+      const review = buildSubmissionReview(state, listExportBatches(state));
+      const guideDir = ensureDir(path.join(state.outputRoot || rootDir, '申报辅助'));
+      const softwareName = sanitizeFilename(state.fields?.softwareName || '软件著作权');
+      const timestamp = new Date().toISOString().replace(/\D/g, '').slice(0, 17);
+      const guidePath = path.join(guideDir, `${softwareName}_申报提交说明_${timestamp}.md`);
+      fs.writeFileSync(guidePath, review.guideMarkdown, 'utf-8');
+      return { ...review, latestGuide: { path: guidePath, generatedAt: now() } };
+    },
+    async openSubmissionGuideDirectory() {
+      const state = loadState();
+      const guideDir = ensureDir(path.join(state.outputRoot || rootDir, '申报辅助'));
+      await shell.openPath(guideDir);
+      return { success: true, path: guideDir };
+    },
+    listCases(includeArchived = true) {
+      return caseStore.list(loadState(), includeArchived);
+    },
+    listExportBatches() {
+      return listExportBatches();
+    },
+    async openExportBatch(id) {
+      const batch = (loadState().exportBatches || []).find((item) => item.id === id);
+      if (!batch?.directory || !fs.existsSync(batch.directory)) throw new Error('交付批次目录不存在');
+      await shell.openPath(batch.directory);
+      return { success: true, path: batch.directory };
+    },
+    createCase(payload = {}) {
+      const state = loadState();
+      if (activeTask?.status === 'running' || state.task?.status === 'running') throw new Error('当前有软著任务正在运行，暂时不能新建项目');
+      caseStore.create(state, initialState, payload.name);
+      const next = loadState();
+      emit(next);
+      return { state: next, cases: caseStore.list(next) };
+    },
+    switchCase(id) {
+      const state = loadState();
+      if (activeTask?.status === 'running' || state.task?.status === 'running') throw new Error('当前有软著任务正在运行，暂时不能切换项目');
+      caseStore.switchTo(state, id);
+      const next = loadState();
+      emit(next);
+      return { state: next, cases: caseStore.list(next) };
+    },
+    duplicateCase(payload = {}) {
+      const state = loadState();
+      if (activeTask?.status === 'running' || state.task?.status === 'running') throw new Error('当前有软著任务正在运行，暂时不能复制项目');
+      caseStore.duplicate(state, payload.id, payload.name);
+      const next = loadState();
+      emit(next);
+      return { state: next, cases: caseStore.list(next) };
+    },
+    deleteCase(id) {
+      const state = loadState();
+      if (activeTask?.status === 'running' || state.task?.status === 'running') throw new Error('当前有软著任务正在运行，暂时不能删除项目');
+      const item = caseStore.remove(state, initialState, id);
+      const next = loadState();
+      emit(next);
+      return { item, state: next, cases: caseStore.list(next) };
+    },
+    renameCase(payload = {}) {
+      const state = loadState();
+      const item = caseStore.rename(state, payload.id, payload.name);
+      return { item, cases: caseStore.list(state) };
+    },
+    setCaseArchived(payload = {}) {
+      const state = loadState();
+      if (activeTask?.status === 'running' || state.task?.status === 'running') throw new Error('当前有软著任务正在运行，暂时不能归档项目');
+      const item = caseStore.setArchived(state, payload.id, Boolean(payload.archived));
+      return { item, cases: caseStore.list(state) };
+    },
     async selectProject() {
       const result = await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择需要生成软著资料的项目目录' });
       if (result.canceled || !result.filePaths?.[0]) {
@@ -1519,19 +2614,85 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
         drafts: {},
         draftConfirmed: false,
         draftConfirmedAt: '',
+        confirmedSnapshot: null,
         draftDir: '',
         outputRoot: '',
         outputDir: '',
         outputs: [],
         draftMeta: null,
+        generatedFieldsSourceDraftDir: '',
+        codeMaterialReview: initialState.codeMaterialReview,
       });
       return { success: true, state };
     },
     saveFields(fields) {
-      return saveState({ fields: { ...(fields || {}) } });
+      const current = loadState();
+      const nextFields = { ...current.fields, ...(fields || {}) };
+      const changed = JSON.stringify(nextFields) !== JSON.stringify(current.fields);
+      return saveState({
+        fields: nextFields,
+        ...(changed ? { draftConfirmed: false, draftConfirmedAt: '', confirmedSnapshot: null, outputDir: '', outputs: [] } : {}),
+      });
+    },
+    async generateTechnicalFeatures(payload = {}) {
+      const current = loadState();
+      if (activeTask?.status === 'running' || current.task?.status === 'running') throw new Error('当前有软著任务正在运行，请稍后再生成技术特点');
+      if (!current.analysis) throw new Error('请先选择源码目录并完成项目分析');
+      const fields = { ...current.fields, ...(payload.fields || {}) };
+      const technicalFeatures = await generateTechnicalFeaturesField(aiService, current.analysis, fields);
+      const next = saveState({
+        fields: { ...fields, technicalFeatures },
+        draftConfirmed: false,
+        draftConfirmedAt: '',
+        confirmedSnapshot: null,
+        outputDir: '',
+        outputs: [],
+      });
+      emit(next);
+      return { technicalFeatures, state: next };
     },
     saveOptions(options) {
-      return saveState({ options: { ...(options || {}) } });
+      const current = loadState();
+      const nextOptions = { ...current.options, ...(options || {}) };
+      const screenshotModeChanged = nextOptions.screenshotMode !== current.options.screenshotMode
+        || Boolean(nextOptions.useAiImages) !== Boolean(current.options.useAiImages);
+      const codeMaterialOptionsChanged = JSON.stringify({
+        codeExcludedPaths: nextOptions.codeExcludedPaths || [],
+        codeIncludedPaths: nextOptions.codeIncludedPaths || [],
+        codeClean: normalizeCleanOptions(nextOptions.codeClean),
+      }) !== JSON.stringify({
+        codeExcludedPaths: current.options.codeExcludedPaths || [],
+        codeIncludedPaths: current.options.codeIncludedPaths || [],
+        codeClean: normalizeCleanOptions(current.options.codeClean),
+      });
+      return saveState({
+        options: nextOptions,
+        ...(codeMaterialOptionsChanged ? { codeMaterialReview: initialState.codeMaterialReview } : {}),
+        ...(screenshotModeChanged ? { manualAssetReview: initialState.manualAssetReview } : {}),
+        ...(screenshotModeChanged || codeMaterialOptionsChanged ? { draftConfirmed: false, draftConfirmedAt: '', confirmedSnapshot: null, outputDir: '', outputs: [] } : {}),
+      });
+    },
+    saveManualAssetReview(payload = {}) {
+      const current = loadState();
+      const mode = current.options?.screenshotMode;
+      if (!['manual', 'ai'].includes(mode)) throw new Error('当前未启用操作手册图片');
+      const assets = mode === 'manual' ? current.manualScreenshots || [] : current.aiIllustrations || [];
+      if (!assets.length) throw new Error('请先导入或生成至少一张操作手册图片');
+      const checks = {
+        content: Boolean(payload.checks?.content),
+        captionPlacement: Boolean(payload.checks?.captionPlacement),
+      };
+      if (!Object.values(checks).every(Boolean)) throw new Error('请完成全部手册图片核对项');
+      const next = saveState({
+        manualAssetReview: {
+          checks,
+          notes: String(payload.notes || '').trim().slice(0, 500),
+          confirmedAt: now(),
+          mode,
+        },
+      });
+      emit(next);
+      return next;
     },
     readDraft(draftKey) {
       const state = loadState();
@@ -1539,7 +2700,17 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       const originalContent = fs.readFileSync(filePath, 'utf-8');
       const content = normalizeDraftContent(draftKey, originalContent);
       if (content !== originalContent) {
+        draftHistory.capture(state, draftKey, originalContent, '格式迁移前自动备份');
         fs.writeFileSync(filePath, content, 'utf-8');
+        const next = saveState({
+          draftConfirmed: false,
+          draftConfirmedAt: '',
+          confirmedSnapshot: null,
+          step: 'draft',
+          outputDir: '',
+          outputs: [],
+        });
+        emit(next);
       }
       return {
         key: draftKey,
@@ -1562,6 +2733,43 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       }
       return readJson(normalizedManifestPath, null);
     },
+    listDraftVersions(draftKey) {
+      const state = loadState();
+      getDraftPath(state, draftKey);
+      return draftHistory.list(state, draftKey);
+    },
+    compareDraftVersion({ key, versionId } = {}) {
+      const state = loadState();
+      const filePath = getDraftPath(state, key);
+      return draftHistory.compare(state, key, versionId, fs.readFileSync(filePath, 'utf-8'));
+    },
+    restoreDraftVersion({ key, versionId } = {}) {
+      const state = loadState();
+      const filePath = getDraftPath(state, key);
+      const currentContent = fs.readFileSync(filePath, 'utf-8');
+      const version = draftHistory.readVersion(state, key, versionId);
+      if (version.content === currentContent) throw new Error('当前草稿已经是这个版本');
+      draftHistory.capture(state, key, currentContent, '恢复前自动备份');
+      const content = normalizeDraftContent(key, version.content);
+      fs.writeFileSync(filePath, content, 'utf-8');
+      const next = saveState({
+        draftConfirmed: false,
+        draftConfirmedAt: '',
+        confirmedSnapshot: null,
+        step: 'draft',
+        outputDir: '',
+        outputs: [],
+      });
+      emit(next);
+      return {
+        key,
+        name: path.basename(filePath),
+        path: filePath,
+        content,
+        updatedAt: fs.statSync(filePath).mtime.toISOString(),
+        state: next,
+      };
+    },
     regenerateCodeMaterial(payload = {}) {
       const state = loadState();
       if (activeTask?.status === 'running' || state.task?.status === 'running') {
@@ -1575,7 +2783,7 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       const codeGenerationMaterials = sourceMode === 'code-generation' ? codeGenerationService?.getConfirmedMaterials?.() : null;
       const projectDir = codeGenerationMaterials?.project?.path || state.project?.path;
       if (!projectDir || !fs.existsSync(projectDir)) {
-        throw new Error(sourceMode === 'code-generation' ? '请先在代码生成中确认源码材料' : '请先选择有效的项目目录');
+        throw new Error(sourceMode === 'code-generation' ? '请先在源码准备中确认当前项目的源码材料' : '请先选择有效的源码目录');
       }
 
       const analysis = codeGenerationMaterials?.analysis || analyzeProject(projectDir);
@@ -1585,7 +2793,11 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       const selectedFiles = codeGenerationMaterials?.selectedFiles?.length
         ? codeGenerationMaterials.selectedFiles.filter((item) => !codeExcludedPaths.includes(item.path))
         : selectCodeFiles(analysis, codeExcludedPaths, codeIncludedPaths);
-      const { manifest, outputs: codeMarkdownFiles } = createCodeMaterial(projectDir, selectedFiles, { ...fields, codeExcludedPaths, codeIncludedPaths }, state.draftDir);
+      const codeClean = normalizeCleanOptions(payload.codeClean || state.options.codeClean);
+      Object.entries(state.drafts || {})
+        .filter(([key, filePath]) => (key === 'application' || key.startsWith('code')) && filePath && fs.existsSync(filePath))
+        .forEach(([key, filePath]) => draftHistory.capture(state, key, fs.readFileSync(filePath, 'utf-8'), '重新抽取代码前'));
+      const { manifest, outputs: codeMarkdownFiles } = createCodeMaterial(projectDir, selectedFiles, { ...fields, codeExcludedPaths, codeIncludedPaths, codeClean }, state.draftDir);
       const nextFields = {
         ...fields,
         sourceLineCount: fields.sourceLineCount || String(analysis.lineCount || manifest.material_line_count || ''),
@@ -1611,11 +2823,14 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
         analysis,
         project: codeGenerationMaterials?.project || state.project,
         fields: nextFields,
+        options: { codeClean },
         drafts: nextDrafts,
         draftConfirmed: false,
         draftConfirmedAt: '',
+        confirmedSnapshot: null,
         outputDir: '',
         outputs: [],
+        codeMaterialReview: initialState.codeMaterialReview,
         draftMeta: {
           ...(state.draftMeta || {}),
           manifestPath: path.join(state.draftDir, '代码提取清单.json'),
@@ -1626,14 +2841,52 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       emit(nextState);
       return { state: nextState, manifest };
     },
+    saveCodeMaterialReview(payload = {}) {
+      const state = loadState();
+      const manifestPath = state.draftMeta?.manifestPath || (state.draftDir ? path.join(state.draftDir, '代码提取清单.json') : '');
+      if (!manifestPath || !fs.existsSync(manifestPath)) throw new Error('请先生成代码鉴别材料');
+      const manifest = readJson(manifestPath, null);
+      if (!manifest) throw new Error('代码提取清单无法读取，请重新抽取代码材料');
+      if (Array.isArray(manifest.audit) && manifest.audit.some((item) => item?.status === 'fail')) {
+        throw new Error('代码材料仍有未通过的审查项，请处理后重新抽取');
+      }
+      const checks = {
+        pageRange: Boolean(payload.checks?.pageRange),
+        sourceScope: Boolean(payload.checks?.sourceScope),
+        readability: Boolean(payload.checks?.readability),
+      };
+      if (!Object.values(checks).every(Boolean)) throw new Error('请完成全部代码材料核对项');
+      const review = {
+        checks,
+        notes: String(payload.notes || '').trim().slice(0, 500),
+        confirmedAt: now(),
+        manifestHash: sha256File(manifestPath),
+      };
+      const next = saveState({
+        codeMaterialReview: review,
+        draftConfirmed: false,
+        draftConfirmedAt: '',
+        confirmedSnapshot: null,
+        outputDir: '',
+        outputs: [],
+      });
+      emit(next);
+      return next;
+    },
     saveDraft({ key, content }) {
       const state = loadState();
       const filePath = getDraftPath(state, key);
-      fs.writeFileSync(filePath, normalizeDraftContent(key, content), 'utf-8');
+      const previousContent = fs.readFileSync(filePath, 'utf-8');
+      const nextContent = normalizeDraftContent(key, content);
+      if (previousContent !== nextContent) draftHistory.capture(state, key, previousContent, '保存前自动备份');
+      fs.writeFileSync(filePath, nextContent, 'utf-8');
       const next = saveState({
         draftConfirmed: false,
         draftConfirmedAt: '',
+        confirmedSnapshot: null,
         step: 'draft',
+        outputDir: '',
+        outputs: [],
       });
       emit(next);
       return {
@@ -1678,14 +2931,306 @@ function createSoftwareCopyrightService({ app, aiService, configStore, codeGener
       if (!validation.valid) {
         throw new Error(`草稿检查未通过：${validation.issues.slice(0, 3).map((issue) => issue.message).join('；')}`);
       }
-      const next = saveState({ draftConfirmed: true, draftConfirmedAt: now(), step: 'draft' });
+      const manifestPath = state.draftMeta?.manifestPath || path.join(state.draftDir, '代码提取清单.json');
+      const codeReviewCurrent = Boolean(
+        state.codeMaterialReview?.confirmedAt
+        && state.codeMaterialReview?.manifestHash
+        && fs.existsSync(manifestPath)
+        && state.codeMaterialReview.manifestHash === sha256File(manifestPath),
+      );
+      if (!codeReviewCurrent) throw new Error('请先在“代码材料”区域完成代码鉴别材料核对');
+      Object.entries(state.drafts || {}).forEach(([key, filePath]) => {
+        if (filePath && fs.existsSync(filePath)) {
+          draftHistory.capture(state, key, fs.readFileSync(filePath, 'utf-8'), '人工确认版本');
+        }
+      });
+      const confirmedAt = now();
+      const confirmedSnapshot = createConfirmedSnapshot({ ...state, draftConfirmedAt: confirmedAt });
+      const next = saveState({ draftConfirmed: true, draftConfirmedAt: confirmedAt, confirmedSnapshot, step: 'draft' });
       emit(next);
       return next;
+    },
+    async importManualScreenshots() {
+      const result = await dialog.showOpenDialog({
+        title: '选择操作手册界面截图',
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: '界面截图', extensions: ['png', 'jpg', 'jpeg'] }],
+      });
+      if (result.canceled || !result.filePaths?.length) {
+        return { success: false, message: '已取消选择', state: loadState() };
+      }
+      ensureDir(manualScreenshotsDir);
+      const imported = [];
+      const skipped = [];
+      for (const sourcePath of result.filePaths) {
+        try {
+          const extension = path.extname(sourcePath).toLowerCase();
+          const stat = fs.statSync(sourcePath);
+          if (!['.png', '.jpg', '.jpeg'].includes(extension) || stat.size <= 0 || stat.size > 15 * 1024 * 1024) {
+            skipped.push(path.basename(sourcePath));
+            continue;
+          }
+          const id = crypto.randomUUID();
+          const fileName = `${id}${extension === '.jpeg' ? '.jpg' : extension}`;
+          const targetPath = path.join(manualScreenshotsDir, fileName);
+          fs.copyFileSync(sourcePath, targetPath);
+          const size = getSafeImageDimensions(fs.readFileSync(targetPath), { maxBytes: 15 * 1024 * 1024 });
+          imported.push({
+            id,
+            name: path.basename(sourcePath),
+            path: targetPath,
+            assetUrl: `yibiao-asset://software-copyright-screenshots/${encodeURIComponent(fileName)}`,
+            caption: path.basename(sourcePath, extension).slice(0, 80),
+            width: Number(size.width) || 0,
+            height: Number(size.height) || 0,
+            createdAt: now(),
+          });
+        } catch {
+          skipped.push(path.basename(sourcePath));
+        }
+      }
+      if (!imported.length) throw new Error('未导入有效截图，请选择不超过 15MB 的 PNG 或 JPG 文件');
+      const current = loadState();
+      const state = screenshotStateUpdate({
+        manualScreenshots: [...(current.manualScreenshots || []), ...imported].slice(0, 30),
+        options: { screenshotMode: 'manual', useAiImages: false },
+      });
+      return {
+        success: true,
+        message: skipped.length ? `已导入 ${imported.length} 张，跳过 ${skipped.length} 张无效图片` : `已导入 ${imported.length} 张截图`,
+        state,
+      };
+    },
+    updateManualScreenshot(payload = {}) {
+      const current = loadState();
+      managedScreenshot(current, payload.id);
+      const caption = String(payload.caption || '').trim().slice(0, 120);
+      const placement = String(payload.placement || '').trim().slice(0, 160);
+      return screenshotStateUpdate({
+        manualScreenshots: current.manualScreenshots.map((item) => item.id === payload.id ? { ...item, caption, placement } : item),
+      });
+    },
+    reorderManualScreenshots(ids = []) {
+      const current = loadState();
+      const byId = new Map(current.manualScreenshots.map((item) => [item.id, item]));
+      const ordered = Array.from(new Set(Array.isArray(ids) ? ids : [])).map((id) => byId.get(id)).filter(Boolean);
+      current.manualScreenshots.forEach((item) => {
+        if (!ordered.some((orderedItem) => orderedItem.id === item.id)) ordered.push(item);
+      });
+      return screenshotStateUpdate({ manualScreenshots: ordered });
+    },
+    removeManualScreenshot(id) {
+      const current = loadState();
+      const { filePath } = managedScreenshot(current, id);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      return screenshotStateUpdate({
+        manualScreenshots: current.manualScreenshots.filter((item) => item.id !== id),
+      });
+    },
+    saveAiIllustrationSettings(payload = {}) {
+      const current = loadState();
+      const style = payload.style === 'realistic_photo' ? 'realistic_photo' : 'engineering_diagram';
+      const prompt = String(payload.prompt || '').trim().slice(0, 2000);
+      const next = saveState({ aiIllustrationSettings: { prompt, style } });
+      emit(next);
+      return next;
+    },
+    async generateAiIllustrationPrompt(payload = {}) {
+      const current = loadState();
+      if (activeTask?.status === 'running' || current.task?.status === 'running') throw new Error('当前有软著任务正在运行，请稍后再生成提示词');
+      if (!current.analysis) throw new Error('请先选择源码目录并完成项目分析');
+      const businessPath = current.draftDir ? path.join(current.draftDir, '业务理解.json') : '';
+      const business = businessPath && fs.existsSync(businessPath) ? readJson(businessPath, {}) : {};
+      const style = payload.style === 'realistic_photo' ? 'realistic_photo' : 'engineering_diagram';
+      const existingPrompts = [
+        ...(current.aiIllustrations || []).map((item) => item.prompt),
+        current.aiIllustrationSettings?.prompt,
+      ].filter(Boolean);
+      const content = await aiService.chat({
+        logTitle: '软著-AI生成插图提示词',
+        temperature: 0.65,
+        timeout_ms: 180000,
+        messages: buildManualIllustrationPromptMessages({
+          analysis: current.analysis,
+          fields: current.fields || {},
+          business,
+          existingPrompts,
+          style,
+        }),
+      });
+      const prompt = String(content || '')
+        .replace(/^```(?:text)?\s*/i, '')
+        .replace(/```$/i, '')
+        .replace(/^提示词[：:]?\s*/i, '')
+        .replace(/[\r\n]+/g, ' ')
+        .trim()
+        .slice(0, 2000);
+      if (!prompt) throw new Error('文本模型未返回有效提示词，请重试');
+      const next = saveState({ aiIllustrationSettings: { prompt, style } });
+      emit(next);
+      return { prompt, style, state: next };
+    },
+    async generateAiIllustration(payload = {}) {
+      const current = loadState();
+      const availability = aiService.getImageModelAvailability();
+      if (!availability.available) throw new Error(availability.message || '生图模型不可用');
+      if ((current.aiIllustrations || []).length >= 6) throw new Error('最多保留 6 张 AI 示意图，请先移除不需要的图片');
+      const style = payload.style === 'realistic_photo' ? 'realistic_photo' : 'engineering_diagram';
+      const prompt = String(payload.prompt || current.aiIllustrationSettings?.prompt || buildManualIllustrationPrompt(current.fields || {})).trim().slice(0, 2000);
+      if (!prompt) throw new Error('请先填写生图提示词');
+      const generated = await aiService.generateImage({
+        title: `${current.fields?.softwareName || '软件'}操作手册示意图`,
+        prompt,
+        style,
+        size: '1024x1024',
+        logTitle: `软著-操作手册示意图-${(current.aiIllustrations || []).length + 1}`,
+      });
+      if (!generated?.success || !generated.file_path || !fs.existsSync(generated.file_path)) {
+        throw new Error(generated?.message || '生图服务未返回有效图片');
+      }
+      ensureDir(aiIllustrationsDir);
+      const sourceBuffer = fs.readFileSync(generated.file_path);
+      const image = await loadImage(sourceBuffer);
+      const width = Number(image.width) || 1024;
+      const height = Number(image.height) || 1024;
+      const canvas = createCanvas(width, height);
+      canvas.getContext('2d').drawImage(image, 0, 0, width, height);
+      const id = crypto.randomUUID();
+      const fileName = `${id}.png`;
+      const targetPath = path.join(aiIllustrationsDir, fileName);
+      fs.writeFileSync(targetPath, canvas.toBuffer('image/png'));
+      const item = {
+        id,
+        name: `AI示意图-${(current.aiIllustrations || []).length + 1}.png`,
+        path: targetPath,
+        assetUrl: `yibiao-asset://software-copyright-ai-images/${encodeURIComponent(fileName)}`,
+        caption: String(payload.caption || `${current.fields?.softwareName || '软件'}功能示意图`).trim().slice(0, 120),
+        prompt,
+        style,
+        width,
+        height,
+        createdAt: now(),
+      };
+      const state = screenshotStateUpdate({
+        aiIllustrations: [...(current.aiIllustrations || []), item],
+        aiIllustrationSettings: { prompt, style },
+        options: { screenshotMode: 'ai', useAiImages: true },
+      });
+      return { success: true, message: 'AI 示意图已生成，请检查图片内容和图注', item, state };
+    },
+    async regenerateAiIllustration(payload = {}) {
+      const current = loadState();
+      const existing = managedAiIllustration(current, payload.id).item;
+      const availability = aiService.getImageModelAvailability();
+      if (!availability.available) throw new Error(availability.message || '生图模型不可用');
+      const style = payload.style === 'realistic_photo' ? 'realistic_photo' : 'engineering_diagram';
+      const prompt = String(payload.prompt || '').trim().slice(0, 2000);
+      if (!prompt) throw new Error('请填写本次重新生成使用的提示词');
+      const generated = await aiService.generateImage({
+        title: `${current.fields?.softwareName || '软件'}操作手册示意图重绘`,
+        prompt,
+        style,
+        size: '1024x1024',
+        logTitle: `软著-重新生成插图-${existing.caption || existing.name}`,
+      });
+      if (!generated?.success || !generated.file_path || !fs.existsSync(generated.file_path)) {
+        throw new Error(generated?.message || '生图服务未返回有效图片');
+      }
+      ensureDir(aiIllustrationsDir);
+      const sourceBuffer = fs.readFileSync(generated.file_path);
+      const image = await loadImage(sourceBuffer);
+      const width = Number(image.width) || 1024;
+      const height = Number(image.height) || 1024;
+      const canvas = createCanvas(width, height);
+      canvas.getContext('2d').drawImage(image, 0, 0, width, height);
+      const fileName = `${crypto.randomUUID()}.png`;
+      const targetPath = path.join(aiIllustrationsDir, fileName);
+      fs.writeFileSync(targetPath, canvas.toBuffer('image/png'));
+      if (existing.path && fs.existsSync(existing.path)) fs.unlinkSync(existing.path);
+      const updated = {
+        ...existing,
+        path: targetPath,
+        assetUrl: `yibiao-asset://software-copyright-ai-images/${encodeURIComponent(fileName)}`,
+        prompt,
+        style,
+        width,
+        height,
+        updatedAt: now(),
+      };
+      const state = screenshotStateUpdate({
+        aiIllustrations: current.aiIllustrations.map((item) => item.id === existing.id ? updated : item),
+        aiIllustrationSettings: { prompt, style },
+        options: { screenshotMode: 'ai', useAiImages: true },
+      });
+      return { success: true, message: '当前示意图已重新生成', item: updated, state };
+    },
+    updateAiIllustration(payload = {}) {
+      const current = loadState();
+      managedAiIllustration(current, payload.id);
+      const caption = String(payload.caption || '').trim().slice(0, 120);
+      const placement = String(payload.placement || '').trim().slice(0, 160);
+      return screenshotStateUpdate({
+        aiIllustrations: current.aiIllustrations.map((item) => item.id === payload.id ? { ...item, caption, placement } : item),
+      });
+    },
+    reorderAiIllustrations(ids = []) {
+      const current = loadState();
+      const byId = new Map(current.aiIllustrations.map((item) => [item.id, item]));
+      const ordered = Array.from(new Set(Array.isArray(ids) ? ids : [])).map((id) => byId.get(id)).filter(Boolean);
+      current.aiIllustrations.forEach((item) => {
+        if (!ordered.some((orderedItem) => orderedItem.id === item.id)) ordered.push(item);
+      });
+      return screenshotStateUpdate({ aiIllustrations: ordered });
+    },
+    removeAiIllustration(id) {
+      const current = loadState();
+      const { filePath } = managedAiIllustration(current, id);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      return screenshotStateUpdate({
+        aiIllustrations: current.aiIllustrations.filter((item) => item.id !== id),
+      });
     },
     exportFinal(payload = {}) {
       if (activeTask?.status === 'running') {
         return activeTask;
       }
+      const current = loadState();
+      const validation = validateDraftCompleteness(current);
+      if (!validation.valid) {
+        throw new Error(`提交前总检未通过：${validation.issues.slice(0, 3).map((issue) => issue.message).join('；')}`);
+      }
+      const submissionReview = buildSubmissionReview(current, listExportBatches(current));
+      if (!submissionReview.readyToSubmit) {
+        const unresolved = submissionReview.checks
+          .filter((item) => item.status !== 'pass')
+          .map((item) => item.label)
+          .join('、');
+        throw new Error(`请先完成提交前总检${unresolved ? `：${unresolved}` : ''}`);
+      }
+      const manifestPath = current.draftMeta?.manifestPath || path.join(current.draftDir || '', '代码提取清单.json');
+      const codeReviewCurrent = Boolean(
+        current.codeMaterialReview?.confirmedAt
+        && current.codeMaterialReview?.manifestHash
+        && fs.existsSync(manifestPath)
+        && current.codeMaterialReview.manifestHash === sha256File(manifestPath),
+      );
+      if (!codeReviewCurrent) throw new Error('请先完成代码鉴别材料人工核对');
+      const screenshotMode = current.options?.screenshotMode || 'skip';
+      const activeAssets = screenshotMode === 'manual'
+        ? current.manualScreenshots || []
+        : screenshotMode === 'ai' ? current.aiIllustrations || [] : [];
+      const manualAssetReady = screenshotMode === 'skip' || Boolean(
+        activeAssets.length
+        && current.manualAssetReview?.confirmedAt
+        && current.manualAssetReview.mode === screenshotMode,
+      );
+      if (!manualAssetReady) throw new Error('请先完成操作手册图片人工核对');
+      const manualReviewCurrent = Boolean(
+        current.confirmedSnapshot?.id
+        && current.manualReview?.confirmedAt
+        && current.manualReview?.snapshotId === current.confirmedSnapshot.id,
+      );
+      if (!manualReviewCurrent) throw new Error('请先在“申报辅助”中完成人工复核与证据链确认');
       activeTask = createTask('software-copyright-final-export');
       const state = saveState({
         task: activeTask,

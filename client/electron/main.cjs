@@ -4,11 +4,15 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { registerIpcHandlers } = require('./ipc/index.cjs');
 const { setupAutoUpdate, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall } = require('./services/updateService.cjs');
-const { getGeneratedImagesDir, getImportedImagesDir } = require('./utils/paths.cjs');
+const { getGeneratedImagesDir, getImportedImagesDir, getSoftwareCopyrightDir } = require('./utils/paths.cjs');
 
 const rendererUrl = process.env.ELECTRON_RENDERER_URL;
 const userDataDir = process.env.YIBIAO_USER_DATA_DIR;
-const iconPath = path.join(__dirname, '../assets/icon.ico');
+const windowIconPath = process.platform === 'win32'
+  ? path.join(__dirname, '../assets/icon.ico')
+  : process.platform === 'linux'
+    ? path.join(__dirname, '../assets/icon_256.png')
+    : null;
 const packagedIndexUrl = pathToFileURL(path.join(__dirname, '../dist/index.html')).toString();
 const legacyUserDataNames = ['禹都AI投标助手', 'yudubid-client'];
 let mainWindow = null;
@@ -44,6 +48,8 @@ function registerAssetProtocol() {
       const assetRoots = {
         'generated-images': getGeneratedImagesDir(app),
         'imported-images': getImportedImagesDir(app),
+        'software-copyright-screenshots': path.join(getSoftwareCopyrightDir(app), 'manual-screenshots'),
+        'software-copyright-ai-images': path.join(getSoftwareCopyrightDir(app), 'ai-illustrations'),
       };
       const rootDir = assetRoots[url.hostname];
       if (!rootDir) {
@@ -154,7 +160,7 @@ function createMainWindow() {
     minHeight: 720,
     backgroundColor: '#f8fafd',
     title: '禹都AI解决方案助手',
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    ...(windowIconPath && fs.existsSync(windowIconPath) ? { icon: windowIconPath } : {}),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

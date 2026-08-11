@@ -84,8 +84,33 @@ function buildManualIllustrationPrompt(fields) {
   return `为中文软件著作权操作手册生成一张干净的产品流程示意图，软件名称：${fields.softwareName}。画面包含软件界面、资料输入、处理进度、结果导出，不出现真实品牌标识，不包含敏感信息。`;
 }
 
+function buildManualIllustrationPromptMessages({ analysis, fields, business, existingPrompts, style }) {
+  const evidence = buildAnalysisEvidence(analysis);
+  return [
+    {
+      role: 'system',
+      content: '你是中文软件著作权操作手册的视觉提示词设计助手。只依据给定源码证据和业务理解，生成一条新的中文生图提示词。只输出提示词正文，不要标题、编号、引号、解释或 Markdown。提示词应聚焦一个可验证的软件功能或操作流程，并与已有提示词选择不同主题；不得编造源码证据中不存在的功能。画面避免真实品牌、水印、敏感信息、密集小字和大段文字。',
+    },
+    {
+      role: 'user',
+      content: [
+        `请生成一条适用于${style === 'realistic_photo' ? '真实桌面使用场景效果图' : '清晰工程功能示意图'}的提示词，长度控制在120至350个汉字。`,
+        `软件名称：${fields.softwareName || analysis.projectName || '本软件'}`,
+        `软件主要功能：${fields.mainFunctions || business?.main_functions || '未填写'}`,
+        `软件技术特点：${fields.technicalFeatures || business?.technical_characteristics || '未填写'}`,
+        `业务功能：${JSON.stringify(business?.business_features || [])}`,
+        `操作流程：${JSON.stringify(business?.operation_flow || [])}`,
+        `手册模块：${JSON.stringify((business?.manual_modules || []).slice(0, 10))}`,
+        `已有提示词（新提示词不得重复相同主题）：${JSON.stringify((existingPrompts || []).slice(-6))}`,
+        `源码证据：\n${evidence}`,
+      ].join('\n\n'),
+    },
+  ];
+}
+
 module.exports = {
   buildBusinessContextMessages,
   buildManualIllustrationPrompt,
+  buildManualIllustrationPromptMessages,
   buildManualMarkdownMessages,
 };

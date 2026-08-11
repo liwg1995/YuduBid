@@ -263,7 +263,7 @@ function PresalesProjectsPage({ onNavigate }: PresalesProjectsPageProps) {
                 </label>
                 <label>
                   <span>决策时间</span>
-                  <input value={profileDraft.decisionDate} onChange={(event) => setProfileDraft({ ...profileDraft, decisionDate: event.target.value })} placeholder="预计汇报、立项或决策日期" />
+                  <input type="date" value={profileDraft.decisionDate} onChange={(event) => setProfileDraft({ ...profileDraft, decisionDate: event.target.value })} />
                 </label>
                 <label className="is-wide">
                   <span>背景摘要</span>

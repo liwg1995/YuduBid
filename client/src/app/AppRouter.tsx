@@ -80,7 +80,7 @@ function AppRouter({ activeSection, featureModuleSettings, onSectionChange, onDe
     case 'thesis-format':
       return <ThesisTutorPage initialPanel={activeSection.replace('thesis-', '') as ThesisTutorInitialPanel} onNavigate={onSectionChange} />;
     case 'code-generation':
-      return <CodeGenerationPage />;
+      return <CodeGenerationPage onNavigate={onSectionChange} />;
     case 'software-copyright':
       return <SoftwareCopyrightPage />;
     case 'patent-mining':

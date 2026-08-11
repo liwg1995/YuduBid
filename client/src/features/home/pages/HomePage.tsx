@@ -74,7 +74,7 @@ const featureCards: Array<{ title: string; text: string; action: string; section
   {
     title: '软件著作材料',
     text: '从项目代码和说明材料出发，辅助准备软著源码、申请表、手册和交付材料。',
-    action: '进入软著生成',
+    action: '进入软著项目',
     section: 'software-copyright',
     tone: 'cyan',
     icon: 'code',

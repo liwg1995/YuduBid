@@ -34,6 +34,8 @@ export interface CodeGenerationState {
   project: CodeGenerationProject | null;
   analysis: CodeGenerationAnalysis | null;
   selectedPaths: string[];
+  sortMode: 'smart' | 'path' | 'manual';
+  scannedAt: string;
   confirmed: boolean;
   confirmedAt: string;
   updated_at: string;

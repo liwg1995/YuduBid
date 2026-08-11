@@ -8,7 +8,7 @@ export const configurableFeatureModules: Array<{ id: FeatureModuleId; label: str
   { id: 'grant-application', label: '课题申报', description: '启动诊断、选题政策、申报书撰写、评审优化和答辩' },
   { id: 'project-management', label: '项目协作', description: '项目类型、项目管理和项目历史' },
   { id: 'thesis-tutor', label: '论文导师', description: '诊断、选题、综述、研究设计、图表、成稿和评审' },
-  { id: 'copyright', label: '软件著作', description: '代码生成和软著申请材料生成' },
+  { id: 'copyright', label: '软件著作', description: '软著项目管理、源码准备和申请材料生成' },
   { id: 'patent', label: '专利生成', description: '专利挖掘、交底书生成、查新分析和修订迭代' },
 ];
 
@@ -83,14 +83,14 @@ const projectManagementMenuItems: AppMenuItem[] = [
 
 const softwareCopyrightMenuItems: AppMenuItem[] = [
   {
-    id: 'code-generation',
-    label: '代码生成',
-    description: '软著源码材料准备',
+    id: 'software-copyright',
+    label: '软著项目',
+    description: '创建、检索和管理软著项目',
   },
   {
-    id: 'software-copyright',
-    label: '软著生成',
-    description: '申请表、手册与代码材料',
+    id: 'code-generation',
+    label: '源码准备',
+    description: '当前软著项目的源码材料准备',
   },
 ];
 

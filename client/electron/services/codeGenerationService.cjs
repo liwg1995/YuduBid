@@ -1,9 +1,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { dialog } = require('electron');
-const { getCodeGenerationDir } = require('../utils/paths.cjs');
+const { getCodeGenerationDir, getSoftwareCopyrightDir } = require('../utils/paths.cjs');
+const { readSourceFile } = require('./softwareCopyrightCodePipeline.cjs');
+const { detectProjectTechnologies } = require('./softwareProjectTechnologyDetector.cjs');
 
-const CODE_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.css', '.scss', '.less', '.html', '.vue', '.svelte', '.astro', '.py', '.java', '.go', '.rs', '.cs', '.sql']);
+const CODE_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.css', '.scss', '.less', '.html', '.htm', '.xml', '.vue', '.svelte', '.astro', '.py', '.java', '.kt', '.kts', '.go', '.rs', '.c', '.h', '.cc', '.cpp', '.hpp', '.cs', '.swift', '.m', '.mm', '.php', '.rb', '.dart', '.lua', '.scala', '.sql', '.sh']);
 const SKIP_DIRS = new Set(['.git', '.hg', '.svn', '.idea', '.vscode', 'node_modules', 'dist', 'build', 'release', 'coverage', 'archive', '软件著作权申请资料']);
 const SKIP_FILES = new Set(['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'tsconfig.tsbuildinfo']);
 const TARGET_LINES = 60 * 50;
@@ -12,6 +14,8 @@ const initialState = {
   project: null,
   analysis: null,
   selectedPaths: [],
+  sortMode: 'smart',
+  scannedAt: '',
   confirmed: false,
   confirmedAt: '',
   updated_at: '',
@@ -41,16 +45,8 @@ function writeJson(filePath, data) {
 }
 
 function readText(filePath, limit) {
-  const buffer = fs.readFileSync(filePath);
-  const data = limit ? buffer.subarray(0, limit) : buffer;
-  for (const encoding of ['utf-8', 'utf8', 'gb18030', 'latin1']) {
-    try {
-      return data.toString(encoding);
-    } catch {
-      // Try next encoding.
-    }
-  }
-  return data.toString('utf-8');
+  const { text } = readSourceFile(filePath);
+  return limit ? text.slice(0, limit) : text;
 }
 
 function rel(filePath, root) {
@@ -101,15 +97,7 @@ function categoryPriority(category) {
   return index >= 0 ? index : 99;
 }
 
-function readPackage(projectDir) {
-  const packagePath = ['package.json', 'client/package.json', 'frontend/package.json', 'web/package.json']
-    .map((name) => path.join(projectDir, name))
-    .find((candidate) => fs.existsSync(candidate));
-  return packagePath ? readJson(packagePath, {}) : {};
-}
-
 function analyzeProject(projectDir) {
-  const packageJson = readPackage(projectDir);
   const files = walkFiles(projectDir).map((item) => {
     const relativePath = rel(item.filePath, projectDir);
     const text = readText(item.filePath, 400_000);
@@ -124,8 +112,8 @@ function analyzeProject(projectDir) {
   });
 
   files.sort((a, b) => categoryPriority(a.category) - categoryPriority(b.category) || b.line_count - a.line_count);
-  const dependencies = { ...(packageJson.dependencies || {}), ...(packageJson.devDependencies || {}) };
-  const frameworks = Object.keys(dependencies).filter((name) => ['react', 'vue', 'vite', 'electron', 'next', 'typescript'].some((key) => name.toLowerCase().includes(key)));
+  const technology = detectProjectTechnologies(projectDir, files);
+  const packageJson = technology.packageJson;
   const lineCount = files.reduce((sum, item) => sum + item.line_count, 0);
   const languages = Array.from(new Set(files.map((item) => item.extension.replace('.', '')).filter(Boolean))).slice(0, 8);
 
@@ -134,11 +122,11 @@ function analyzeProject(projectDir) {
     projectName: path.basename(projectDir),
     packageName: packageJson.name || '',
     packageVersion: packageJson.version || '',
-    frameworks,
+    frameworks: technology.frameworks,
     languages,
     fileCount: files.length,
     lineCount,
-    candidates: files.slice(0, 220),
+    candidates: files,
   };
 }
 
@@ -154,9 +142,27 @@ function createDefaultSelectedPaths(analysis) {
   return selected.length ? selected : (analysis.candidates || []).slice(0, 20).map((item) => item.path);
 }
 
+function normalizeSelectedPaths(analysis, selectedPaths) {
+  const available = new Set((analysis?.candidates || []).map((item) => item.path));
+  return Array.from(new Set((Array.isArray(selectedPaths) ? selectedPaths : [])
+    .map((item) => String(item || '').trim())
+    .filter((item) => available.has(item))));
+}
+
+function orderSelectedPaths(analysis, selectedPaths, sortMode = 'smart') {
+  const normalized = normalizeSelectedPaths(analysis, selectedPaths);
+  if (sortMode === 'manual') return normalized;
+  const selected = new Set(normalized);
+  const candidates = (analysis?.candidates || []).filter((item) => selected.has(item.path));
+  if (sortMode === 'path') {
+    candidates.sort((a, b) => a.path.localeCompare(b.path, 'zh-CN'));
+  }
+  return candidates.map((item) => item.path);
+}
+
 function selectionSummary(analysis, selectedPaths) {
-  const selectedSet = new Set(selectedPaths || []);
-  const selectedFiles = (analysis?.candidates || []).filter((item) => selectedSet.has(item.path));
+  const byPath = new Map((analysis?.candidates || []).map((item) => [item.path, item]));
+  const selectedFiles = (selectedPaths || []).map((filePath) => byPath.get(filePath)).filter(Boolean);
   const selectedLineCount = selectedFiles.reduce((sum, item) => sum + item.line_count + 2, 0);
   return {
     selectedCount: selectedFiles.length,
@@ -167,13 +173,41 @@ function selectionSummary(analysis, selectedPaths) {
 }
 
 function createCodeGenerationService({ app }) {
-  const rootDir = getCodeGenerationDir(app);
+  const legacyRootDir = getCodeGenerationDir(app);
+  const rootDir = path.join(getSoftwareCopyrightDir(app), 'code-generation');
   const statePath = path.join(rootDir, 'state.json');
+  const legacyStatePath = path.join(legacyRootDir, 'state.json');
+  const migrationMarkerPath = path.join(legacyRootDir, '.migrated-to-software-project');
+
+  function migrateLegacyState() {
+    if (fs.existsSync(statePath) || !fs.existsSync(legacyStatePath) || fs.existsSync(migrationMarkerPath)) return;
+    ensureDir(rootDir);
+    fs.copyFileSync(legacyStatePath, statePath);
+    writeJson(migrationMarkerPath, { migratedAt: now(), target: statePath });
+  }
 
   function loadState() {
     ensureDir(rootDir);
+    migrateLegacyState();
     const saved = readJson(statePath, null);
-    const next = { ...initialState, ...(saved || {}) };
+    let next = { ...initialState, ...(saved || {}) };
+    const projectDir = next.project?.path || next.analysis?.projectRoot;
+    if (projectDir && fs.existsSync(projectDir) && next.analysis && !next.analysis.frameworks?.length) {
+      const technology = detectProjectTechnologies(projectDir, next.analysis.candidates || []);
+      if (technology.frameworks.length) {
+        next = {
+          ...next,
+          analysis: {
+            ...next.analysis,
+            frameworks: technology.frameworks,
+            packageName: next.analysis.packageName || technology.packageJson?.name || '',
+            packageVersion: next.analysis.packageVersion || technology.packageJson?.version || '',
+          },
+          updated_at: now(),
+        };
+        writeJson(statePath, next);
+      }
+    }
     return {
       ...next,
       summary: selectionSummary(next.analysis, next.selectedPaths),
@@ -206,6 +240,8 @@ function createCodeGenerationService({ app }) {
         project: { path: projectDir, name: path.basename(projectDir) },
         analysis,
         selectedPaths,
+        sortMode: 'smart',
+        scannedAt: now(),
         confirmed: false,
         confirmedAt: '',
       });
@@ -213,8 +249,31 @@ function createCodeGenerationService({ app }) {
     },
     updateSelection(payload = {}) {
       const current = loadState();
-      const selectedPaths = Array.isArray(payload.selectedPaths) ? payload.selectedPaths.map(String) : current.selectedPaths;
-      return saveState({ selectedPaths, confirmed: false, confirmedAt: '' });
+      const sortMode = ['smart', 'path', 'manual'].includes(payload.sortMode) ? payload.sortMode : current.sortMode;
+      const requestedPaths = Array.isArray(payload.selectedPaths) ? payload.selectedPaths : current.selectedPaths;
+      const selectedPaths = orderSelectedPaths(current.analysis, requestedPaths, sortMode);
+      return saveState({ selectedPaths, sortMode, confirmed: false, confirmedAt: '' });
+    },
+    rescan() {
+      const current = loadState();
+      const projectDir = current.project?.path;
+      if (!projectDir || !fs.existsSync(projectDir)) {
+        throw new Error('当前项目目录不可用，请重新选择项目');
+      }
+      const analysis = analyzeProject(projectDir);
+      const preserved = normalizeSelectedPaths(analysis, current.selectedPaths);
+      const selectedPaths = orderSelectedPaths(
+        analysis,
+        preserved.length ? preserved : createDefaultSelectedPaths(analysis),
+        current.sortMode,
+      );
+      return saveState({
+        analysis,
+        selectedPaths,
+        scannedAt: now(),
+        confirmed: false,
+        confirmedAt: '',
+      });
     },
     confirmSelection() {
       const current = loadState();
@@ -236,11 +295,10 @@ function createCodeGenerationService({ app }) {
       if (!state.confirmed || !state.project || !state.analysis || !state.selectedPaths?.length) {
         return null;
       }
-      const selectedSet = new Set(state.selectedPaths);
       return {
         project: state.project,
         analysis: state.analysis,
-        selectedFiles: (state.analysis.candidates || []).filter((item) => selectedSet.has(item.path)),
+        selectedFiles: state.summary.selectedFiles,
         confirmedAt: state.confirmedAt,
         summary: state.summary,
       };
@@ -249,5 +307,10 @@ function createCodeGenerationService({ app }) {
 }
 
 module.exports = {
+  analyzeProject,
+  createDefaultSelectedPaths,
   createCodeGenerationService,
+  normalizeSelectedPaths,
+  orderSelectedPaths,
+  selectionSummary,
 };
