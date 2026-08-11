@@ -1236,7 +1236,7 @@ function ContentEditPage({
                 </Switch.Root>
               </label>
               {draftGenerationOptions.useMermaidImages && (
-                <p className="content-generation-config-note">当前 Mermaid 转图片使用的是 https://mermaid.ink/ 的免费接口，可能不稳定，导出 Word 后请仔细核对。</p>
+                <p className="content-generation-config-note">Mermaid 图的预览与 Word 导出转换均在本地完成，不调用第三方图片转换服务。</p>
               )}
             </div>
             <div className="content-regenerate-actions">

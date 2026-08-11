@@ -1,6 +1,6 @@
 {
   "name": "yudubid-client",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
@@ -11,6 +11,7 @@
     "build": "tsc --noEmit && vite build",
     "verify:model-capabilities": "node scripts/verify-model-capabilities.cjs",
     "verify:document-security": "node scripts/verify-document-security.cjs",
+    "verify:mermaid-export": "electron scripts/verify-mermaid-export.cjs",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",

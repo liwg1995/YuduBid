@@ -26023,9 +26023,9 @@ button {
   }
 }
 .task-monitor {
-  position: fixed;
+  position: absolute;
   top: 18px;
-  right: 152px;
+  left: 18px;
   z-index: 30;
 }
 

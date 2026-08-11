@@ -1414,6 +1414,17 @@ function registerCanvasCjkFonts() {
   }
 }
 
+function parseSvgDeclarations(value) {
+  const declarations = {};
+  for (const declaration of String(value || '').split(';')) {
+    const [rawKey, ...rawValue] = declaration.split(':');
+    const key = String(rawKey || '').trim();
+    const styleValue = rawValue.join(':').trim().replace(/\s*!important\s*$/i, '');
+    if (key && styleValue) declarations[key] = styleValue;
+  }
+  return declarations;
+}
+
 function parseSvgClassStyles(svg) {
   const styles = {};
   const styleBlocks = String(svg || '').match(/<style[\s\S]*?<\/style>/gi) || [];
@@ -1421,17 +1432,83 @@ function parseSvgClassStyles(svg) {
     const css = block.replace(/<\/?style[^>]*>/gi, '');
     const classRules = css.matchAll(/\.([a-zA-Z0-9_-]+)\s*\{([^}]*)\}/g);
     for (const match of classRules) {
-      const style = {};
-      for (const declaration of match[2].split(';')) {
-        const [rawKey, ...rawValue] = declaration.split(':');
-        const key = String(rawKey || '').trim();
-        const value = rawValue.join(':').trim();
-        if (key && value) style[key] = value;
-      }
+      const style = parseSvgDeclarations(match[2]);
       styles[match[1]] = { ...(styles[match[1]] || {}), ...style };
     }
   }
   return styles;
+}
+
+const SVG_PRESENTATION_PROPERTIES = new Set([
+  'color',
+  'fill',
+  'fill-opacity',
+  'font-family',
+  'font-size',
+  'font-style',
+  'font-weight',
+  'opacity',
+  'stop-color',
+  'stop-opacity',
+  'stroke',
+  'stroke-dasharray',
+  'stroke-dashoffset',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-miterlimit',
+  'stroke-opacity',
+  'stroke-width',
+  'text-anchor',
+  'visibility',
+]);
+
+function inlineSvgClassStyles(svg) {
+  const source = String(svg || '');
+  const $ = cheerio.load(source, { xmlMode: true, decodeEntities: false });
+  const originalInlineStyles = new Map();
+  const stylesheetStyles = new Map();
+
+  $('*').each((_index, element) => {
+    originalInlineStyles.set(element, parseSvgDeclarations($(element).attr('style')));
+  });
+
+  $('style').each((_index, styleElement) => {
+    const css = $(styleElement).html()?.replace(/\/\*[\s\S]*?\*\//g, '') || '';
+    for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const declarations = parseSvgDeclarations(match[2]);
+      if (!Object.keys(declarations).length) continue;
+      for (const rawSelector of match[1].split(',')) {
+        const selector = rawSelector.trim();
+        if (!selector || selector.startsWith('@')) continue;
+        try {
+          $(selector).each((_elementIndex, element) => {
+            stylesheetStyles.set(element, {
+              ...(stylesheetStyles.get(element) || {}),
+              ...declarations,
+            });
+          });
+        } catch (error) {
+          console.warn('[export-word] skip unsupported SVG CSS selector', selector, error?.message || String(error));
+        }
+      }
+    }
+  });
+
+  $('*').each((_index, element) => {
+    const merged = {
+      ...(stylesheetStyles.get(element) || {}),
+      ...(originalInlineStyles.get(element) || {}),
+    };
+    if (!Object.keys(merged).length) return;
+    $(element).attr('style', Object.entries(merged).map(([key, value]) => `${key}:${value}`).join(';'));
+    for (const [key, value] of Object.entries(merged)) {
+      if (SVG_PRESENTATION_PROPERTIES.has(key) && !String(value).includes('var(')) {
+        $(element).attr(key, value);
+      }
+    }
+  });
+
+  return $.xml();
 }
 
 function svgNumeric(value, fallback = 0) {
@@ -1440,16 +1517,11 @@ function svgNumeric(value, fallback = 0) {
 }
 
 function svgElementStyle($, element, classStyles) {
-  const className = ($(element).attr('class') || '').split(/\s+/).find(Boolean);
-  const fromClass = className ? classStyles[className] || {} : {};
-  const inline = {};
-  const styleAttr = $(element).attr('style') || '';
-  for (const declaration of styleAttr.split(';')) {
-    const [rawKey, ...rawValue] = declaration.split(':');
-    const key = String(rawKey || '').trim();
-    const value = rawValue.join(':').trim();
-    if (key && value) inline[key] = value;
-  }
+  const fromClass = ($(element).attr('class') || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .reduce((style, className) => ({ ...style, ...(classStyles[className] || {}) }), {});
+  const inline = parseSvgDeclarations($(element).attr('style'));
   return { ...fromClass, ...inline };
 }
 
@@ -1537,19 +1609,25 @@ function drawSvgArrowheadOverlay(ctx, svg) {
 async function svgBufferToPngBuffer(buffer) {
   const svg = Buffer.isBuffer(buffer) ? buffer.toString('utf-8') : String(buffer || '');
   try {
+    const preparedSvg = inlineSvgClassStyles(svg);
+    const foreignObjectCount = (preparedSvg.match(/<foreignObject\b/gi) || []).length;
+    if (foreignObjectCount) {
+      console.warn('[export-word] SVG contains foreignObject labels; raster output may be incomplete', { foreignObjectCount });
+    }
     // @napi-rs/canvas 在部分平台不会应用 SVG <style> 中的文字样式，
-    // 先移除原文字节点，再由统一的 CJK 文字补绘逻辑绘制，避免文字重影。
-    const svgWithoutText = svg.replace(/<text\b[\s\S]*?<\/text>/gi, '');
+    // 先内联 class 样式并移除原文字节点，再由统一的 CJK 文字补绘逻辑绘制。
+    const svgWithoutText = preparedSvg.replace(/<text\b[\s\S]*?<\/text>/gi, '');
     const image = await loadCanvasImage(Buffer.from(svgWithoutText, 'utf-8'));
     const width = Math.max(1, Math.round(image.width || 1));
     const height = Math.max(1, Math.round(image.height || 1));
     const canvas = createCanvas(width, height);
     const context = canvas.getContext('2d');
     context.drawImage(image, 0, 0, width, height);
-    drawSvgTextOverlay(context, svg);
-    drawSvgArrowheadOverlay(context, svg);
+    drawSvgTextOverlay(context, preparedSvg);
+    drawSvgArrowheadOverlay(context, preparedSvg);
     return canvas.toBuffer('image/png');
   } catch (error) {
+    console.warn('[export-word] canvas SVG rasterization failed; falling back to Electron nativeImage', error?.message || String(error));
     // Electron 的 nativeImage 对部分包含复杂 CSS/marker 的 SVG 兼容性更好。
     // 只在 canvas 转换失败时兜底，避免影响现有 SVG 的文字和箭头增强逻辑。
     const image = nativeImage?.createFromBuffer ? nativeImage.createFromBuffer(Buffer.from(svg, 'utf-8')) : null;
@@ -2892,4 +2970,6 @@ module.exports = {
   buildDocxBuffer,
   buildDocxResult,
   createExportService,
+  inlineSvgClassStyles,
+  svgBufferToPngBuffer,
 };

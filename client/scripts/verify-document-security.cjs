@@ -2,8 +2,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createCanvas } = require('@napi-rs/canvas');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const PptxGenJS = require('pptxgenjs');
+const { svgBufferToPngBuffer } = require('../electron/services/exportService.cjs');
 const { getSafeImageDimensions } = require('../electron/utils/safeImageDimensions.cjs');
 
 function createMinimalPdf(text) {
@@ -74,10 +75,28 @@ async function verifyPptxExport(tempDir, png) {
   return { pptxPath, size: fs.statSync(pptxPath).size };
 }
 
+async function verifySvgClassStyleRasterization() {
+  const svg = Buffer.from(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="120" height="60">
+      <style>.node rect { fill: #ececff; stroke: #9370db; stroke-width: 2px; }</style>
+      <g class="node"><rect x="10" y="10" width="100" height="40" /></g>
+    </svg>
+  `, 'utf8');
+  const png = await svgBufferToPngBuffer(svg);
+  const image = await loadImage(png);
+  const canvas = createCanvas(image.width, image.height);
+  const context = canvas.getContext('2d');
+  context.drawImage(image, 0, 0);
+  const centerPixel = Array.from(context.getImageData(60, 30, 1, 1).data);
+  assert.deepEqual(centerPixel, [236, 236, 255, 255], 'SVG class 填充色未正确内联，节点会退化为黑块');
+  return { centerPixel };
+}
+
 async function main() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yibiao-document-security-'));
   try {
     const png = verifySafeImageDimensions();
+    const svg = await verifySvgClassStyleRasterization();
     const pdf = await verifyPdfConversion(tempDir);
     const pptx = await verifyPptxExport(tempDir, png);
     console.log('[document-security-verify] passed');
@@ -85,6 +104,7 @@ async function main() {
       pdfjsVersion: require('pdfjs-dist/package.json').version,
       canvasVersion: require('@napi-rs/canvas/package.json').version,
       safeImagePackageVersion: require('image-size/package.json').version,
+      svg,
       pdf,
       pptx,
     }, null, 2));
