@@ -189,6 +189,38 @@ const bridge = {
     previewProjectPackage: () => ipcRenderer.invoke('presales-workbench:preview-project-package'),
     clear: () => ipcRenderer.invoke('presales-workbench:clear'),
   },
+  bidOpportunity: {
+    getSnapshot: (filters) => ipcRenderer.invoke('bid-opportunity:get-snapshot', filters),
+    get: (opportunityId) => ipcRenderer.invoke('bid-opportunity:get', opportunityId),
+    showReminder: () => ipcRenderer.invoke('bid-opportunity:show-reminder'),
+    createWorkspaceBackup: () => ipcRenderer.invoke('bid-opportunity:create-workspace-backup'),
+    verifyLatestBackup: () => ipcRenderer.invoke('bid-opportunity:verify-latest-backup'),
+    save: (payload) => ipcRenderer.invoke('bid-opportunity:save', payload),
+    importFile: () => ipcRenderer.invoke('bid-opportunity:import-file'),
+    importTenderFile: (opportunityId) => ipcRenderer.invoke('bid-opportunity:import-tender-file', opportunityId),
+    updateStatus: (payload) => ipcRenderer.invoke('bid-opportunity:update-status', payload),
+    bulkUpdate: (payload) => ipcRenderer.invoke('bid-opportunity:bulk-update', payload),
+    updateDecisionWorkflow: (payload) => ipcRenderer.invoke('bid-opportunity:update-decision-workflow', payload),
+    saveMonitor: (payload) => ipcRenderer.invoke('bid-opportunity:save-monitor', payload),
+    deleteMonitor: (monitorId) => ipcRenderer.invoke('bid-opportunity:delete-monitor', monitorId),
+    createPresalesProject: (opportunityId) => ipcRenderer.invoke('bid-opportunity:create-presales-project', opportunityId),
+    sendTenderToTechnicalPlan: (opportunityId) => ipcRenderer.invoke('bid-opportunity:send-tender-to-technical-plan', opportunityId),
+    sendTenderToRejectionCheck: (opportunityId) => ipcRenderer.invoke('bid-opportunity:send-tender-to-rejection-check', opportunityId),
+    getEnterpriseProfile: () => ipcRenderer.invoke('bid-opportunity:get-enterprise-profile'),
+    saveEnterpriseProfile: (payload) => ipcRenderer.invoke('bid-opportunity:save-enterprise-profile', payload),
+    startDeepAnalysis: (opportunityId) => ipcRenderer.invoke('bid-opportunity:start-deep-analysis', opportunityId),
+    startSourceScan: (sourceId) => ipcRenderer.invoke('bid-opportunity:start-source-scan', sourceId),
+    startAllSourceScans: () => ipcRenderer.invoke('bid-opportunity:start-all-source-scans'),
+    mergeProjectClusters: (payload) => ipcRenderer.invoke('bid-opportunity:merge-project-clusters', payload),
+    splitProjectCluster: (opportunityId) => ipcRenderer.invoke('bid-opportunity:split-project-cluster', opportunityId),
+    updateSource: (payload) => ipcRenderer.invoke('bid-opportunity:update-source', payload),
+    onEvent: (callback) => {
+      ipcRenderer.send('bid-opportunity:subscribe');
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('bid-opportunity:event', listener);
+      return () => ipcRenderer.removeListener('bid-opportunity:event', listener);
+    },
+  },
   thesisTutor: {
     loadState: () => ipcRenderer.invoke('thesis-tutor:load-state'),
     saveProfile: (profile) => ipcRenderer.invoke('thesis-tutor:save-profile', profile),

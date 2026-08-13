@@ -645,6 +645,17 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     return { success: true, message: result.message || '文件解析完成', state: loadRejectionCheck() };
   }
 
+  function importTenderMarkdown({ fileName, markdown, parserLabel, sourceProjectId } = {}) {
+    const content = String(markdown || '').trim();
+    if (!content) throw new Error('可导入的招标文件内容为空');
+    const document = { role: 'tender', fileName: String(fileName || '投标机会招标文件'), content, source: 'bid-opportunity', sourceProjectId: String(sourceProjectId || ''), parserLabel: String(parserLabel || '投标机会模块'), importedAt: now() };
+    const transaction = db.transaction(() => {
+      saveDocument(document); clearExtractionAndCheckResults(); updateMeta({ active_document_tab: 'tender', step: 'documents' });
+    });
+    transaction();
+    return { success: true, message: '招标文件已流转至废标项检查', state: loadRejectionCheck() };
+  }
+
   async function importBidDocuments() {
     if (!fileService?.importRejectionCheckDocuments) throw new Error('文件导入服务尚未初始化');
     const result = await fileService.importRejectionCheckDocuments();
@@ -791,6 +802,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     updateRejectionCheck,
     clearRejectionCheck,
     importDocument,
+    importTenderMarkdown,
     importBidDocuments,
     importTenderFromTechnicalPlan,
     importBidFromTechnicalPlan,

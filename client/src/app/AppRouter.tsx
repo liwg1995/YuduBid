@@ -98,7 +98,7 @@ function AppRouter({ activeSection, featureModuleSettings, onSectionChange, onDe
     case 'rejection-check':
       return <RejectionCheckPage />;
     case 'bid-opportunity':
-      return <BidOpportunityPage />;
+      return <BidOpportunityPage onNavigate={onSectionChange} />;
     case 'developer-test':
       return <DeveloperTestPage />;
     case 'settings':

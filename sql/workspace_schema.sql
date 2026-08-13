@@ -678,3 +678,160 @@ CREATE TABLE IF NOT EXISTS knowledge_reports (
   created_at TEXT NOT NULL,
   FOREIGN KEY (document_id) REFERENCES knowledge_documents(document_id) ON DELETE CASCADE
 );
+-- 投标机会：本地监控方案、公告机会、匹配关系和状态历史。
+CREATE TABLE IF NOT EXISTS opportunity_monitors (
+  monitor_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  industry TEXT NOT NULL DEFAULT '',
+  regions_json TEXT NOT NULL DEFAULT '[]',
+  notice_types_json TEXT NOT NULL DEFAULT '[]',
+  required_keywords_json TEXT NOT NULL DEFAULT '[]',
+  optional_keywords_json TEXT NOT NULL DEFAULT '[]',
+  excluded_keywords_json TEXT NOT NULL DEFAULT '[]',
+  buyer_keywords_json TEXT NOT NULL DEFAULT '[]',
+  budget_min REAL,
+  budget_max REAL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bid_opportunities (
+  opportunity_id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  notice_type TEXT NOT NULL DEFAULT '其他',
+  source_name TEXT NOT NULL DEFAULT '手工录入',
+  source_url TEXT NOT NULL DEFAULT '',
+  source_item_id TEXT NOT NULL DEFAULT '',
+  project_cluster_id TEXT,
+  announcement_stage TEXT NOT NULL DEFAULT 'other',
+  cluster_confidence REAL,
+  cluster_method TEXT NOT NULL DEFAULT '',
+  project_code TEXT NOT NULL DEFAULT '',
+  buyer TEXT NOT NULL DEFAULT '',
+  region TEXT NOT NULL DEFAULT '',
+  industry TEXT NOT NULL DEFAULT '',
+  publish_date TEXT,
+  bid_deadline TEXT,
+  expected_purchase_date TEXT,
+  award_supplier TEXT NOT NULL DEFAULT '',
+  award_amount REAL,
+  termination_reason TEXT NOT NULL DEFAULT '',
+  change_summary TEXT NOT NULL DEFAULT '',
+  workflow_stage TEXT NOT NULL DEFAULT 'discovery',
+  decision_outcome TEXT NOT NULL DEFAULT 'undecided',
+  decision_reason TEXT NOT NULL DEFAULT '',
+  decision_due_at TEXT,
+  next_action TEXT NOT NULL DEFAULT '',
+  next_action_due_at TEXT,
+  tender_file_name TEXT NOT NULL DEFAULT '',
+  tender_markdown_path TEXT,
+  tender_markdown_hash TEXT NOT NULL DEFAULT '',
+  tender_parser_label TEXT NOT NULL DEFAULT '',
+  tender_imported_at TEXT,
+  technical_plan_project_id TEXT,
+  budget REAL,
+  summary TEXT NOT NULL DEFAULT '',
+  content_path TEXT,
+  content_hash TEXT NOT NULL DEFAULT '',
+  last_seen_at TEXT,
+  source_kind TEXT NOT NULL DEFAULT 'manual',
+  rule_score INTEGER NOT NULL DEFAULT 0,
+  information_score INTEGER NOT NULL DEFAULT 0,
+  qualification_status TEXT NOT NULL DEFAULT 'unknown',
+  value_score INTEGER NOT NULL DEFAULT 0,
+  feasibility_score INTEGER NOT NULL DEFAULT 0,
+  recommendation TEXT NOT NULL DEFAULT '待判断',
+  matched_keywords_json TEXT NOT NULL DEFAULT '[]',
+  risk_flags_json TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'new',
+  owner TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  presales_project_id TEXT,
+  deep_analysis_json TEXT,
+  analysis_task_json TEXT,
+  analysis_signature TEXT,
+  analyzed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS opportunity_project_clusters (
+  cluster_id TEXT PRIMARY KEY,
+  canonical_title TEXT NOT NULL,
+  normalized_title TEXT NOT NULL DEFAULT '',
+  buyer TEXT NOT NULL DEFAULT '',
+  project_code TEXT NOT NULL DEFAULT '',
+  current_stage TEXT NOT NULL DEFAULT 'other',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS opportunity_monitor_matches (
+  opportunity_id TEXT NOT NULL,
+  monitor_id TEXT NOT NULL,
+  matched_keywords_json TEXT NOT NULL DEFAULT '[]',
+  match_score INTEGER NOT NULL DEFAULT 0,
+  matched_at TEXT NOT NULL,
+  PRIMARY KEY (opportunity_id, monitor_id),
+  FOREIGN KEY (opportunity_id) REFERENCES bid_opportunities(opportunity_id) ON DELETE CASCADE,
+  FOREIGN KEY (monitor_id) REFERENCES opportunity_monitors(monitor_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS opportunity_events (
+  event_id TEXT PRIMARY KEY,
+  opportunity_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (opportunity_id) REFERENCES bid_opportunities(opportunity_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS opportunity_enterprise_profile (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  company_name TEXT NOT NULL DEFAULT '',
+  industries_json TEXT NOT NULL DEFAULT '[]',
+  service_regions_json TEXT NOT NULL DEFAULT '[]',
+  capabilities_json TEXT NOT NULL DEFAULT '[]',
+  qualifications_json TEXT NOT NULL DEFAULT '[]',
+  personnel_json TEXT NOT NULL DEFAULT '[]',
+  performances_json TEXT NOT NULL DEFAULT '[]',
+  advantages TEXT NOT NULL DEFAULT '',
+  limitations TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS opportunity_sources (
+  source_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  adapter_type TEXT NOT NULL,
+  base_url TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  config_json TEXT NOT NULL DEFAULT '{}',
+  health_status TEXT NOT NULL DEFAULT 'untested',
+  last_run_at TEXT,
+  last_success_at TEXT,
+  last_error TEXT,
+  last_result_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS opportunity_scan_runs (
+  run_id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  progress INTEGER NOT NULL DEFAULT 0,
+  message TEXT NOT NULL DEFAULT '',
+  fetched_count INTEGER NOT NULL DEFAULT 0,
+  matched_count INTEGER NOT NULL DEFAULT 0,
+  created_count INTEGER NOT NULL DEFAULT 0,
+  updated_count INTEGER NOT NULL DEFAULT 0,
+  skipped_count INTEGER NOT NULL DEFAULT 0,
+  errors_json TEXT NOT NULL DEFAULT '[]',
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (source_id) REFERENCES opportunity_sources(source_id) ON DELETE CASCADE
+);

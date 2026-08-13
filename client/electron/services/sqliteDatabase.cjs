@@ -3,7 +3,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const { getWorkspaceDatabasePath } = require('../utils/paths.cjs');
 
-const schemaVersion = 8;
+const schemaVersion = 15;
 
 function createInitialSchema(db) {
   db.exec(`
@@ -668,6 +668,232 @@ function createRejectionCheckComplianceSchema(db) {
   addColumnIfMissing(db, 'rejection_check_results', 'compliance_matrix_json', 'TEXT');
 }
 
+function createBidOpportunitySchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS opportunity_monitors (
+      monitor_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      industry TEXT NOT NULL DEFAULT '',
+      regions_json TEXT NOT NULL DEFAULT '[]',
+      notice_types_json TEXT NOT NULL DEFAULT '[]',
+      required_keywords_json TEXT NOT NULL DEFAULT '[]',
+      optional_keywords_json TEXT NOT NULL DEFAULT '[]',
+      excluded_keywords_json TEXT NOT NULL DEFAULT '[]',
+      buyer_keywords_json TEXT NOT NULL DEFAULT '[]',
+      budget_min REAL,
+      budget_max REAL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS bid_opportunities (
+      opportunity_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      notice_type TEXT NOT NULL DEFAULT '其他',
+      source_name TEXT NOT NULL DEFAULT '手工录入',
+      source_url TEXT NOT NULL DEFAULT '',
+      project_code TEXT NOT NULL DEFAULT '',
+      buyer TEXT NOT NULL DEFAULT '',
+      region TEXT NOT NULL DEFAULT '',
+      industry TEXT NOT NULL DEFAULT '',
+      publish_date TEXT,
+      bid_deadline TEXT,
+      budget REAL,
+      summary TEXT NOT NULL DEFAULT '',
+      content_path TEXT,
+      source_kind TEXT NOT NULL DEFAULT 'manual',
+      rule_score INTEGER NOT NULL DEFAULT 0,
+      information_score INTEGER NOT NULL DEFAULT 0,
+      qualification_status TEXT NOT NULL DEFAULT 'unknown',
+      value_score INTEGER NOT NULL DEFAULT 0,
+      feasibility_score INTEGER NOT NULL DEFAULT 0,
+      recommendation TEXT NOT NULL DEFAULT '待判断',
+      matched_keywords_json TEXT NOT NULL DEFAULT '[]',
+      risk_flags_json TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'new',
+      owner TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      presales_project_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bid_opportunities_status_updated
+    ON bid_opportunities(status, updated_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_bid_opportunities_deadline
+    ON bid_opportunities(bid_deadline);
+
+    CREATE TABLE IF NOT EXISTS opportunity_monitor_matches (
+      opportunity_id TEXT NOT NULL,
+      monitor_id TEXT NOT NULL,
+      matched_keywords_json TEXT NOT NULL DEFAULT '[]',
+      match_score INTEGER NOT NULL DEFAULT 0,
+      matched_at TEXT NOT NULL,
+      PRIMARY KEY (opportunity_id, monitor_id),
+      FOREIGN KEY (opportunity_id) REFERENCES bid_opportunities(opportunity_id) ON DELETE CASCADE,
+      FOREIGN KEY (monitor_id) REFERENCES opportunity_monitors(monitor_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS opportunity_events (
+      event_id TEXT PRIMARY KEY,
+      opportunity_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      detail TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (opportunity_id) REFERENCES bid_opportunities(opportunity_id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_opportunity_events_opportunity_time
+    ON opportunity_events(opportunity_id, created_at DESC);
+  `);
+}
+
+function createOpportunityIntelligenceSchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS opportunity_enterprise_profile (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      company_name TEXT NOT NULL DEFAULT '',
+      industries_json TEXT NOT NULL DEFAULT '[]',
+      service_regions_json TEXT NOT NULL DEFAULT '[]',
+      capabilities_json TEXT NOT NULL DEFAULT '[]',
+      qualifications_json TEXT NOT NULL DEFAULT '[]',
+      personnel_json TEXT NOT NULL DEFAULT '[]',
+      performances_json TEXT NOT NULL DEFAULT '[]',
+      advantages TEXT NOT NULL DEFAULT '',
+      limitations TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
+  `);
+  addColumnIfMissing(db, 'bid_opportunities', 'deep_analysis_json', 'TEXT');
+  addColumnIfMissing(db, 'bid_opportunities', 'analysis_task_json', 'TEXT');
+  addColumnIfMissing(db, 'bid_opportunities', 'analysis_signature', 'TEXT');
+  addColumnIfMissing(db, 'bid_opportunities', 'analyzed_at', 'TEXT');
+}
+
+function createOpportunitySourceSchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS opportunity_sources (
+      source_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      adapter_type TEXT NOT NULL,
+      base_url TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      config_json TEXT NOT NULL DEFAULT '{}',
+      health_status TEXT NOT NULL DEFAULT 'untested',
+      last_run_at TEXT,
+      last_success_at TEXT,
+      last_error TEXT,
+      last_result_json TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS opportunity_scan_runs (
+      run_id TEXT PRIMARY KEY,
+      source_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      progress INTEGER NOT NULL DEFAULT 0,
+      message TEXT NOT NULL DEFAULT '',
+      fetched_count INTEGER NOT NULL DEFAULT 0,
+      matched_count INTEGER NOT NULL DEFAULT 0,
+      created_count INTEGER NOT NULL DEFAULT 0,
+      updated_count INTEGER NOT NULL DEFAULT 0,
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      errors_json TEXT NOT NULL DEFAULT '[]',
+      started_at TEXT NOT NULL,
+      finished_at TEXT,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (source_id) REFERENCES opportunity_sources(source_id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_opportunity_scan_runs_source_time
+    ON opportunity_scan_runs(source_id, started_at DESC);
+  `);
+  addColumnIfMissing(db, 'bid_opportunities', 'source_item_id', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, 'bid_opportunities', 'content_hash', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, 'bid_opportunities', 'last_seen_at', 'TEXT');
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bid_opportunities_source_item ON bid_opportunities(source_name, source_item_id) WHERE source_item_id <> '';`);
+  const timestamp = new Date().toISOString();
+  db.prepare(`INSERT OR IGNORE INTO opportunity_sources
+    (source_id,name,adapter_type,base_url,enabled,config_json,health_status,created_at,updated_at)
+    VALUES ('ccgp-central-open-tender','中国政府采购网·中央公开招标','ccgp-central-open-tender',
+    'https://www.ccgp.gov.cn/cggg/zygg/gkzb/index.htm',1,'{"maxItems":20}', 'untested', ?, ?)`).run(timestamp, timestamp);
+}
+
+function createOpportunityProjectTimelineSchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS opportunity_project_clusters (
+      cluster_id TEXT PRIMARY KEY,
+      canonical_title TEXT NOT NULL,
+      normalized_title TEXT NOT NULL DEFAULT '',
+      buyer TEXT NOT NULL DEFAULT '',
+      project_code TEXT NOT NULL DEFAULT '',
+      current_stage TEXT NOT NULL DEFAULT 'other',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_opportunity_project_clusters_match
+    ON opportunity_project_clusters(buyer, normalized_title);
+  `);
+  addColumnIfMissing(db, 'bid_opportunities', 'project_cluster_id', 'TEXT');
+  addColumnIfMissing(db, 'bid_opportunities', 'announcement_stage', "TEXT NOT NULL DEFAULT 'other'");
+  addColumnIfMissing(db, 'bid_opportunities', 'cluster_confidence', 'REAL');
+  addColumnIfMissing(db, 'bid_opportunities', 'cluster_method', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, 'bid_opportunities', 'expected_purchase_date', 'TEXT');
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_bid_opportunities_project_cluster ON bid_opportunities(project_cluster_id, publish_date);`);
+  const timestamp = new Date().toISOString();
+  db.prepare(`INSERT OR IGNORE INTO opportunity_sources
+    (source_id,name,adapter_type,base_url,enabled,config_json,health_status,created_at,updated_at)
+    VALUES ('ccgp-procurement-intention','中国政府采购网·政府采购意向','ccgp-procurement-intention',
+    'http://cgyx.ccgp.gov.cn/cgyx/pub/pubSearch',1,'{"maxItems":20}', 'untested', ?, ?)`).run(timestamp, timestamp);
+}
+
+function createOpportunityLifecycleSchema(db) {
+  addColumnIfMissing(db, 'bid_opportunities', 'award_supplier', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, 'bid_opportunities', 'award_amount', 'REAL');
+  addColumnIfMissing(db, 'bid_opportunities', 'termination_reason', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, 'bid_opportunities', 'change_summary', "TEXT NOT NULL DEFAULT ''");
+  const timestamp = new Date().toISOString();
+  const statement = db.prepare(`INSERT OR IGNORE INTO opportunity_sources
+    (source_id,name,adapter_type,base_url,enabled,config_json,health_status,created_at,updated_at)
+    VALUES (?,?,?,?,1,'{"maxItems":20}','untested',?,?)`);
+  statement.run('ccgp-central-correction', '中国政府采购网·中央更正公告', 'ccgp-central-correction', 'https://www.ccgp.gov.cn/cggg/zygg/gzgg/index.htm', timestamp, timestamp);
+  statement.run('ccgp-central-award', '中国政府采购网·中央中标公告', 'ccgp-central-award', 'https://www.ccgp.gov.cn/cggg/zygg/zbgg/index.htm', timestamp, timestamp);
+  statement.run('ccgp-central-termination', '中国政府采购网·中央终止公告', 'ccgp-central-termination', 'https://www.ccgp.gov.cn/cggg/zygg/fblbgg/index.htm', timestamp, timestamp);
+}
+
+function createOpportunityDecisionWorkflowSchema(db) {
+  addColumnIfMissing(db, 'bid_opportunities', 'workflow_stage', "TEXT NOT NULL DEFAULT 'discovery'");
+  addColumnIfMissing(db, 'bid_opportunities', 'decision_outcome', "TEXT NOT NULL DEFAULT 'undecided'");
+  addColumnIfMissing(db, 'bid_opportunities', 'decision_reason', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, 'bid_opportunities', 'decision_due_at', 'TEXT');
+  addColumnIfMissing(db, 'bid_opportunities', 'next_action', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, 'bid_opportunities', 'next_action_due_at', 'TEXT');
+  addColumnIfMissing(db, 'bid_opportunities', 'tender_file_name', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, 'bid_opportunities', 'tender_markdown_path', 'TEXT');
+  addColumnIfMissing(db, 'bid_opportunities', 'tender_markdown_hash', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, 'bid_opportunities', 'tender_parser_label', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, 'bid_opportunities', 'tender_imported_at', 'TEXT');
+  addColumnIfMissing(db, 'bid_opportunities', 'technical_plan_project_id', 'TEXT');
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_bid_opportunities_workflow_action ON bid_opportunities(workflow_stage, next_action_due_at);`);
+}
+
+function createOpportunityExpandedSourcesSchema(db) {
+  const timestamp = new Date().toISOString();
+  const statement = db.prepare(`INSERT OR IGNORE INTO opportunity_sources
+    (source_id,name,adapter_type,base_url,enabled,config_json,health_status,created_at,updated_at)
+    VALUES (?,?,?,?,1,'{"maxItems":20}','untested',?,?)`);
+  statement.run('ccgp-local-open-tender', '中国政府采购网·地方公开招标', 'ccgp-local-open-tender', 'https://www.ccgp.gov.cn/cggg/dfgg/gkzb/index.htm', timestamp, timestamp);
+  statement.run('ccgp-local-correction', '中国政府采购网·地方更正公告', 'ccgp-local-correction', 'https://www.ccgp.gov.cn/cggg/dfgg/gzgg/index.htm', timestamp, timestamp);
+  statement.run('ccgp-local-award', '中国政府采购网·地方中标公告', 'ccgp-local-award', 'https://www.ccgp.gov.cn/cggg/dfgg/zbgg/index.htm', timestamp, timestamp);
+  statement.run('ccgp-local-termination', '中国政府采购网·地方终止公告', 'ccgp-local-termination', 'https://www.ccgp.gov.cn/cggg/dfgg/fblbgg/index.htm', timestamp, timestamp);
+  statement.run('ccgp-central-deal', '中国政府采购网·中央成交公告', 'ccgp-central-deal', 'https://www.ccgp.gov.cn/cggg/zygg/cjgg/index.htm', timestamp, timestamp);
+}
+
 const migrations = [
   {
     version: 1,
@@ -708,6 +934,41 @@ const migrations = [
     version: 8,
     description: '新增废标检查符合性矩阵',
     up: createRejectionCheckComplianceSchema,
+  },
+  {
+    version: 9,
+    description: '新增投标机会、监控方案和状态历史表结构',
+    up: createBidOpportunitySchema,
+  },
+  {
+    version: 10,
+    description: '新增企业能力画像与投标机会 AI 深度分析缓存',
+    up: createOpportunityIntelligenceSchema,
+  },
+  {
+    version: 11,
+    description: '新增真实公告数据源、增量扫描和健康诊断',
+    up: createOpportunitySourceSchema,
+  },
+  {
+    version: 12,
+    description: '新增采购意向来源、项目聚类和公告阶段时间线',
+    up: createOpportunityProjectTimelineSchema,
+  },
+  {
+    version: 13,
+    description: '新增更正、中标和终止公告生命周期字段与来源',
+    up: createOpportunityLifecycleSchema,
+  },
+  {
+    version: 14,
+    description: '新增投标决策工作流、行动计划和正式招标文件关联',
+    up: createOpportunityDecisionWorkflowSchema,
+  },
+  {
+    version: 15,
+    description: '新增地方采购生命周期公告和中央成交公告来源',
+    up: createOpportunityExpandedSourcesSchema,
   },
 ];
 
