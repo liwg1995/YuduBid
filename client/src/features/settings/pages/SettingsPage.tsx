@@ -550,6 +550,7 @@ interface SettingsPageProps {
 }
 
 function UsageTrendChart({ trend, range }: { trend: UsageStatsSummary['trend']; range: UsageTrendRange }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const points = trend.length ? trend : Array.from({ length: 7 }, (_, index) => ({ date: `--${String(index + 1).padStart(2, '0')}`, requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, total_tokens: 0 }));
   const width = 760;
   const height = 230;
@@ -562,13 +563,46 @@ function UsageTrendChart({ trend, range }: { trend: UsageStatsSummary['trend']; 
     y: padding.top + chartHeight - (value / maxValue) * chartHeight,
   });
   const line = points.map((item, index) => coordinate(Number(item.total_tokens || 0), index)).map((point, index) => `${index ? 'L' : 'M'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
+  const hoveredItem = hoveredIndex === null ? null : points[hoveredIndex];
+  const hoveredPoint = hoveredItem ? coordinate(Number(hoveredItem.total_tokens || 0), hoveredIndex as number) : null;
+  const tooltipWidth = 162;
+  const tooltipX = hoveredPoint ? Math.min(width - tooltipWidth - 4, Math.max(4, hoveredPoint.x - tooltipWidth / 2)) : 0;
+  const tooltipY = hoveredPoint ? (hoveredPoint.y > 72 ? hoveredPoint.y - 58 : hoveredPoint.y + 14) : 0;
   return (
     <div className="usage-trend-card">
       <div className="usage-trend-head"><div><strong>{({ '1h': '近 1 小时', '6h': '近 6 小时', '1d': '近 1 天', '7d': '近 7 天', '14d': '近 14 天' } as Record<UsageTrendRange, string>)[range]} Token 趋势</strong><span>{range === '1h' ? '按 5 分钟聚合' : range === '6h' || range === '1d' ? '按小时聚合' : '按每日聚合'}</span></div><em>峰值 {maxValue.toLocaleString()}</em></div>
       <svg className="usage-trend-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="近十四天 Token 使用趋势">
         {[0, 0.5, 1].map((ratio) => { const y = padding.top + chartHeight * ratio; return <line key={ratio} x1={padding.left} x2={width - padding.right} y1={y} y2={y} className="usage-trend-grid" />; })}
         <path d={line} className="usage-trend-line" />
-        {points.map((item, index) => { const point = coordinate(Number(item.total_tokens || 0), index); return <g key={item.date}><circle cx={point.x} cy={point.y} r="4" className="usage-trend-point" /><text x={point.x} y={height - 10} textAnchor="middle" className="usage-trend-label">{item.date.slice(5)}</text></g>; })}
+        {points.map((item, index) => {
+          const point = coordinate(Number(item.total_tokens || 0), index);
+          const total = Number(item.total_tokens || 0);
+          return (
+            <g
+              key={item.date}
+              className="usage-trend-point-group"
+              tabIndex={0}
+              role="img"
+              aria-label={`${item.date}，消耗 ${total.toLocaleString()} Token`}
+              onMouseEnter={() => setHoveredIndex(index)}
+              onMouseLeave={() => setHoveredIndex(null)}
+              onFocus={() => setHoveredIndex(index)}
+              onBlur={() => setHoveredIndex(null)}
+            >
+              <title>{item.date} · {total.toLocaleString()} Token</title>
+              <circle cx={point.x} cy={point.y} r="13" className="usage-trend-hit" />
+              <circle cx={point.x} cy={point.y} r={hoveredIndex === index ? 6 : 4} className="usage-trend-point" />
+              <text x={point.x} y={height - 10} textAnchor="middle" className="usage-trend-label">{item.date.slice(5)}</text>
+            </g>
+          );
+        })}
+        {hoveredItem && hoveredPoint ? (
+          <g className="usage-trend-tooltip" aria-hidden="true">
+            <rect x={tooltipX} y={tooltipY} width={tooltipWidth} height="48" rx="9" />
+            <text x={tooltipX + 12} y={tooltipY + 19}>{hoveredItem.date}</text>
+            <text x={tooltipX + 12} y={tooltipY + 37} className="usage-trend-tooltip-value">消耗 {Number(hoveredItem.total_tokens || 0).toLocaleString()} Token</text>
+          </g>
+        ) : null}
       </svg>
     </div>
   );

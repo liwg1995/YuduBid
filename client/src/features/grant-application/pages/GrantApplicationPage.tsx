@@ -5,6 +5,7 @@ import type { SectionId } from '../../../shared/types/navigation';
 import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { GrantApplicationPanel, GrantApplicationPanelInput, GrantApplicationProfile, GrantApplicationProjectList, GrantApplicationTaskState, GrantFormFieldMapping, GrantProposalFinalReview, GrantProposalModuleKey, GrantProposalModuleQuality, GrantProposalTemplateMapping, GrantProposalVisualSettings, GrantTemplateFillReport } from '../types';
+import '../grantApplication.css';
 
 export type GrantApplicationInitialPanel = GrantApplicationPanel;
 

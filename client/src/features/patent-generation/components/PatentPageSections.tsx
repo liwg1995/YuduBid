@@ -548,7 +548,7 @@ export function PatentSelectedPointPanel({ selectedPatentPoint }: { selectedPate
           <span className="section-kicker">主专利点</span>
           <h3>{selectedPatentPoint ? selectedPatentPoint.title : '尚未选择主专利点'}</h3>
         </div>
-        <span className="demo-soft-pill">{selectedPatentPoint ? '已就绪' : '待选择'}</span>
+        <span className="demo-soft-pill patent-selected-point-status">{selectedPatentPoint ? '已就绪' : '待选择'}</span>
       </div>
       {selectedPatentPoint ? (
         <div className="patent-selected-point">

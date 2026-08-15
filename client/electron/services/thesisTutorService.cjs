@@ -1126,7 +1126,7 @@ function createPrompt(payload) {
   ].join('\n');
 }
 
-function createThesisTutorService({ app, aiService, configStore }) {
+function createThesisTutorService({ app, aiService, configStore, dialogService = dialog }) {
   const subscribers = new Set();
   let activeTask = null;
 
@@ -1162,8 +1162,12 @@ function createThesisTutorService({ app, aiService, configStore }) {
   }
 
   function subscribe(webContents) {
+    if (!webContents || webContents.isDestroyed()) return;
+    const isNewSubscriber = !subscribers.has(webContents);
     subscribers.add(webContents);
-    webContents.once('destroyed', () => subscribers.delete(webContents));
+    if (isNewSubscriber) {
+      webContents.once('destroyed', () => subscribers.delete(webContents));
+    }
     broadcast(loadState());
   }
 
@@ -1329,7 +1333,7 @@ function createThesisTutorService({ app, aiService, configStore }) {
   async function importSource() {
     const config = configStore ? configStore.load() : { file_parser: { provider: 'local' } };
     const provider = config.file_parser?.provider || 'local';
-    const result = await dialog.showOpenDialog({
+    const result = await dialogService.showOpenDialog({
       title: '选择论文材料、文献或草稿',
       properties: ['openFile'],
       filters: [
@@ -1508,7 +1512,7 @@ function createThesisTutorService({ app, aiService, configStore }) {
   async function exportWorkspace() {
     const state = loadState();
     const dateText = new Date().toISOString().slice(0, 10);
-    const result = await dialog.showSaveDialog({
+    const result = await dialogService.showSaveDialog({
       title: '导出论文导师工作区备份',
       defaultPath: `论文导师工作区-${dateText}.json`,
       filters: [
@@ -1542,7 +1546,7 @@ function createThesisTutorService({ app, aiService, configStore }) {
     const state = loadState();
     const dateText = new Date().toISOString().slice(0, 10);
     const profile = normalizeProfile(state.profile);
-    const result = await dialog.showSaveDialog({
+    const result = await dialogService.showSaveDialog({
       title: '导出论文导师项目包',
       defaultPath: `${safeFileName(profile.title, '论文导师项目包')}-${dateText}.zip`,
       filters: [
@@ -1573,7 +1577,7 @@ function createThesisTutorService({ app, aiService, configStore }) {
 
   async function importWorkspace() {
     const currentState = loadState();
-    const result = await dialog.showOpenDialog({
+    const result = await dialogService.showOpenDialog({
       title: '导入论文导师工作区备份或项目包',
       properties: ['openFile'],
       filters: [

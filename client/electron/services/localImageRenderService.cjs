@@ -11,7 +11,12 @@ let lifecycleRegistered = false;
 
 function resolveMermaidScript() {
   if (mermaidScriptPath && fs.existsSync(mermaidScriptPath)) return mermaidScriptPath;
-  mermaidScriptPath = require.resolve('mermaid/dist/mermaid.min.js');
+  mermaidScriptPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'mermaid', 'mermaid.min.js')
+    : require.resolve('mermaid/dist/mermaid.min.js');
+  if (!fs.existsSync(mermaidScriptPath)) {
+    throw new Error(`Mermaid 浏览器资源不存在：${mermaidScriptPath}`);
+  }
   return mermaidScriptPath;
 }
 

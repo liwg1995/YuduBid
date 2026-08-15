@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import '../patentGeneration.css';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { WordExportProgressEvent } from '../../../shared/types/ipc';
 import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationState } from '../types';

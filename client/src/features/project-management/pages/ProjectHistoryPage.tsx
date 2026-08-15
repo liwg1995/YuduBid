@@ -4,6 +4,7 @@ import type { SectionId } from '../../../shared/types/navigation';
 import { MarkdownRenderer } from '../../../shared/ui';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { ProjectManagementProjectRecord, ProjectManagementState } from '../types';
+import '../projectManagement.css';
 
 interface ProjectHistoryPageProps {
   onNavigate: (section: SectionId) => void;

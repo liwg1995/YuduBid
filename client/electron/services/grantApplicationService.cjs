@@ -1400,8 +1400,12 @@ function createGrantApplicationService({ app, aiService, configStore }) {
   }
 
   function subscribe(webContents) {
+    if (!webContents || webContents.isDestroyed()) return;
+    const isNewSubscriber = !subscribers.has(webContents);
     subscribers.add(webContents);
-    webContents.once('destroyed', () => subscribers.delete(webContents));
+    if (isNewSubscriber) {
+      webContents.once('destroyed', () => subscribers.delete(webContents));
+    }
     broadcast(loadState());
   }
 

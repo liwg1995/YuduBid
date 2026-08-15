@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
+import '../codeGeneration.css';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { SectionId } from '../../../shared/types/navigation';
 import type { SoftwareCopyrightCase } from '../../software-copyright/types';

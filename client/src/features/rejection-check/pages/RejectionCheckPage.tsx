@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Switch from '@radix-ui/react-switch';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import '../rejectionCheck.css';
 import { FloatingToolbar, isLibreOfficeRequiredMessage, MarkdownEditor, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type {
@@ -383,12 +384,12 @@ function DocumentFilePill({ document, onRemove }: { document: RejectionDocumentC
   );
 }
 
-function FindingDetailBlock({ label, content, allowRawHtml = false }: { label: string; content: string; allowRawHtml?: boolean }) {
+function FindingDetailBlock({ label, content }: { label: string; content: string }) {
   return (
     <div className="rejection-finding-detail-block">
       <strong>{label}</strong>
       <div className="markdown-viewer rejection-finding-markdown">
-        <MarkdownRenderer allowRawHtml={allowRawHtml}>
+        <MarkdownRenderer allowRawHtml={false}>
           {content || '未提供'}
         </MarkdownRenderer>
       </div>
@@ -407,17 +408,17 @@ function escapeInlineHtml(value: string) {
 
 function highlightMarkdownText(content: string, target: string) {
   if (!target) {
-    return content;
+    return escapeInlineHtml(content);
   }
 
   const parts = content.split(target);
   if (parts.length <= 1) {
-    return content;
+    return escapeInlineHtml(content);
   }
 
   return parts.map((part, index) => index < parts.length - 1
-    ? `${part}<mark>${escapeInlineHtml(target)}</mark>`
-    : part).join('');
+    ? `${escapeInlineHtml(part)}<mark>${escapeInlineHtml(target)}</mark>`
+    : escapeInlineHtml(part)).join('');
 }
 
 function TypoOriginalBlock({ excerpt, wrongText }: { excerpt: string; wrongText: string }) {
@@ -462,8 +463,8 @@ function RejectionFindingItem({ finding, expanded, onToggle, onDelete }: { findi
 
       {expanded && (
         <div className="rejection-finding-detail">
-          <FindingDetailBlock label="检查依据" content={finding.requirement} allowRawHtml />
-          <FindingDetailBlock label="投标文件证据" content={finding.bidEvidence} allowRawHtml />
+          <FindingDetailBlock label="检查依据" content={finding.requirement} />
+          <FindingDetailBlock label="投标文件证据" content={finding.bidEvidence} />
           <FindingDetailBlock label="风险原因" content={finding.riskReason} />
           <FindingDetailBlock label="处理建议" content={finding.suggestion} />
         </div>
@@ -544,7 +545,7 @@ function LogicFindingItem({ finding, expanded, onToggle, onDelete }: { finding: 
 
       {expanded && (
         <div className="rejection-finding-detail">
-          <FindingDetailBlock label="原文与位置" content={`${finding.locationHint}\n\n${finding.originalText}`} allowRawHtml />
+          <FindingDetailBlock label="原文与位置" content={`${finding.locationHint}\n\n${finding.originalText}`} />
           <FindingDetailBlock label="谬误原因" content={finding.fallacyReason} />
           <FindingDetailBlock label="修改建议" content={finding.suggestion} />
         </div>
@@ -1742,7 +1743,7 @@ function RejectionCheckPage() {
       ) : (
         <>
           <section className="rejection-check-result-panel">
-            <div className="duplicate-page-title rejection-check-result-title">
+            <div className="rejection-check-result-title">
               <div>
                 <span className="section-kicker">STEP 03</span>
                 <h2>检查结果</h2>
@@ -1799,11 +1800,11 @@ function RejectionCheckPage() {
                     key={tab.id}
                     onClick={() => setActiveCheckResultTab(tab.id)}
                   >
-                    <span className="duplicate-analysis-tab-main">
+                    <span className="rejection-check-result-tab-main">
                       <strong>{tab.label}</strong>
                       <em>{checkTabStatusLabels[status]}</em>
                     </span>
-                    <span className="duplicate-analysis-progress" aria-label={`${tab.label}检查进度 ${progress}%`}>
+                    <span className="rejection-check-result-progress" aria-label={`${tab.label}检查进度 ${progress}%`}>
                       <span style={{ width: `${progress}%` }} />
                     </span>
                   </button>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { SectionId } from '../../../shared/types/navigation';
 import type { PresalesProjectList, PresalesProjectListItem, PresalesProjectProfile, PresalesProjectState } from '../types';
+import '../presalesWorkbench.css';
 
 const emptyProfile: PresalesProjectProfile = {
   projectName: '',

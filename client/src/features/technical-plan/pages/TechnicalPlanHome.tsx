@@ -7,7 +7,7 @@ import GlobalFactsPage from './GlobalFactsPage';
 import ContentEditPage from './ContentEditPage';
 import { useTechnicalPlanWorkflow } from '../hooks/useTechnicalPlanWorkflow';
 import { getBidAnalysisTasks } from '../services/bidAnalysisWorkflow';
-import { FloatingToolbar, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useToast } from '../../../shared/ui';
+import { FloatingToolbar, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useAppDialog, useToast } from '../../../shared/ui';
 import { countReadableWords } from '../../../shared/utils/wordCount';
 import type { BackgroundTaskState, BidAnalysisTasks, ContentGenerationOptions, ContentTableRequirement, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
 import type { OutlineData, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
@@ -206,6 +206,7 @@ const expandTableOptions: Array<{ value: ContentTableRequirement; label: string;
 function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, projectName, onBackToProjects, onSectionChange }: TechnicalPlanWorkbenchProps) {
   const { hydrated, state, setState } = useTechnicalPlanWorkflow(workflowKind, projectId);
   const { showToast } = useToast();
+  const { confirm } = useAppDialog();
   const [tenderMarkdown, setTenderMarkdown] = useState('');
   const [originalPlanMarkdown, setOriginalPlanMarkdown] = useState('');
   const [exportProgress, setExportProgress] = useState<ExportProgressState>(initialExportProgress);
@@ -870,9 +871,13 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   };
 
   const resetTechnicalPlan = async () => {
-    if (!window.confirm('会清空整个技术方案编写进度，是否确认？')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: '重置技术方案',
+      description: '这会清空当前项目的招标文件、分析结果、目录和正文生成进度，此操作无法撤销。',
+      confirmLabel: '确认重置',
+      danger: true,
+    });
+    if (!confirmed) return;
 
     try {
       const result = await window.yibiao?.technicalPlan.clear({ workflowKind, projectId });

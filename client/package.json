@@ -1,6 +1,6 @@
 {
   "name": "yudubid-client",
-  "version": "0.8.7",
+  "version": "0.9.0",
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
@@ -10,8 +10,12 @@
     "dev": "concurrently -k -n vite,electron -c blue,magenta \"vite --host 127.0.0.1 --port 5173 --strictPort\" \"wait-on http://127.0.0.1:5173 && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5173 electron .\"",
     "build": "tsc --noEmit && vite build",
     "verify:model-capabilities": "node scripts/verify-model-capabilities.cjs",
+    "verify:offline": "npm run verify:ipc-contract && npm run verify:task-recovery && npm run verify:thesis-tutor && npm run verify:project-management && npm run verify:model-capabilities && npm run verify:mermaid-packaging && npm run verify:renderer-packaging && npm run verify:asset-packaging && npm run verify:document-security && npm run verify:code-generation && npm run verify:patent-generation && npm run verify:software-copyright",
     "verify:document-security": "node scripts/verify-document-security.cjs",
     "verify:mermaid-export": "electron scripts/verify-mermaid-export.cjs",
+    "verify:mermaid-packaging": "node scripts/verify-mermaid-packaging.cjs",
+    "verify:renderer-packaging": "node scripts/verify-renderer-packaging.cjs",
+    "verify:asset-packaging": "node scripts/verify-asset-packaging.cjs",
     "verify:bid-opportunity": "electron scripts/verify-bid-opportunity.cjs",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
@@ -20,6 +24,11 @@
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "smoke:electron-native": "electron scripts/electron-native-smoke.cjs",
     "verify:code-generation": "node scripts/verify-code-generation.cjs",
+    "verify:ipc-contract": "node scripts/verify-ipc-contract.cjs",
+    "verify:task-recovery": "node scripts/verify-task-recovery.cjs",
+    "verify:thesis-tutor": "node scripts/verify-thesis-tutor.cjs",
+    "verify:project-management": "node scripts/verify-project-management.cjs",
+    "verify:project-management:electron": "electron scripts/verify-project-management-electron.cjs",
     "verify:software-copyright": "node scripts/verify-software-copyright.cjs",
     "verify:software-copyright:release": "node scripts/verify-software-copyright-release.cjs",
     "verify:software-copyright:artifact": "node scripts/verify-software-copyright-artifact.cjs",
@@ -47,9 +56,16 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "assets/**/*",
+      "assets/icon.ico",
+      "assets/icon_256.png",
       "vendor/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/mermaid/dist/mermaid.min.js",
+        "to": "mermaid/mermaid.min.js"
+      }
     ],
     "win": {
       "icon": "assets/icon.ico",
@@ -101,12 +117,6 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.5",
-    "@radix-ui/react-dialog": "^1.1.15",
-    "@radix-ui/react-popover": "^1.1.15",
-    "@radix-ui/react-separator": "^1.1.7",
-    "@radix-ui/react-switch": "^1.2.6",
-    "@radix-ui/react-toast": "^1.2.15",
-    "@radix-ui/react-tooltip": "^1.2.8",
     "adm-zip": "^0.6.0",
     "better-sqlite3": "^12.10.0",
     "cfb": "^1.2.2",
@@ -117,15 +127,10 @@
     "iconv-lite": "^0.7.2",
     "image-size": "file:vendor/safe-image-size",
     "mammoth": "^1.12.0",
-    "mermaid": "^11.14.0",
     "mime-types": "^3.0.2",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^6.2.108",
     "pptxgenjs": "^4.0.1",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "react-markdown": "^10.1.0",
-    "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "turndown": "^7.2.4",
@@ -133,6 +138,11 @@
     "unified": "^11.0.5"
   },
   "devDependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-toast": "^1.2.15",
+    "@radix-ui/react-tooltip": "^1.2.8",
     "@types/node": "^24.10.0",
     "@types/plist": "^3.0.5",
     "@types/react": "^19.1.11",
@@ -142,6 +152,11 @@
     "cross-env": "^10.0.0",
     "electron": "^41.5.0",
     "electron-builder": "^26.8.1",
+    "mermaid": "^11.14.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.7",
     "wait-on": "^8.0.4"

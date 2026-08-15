@@ -16,6 +16,7 @@ import { SubmissionAssistant } from '../components/SubmissionAssistant';
 import { SoftwareCopyrightJourneyGuide, type SoftwareCopyrightJourneyStep } from '../components/SoftwareCopyrightJourneyGuide';
 import { ManualAssetReviewPanel } from '../components/ManualAssetReviewPanel';
 import SoftwareCopyrightProjectsPage from './SoftwareCopyrightProjectsPage';
+import '../softwareCopyright.css';
 
 const emptyFields: SoftwareCopyrightFields = {
   softwareName: '',
@@ -1680,7 +1681,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
               </div>
               <div className="software-copyright-draft-actions">
                 {draftDirty && <span className="software-copyright-warning">未保存</span>}
-                {state?.draftConfirmed && <span className="code-generation-confirmed">已确认</span>}
+                {state?.draftConfirmed && <span className="software-copyright-confirmed">已确认</span>}
               </div>
             </div>
             {hasDrafts ? (

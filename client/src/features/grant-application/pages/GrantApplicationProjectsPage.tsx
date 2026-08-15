@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { SectionId } from '../../../shared/types/navigation';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { GrantApplicationProfile, GrantApplicationProject, GrantApplicationProjectList } from '../types';
+import '../grantApplication.css';
 
 interface GrantApplicationProjectsPageProps {
   onNavigate?: (section: SectionId) => void;

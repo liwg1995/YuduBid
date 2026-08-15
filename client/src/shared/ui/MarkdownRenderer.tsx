@@ -34,6 +34,34 @@ function openExternal(url: string) {
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
+function escapeMarkdownTableCell(value: string) {
+  return value.replace(/\s+/g, ' ').trim().replace(/\|/g, '\\|');
+}
+
+function normalizeLegacyHtmlTables(markdown: string) {
+  if (!/<table\b/i.test(markdown) || typeof DOMParser === 'undefined') return markdown;
+
+  return markdown.replace(/<table\b[\s\S]*?<\/table>/gi, (tableHtml) => {
+    const document = new DOMParser().parseFromString(tableHtml, 'text/html');
+    const rows = Array.from(document.querySelectorAll('tr')).map((row) =>
+      Array.from(row.querySelectorAll(':scope > th, :scope > td')).map((cell) =>
+        escapeMarkdownTableCell(cell.textContent || ''),
+      ),
+    ).filter((row) => row.length > 0);
+
+    if (!rows.length) return document.body.textContent?.trim() || '';
+
+    const columnCount = Math.max(...rows.map((row) => row.length));
+    const normalizedRows = rows.map((row) => [
+      ...row,
+      ...Array.from({ length: columnCount - row.length }, () => ''),
+    ]);
+    const [header, ...body] = normalizedRows;
+    const divider = Array.from({ length: columnCount }, () => '---');
+    return `\n\n| ${header.join(' | ')} |\n| ${divider.join(' | ')} |${body.length ? `\n${body.map((row) => `| ${row.join(' | ')} |`).join('\n')}` : ''}\n\n`;
+  });
+}
+
 const defaultMarkdownComponents: Components = {
   a({ node: _node, href, children, ...props }) {
     const externalUrl = normalizeExternalUrl(href);
@@ -62,7 +90,9 @@ function mergeMarkdownComponents(components?: Components): Components {
   return { ...defaultMarkdownComponents, ...(components || {}) };
 }
 
-function MarkdownRenderer({ children, components, allowRawHtml = true, enableGfm = true }: MarkdownRendererProps) {
+function MarkdownRenderer({ children, components, allowRawHtml = false, enableGfm = true }: MarkdownRendererProps) {
+  const normalizedChildren = allowRawHtml ? children : normalizeLegacyHtmlTables(children);
+
   return (
     <ReactMarkdown
       remarkPlugins={enableGfm ? [remarkGfm] : []}
@@ -70,7 +100,7 @@ function MarkdownRenderer({ children, components, allowRawHtml = true, enableGfm
       urlTransform={markdownUrlTransform}
       components={mergeMarkdownComponents(components)}
     >
-      {children}
+      {normalizedChildren}
     </ReactMarkdown>
   );
 }

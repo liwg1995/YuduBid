@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>禹都AI解决方案助手</title>
+    <script>
+      (() => {
+        try {
+          const storedTheme = window.localStorage.getItem('yudubid-ui-theme');
+          const theme = ['classic', 'aurora', 'dark'].includes(storedTheme) ? storedTheme : 'classic';
+          document.documentElement.dataset.uiTheme = theme;
+          document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+        } catch {
+          document.documentElement.dataset.uiTheme = 'classic';
+        }
+      })();
+    </script>
+    <style>
+      html, body, #root { margin: 0; width: 100%; height: 100%; background: #f4f7fb; }
+      html[data-ui-theme="dark"], html[data-ui-theme="dark"] body, html[data-ui-theme="dark"] #root { background: #080d18; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

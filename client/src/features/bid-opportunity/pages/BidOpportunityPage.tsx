@@ -7,6 +7,7 @@ import type { BidOpportunity, OpportunityDecisionOutcome, OpportunityDraft, Oppo
 import { OpportunityConfirmDialog } from '../components/OpportunityConfirmDialog';
 import { OpportunityOverview } from '../components/OpportunityOverview';
 import { OpportunityOperationsDialog } from '../components/OpportunityOperationsDialog';
+import '../bidOpportunity.css';
 
 const emptyProfile: OpportunityEnterpriseProfile = { companyName: '', industries: [], serviceRegions: [], capabilities: [], qualifications: [], personnel: [], performances: [], advantages: '', limitations: '', updatedAt: '' };
 const emptySnapshot: OpportunitySnapshot = { opportunities: [], monitors: [], enterpriseProfile: emptyProfile, sources: [], scans: {}, scanBatch: { status: 'idle', startedAt: '', total: 0, completed: 0, running: 0, createdCount: 0, updatedCount: 0 }, diagnostics: { interruptedAnalyses: 0, interruptedScans: 0, errorSources: 0, warningSources: 0, untestedSources: 0, failedNotices: 0, issues: [] }, backup: { latestId: '', createdAt: '', verified: false, message: '尚未创建投标机会工作区备份' }, inboxCounts: { new: 0, changes: 0, due: 0, tasks: 0, relation: 0 }, operatingMetrics: { activeCount: 0, pipelineBudget: 0, tasks: { overdue: 0, today: 0, upcoming: 0, items: [] }, deadlines: { overdue: 0, urgent: 0 }, funnel: [], decisions: { undecided: 0, bid: 0, noBid: 0, won: 0 }, owners: [] }, counts: { total: 0, new: 0, review: 0, following: 0, abandoned: 0 } };

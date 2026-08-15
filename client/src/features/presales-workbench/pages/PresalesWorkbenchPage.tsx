@@ -14,6 +14,7 @@ import type {
   PresalesProjectState,
   PresalesResearchInput,
 } from '../types';
+import '../presalesWorkbench.css';
 
 const emptyProfile: PresalesProjectProfile = {
   projectName: '',
@@ -100,26 +101,6 @@ const pptStyleOptions = [
   { value: 'warm-clay', label: '暖陶简约' },
   { value: 'coral-energy', label: '珊瑚活力' },
 ];
-
-const pptStyleSwatches: Record<string, string[]> = {
-  auto: ['#f7f6f0', '#12355b', '#c9cdd1'],
-  'cyber-01-crimson': ['#f3f4ef', '#8b1e1e', '#d6d6d2'],
-  'cyber-02-burgundy-gray': ['#f2f3f5', '#7a1f2b', '#d3d8de'],
-  'cyber-03-ivory-wine': ['#f4f1ea', '#8a1538', '#d8d3ca'],
-  'cyber-04-ivory-blue': ['#f7f6f0', '#12355b', '#c9cdd1'],
-  'cyber-05-gray-green': ['#f4f6f4', '#1f5d50', '#d2dad5'],
-  'cyber-06-paper-copper': ['#f4f0e8', '#9a5a2e', '#d8d5ce'],
-  'cyber-07-black-gold': ['#f6f6f4', '#000000', '#a87932'],
-  'cyber-08-white-purple': ['#f4f5f6', '#4b2e83', '#c8ccd0'],
-  'cyber-consulting-blue': ['#f7f6f0', '#12355b', '#0b6efd'],
-  'midnight-executive': ['#1e2761', '#cadcfc', '#4f46e5'],
-  'tech-deep-space': ['#0d1117', '#161b22', '#58a6ff'],
-  'ocean-gradient': ['#065a82', '#1c7293', '#21295c'],
-  'teal-trust': ['#028090', '#00a896', '#02c39a'],
-  'charcoal-minimal': ['#36454f', '#f2f2f2', '#212121'],
-  'warm-clay': ['#b85042', '#e7e8d1', '#a7beae'],
-  'coral-energy': ['#f96167', '#f9e795', '#2f3c7e'],
-};
 
 const emptyPresentationInput: PresalesPresentationInput = {
   presentationType: '方案汇报',
@@ -289,10 +270,6 @@ function getDeliveryModeLabel(value: string) {
 
 function getPptLayoutTypeLabel(value: string) {
   return pptLayoutTypeOptions.find((option) => option.value === value)?.label || '自动判断';
-}
-
-function getPptStyleSwatches(value: string) {
-  return pptStyleSwatches[value] || pptStyleSwatches.auto;
 }
 
 function getPresentationLayoutValue(title: string, index: number) {
@@ -544,7 +521,6 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
     const sourceTitles = presentationExportCheck.pageTitles.length ? presentationExportCheck.pageTitles : fallbackTitles;
     const sourceLabel = presentationExportCheck.pageTitles.length ? 'AI 页纲' : '兜底结构';
     return {
-      swatches: getPptStyleSwatches(presentationDraft.pptStyle),
       pages: [
         { title: activeProjectName, type: '封面页', source: '系统生成' },
         { title: '汇报结构', type: '目录页', source: '系统生成' },
@@ -555,7 +531,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
         })),
       ],
     };
-  }, [activeProjectName, presentationDraft.pptStyle, presentationExportCheck.pageTitles]);
+  }, [activeProjectName, presentationExportCheck.pageTitles]);
 
   function applyState(nextState: PresalesProjectState) {
     setState(nextState);
@@ -1516,20 +1492,17 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
           <Dialog.Content className="presales-package-preview-dialog presales-ppt-structure-dialog">
             <div className="presales-package-preview-head">
               <div>
-                <Dialog.Title>PPT 结构预览</Dialog.Title>
-                <Dialog.Description>导出前确认封面、目录、页面来源、版式类型和当前风格色板。</Dialog.Description>
+                <Dialog.Title>汇报页纲详情</Dialog.Title>
+                <Dialog.Description>查看汇报页纲的页面顺序、版式类型和内容来源；此处仅供预览，不执行导出。</Dialog.Description>
               </div>
               <button type="button" className="secondary-action" onClick={() => setPptStructurePreviewOpen(false)}>关闭</button>
             </div>
             <div className="presales-ppt-structure-body">
               <div className="presales-ppt-style-preview">
                 <div>
-                  <span className="section-kicker">当前风格</span>
-                  <strong>{presentationExportCheck.styleLabel}</strong>
-                  <small>版本：{presentationExportCheck.deliveryModeLabel} · AI 视觉图：{presentationExportCheck.visualStatus}</small>
-                </div>
-                <div className="presales-ppt-swatches">
-                  {pptStructurePreview.swatches.map((color) => <i key={color} style={{ background: color }} title={color} />)}
+                  <span className="section-kicker">页纲概况</span>
+                  <strong>共 {pptStructurePreview.pages.length} 页 · {presentationExportCheck.deliveryModeLabel}</strong>
+                  <small>听众：{presentationDraft.audience.trim() || '未填写'} · 目标：{presentationDraft.presentationGoal.trim() ? '已填写' : '未填写'}</small>
                 </div>
               </div>
               <div className="presales-ppt-structure-grid">
@@ -1546,8 +1519,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
               </div>
             </div>
             <div className="presales-package-preview-actions">
-              <button type="button" className="secondary-action" onClick={() => setPptStructurePreviewOpen(false)}>返回编辑</button>
-              <button type="button" className="primary-action" onClick={() => { setPptStructurePreviewOpen(false); exportPresentationPptx(); }} disabled={isLoading || isExportingPptx}>{isExportingPptx ? '导出中...' : '确认导出 PPT'}</button>
+              <button type="button" className="primary-action" onClick={() => setPptStructurePreviewOpen(false)}>关闭详情</button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>

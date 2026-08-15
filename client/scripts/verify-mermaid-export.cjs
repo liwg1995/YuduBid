@@ -27,6 +27,17 @@ const samples = [
   },
 ];
 
+const supportedDiagramSamples = [
+  ['graph', 'graph TD\nA[输入] --> B[输出]'],
+  ['mindmap', 'mindmap\n  root((论文主题))\n    第一章\n    第二章'],
+  ['gantt', 'gantt\n  title 项目计划\n  dateFormat YYYY-MM-DD\n  section 实施\n  开发 :a1, 2026-08-01, 3d'],
+  ['timeline', 'timeline\n  title 项目阶段\n  2026-08 : 启动\n  2026-09 : 验收'],
+  ['journey', 'journey\n  title 用户旅程\n  section 使用\n    提交需求: 5: 用户\n    查看结果: 4: 用户'],
+  ['quadrantChart', 'quadrantChart\n  title 优先级\n  x-axis 低投入 --> 高投入\n  y-axis 低收益 --> 高收益\n  优化项: [0.3, 0.8]'],
+  ['pie', 'pie title 工作占比\n  "开发" : 60\n  "测试" : 40'],
+  ['xychart-beta', 'xychart-beta\n  title "进度"\n  x-axis ["一月", "二月", "三月"]\n  y-axis "完成率" 0 --> 100\n  line [20, 55, 90]'],
+];
+
 async function analyzePng(png) {
   const image = await loadImage(png);
   const canvas = createCanvas(image.width, image.height);
@@ -81,11 +92,20 @@ async function verifyMermaidExport() {
     assert.doesNotMatch(sequenceSvg, /text\.actor&gt;tspan/, '时序图参与者文字选择器不能保留 HTML 转义');
     assert.match(sequenceSvg, /text\.actor>tspan/, '时序图参与者文字必须应用可见前景色');
 
-    console.log('[mermaid-export-verify] passed', JSON.stringify(results.map(({ png: _png, blackRatio, foregroundRatio, ...result }) => ({
-      ...result,
-      blackRatio: Number(blackRatio.toFixed(4)),
-      foregroundRatio: Number(foregroundRatio.toFixed(4)),
-    }))));
+    for (const [name, code] of supportedDiagramSamples) {
+      const svg = await renderService.renderMermaidToSvg(code);
+      assert.match(svg, /^<svg[\s>]/, `${name} 必须返回 SVG`);
+      assert.ok(svg.length > 200, `${name} SVG 内容异常`);
+    }
+
+    console.log('[mermaid-export-verify] passed', JSON.stringify({
+      pngSamples: results.map(({ png: _png, blackRatio, foregroundRatio, ...result }) => ({
+        ...result,
+        blackRatio: Number(blackRatio.toFixed(4)),
+        foregroundRatio: Number(foregroundRatio.toFixed(4)),
+      })),
+      diagramTypes: ['flowchart', 'sequenceDiagram', ...supportedDiagramSamples.map(([name]) => name)],
+    }));
   } finally {
     renderService.dispose();
     app.quit();

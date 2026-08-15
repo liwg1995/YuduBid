@@ -1,7 +1,8 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useEffect, useState, type ComponentType, type SVGProps } from 'react';
 
-type UiTheme = 'classic' | 'aurora';
+type UiTheme = 'classic' | 'aurora' | 'dark';
+type ThemeIconProps = { 'aria-hidden'?: boolean | 'true' | 'false' };
 
 const THEME_STORAGE_KEY = 'yudubid-ui-theme';
 
@@ -9,11 +10,17 @@ const themeOptions: Array<{
   id: UiTheme;
   label: string;
   shortLabel: string;
-  Icon: ComponentType<SVGProps<SVGSVGElement>>;
+  Icon: ComponentType<ThemeIconProps>;
 }> = [
   { id: 'classic', label: '经典风格', shortLabel: '经典', Icon: ClassicThemeIcon },
   { id: 'aurora', label: '柔光风格', shortLabel: '柔光', Icon: AuroraThemeIcon },
+  { id: 'dark', label: '暗黑风格', shortLabel: '暗黑', Icon: DarkThemeIcon },
 ];
+
+function applyTheme(theme: UiTheme) {
+  document.documentElement.dataset.uiTheme = theme;
+  document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+}
 
 function normalizeTheme(value: string | null): UiTheme {
   return themeOptions.some((option) => option.id === value) ? value as UiTheme : 'classic';
@@ -21,14 +28,16 @@ function normalizeTheme(value: string | null): UiTheme {
 
 function loadInitialTheme(): UiTheme {
   if (typeof window === 'undefined') return 'classic';
-  return normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
+  const theme = normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
+  applyTheme(theme);
+  return theme;
 }
 
 function ThemeSwitcher() {
   const [theme, setTheme] = useState<UiTheme>(loadInitialTheme);
 
   useEffect(() => {
-    document.documentElement.dataset.uiTheme = theme;
+    applyTheme(theme);
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
@@ -83,6 +92,10 @@ function AuroraThemeIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M17.2 6.5h.02" />
     </svg>
   );
+}
+
+function DarkThemeIcon(props: ThemeIconProps) {
+  return <span className="theme-switcher-dark-icon" {...props} />;
 }
 
 export default ThemeSwitcher;

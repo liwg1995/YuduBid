@@ -6,7 +6,7 @@ export type {
   CodeGenerationSelectResult,
   CodeGenerationState,
   CodeGenerationSummary,
-} from '../../features/code-generation/types';
+} from './contracts/codeGeneration';
 export type {
   DuplicateAnalysisTabId,
   DuplicateAnalysisStatus,
@@ -72,7 +72,7 @@ export type {
   SoftwareCopyrightState,
   SoftwareCopyrightStep,
   SoftwareCopyrightTask,
-} from '../../features/software-copyright/types';
+} from './contracts/softwareCopyright';
 export type {
   RejectionCheckFinding,
   RejectionCheckResultState,
@@ -90,4 +90,4 @@ export type {
   RejectionFindingSeverity,
   RejectionFindingType,
   RejectionResultTab,
-} from '../../features/rejection-check/types';
+} from './contracts/rejectionCheck';

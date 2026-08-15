@@ -1,0 +1,2518 @@
+.presales-workbench-page {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  overflow: auto;
+  padding-right: 4px;
+  padding-bottom: 22px;
+  scrollbar-gutter: stable;
+}
+
+.presales-hero,
+.presales-section,
+.presales-link-panel {
+  flex: 0 0 auto;
+  border: 1px solid rgba(220, 223, 230, 0.78);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 22px 56px rgba(33, 116, 253, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.presales-hero {
+  display: grid;
+  min-height: 310px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  gap: 28px;
+  align-items: center;
+  overflow: hidden;
+  padding: 34px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 84% 10%, rgba(139, 92, 246, 0.14), transparent 32%),
+    radial-gradient(circle at 8% 90%, rgba(20, 184, 166, 0.1), transparent 30%),
+    rgba(255, 255, 255, 0.9);
+}
+
+.presales-hero-copy h2 {
+  max-width: 820px;
+  margin: 12px 0 14px;
+  color: var(--yb-text);
+  font-size: 38px;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.presales-hero-copy p,
+.presales-capability-grid p,
+.presales-link-panel p {
+  margin: 0;
+  color: var(--yb-text-soft);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.75;
+}
+
+.presales-hero-copy p {
+  max-width: 760px;
+  font-size: 15px;
+  line-height: 1.85;
+}
+
+.presales-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.presales-mvp-card {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(139, 92, 246, 0.16);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 38px rgba(91, 84, 211, 0.1);
+}
+
+.presales-mvp-card > span {
+  color: #6d28d9;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.presales-mvp-card > div {
+  display: grid;
+  gap: 10px;
+}
+
+.presales-mvp-card article {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(220, 223, 230, 0.78);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.presales-mvp-card strong {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  color: #ffffff;
+  font-size: 13px;
+  background: linear-gradient(135deg, #8b5cf6, #2174fd);
+  border-radius: 13px;
+}
+
+.presales-mvp-card b,
+.presales-delivery-list strong {
+  display: block;
+  color: var(--yb-text);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.presales-mvp-card small {
+  display: block;
+  margin-top: 4px;
+  color: var(--yb-text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.presales-section,
+.presales-link-panel {
+  padding: 24px;
+  border-radius: 24px;
+}
+
+.presales-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.presales-section-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.presales-export-format-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.presales-export-option-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+.presales-export-option-note {
+  margin: 12px 0 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.presales-section-head h3,
+.presales-link-panel h3 {
+  margin: 6px 0 0;
+  color: var(--yb-text);
+  font-size: 22px;
+  line-height: 1.3;
+}
+
+.presales-section-head p {
+  margin: 6px 0 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.presales-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.presales-capability-grid article {
+  display: flex;
+  min-width: 0;
+  min-height: 218px;
+  flex-direction: column;
+  gap: 11px;
+  padding: 18px;
+  border: 1px solid rgba(220, 223, 230, 0.78);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(33, 116, 253, 0.07), transparent 46%),
+    rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 34px rgba(23, 32, 51, 0.05);
+}
+
+.presales-capability-grid article > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  background: var(--yb-active-gradient);
+  border-radius: 14px;
+}
+
+.presales-capability-grid h4 {
+  margin: 0;
+  color: var(--yb-text);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.presales-capability-grid div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: auto;
+}
+
+.presales-capability-grid em,
+.presales-delivery-list em {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  justify-content: center;
+  color: #315174;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  padding: 6px 9px;
+  border: 1px solid rgba(220, 223, 230, 0.72);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.presales-bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.presales-delivery-list {
+  display: grid;
+  gap: 10px;
+}
+
+.presales-delivery-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(100px, 0.7fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid rgba(220, 223, 230, 0.78);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.presales-delivery-list span {
+  color: var(--yb-text-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.presales-link-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  background:
+    radial-gradient(circle at 88% 8%, rgba(33, 116, 253, 0.12), transparent 36%),
+    #ffffff;
+}
+
+.presales-scope-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.presales-scope-tags span {
+  padding: 7px 10px;
+  color: #315174;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  border: 1px solid rgba(33, 116, 253, 0.14);
+  border-radius: 999px;
+  background: #f2f7ff;
+}
+
+.presales-data-section {
+  display: grid;
+  gap: 2px;
+}
+
+.presales-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.presales-form-grid.is-analysis {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.presales-form-grid label {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.presales-form-grid label.is-wide {
+  grid-column: 1 / -1;
+}
+
+.presales-form-grid span {
+  color: #34445f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.presales-form-grid input,
+.presales-form-grid textarea {
+  width: 100%;
+  border: 1px solid rgba(27, 50, 92, 0.12);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--yb-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+  padding: 10px 12px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.presales-form-grid input {
+  height: 40px;
+}
+
+.presales-form-grid textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.presales-form-grid label.is-wide textarea {
+  min-height: 96px;
+}
+
+.presales-form-grid input:focus,
+.presales-form-grid textarea:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.presales-diagram-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-bottom: 14px;
+}
+
+.presales-diagram-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid rgba(33, 116, 253, 0.14);
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #315174;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.presales-diagram-picker input {
+  accent-color: var(--yb-primary);
+}
+
+.presales-material-section {
+  min-height: 420px;
+}
+
+.presales-manual-material-form {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 16px;
+  background: #f6f9ff;
+}
+
+.presales-wide-field {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.presales-wide-field span {
+  color: #34445f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.presales-wide-field textarea {
+  min-height: 88px;
+  width: 100%;
+  border: 1px solid rgba(27, 50, 92, 0.12);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--yb-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+  padding: 10px 12px;
+  resize: vertical;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.presales-wide-field textarea:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.presales-material-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 14px;
+  min-height: 360px;
+}
+
+.presales-material-list {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.presales-material-list button {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(27, 50, 92, 0.1);
+  border-radius: 14px;
+  background: #ffffff;
+  color: inherit;
+  text-align: left;
+}
+
+.presales-material-list button:hover,
+.presales-material-list button.is-active {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: #f2f7ff;
+}
+
+.presales-material-list strong,
+.presales-empty-material strong {
+  color: var(--yb-text);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.presales-material-list span,
+.presales-empty-material span {
+  color: var(--yb-text-soft);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.presales-material-preview,
+.presales-empty-material {
+  min-width: 0;
+  border: 1px solid rgba(27, 50, 92, 0.08);
+  border-radius: 16px;
+  background: #fbfdff;
+}
+
+.presales-material-preview {
+  max-height: 520px;
+  overflow: auto;
+  padding: 18px;
+}
+
+.presales-empty-material {
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  min-height: 180px;
+  padding: 18px;
+  text-align: center;
+}
+
+.presales-analysis-result-section {
+  display: grid;
+  gap: 14px;
+}
+
+.presales-task-card {
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 14px;
+  background: #f4f8ff;
+}
+
+.presales-task-card.is-success {
+  border-color: rgba(16, 185, 129, 0.18);
+  background: #f0fdf4;
+}
+
+.presales-task-card.is-error {
+  border-color: rgba(239, 68, 68, 0.18);
+  background: #fff1f2;
+}
+
+.presales-task-card div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #31527f;
+  font-size: 13px;
+}
+
+.presales-task-card i {
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.presales-task-card b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--yb-active-gradient);
+  transition: width 0.25s ease;
+}
+
+.presales-task-card.is-success b {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.presales-task-card.is-error b {
+  background: linear-gradient(135deg, #f87171, #dc2626);
+}
+
+.presales-task-card p {
+  margin: 8px 0 0;
+  color: var(--yb-text-soft);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.presales-analysis-result {
+  min-height: 260px;
+  max-height: 620px;
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid rgba(27, 50, 92, 0.08);
+  border-radius: 16px;
+  background: #fbfdff;
+}
+
+.presales-workbench-page.is-project-mode {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 4px 0 0;
+}
+
+.presales-workbench-page.is-workbench-mode {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 4px 0 0;
+}
+
+.presales-workbench-page.is-workbench-mode .presales-workspace {
+  width: 100%;
+}
+
+.presales-project-sidebar,
+.presales-workspace {
+  min-height: 0;
+  border: 1px solid rgba(220, 223, 230, 0.78);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 42px rgba(33, 116, 253, 0.07);
+}
+
+.presales-project-sidebar {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 20px;
+}
+
+.presales-project-create {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-bottom: 1px solid rgba(220, 223, 230, 0.75);
+  background: #ffffff;
+}
+
+.presales-project-create h3 {
+  margin: 0;
+  color: var(--yb-text);
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.presales-project-create > div {
+  display: grid;
+  gap: 8px;
+}
+
+.presales-project-create input {
+  width: 100%;
+  height: 38px;
+  min-width: 0;
+  border: 1px solid rgba(27, 50, 92, 0.12);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--yb-text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  padding: 0 11px;
+}
+
+.presales-project-list {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.presales-project-list button {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(27, 50, 92, 0.1);
+  border-radius: 14px;
+  background: #ffffff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.presales-project-list button:hover,
+.presales-project-list button.is-active {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: #f2f7ff;
+}
+
+.presales-project-list strong {
+  overflow: hidden;
+  color: var(--yb-text);
+  font-size: 14px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presales-project-list span,
+.presales-project-list small {
+  overflow: hidden;
+  color: var(--yb-text-soft);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presales-workspace {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 20px;
+}
+
+.presales-workspace-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 24px 18px;
+  border-bottom: 1px solid rgba(220, 223, 230, 0.72);
+  background:
+    linear-gradient(135deg, rgba(33, 116, 253, 0.08), transparent 52%),
+    #ffffff;
+}
+
+.presales-workspace-head h2 {
+  margin: 6px 0 8px;
+  color: var(--yb-text);
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.presales-workspace-head p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.presales-workflow-tabs {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(220, 223, 230, 0.72);
+  background: #fbfdff;
+}
+
+.presales-workflow-tabs button {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  min-height: 74px;
+  align-content: center;
+  padding: 10px;
+  border: 1px solid rgba(27, 50, 92, 0.1);
+  border-radius: 14px;
+  background: #ffffff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.presales-workflow-tabs button:hover,
+.presales-workflow-tabs button.is-active {
+  border-color: rgba(37, 99, 235, 0.32);
+  background: #f2f7ff;
+}
+
+.presales-workflow-tabs b {
+  color: var(--yb-primary);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.presales-workflow-tabs span {
+  overflow: hidden;
+  color: var(--yb-text);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presales-workflow-tabs small {
+  overflow: hidden;
+  color: var(--yb-text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presales-workflow-tabs em {
+  width: max-content;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  padding: 5px 7px;
+  border: 1px solid rgba(100, 116, 139, 0.16);
+  border-radius: 999px;
+  background: #f8fafc;
+}
+
+.presales-workflow-tabs button.is-done em {
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.22);
+  background: #ecfdf5;
+}
+
+.presales-workflow-tabs button.is-done:not(.is-active) {
+  border-color: rgba(16, 185, 129, 0.2);
+  background: #fbfffd;
+}
+
+.presales-workspace-head-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.presales-workspace-head-actions > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.presales-workspace-head-actions .primary-action,
+.presales-workspace-head-actions .secondary-action {
+  min-height: 38px;
+  padding: 0 16px;
+}
+
+.presales-ai-visual-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 12px;
+  color: #31527f;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 999px;
+  background: #f2f7ff;
+  cursor: pointer;
+}
+
+.presales-ai-visual-toggle.is-inline {
+  min-height: 36px;
+  background: #ffffff;
+}
+
+.presales-ai-visual-toggle input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--yb-primary);
+}
+
+.presales-ai-visual-toggle:has(input:disabled) {
+  color: #94a3b8;
+  background: #f8fafc;
+  cursor: not-allowed;
+}
+
+.presales-export-path-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.presales-export-path-list button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 14px 16px;
+  color: #1d4ed8;
+  text-align: left;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(33, 116, 253, 0.12), rgba(255, 255, 255, 0.82)),
+    #f8fbff;
+  box-shadow: 0 14px 34px rgba(33, 116, 253, 0.12);
+  cursor: pointer;
+}
+
+.presales-export-path-list button:hover {
+  border-color: rgba(37, 99, 235, 0.36);
+  background: #eef5ff;
+}
+
+.presales-export-path-list span {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.presales-export-path-list strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presales-current-project-strip {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 24px;
+  border-bottom: 1px solid rgba(220, 223, 230, 0.72);
+  background: #ffffff;
+}
+
+.presales-current-project-strip span {
+  max-width: 240px;
+  overflow: hidden;
+  padding: 7px 10px;
+  color: #31527f;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 999px;
+  background: #f2f7ff;
+}
+
+.presales-step-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid rgba(27, 50, 92, 0.08);
+  border-radius: 16px;
+  background: #fbfdff;
+}
+
+.presales-step-footer > span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.presales-step-footer > span.is-done {
+  color: #047857;
+}
+
+.presales-step-footer > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.presales-package-preview-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 130;
+  display: flex;
+  width: min(980px, calc(100vw - 64px));
+  max-height: min(820px, calc(100vh - 64px));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(220, 223, 230, 0.86);
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 30px 80px rgba(23, 32, 51, 0.22);
+  transform: translate(-50%, -50%);
+}
+
+.presales-package-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 22px;
+  border-bottom: 1px solid rgba(220, 223, 230, 0.78);
+  background:
+    linear-gradient(135deg, rgba(33, 116, 253, 0.08), transparent 54%),
+    #ffffff;
+}
+
+.presales-package-preview-head h2,
+.presales-package-preview-head [data-radix-dialog-title] {
+  margin: 0;
+  color: var(--yb-text);
+  font-size: 22px;
+  line-height: 1.3;
+}
+
+.presales-package-preview-head p,
+.presales-package-preview-head [data-radix-dialog-description] {
+  margin: 6px 0 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.presales-package-preview-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 22px;
+  background: #fbfdff;
+}
+
+.presales-package-preview-actions {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px;
+  border-top: 1px solid rgba(220, 223, 230, 0.78);
+  background: #ffffff;
+}
+
+.presales-step-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  margin: 14px;
+  box-shadow: none;
+}
+
+.presales-form-grid select {
+  width: 100%;
+  height: 40px;
+  border: 1px solid rgba(27, 50, 92, 0.12);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--yb-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+  padding: 0 12px;
+}
+
+.presales-form-grid select:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.presales-presentation-form {
+  display: grid;
+  grid-template-columns: minmax(230px, 300px) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px 16px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(33, 116, 253, 0.06), transparent 42%),
+    #fbfdff;
+}
+
+.presales-presentation-form label,
+.presales-presentation-quick-fields {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.presales-presentation-quick-fields {
+  align-self: stretch;
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  grid-row: span 2;
+}
+
+.presales-presentation-form label.is-wide {
+  grid-column: 2 / 4;
+}
+
+.presales-presentation-form > label:not(.is-wide) {
+  grid-column: auto;
+}
+
+.presales-presentation-card-title {
+  display: grid;
+  gap: 3px;
+  padding: 0 0 4px;
+}
+
+.presales-presentation-card-title strong {
+  color: var(--yb-text);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.presales-presentation-card-title span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.presales-presentation-form span {
+  color: #34445f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.presales-presentation-form input,
+.presales-presentation-form select,
+.presales-presentation-form textarea {
+  width: 100%;
+  border: 1px solid rgba(27, 50, 92, 0.12);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--yb-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+  padding: 10px 12px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.presales-presentation-form input,
+.presales-presentation-form select {
+  height: 42px;
+}
+
+.presales-presentation-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.presales-presentation-form label.is-wide textarea {
+  min-height: 82px;
+}
+
+.presales-presentation-form input:focus,
+.presales-presentation-form select:focus,
+.presales-presentation-form textarea:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.presales-presentation-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.presales-presentation-panel .presales-section-head {
+  align-items: center;
+  margin-bottom: 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.presales-presentation-panel .presales-section-actions {
+  gap: 10px;
+}
+
+.presales-presentation-panel .presales-section-actions .primary-action,
+.presales-presentation-panel .presales-section-actions .secondary-action {
+  min-height: 42px;
+  padding: 0 18px;
+}
+
+.presales-outline-preview-block {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(27, 50, 92, 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: 0 16px 36px rgba(33, 116, 253, 0.06);
+}
+
+.presales-outline-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.presales-outline-preview-head h4 {
+  margin: 2px 0 0;
+  color: #172033;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.presales-outline-preview-head small {
+  max-width: 360px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+  text-align: right;
+}
+
+.presales-outline-preview-block .presales-analysis-result {
+  min-height: 320px;
+  max-height: 430px;
+  padding: 22px 24px;
+  background: #ffffff;
+  border-color: rgba(37, 99, 235, 0.1);
+  border-radius: 16px;
+}
+
+.presales-ppt-check {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fbff, #ffffff);
+}
+
+.presales-ppt-check-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.presales-ppt-check-head h4 {
+  margin: 2px 0 0;
+  color: #172033;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.presales-ppt-check-head strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.presales-ppt-check-head strong.is-good {
+  color: #047857;
+  background: #dcfce7;
+}
+
+.presales-ppt-check-head strong.is-warn {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.presales-ppt-check-head strong.is-risk {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.presales-ppt-check-metrics,
+.presales-ppt-page-preview,
+.presales-ppt-check-warnings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.presales-ppt-check-metrics span,
+.presales-ppt-page-preview span,
+.presales-ppt-check-warnings span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #42526b;
+  background: #ffffff;
+  border: 1px solid rgba(27, 50, 92, 0.08);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.presales-ppt-check-metrics b {
+  color: #1d4ed8;
+}
+
+.presales-ppt-page-preview span {
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.presales-ppt-page-preview b {
+  margin-right: 6px;
+  color: #2563eb;
+  font-family: Aptos, Inter, sans-serif;
+}
+
+.presales-ppt-check-warnings span {
+  color: #7c2d12;
+  background: #fff7ed;
+  border-color: rgba(251, 146, 60, 0.22);
+}
+
+.presales-ppt-check-warnings.is-ok span {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: rgba(16, 185, 129, 0.18);
+}
+
+.presales-ppt-check-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.presales-ppt-export-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 135;
+  display: grid;
+  width: min(560px, calc(100vw - 48px));
+  overflow: hidden;
+  border: 1px solid rgba(220, 223, 230, 0.86);
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 30px 80px rgba(23, 32, 51, 0.22);
+  transform: translate(-50%, -50%);
+}
+
+.presales-ppt-export-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px;
+  border-bottom: 1px solid rgba(220, 223, 230, 0.78);
+  background:
+    linear-gradient(135deg, rgba(33, 116, 253, 0.08), transparent 54%),
+    #ffffff;
+}
+
+.presales-ppt-export-head h2,
+.presales-ppt-export-head [data-radix-dialog-title] {
+  margin: 0;
+  color: var(--yb-text);
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.presales-ppt-export-head p,
+.presales-ppt-export-head [data-radix-dialog-description] {
+  margin: 6px 0 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.presales-ppt-export-progress {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+}
+
+.presales-ppt-export-progress > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.presales-ppt-export-progress strong {
+  color: #172033;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.presales-ppt-export-progress span {
+  color: #31527f;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.presales-ppt-export-progress i {
+  display: block;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8f0ff;
+}
+
+.presales-ppt-export-progress b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--yb-active-gradient);
+  transition: width 0.25s ease;
+}
+
+.presales-ppt-export-progress.is-success b {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.presales-ppt-export-progress.is-error b {
+  background: linear-gradient(135deg, #f87171, #dc2626);
+}
+
+.presales-ppt-export-progress p {
+  margin: 0;
+  color: var(--yb-text-soft);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.presales-outline-editor {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(27, 50, 92, 0.08);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.presales-outline-editor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.presales-outline-editor-head h4 {
+  margin: 2px 0 0;
+  color: #172033;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.presales-outline-page-list {
+  display: grid;
+  gap: 9px;
+}
+
+.presales-outline-page-list article {
+  display: grid;
+  grid-template-columns: 42px minmax(180px, 1.1fr) minmax(150px, 0.7fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 11px;
+  border: 1px solid rgba(27, 50, 92, 0.08);
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+.presales-outline-page-list article > b {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: #2563eb;
+  font-family: Aptos, Inter, sans-serif;
+  font-size: 12px;
+  border-radius: 10px;
+  background: #eef5ff;
+}
+
+.presales-outline-page-list label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.presales-outline-page-list span {
+  color: #34445f;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.presales-outline-page-list input,
+.presales-outline-page-list select {
+  width: 100%;
+  height: 36px;
+  border: 1px solid rgba(27, 50, 92, 0.12);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--yb-text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  padding: 0 10px;
+}
+
+.presales-outline-page-list article > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.presales-outline-page-list .secondary-action {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.presales-export-records {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(27, 50, 92, 0.08);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.presales-export-records-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.presales-export-records-head h4 {
+  margin: 2px 0 0;
+  color: #172033;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.presales-export-records-head small {
+  display: block;
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.presales-export-records-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.presales-export-records-head-actions > span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.presales-export-records-head-actions .secondary-action {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.presales-export-record-list {
+  display: grid;
+  gap: 9px;
+  max-height: 228px;
+  overflow: auto;
+  padding-right: 4px;
+  overscroll-behavior: contain;
+}
+
+.presales-export-record-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(27, 50, 92, 0.08);
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+.presales-export-record-list article > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.presales-export-record-list strong,
+.presales-export-record-list span,
+.presales-export-record-list small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presales-export-record-list strong {
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.presales-export-record-list span {
+  color: #42526b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.presales-export-record-list small {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.presales-export-record-list .secondary-action {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.presales-ppt-structure-dialog {
+  width: min(1060px, calc(100vw - 64px));
+}
+
+.presales-ppt-structure-body {
+  display: grid;
+  gap: 16px;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 22px;
+  background: #fbfdff;
+}
+
+.presales-ppt-style-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid rgba(27, 50, 92, 0.08);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.presales-ppt-style-preview strong {
+  display: block;
+  margin-top: 4px;
+  color: #172033;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.presales-ppt-style-preview small {
+  display: block;
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.presales-ppt-structure-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.presales-ppt-structure-grid article {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid rgba(27, 50, 92, 0.08);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.06), transparent 56%),
+    #ffffff;
+}
+
+.presales-ppt-structure-grid b {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  color: #2563eb;
+  font-family: Aptos, Inter, sans-serif;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 10px;
+  background: #eef5ff;
+}
+
+.presales-ppt-structure-grid div {
+  min-width: 0;
+}
+
+.presales-ppt-structure-grid strong {
+  display: block;
+  overflow: hidden;
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presales-ppt-structure-grid span {
+  display: block;
+  margin-top: 7px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.presales-ppt-structure-grid small {
+  display: block;
+  margin-top: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+@media (max-width: 1180px) {
+  .presales-workbench-page.is-project-mode {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+
+  .presales-workflow-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .presales-form-grid,
+  .presales-form-grid.is-analysis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .presales-presentation-form {
+    grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1fr);
+  }
+
+  .presales-presentation-form label.is-wide {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 860px) {
+  .presales-workbench-page.is-project-mode {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+
+  .presales-project-sidebar {
+    max-height: 280px;
+  }
+
+  .presales-workspace {
+    overflow: visible;
+  }
+
+  .presales-workspace-head,
+  .presales-section-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .presales-workflow-tabs,
+  .presales-form-grid,
+  .presales-form-grid.is-analysis,
+  .presales-presentation-form,
+  .presales-material-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .presales-presentation-quick-fields,
+  .presales-presentation-form > label:not(.is-wide),
+  .presales-presentation-form label.is-wide {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .presales-step-panel {
+    overflow: visible;
+  }
+
+  .presales-outline-page-list article {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .presales-export-record-list article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .presales-outline-page-list article > b {
+    width: max-content;
+    padding: 0 10px;
+  }
+
+  .presales-ppt-structure-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.presales-projects-page {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  padding-right: 4px;
+}
+
+.presales-projects-hero,
+.presales-projects-list-panel,
+.presales-project-detail-panel {
+  border: 1px solid rgba(220, 223, 230, 0.78);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 42px rgba(33, 116, 253, 0.07);
+}
+
+.presales-projects-hero {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 22px;
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(33, 116, 253, 0.08), transparent 54%),
+    #ffffff;
+}
+
+.presales-projects-hero h2 {
+  margin: 6px 0 6px;
+  color: var(--yb-text);
+  font-size: 27px;
+  line-height: 1.22;
+  letter-spacing: 0;
+}
+
+.presales-projects-hero p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.presales-projects-layout {
+  display: grid;
+  grid-template-columns: minmax(340px, 390px) minmax(520px, 1fr);
+  gap: 12px;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.presales-projects-list-panel,
+.presales-project-detail-panel {
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.presales-projects-list-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.presales-projects-list-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid rgba(220, 223, 230, 0.72);
+}
+
+.presales-projects-list-head h3 {
+  margin: 4px 0 0;
+  color: var(--yb-text);
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.presales-projects-list-head input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid rgba(27, 50, 92, 0.12);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--yb-text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  padding: 0 14px;
+}
+
+.presales-projects-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.presales-project-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid rgba(27, 50, 92, 0.1);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.presales-project-card.is-active {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: #f5f9ff;
+}
+
+.presales-project-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.presales-project-card-main div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.presales-project-card-main strong {
+  overflow: hidden;
+  color: var(--yb-text);
+  font-size: 17px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presales-project-card-main span {
+  overflow: hidden;
+  color: var(--yb-text-soft);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presales-project-card-main em {
+  flex: 0 0 auto;
+  color: #31527f;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  padding: 7px 9px;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 999px;
+  background: #eef5ff;
+}
+
+.presales-project-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.presales-project-meta-grid span {
+  overflow: hidden;
+  color: var(--yb-text-soft);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presales-project-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.presales-project-detail-panel {
+  overflow: auto;
+  padding: 20px;
+}
+
+.presales-project-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.presales-project-summary-strip span {
+  padding: 7px 10px;
+  color: #31527f;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 999px;
+  background: #f2f7ff;
+}
+
+.presales-form-grid.is-project-detail {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.presales-project-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.presales-project-detail-actions .primary-action,
+.presales-project-detail-actions .secondary-action {
+  min-height: 40px;
+}
+
+@media (max-width: 1180px) {
+  .presales-projects-layout {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+
+  .presales-projects-list-panel,
+  .presales-project-detail-panel {
+    overflow: visible;
+  }
+
+  .presales-projects-page {
+    overflow: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .presales-projects-hero,
+  .presales-projects-list-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .presales-projects-list-head input,
+  .presales-form-grid.is-project-detail {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .presales-project-meta-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Presales dark theme: keep the whole workflow in one coherent workspace. */
+:root[data-ui-theme="dark"] .app-shell .presales-projects-page,
+:root[data-ui-theme="dark"] .app-shell .presales-workbench-page {
+  --presales-canvas: #0c1423;
+  --presales-surface: #111b2e;
+  --presales-surface-raised: #162238;
+  --presales-surface-active: #192a46;
+  --presales-line: rgba(118, 145, 190, 0.24);
+  --presales-line-strong: rgba(139, 182, 255, 0.42);
+  --presales-copy: #edf3ff;
+  --presales-copy-soft: #aabbd3;
+  --presales-accent: #8bb6ff;
+  --presales-accent-soft: rgba(93, 142, 230, 0.16);
+  --presales-success: #7ee2b8;
+  --presales-success-soft: rgba(56, 189, 139, 0.14);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-projects-hero,
+:root[data-ui-theme="dark"] .app-shell .presales-project-detail-panel {
+  color: var(--presales-copy);
+  border-color: var(--presales-line);
+  background: var(--presales-surface);
+  box-shadow: 0 18px 44px rgba(2, 8, 18, 0.26);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-projects-hero {
+  background:
+    linear-gradient(90deg, rgba(92, 139, 224, 0.1), transparent 42%),
+    var(--presales-surface);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-projects-hero h2,
+:root[data-ui-theme="dark"] .app-shell .presales-projects-list-head h3,
+:root[data-ui-theme="dark"] .app-shell .presales-project-card-main strong,
+:root[data-ui-theme="dark"] .app-shell .presales-project-detail-panel .presales-section-head h3 {
+  color: var(--presales-copy);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-projects-hero p,
+:root[data-ui-theme="dark"] .app-shell .presales-project-card-main span,
+:root[data-ui-theme="dark"] .app-shell .presales-project-meta-grid span {
+  color: var(--presales-copy-soft);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-projects-list-panel {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-projects-list-head {
+  border: 1px solid var(--presales-line);
+  border-radius: 16px;
+  background: var(--presales-surface);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-projects-list-head input,
+:root[data-ui-theme="dark"] .app-shell .presales-form-grid input,
+:root[data-ui-theme="dark"] .app-shell .presales-form-grid textarea,
+:root[data-ui-theme="dark"] .app-shell .presales-form-grid select,
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-form input,
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-form textarea,
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-form select,
+:root[data-ui-theme="dark"] .app-shell .presales-outline-page-list input,
+:root[data-ui-theme="dark"] .app-shell .presales-outline-page-list select {
+  color: var(--presales-copy);
+  border-color: var(--presales-line);
+  background: #0d1728;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-projects-list-head input::placeholder,
+:root[data-ui-theme="dark"] .app-shell .presales-form-grid input::placeholder,
+:root[data-ui-theme="dark"] .app-shell .presales-form-grid textarea::placeholder,
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-form input::placeholder,
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-form textarea::placeholder {
+  color: #71829e;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-projects-list-head input:focus,
+:root[data-ui-theme="dark"] .app-shell .presales-form-grid input:focus,
+:root[data-ui-theme="dark"] .app-shell .presales-form-grid textarea:focus,
+:root[data-ui-theme="dark"] .app-shell .presales-form-grid select:focus,
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-form input:focus,
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-form textarea:focus,
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-form select:focus,
+:root[data-ui-theme="dark"] .app-shell .presales-outline-page-list input:focus,
+:root[data-ui-theme="dark"] .app-shell .presales-outline-page-list select:focus {
+  border-color: var(--presales-line-strong);
+  box-shadow: 0 0 0 3px rgba(93, 142, 230, 0.13);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-projects-list {
+  padding-inline: 0;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-project-card {
+  position: relative;
+  border-color: var(--presales-line);
+  background: var(--presales-surface);
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-project-card::before {
+  position: absolute;
+  inset: 14px auto 14px -1px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: transparent;
+  content: "";
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-project-card:hover,
+:root[data-ui-theme="dark"] .app-shell .presales-project-card.is-active {
+  border-color: var(--presales-line-strong);
+  background: var(--presales-surface-active);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-project-card.is-active::before {
+  background: var(--presales-accent);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-project-card-main em,
+:root[data-ui-theme="dark"] .app-shell .presales-project-summary-strip span {
+  color: #c6d9ff;
+  border-color: rgba(139, 182, 255, 0.25);
+  background: var(--presales-accent-soft);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-project-detail-panel .presales-section-head {
+  margin-bottom: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--presales-line);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-project-summary-strip {
+  margin-bottom: 18px;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-form-grid span,
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-form span,
+:root[data-ui-theme="dark"] .app-shell .presales-outline-page-list span {
+  color: #b7c5d9;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-form-grid.is-project-detail {
+  gap: 14px 16px;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-project-detail-actions {
+  position: sticky;
+  bottom: -20px;
+  z-index: 1;
+  margin: 20px -20px -20px;
+  padding: 14px 20px 16px;
+  border-top: 1px solid var(--presales-line);
+  background: rgba(17, 27, 46, 0.96);
+  backdrop-filter: blur(14px);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workspace {
+  color: var(--presales-copy);
+  border-color: var(--presales-line);
+  background: var(--presales-canvas);
+  box-shadow: 0 20px 48px rgba(2, 8, 18, 0.3);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workspace-head {
+  padding: 17px 20px 15px;
+  border-color: var(--presales-line);
+  background:
+    linear-gradient(90deg, rgba(92, 139, 224, 0.1), transparent 42%),
+    var(--presales-surface);
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workspace-head h2 {
+  margin: 5px 0 5px;
+  color: var(--presales-copy);
+  font-size: 24px;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workspace-head p {
+  color: var(--presales-copy-soft);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workspace-head-actions {
+  gap: 9px;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workspace-head-actions .demo-soft-pill {
+  color: #b8c9e2;
+  border-color: var(--presales-line);
+  background: rgba(139, 182, 255, 0.08);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-current-project-strip {
+  gap: 0;
+  padding: 10px 20px;
+  border-color: var(--presales-line);
+  background: #0f192a;
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-current-project-strip span {
+  padding: 2px 13px;
+  color: #b7c8df;
+  border: 0;
+  border-right: 1px solid var(--presales-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-current-project-strip span:first-child {
+  padding-left: 0;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-current-project-strip span:last-child {
+  border-right: 0;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workflow-tabs {
+  gap: 7px;
+  padding: 10px 12px;
+  border-color: var(--presales-line);
+  background: var(--presales-surface);
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workflow-tabs button,
+:root[data-ui-theme="dark"] .app-shell .presales-workflow-tabs button.is-done:not(.is-active) {
+  min-height: 70px;
+  padding: 9px 10px;
+  color: var(--presales-copy);
+  border-color: var(--presales-line);
+  border-radius: 11px;
+  background: #121d30;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workflow-tabs button:hover {
+  border-color: var(--presales-line-strong);
+  background: #17253d;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workflow-tabs button.is-active {
+  border-color: rgba(139, 182, 255, 0.52);
+  background: var(--presales-surface-active);
+  box-shadow: inset 0 2px 0 var(--presales-accent);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workflow-tabs b {
+  color: var(--presales-accent);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workflow-tabs span {
+  color: var(--presales-copy);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workflow-tabs small {
+  color: var(--presales-copy-soft);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-workflow-tabs em,
+:root[data-ui-theme="dark"] .app-shell .presales-workflow-tabs button.is-done em {
+  color: var(--presales-success);
+  border-color: rgba(126, 226, 184, 0.22);
+  background: var(--presales-success-soft);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-step-panel {
+  margin: 0;
+  padding: 18px 20px 24px;
+  border: 0;
+  border-radius: 0;
+  background: var(--presales-canvas);
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-step-panel .presales-section-head {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--presales-line);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-form,
+:root[data-ui-theme="dark"] .app-shell .presales-outline-preview-block,
+:root[data-ui-theme="dark"] .app-shell .presales-ppt-check,
+:root[data-ui-theme="dark"] .app-shell .presales-outline-editor,
+:root[data-ui-theme="dark"] .app-shell .presales-export-records,
+:root[data-ui-theme="dark"] .app-shell .presales-analysis-result,
+:root[data-ui-theme="dark"] .app-shell .presales-step-footer {
+  color: var(--presales-copy);
+  border-color: var(--presales-line);
+  background: var(--presales-surface);
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-quick-fields {
+  border-color: var(--presales-line);
+  background: #0e1829;
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-card-title strong,
+:root[data-ui-theme="dark"] .app-shell .presales-outline-preview-head h4,
+:root[data-ui-theme="dark"] .app-shell .presales-outline-editor-head h4,
+:root[data-ui-theme="dark"] .app-shell .presales-ppt-check-head h4,
+:root[data-ui-theme="dark"] .app-shell .presales-export-records-head h4 {
+  color: var(--presales-copy);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-presentation-card-title span,
+:root[data-ui-theme="dark"] .app-shell .presales-outline-preview-head small {
+  color: var(--presales-copy-soft);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-ppt-check-metrics span,
+:root[data-ui-theme="dark"] .app-shell .presales-ppt-page-preview span {
+  color: #bdcbe0;
+  border-color: var(--presales-line);
+  background: #0f192a;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-ppt-check-metrics b,
+:root[data-ui-theme="dark"] .app-shell .presales-ppt-page-preview b {
+  color: var(--presales-accent);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-ppt-check-warnings.is-ok span {
+  color: var(--presales-success);
+  border-color: rgba(126, 226, 184, 0.22);
+  background: var(--presales-success-soft);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-outline-page-list article {
+  border-color: var(--presales-line);
+  background: #0f192a;
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-outline-page-list article > b {
+  color: var(--presales-accent);
+  background: var(--presales-accent-soft);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-diagram-picker label {
+  color: #c8d8ee;
+  border-color: var(--presales-line);
+  background: #142139;
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-diagram-picker label:hover {
+  color: var(--presales-copy);
+  border-color: var(--presales-line-strong);
+  background: #192a46;
+}
+
+@media (min-width: 1181px) and (max-width: 1380px) {
+  .presales-projects-layout {
+    grid-template-columns: minmax(320px, 360px) minmax(500px, 1fr);
+  }
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-ppt-check-head strong.is-good {
+  color: #82e4b5;
+  background: rgba(21, 101, 75, 0.24);
+  border: 1px solid rgba(80, 208, 145, 0.28);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-ppt-check-head strong.is-warn {
+  color: #f2bd78;
+  background: rgba(126, 78, 19, 0.24);
+  border: 1px solid rgba(244, 190, 111, 0.28);
+}
+
+:root[data-ui-theme="dark"] .app-shell .presales-ppt-check-head strong.is-risk {
+  color: #ffaaa2;
+  background: rgba(127, 38, 38, 0.26);
+  border: 1px solid rgba(255, 123, 114, 0.28);
+}
+
+:root[data-ui-theme="dark"] body .presales-ppt-structure-body {
+  color: var(--yb-text);
+  background: #0d1626;
+}
+
+:root[data-ui-theme="dark"] body .presales-ppt-style-preview,
+:root[data-ui-theme="dark"] body .presales-ppt-structure-grid article {
+  color: var(--yb-text);
+  background: #151f33;
+  border-color: rgba(139, 182, 255, 0.24);
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] body .presales-ppt-style-preview strong,
+:root[data-ui-theme="dark"] body .presales-ppt-structure-grid strong {
+  color: #f3f7ff;
+}
+
+:root[data-ui-theme="dark"] body .presales-ppt-style-preview small,
+:root[data-ui-theme="dark"] body .presales-ppt-structure-grid :where(span, small) {
+  color: #aebed5;
+}
+
+:root[data-ui-theme="dark"] body .presales-ppt-structure-grid b {
+  color: #9fc1ff;
+  background: rgba(139, 182, 255, 0.14);
+}

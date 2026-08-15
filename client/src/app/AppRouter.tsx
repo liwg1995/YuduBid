@@ -1,29 +1,33 @@
+import { lazy, Suspense } from 'react';
 import type { SectionId } from '../shared/types/navigation';
 import type { FeatureModuleSettings } from '../shared/types';
-import BidOpportunityPage from '../features/bid-opportunity/pages/BidOpportunityPage';
-import BusinessBidPage from '../features/business-bid/pages/BusinessBidPage';
-import CodeGenerationPage from '../features/code-generation/pages/CodeGenerationPage';
-import DeveloperTestPage from '../features/developer/pages/DeveloperTestPage';
-import DuplicateCheckPage from '../features/duplicate-check/pages/DuplicateCheckPage';
-import GrantApplicationPage, { type GrantApplicationInitialPanel } from '../features/grant-application/pages/GrantApplicationPage';
-import GrantApplicationProjectsPage from '../features/grant-application/pages/GrantApplicationProjectsPage';
+import type { GrantApplicationInitialPanel } from '../features/grant-application/pages/GrantApplicationPage';
+import type { ThesisTutorInitialPanel } from '../features/thesis-tutor/pages/ThesisTutorPage';
 import HomePage from '../features/home/pages/HomePage';
-import KnowledgeBasePage from '../features/knowledge-base/pages/KnowledgeBasePage';
-import OfficialDocumentDraftingPage from '../features/official-document/pages/OfficialDocumentDraftingPage';
-import PatentDisclosurePage from '../features/patent-generation/pages/PatentDisclosurePage';
-import PatentIterationPage from '../features/patent-generation/pages/PatentIterationPage';
-import PatentMiningPage from '../features/patent-generation/pages/PatentMiningPage';
-import PatentPriorArtPage from '../features/patent-generation/pages/PatentPriorArtPage';
-import PresalesProjectsPage from '../features/presales-workbench/pages/PresalesProjectsPage';
-import PresalesWorkbenchPage from '../features/presales-workbench/pages/PresalesWorkbenchPage';
-import ProjectHistoryPage from '../features/project-management/pages/ProjectHistoryPage';
-import ProjectManagementPage from '../features/project-management/pages/ProjectManagementPage';
-import ProjectTypesPage from '../features/project-management/pages/ProjectTypesPage';
-import RejectionCheckPage from '../features/rejection-check/pages/RejectionCheckPage';
-import SettingsPage from '../features/settings/pages/SettingsPage';
-import SoftwareCopyrightPage from '../features/software-copyright/pages/SoftwareCopyrightPage';
-import TechnicalPlanHome from '../features/technical-plan/pages/TechnicalPlanHome';
-import ThesisTutorPage, { type ThesisTutorInitialPanel } from '../features/thesis-tutor/pages/ThesisTutorPage';
+
+const BidOpportunityPage = lazy(() => import('../features/bid-opportunity/pages/BidOpportunityPage'));
+const BusinessBidPage = lazy(() => import('../features/business-bid/pages/BusinessBidPage'));
+const CodeGenerationPage = lazy(() => import('../features/code-generation/pages/CodeGenerationPage'));
+const DeveloperTestPage = lazy(() => import('../features/developer/pages/DeveloperTestPage'));
+const DuplicateCheckPage = lazy(() => import('../features/duplicate-check/pages/DuplicateCheckPage'));
+const GrantApplicationPage = lazy(() => import('../features/grant-application/pages/GrantApplicationPage'));
+const GrantApplicationProjectsPage = lazy(() => import('../features/grant-application/pages/GrantApplicationProjectsPage'));
+const KnowledgeBasePage = lazy(() => import('../features/knowledge-base/pages/KnowledgeBasePage'));
+const OfficialDocumentDraftingPage = lazy(() => import('../features/official-document/pages/OfficialDocumentDraftingPage'));
+const PatentDisclosurePage = lazy(() => import('../features/patent-generation/pages/PatentDisclosurePage'));
+const PatentIterationPage = lazy(() => import('../features/patent-generation/pages/PatentIterationPage'));
+const PatentMiningPage = lazy(() => import('../features/patent-generation/pages/PatentMiningPage'));
+const PatentPriorArtPage = lazy(() => import('../features/patent-generation/pages/PatentPriorArtPage'));
+const PresalesProjectsPage = lazy(() => import('../features/presales-workbench/pages/PresalesProjectsPage'));
+const PresalesWorkbenchPage = lazy(() => import('../features/presales-workbench/pages/PresalesWorkbenchPage'));
+const ProjectHistoryPage = lazy(() => import('../features/project-management/pages/ProjectHistoryPage'));
+const ProjectManagementPage = lazy(() => import('../features/project-management/pages/ProjectManagementPage'));
+const ProjectTypesPage = lazy(() => import('../features/project-management/pages/ProjectTypesPage'));
+const RejectionCheckPage = lazy(() => import('../features/rejection-check/pages/RejectionCheckPage'));
+const SettingsPage = lazy(() => import('../features/settings/pages/SettingsPage'));
+const SoftwareCopyrightPage = lazy(() => import('../features/software-copyright/pages/SoftwareCopyrightPage'));
+const TechnicalPlanHome = lazy(() => import('../features/technical-plan/pages/TechnicalPlanHome'));
+const ThesisTutorPage = lazy(() => import('../features/thesis-tutor/pages/ThesisTutorPage'));
 
 interface AppRouterProps {
   activeSection: SectionId;
@@ -33,7 +37,7 @@ interface AppRouterProps {
   onFeatureModuleSettingsChange: (settings: FeatureModuleSettings) => void;
 }
 
-function AppRouter({ activeSection, featureModuleSettings, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange }: AppRouterProps) {
+function AppRouteContent({ activeSection, featureModuleSettings, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange }: AppRouterProps) {
   switch (activeSection) {
     case 'home':
       return <HomePage featureModuleSettings={featureModuleSettings} onNavigate={onSectionChange} />;
@@ -106,6 +110,20 @@ function AppRouter({ activeSection, featureModuleSettings, onSectionChange, onDe
     default:
       return null;
   }
+}
+
+function AppRouter(props: AppRouterProps) {
+  return (
+    <Suspense fallback={(
+      <div className="section-loading-state" role="status" aria-live="polite">
+        <span className="section-loading-indicator" aria-hidden="true" />
+        <strong>正在加载功能模块</strong>
+        <small>正在恢复当前模块的本地工作区…</small>
+      </div>
+    )}>
+      <AppRouteContent {...props} />
+    </Suspense>
+  );
 }
 
 export default AppRouter;

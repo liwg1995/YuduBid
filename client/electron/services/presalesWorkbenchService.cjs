@@ -811,7 +811,22 @@ function normalizeState(state = {}) {
   };
 }
 
+function recoverInterruptedTask(state) {
+  if (state?.task?.status !== 'running') return state;
+  return {
+    ...state,
+    task: {
+      ...state.task,
+      status: 'error',
+      progress: 100,
+      message: '上次任务未完成，请重新执行。',
+      finished_at: now(),
+    },
+  };
+}
+
 function createPresalesWorkbenchService({ app, fileService, aiService }) {
+  const recoveredProjectIds = new Set();
   const rootDir = () => ensureDir(getPresalesWorkbenchDir(app));
   const projectsDir = () => ensureDir(path.join(rootDir(), 'projects'));
   const materialDir = (projectId) => ensureDir(path.join(rootDir(), 'materials', normalizeProjectId(projectId)));
@@ -911,8 +926,12 @@ function createPresalesWorkbenchService({ app, fileService, aiService }) {
       return loadState(registry.activeProjectId);
     }
     const parsed = safeJsonParse(fs.readFileSync(filePath, 'utf-8'), initialState);
-    const state = normalizeState({ ...parsed, projectId: activeProjectId });
-    if (state.updated_at !== parsed.updated_at) {
+    const normalized = normalizeState({ ...parsed, projectId: activeProjectId });
+    const state = recoveredProjectIds.has(activeProjectId)
+      ? normalized
+      : recoverInterruptedTask(normalized);
+    recoveredProjectIds.add(activeProjectId);
+    if (state.updated_at !== parsed.updated_at || state.task?.status !== parsed.task?.status) {
       fs.writeFileSync(filePath, JSON.stringify(state, null, 2), 'utf-8');
     }
     return state;

@@ -1,7 +1,8 @@
 import { Profiler, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
+import '../knowledgeBase.css';
 import type { Components } from 'react-markdown';
-import { isLibreOfficeRequiredMessage, MarkdownRenderer, useDocumentParseNotice, useToast } from '../../../shared/ui';
+import { isLibreOfficeRequiredMessage, MarkdownRenderer, useAppDialog, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseIndex, KnowledgeBaseMigrationStatus, KnowledgeDocument, KnowledgeItem } from '../types';
 
 declare global {
@@ -320,6 +321,7 @@ function KnowledgeBasePage() {
   const viewerRequestIdRef = useRef(0);
   const viewerTraceRef = useRef<RenderDebugTrace | null>(null);
   const { showToast } = useToast();
+  const { confirm, prompt } = useAppDialog();
   const { showDocumentParseNotice } = useDocumentParseNotice();
 
   const activeFolder = index.folders.find((folder) => folder.id === activeFolderId) || index.folders[0];
@@ -571,7 +573,13 @@ function KnowledgeBasePage() {
       showToast('知识库迁移中，请稍候', 'info');
       return;
     }
-    const name = window.prompt('请输入新的文件夹名称', currentName)?.trim();
+    const name = (await prompt({
+      title: '重命名文件夹',
+      description: '输入新的文件夹名称，已有文档和分析结果不会受到影响。',
+      inputLabel: '文件夹名称',
+      defaultValue: currentName,
+      confirmLabel: '保存名称',
+    }))?.trim();
     if (!name || name === currentName) return;
 
     try {
@@ -593,7 +601,13 @@ function KnowledgeBasePage() {
       return;
     }
     const count = documentsByFolder.get(folderId)?.length || 0;
-    if (!window.confirm(`确定删除文件夹“${folderName}”吗？其中 ${count} 个文档也会一起删除。`)) return;
+    const confirmed = await confirm({
+      title: '删除文件夹',
+      description: `确定删除文件夹“${folderName}”吗？其中 ${count} 个文档也会一起删除，此操作无法撤销。`,
+      confirmLabel: '删除文件夹',
+      danger: true,
+    });
+    if (!confirmed) return;
 
     try {
       const result = await window.yibiao?.knowledgeBase.deleteFolder(folderId);
@@ -615,7 +629,13 @@ function KnowledgeBasePage() {
       showToast('知识库迁移中，请稍候', 'info');
       return;
     }
-    if (!window.confirm(`确定删除文档“${document.file_name}”吗？`)) return;
+    const confirmed = await confirm({
+      title: '删除知识库文档',
+      description: `确定删除文档“${document.file_name}”吗？对应的解析结果和知识条目也会删除。`,
+      confirmLabel: '删除文档',
+      danger: true,
+    });
+    if (!confirmed) return;
 
     try {
       const result = await window.yibiao?.knowledgeBase.deleteDocument(document.id);
@@ -1265,7 +1285,7 @@ function KnowledgeItemSourceDialog({ item, developerMode, rendering, debugTrace,
           developerMode={developerMode}
           profilerId="knowledge-item-source"
         >
-          <MarkdownRenderer enableGfm={false} components={knowledgeItemSourceComponents}>
+          <MarkdownRenderer components={knowledgeItemSourceComponents}>
             {item.content || '暂无原文内容'}
           </MarkdownRenderer>
         </DebuggableMarkdownContent>

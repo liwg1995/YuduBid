@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { ProjectManagementDictionaries } from '../types';
+import '../projectManagement.css';
 
 type DictionaryKind = keyof ProjectManagementDictionaries;
 

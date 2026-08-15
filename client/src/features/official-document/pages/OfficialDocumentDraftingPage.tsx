@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useState } from 'react';
+import '../officialDocument.css';
 import {
   buildOfficialDocumentDraftPrompt,
   officialDocumentTemplates,
