@@ -143,16 +143,213 @@ npm run dist:mac
 
 ## 🙏 致谢
 
-本项目基于 [FB208/OpenBidKit_Yibiao](https://github.com/FB208/OpenBidKit_Yibiao) 进行二开，感谢作者提供肩膀！
+YuduBid 基于
+[FB208/OpenBidKit_Yibiao](https://github.com/FB208/OpenBidKit_Yibiao)
+进行二次开发。
 
-## 📄 许可证
-遵从 [GNU Affero General Public License v3.0](https://github.com/FB208/OpenBidKit_Yibiao/blob/main/LICENSE) 开源协议。
+感谢 OpenBidKit_Yibiao 原作者及相关贡献者提供的开源成果。
 
+原始项目及其原始代码的著作权归相应原作者和贡献者所有。
 
-你可以自由使用、修改、分发和商用本项目，但修改版、分发版和通过网络提供服务的版本必须遵守 AGPL-3.0 的开源义务，并保留本项目原始仓库链接和作者信息。
-
+YuduBid 尊重并遵守上游项目采用的
+GNU Affero General Public License v3.0。
 
 ---
+
+## 📄 开源许可与知识产权
+
+### 开源许可证
+
+YuduBid / 禹都AI解决方案助手按照：
+
+**GNU Affero General Public License v3.0**
+
+进行开源发布。
+
+完整许可证请查看：
+
+[LICENSE](./LICENSE)
+
+在遵守 GNU AGPL v3.0 的前提下，
+您可以依法：
+
+- 使用本项目；
+- 学习本项目；
+- 修改本项目；
+- 分发本项目；
+- 进行商业使用。
+
+对项目进行修改、再发布或者通过网络提供相应修改版本时，
+应遵守 GNU AGPL v3.0 所规定的适用义务。
+
+> 开源不等于放弃著作权。
+
+YuduBid 中由相应开发者依法拥有著作权的原创代码、
+修改代码、文档、界面以及其他作品，
+仍然受到著作权法保护。
+
+详细来源及版权关系请查看：
+
+[NOTICE.md](./NOTICE.md)
+
+---
+
+## 🧩 上游项目与二次开发
+
+YuduBid 并非宣称所有代码均完全从零开发。
+
+本项目基于：
+
+**OpenBidKit_Yibiao**
+
+进行二次开发。
+
+原项目：
+
+https://github.com/FB208/OpenBidKit_Yibiao
+
+在此基础上，
+YuduBid 持续进行了功能扩展、架构调整和业务模块开发，
+形成目前的禹都AI解决方案助手。
+
+目前主要覆盖：
+
+- 技术标书；
+- 售前工作台；
+- 公文写作；
+- 论文导师；
+- 课题申报；
+- 项目管理；
+- 软件著作权辅助；
+- 国家专利辅助；
+- 知识库；
+- 文档解析；
+- Word 导出；
+- 本地工作区；
+- AI 模型配置；
+- 以及其他持续新增能力。
+
+具体开发历史以 Git Commit 和 Release 记录为准。
+
+---
+
+## ® 品牌与商标
+
+**“禹都一只猫®”为注册商标。**
+
+商标注册号：
+
+**67576810**
+
+注册类别：
+
+**第42类**
+
+YuduBid / 禹都AI解决方案助手
+由“禹都一只猫®”品牌持续开发和维护。
+
+需要特别说明：
+
+> **GNU AGPL v3.0 对软件代码的授权，不代表对“禹都一只猫®”注册商标的授权。**
+
+任何人均可以按照 GNU AGPL v3.0合法使用、修改和分发 YuduBid 软件代码。
+
+但是获得源代码使用权，并不意味着自动获得：
+
+- “禹都一只猫®”注册商标使用许可；
+- YuduBid 官方身份；
+- 禹都AI解决方案助手官方身份；
+- 官方授权身份；
+- 官方合作伙伴身份；
+- 官方认证身份。
+
+基于 YuduBid 的第三方二次开发版本，
+建议使用与官方明显不同的产品名称、Logo 和视觉标识，
+并如实说明项目来源。
+
+详细品牌使用政策请查看：
+
+[TRADEMARKS.md](./TRADEMARKS.md)
+
+---
+
+## 📦 第三方软件
+
+YuduBid 使用 Electron、React、Vite、TypeScript、
+Mermaid、better-sqlite3、docx、pdf.js 等多个
+第三方开源软件和组件。
+
+这些软件的著作权分别归其原作者和贡献者所有，
+并分别遵循其自身许可证。
+
+完整依赖请以：
+
+```text
+client/package.json
+client/package-lock.json
+```
+为准。
+
+第三方软件说明：
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)
+---
+
+## 🤝 参与贡献
+
+欢迎通过：
+
+- Issue；
+
+- Pull Request；
+
+- 文档；
+
+- Bug Report；
+
+
+等方式参与 YuduBid。
+
+提交贡献前请阅读：
+
+[CONTRIBUTING.md](./CONTRIBUTING.md)
+
+---
+
+
+## ⚖️ 权利边界说明
+
+YuduBid 尊重开源软件生态。
+
+我们不会因为第三方依法按照 GNU AGPL v3.0使用、修改或者商业使用本项目代码，就主张超出许可证范围的限制。
+
+但以下行为可能涉及相应法律或许可证问题：
+
+- 违反 GNU AGPL v3.0 使用相应代码；
+- 删除依法应保留的版权或许可证声明；
+- 将他人的原创代码冒充为自己独立原创；
+- 未经许可使用注册商标并造成来源混淆；
+- 冒充 YuduBid 官方产品；
+- 冒充“禹都一只猫®”官方授权；
+- 侵犯其他依法受到保护的知识产权。
+
+具体判断应根据实际行为、代码来源、许可证履行情况以及适用法律确定。
+
+---
+
+🐱 关于品牌
+<p align="center">
+
+禹都AI解决方案助手
+
+YuduBid
+
+禹都一只猫® 出品
+
+</p>
+
+---
+
+
 
 
 <p align="center">

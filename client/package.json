@@ -4,6 +4,15 @@
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://bid.olei.me/",
+  "repository": {
+  "type": "git",
+  "url": "https://github.com/liwg1995/YuduBid.git"
+  },
+  "bugs": {
+  "url": "https://github.com/liwg1995/YuduBid/issues"
+  },
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -69,7 +78,7 @@
     ],
     "win": {
       "icon": "assets/icon.ico",
-      "legalTrademarks": "禹都一只猫",
+      "legalTrademarks": "禹都一只猫®",
       "signExecutable": false,
       "target": [
         {
