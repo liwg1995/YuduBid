@@ -13,28 +13,27 @@ YuduBid 欢迎社区通过 Issue、Pull Request、Bug Report、文档修订和�
 
 YuduBid 基于 OpenBidKit_Yibiao 进行二次开发，项目按照 GNU Affero General Public License v3.0进行开源发布。
 
-项目许可证见：
+- 项目许可证见：
 
-LICENSE
+[LICENSE](./LICENSE)
 
-项目来源与版权说明见：
+- 项目来源与版权说明见：
 
-NOTICE.md
+[NOTICE.md](./NOTICE.md)
 
-品牌及商标说明见：
+- 品牌及商标说明见：
 
-TRADEMARKS.md
+[TRADEMARKS.md](./TRADEMARKS.md)
 
-第三方软件说明见：
+- 第三方软件说明见：
 
-THIRD_PARTY_NOTICES.md
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)
 
 ---
 
 ## 2. 提交代码前的基本要求
 
-向 YuduBid 提交代码，
-即表示您确认：
+向 YuduBid 提交代码，即表示您确认：
 
 1. 您有权提交相关代码；
 2. 相关代码不是未经许可复制的第三方闭源软件代码；
@@ -52,15 +51,11 @@ THIRD_PARTY_NOTICES.md
 
 ## 3. 贡献者版权
 
-除另有明确书面约定外，
-贡献者仍然保留其对自己原创贡献依法享有的著作权。
+除另有明确书面约定外，贡献者仍然保留其对自己原创贡献依法享有的著作权。
 
-提交代码并不意味着必须将著作权所有权
-转让给 YuduBid 项目维护者。
+提交代码并不意味着必须将著作权所有权转让给 YuduBid 项目维护者。
 
-但是，被项目接受并合并的代码，
-将按照 YuduBid 项目的 GNU AGPL v3.0
-许可体系进行发布。
+但是，被项目接受并合并的代码，将按照 YuduBid 项目的 GNU AGPL v3.0许可体系进行发布。
 
 ---
 
@@ -88,8 +83,7 @@ THIRD_PARTY_NOTICES.md
 
 但是贡献者仍应对自己提交的代码负责。
 
-提交 AI 辅助代码之前，
-应当进行必要的：
+提交 AI 辅助代码之前，应当进行必要的：
 
 - 功能检查；
 - 安全检查；
@@ -97,8 +91,7 @@ THIRD_PARTY_NOTICES.md
 - 许可证检查；
 - 代码审查。
 
-不得因为代码由 AI 工具生成，
-就当然认为其不存在第三方知识产权风险。
+不得因为代码由 AI 工具生成，就当然认为其不存在第三方知识产权风险。
 
 ---
 
