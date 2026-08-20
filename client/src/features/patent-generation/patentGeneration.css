@@ -865,6 +865,11 @@
 
 .patent-content-grid.is-mining {
   grid-template-columns: minmax(360px, 0.92fr) minmax(460px, 1.08fr);
+  align-items: start;
+}
+
+.patent-content-grid.is-mining > * {
+  height: auto;
 }
 
 .patent-content-grid.is-disclosure,

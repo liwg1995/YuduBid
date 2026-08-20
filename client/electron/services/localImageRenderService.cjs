@@ -4,6 +4,7 @@ const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow } = require('electron');
 
 const RENDER_TIMEOUT_MS = 30000;
+const MAX_CAPTURE_DIMENSION = 8192;
 let renderWindow = null;
 let mermaidScriptPath = null;
 let renderQueue = Promise.resolve();
@@ -92,7 +93,7 @@ function escapeHtml(value) {
 
 function createRenderDocument() {
   const scriptUrl = pathToFileURL(resolveMermaidScript()).toString();
-  return `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#fff}#root{display:inline-block;padding:24px;background:#fff}</style></head><body><div id="root"></div><script src="${escapeHtml(scriptUrl)}"></script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;min-width:0;min-height:0;overflow:hidden;background:#fff}#root{display:inline-block;padding:24px;overflow:visible;background:#fff}</style></head><body><div id="root"></div><script src="${escapeHtml(scriptUrl)}"></script></body></html>`;
 }
 
 async function renderMermaid(code, { capturePng = false } = {}) {
@@ -161,9 +162,23 @@ async function renderMermaid(code, { capturePng = false } = {}) {
       const svg = String(result?.svg || '').trim();
       if (!svg.startsWith('<svg')) throw new Error('Mermaid 未返回有效 SVG');
       if (!capturePng) return { svg };
+      const captureWidth = Math.min(MAX_CAPTURE_DIMENSION, Math.max(1, Math.ceil(result.clip.width)));
+      const captureHeight = Math.min(MAX_CAPTURE_DIMENSION, Math.max(1, Math.ceil(result.clip.height)));
+      if (captureWidth !== result.clip.width || captureHeight !== result.clip.height) {
+        throw new Error(`Mermaid 图尺寸过大（${result.clip.width}×${result.clip.height}），请精简图表后重试`);
+      }
+      // capturePage 只能稳定截取当前渲染窗口覆盖的内容。先把隐藏窗口扩展到
+      // Mermaid 的完整边界，避免宽图、高图在生成 PNG 时已被固定视口裁掉。
+      renderWindow.setContentSize(captureWidth, captureHeight);
+      await renderWindow.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
       renderWindow.webContents.invalidate();
       await new Promise((resolve) => setTimeout(resolve, 50));
-      const image = await renderWindow.webContents.capturePage(result.clip);
+      const image = await renderWindow.webContents.capturePage({
+        x: 0,
+        y: 0,
+        width: captureWidth,
+        height: captureHeight,
+      });
       if (!image || image.isEmpty()) throw new Error('Mermaid PNG 截图为空');
       return { svg, png: image.toPNG() };
     } catch (error) {

@@ -51,6 +51,7 @@ const PROJECT_MANAGEMENT_IMAGE_MAX_WIDTH = 560;
 const PROJECT_MANAGEMENT_IMAGE_MAX_HEIGHT = 620;
 const PRESALES_PROPOSAL_IMAGE_MAX_WIDTH = 430;
 const PRESALES_PROPOSAL_IMAGE_MAX_HEIGHT = 500;
+const DEFAULT_IMAGE_MAX_HEIGHT = 620;
 const WORD_OPTIMIZATION_TABLE_SEQ_ID = 'YDBTable';
 const WORD_OPTIMIZATION_FIGURE_SEQ_ID = 'YDBFigure';
 const WORD_TWO_CHARS_TWIPS = 480;
@@ -92,7 +93,57 @@ function normalizeXyChartMermaidForExport(code) {
 }
 
 function normalizeMermaidForProjectManagementExport(code) {
-  return normalizeXyChartMermaidForExport(horizontalizeMermaidForProjectManagement(code));
+  return normalizeMermaidForExport(horizontalizeMermaidForProjectManagement(code));
+}
+
+function normalizeFlowchartForExport(source) {
+  let invalidLoopDepth = 0;
+  const normalizedLines = [];
+
+  for (const rawLine of String(source || '').split('\n')) {
+    const trimmedLine = rawLine.trim();
+    if (/^loop(?:\s|$)/i.test(trimmedLine)) {
+      invalidLoopDepth += 1;
+      continue;
+    }
+    if (invalidLoopDepth > 0 && /^end\s*$/i.test(trimmedLine)) {
+      invalidLoopDepth -= 1;
+      continue;
+    }
+
+    const multiSourceEdge = rawLine.match(/^(\s*)((?:[A-Za-z][\w-]*\s*&\s*)+[A-Za-z][\w-]*)\s*(-->|---|-.->|==>)\s*(.+?)\s*$/);
+    if (multiSourceEdge) {
+      const [, indent, sources, arrow, target] = multiSourceEdge;
+      normalizedLines.push(...sources.split(/\s*&\s*/).map((nodeId) => `${indent}${nodeId} ${arrow} ${target}`));
+      continue;
+    }
+
+    normalizedLines.push(rawLine);
+  }
+
+  return normalizedLines.join('\n')
+    .replace(/\s*;\s*/g, '\n')
+    .replace(/[ \t]+(?=[A-Za-z][\w-]*(?:\[[^\n]*?\]|\([^\n]*?\)|\{[^\n]*?\})?\s*(?:-->|---|-.->|==>))/g, '\n');
+}
+
+function normalizeMermaidForExport(code) {
+  let source = normalizeXyChartMermaidForExport(code)
+    .replace(/^\s*```(?:mermaid)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .replace(/\r\n?/g, '\n')
+    .trim();
+
+  if (/^\s*sequenceDiagram\b/i.test(source)) {
+    source = source
+      .replace(/[ \t]+(?=(?:loop|alt|opt|par|critical|break|rect)\b)/gi, '\n')
+      .replace(/[ \t]+(?=(?:else|and)\b)/gi, '\n')
+      .replace(/[ \t]+end(?=\s|$)/gi, '\nend\n')
+      .replace(/[ \t]+(?=[A-Za-z][\w-]*\s*(?:--?>>?|->>?)\s*[A-Za-z][\w-]*\s*:)/g, '\n');
+  } else if (/^\s*(?:flowchart|graph)\b/i.test(source)) {
+    source = normalizeFlowchartForExport(source);
+  }
+
+  return source.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function looksLikeMarkdownTemplate(value) {
@@ -1813,7 +1864,7 @@ async function imageRunFromNode(node, context, options = {}) {
       ? PRESALES_PROPOSAL_IMAGE_MAX_HEIGHT
     : context.wordOptimizationEnabled
       ? WORD_OPTIMIZATION_IMAGE_MAX_HEIGHT
-      : Number.POSITIVE_INFINITY;
+      : DEFAULT_IMAGE_MAX_HEIGHT;
   const sourceWidth = size.width || maxImageWidth;
   const sourceHeight = size.height || Math.round(maxImageWidth * 0.62);
   const ratio = Math.min(1, maxImageWidth / sourceWidth, maxImageHeight / sourceHeight);
@@ -1834,6 +1885,37 @@ async function imageRunFromNode(node, context, options = {}) {
 
 async function imageParagraphFromSource(source, alt, context, options = {}) {
   return paragraph([await imageRunFromNode({ url: source, alt }, context, options)], { alignment: AlignmentType.CENTER });
+}
+
+function looksLikeTextDiagram(value) {
+  const lines = String(value || '').replace(/\r\n?/g, '\n').split('\n').filter((line) => line.trim());
+  if (lines.length < 4) return false;
+  const boxGlyphs = (lines.join('').match(/[┌┐└┘├┤┬┴│─┼╭╮╰╯┏┓┗┛┣┫┳┻┃━]/g) || []).length;
+  const structuralLines = lines.filter((line) => /(?:[-=_]{5,}|(?:\||│).*(?:\||│)|\bPhase\s*\d+)/i.test(line)).length;
+  return boxGlyphs >= 4 || structuralLines >= 3;
+}
+
+function renderTextDiagramToDataUrl(value) {
+  registerCanvasCjkFonts();
+  const lines = String(value || '').replace(/\r\n?/g, '\n').split('\n');
+  const fontSize = 18;
+  const lineHeight = 28;
+  const padding = 24;
+  const measureCanvas = createCanvas(1, 1);
+  const measureContext = measureCanvas.getContext('2d');
+  measureContext.font = `${fontSize}px Consolas, "${CANVAS_CJK_FONT_ALIAS}", "Microsoft YaHei", monospace`;
+  const contentWidth = Math.max(320, ...lines.map((line) => Math.ceil(measureContext.measureText(line || ' ').width)));
+  const width = Math.min(8192, contentWidth + padding * 2);
+  const height = Math.min(8192, Math.max(120, lines.length * lineHeight + padding * 2));
+  const canvas = createCanvas(width, height);
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#f6f9ff';
+  context.fillRect(0, 0, width, height);
+  context.fillStyle = '#243048';
+  context.font = `${fontSize}px Consolas, "${CANVAS_CJK_FONT_ALIAS}", "Microsoft YaHei", monospace`;
+  context.textBaseline = 'top';
+  lines.forEach((line, index) => context.fillText(line, padding, padding + index * lineHeight));
+  return `data:image/png;base64,${canvas.toBuffer('image/png').toString('base64')}`;
 }
 
 async function inlineRuns(nodes = [], context = {}, marks = {}) {
@@ -2505,7 +2587,7 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         reportConversionProgress(context, `正在本地转换 Mermaid 图 ${nextIndex}/${total}。`);
         const mermaidCode = context.projectManagementDocumentEnabled
           ? normalizeMermaidForProjectManagementExport(node.value)
-          : node.value;
+          : normalizeMermaidForExport(node.value);
         try {
           const imageDataUrl = await localImageRenderService.renderMermaidToDataUrl(mermaidCode);
           blocks.push(await imageParagraphFromSource(imageDataUrl, 'Mermaid 图', context));
@@ -2521,6 +2603,8 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         reportConversionProgress(context, `Mermaid 图 ${nextIndex}/${total} 已处理。`);
       } else if (projectManagementDocument && looksLikeMarkdownTemplate(node.value)) {
         blocks.push(...await markdownToDocxBlocks(node.value, context));
+      } else if (!options.inTable && looksLikeTextDiagram(node.value)) {
+        blocks.push(await imageParagraphFromSource(renderTextDiagramToDataUrl(node.value), '文本流程图', context));
       } else {
         blocks.push(paragraph([new TextRun({ text: cleanText(node.value), font: 'Consolas', size: 21, color: '243048' })], {
           shading: { type: ShadingType.CLEAR, fill: 'F6F9FF' },
@@ -2871,8 +2955,6 @@ async function exportOriginalTemplateWord(payload = {}, onProgress) {
   }
 
   const progressContext = { onProgress, warnings: [], stats: countOutlineStats(payload.outline || []) };
-  reportProgress(progressContext, 5, '正在读取原方案 DOCX 模板。');
-
   const defaultFilename = `${sanitizeFilename(payload.project_name || '已有方案扩写')}-原格式.docx`;
   const defaultDir = app?.getPath ? app.getPath('documents') : process.env.USERPROFILE || process.cwd();
   const result = await dialog.showSaveDialog({
@@ -2885,6 +2967,8 @@ async function exportOriginalTemplateWord(payload = {}, onProgress) {
     reportProgress(progressContext, 0, '已取消导出。', { phase: 'canceled' });
     return { success: false, canceled: true, message: '已取消导出' };
   }
+
+  reportProgress(progressContext, 5, '正在读取原方案 DOCX 模板。');
 
   const zip = new AdmZip(templatePath);
   const documentEntry = zip.getEntry('word/document.xml');
@@ -2933,9 +3017,6 @@ function createExportService({ configStore } = {}) {
 
       const stats = countOutlineStats(payload.outline || []);
       const progressContext = { onProgress, warnings: [], stats };
-      reportProgress(progressContext, 2, stats.mermaidCount
-        ? `检测到 ${stats.mermaidCount} 张 Mermaid 图，导出时会转换为 Word 图片。`
-        : '正在准备 Word 导出。');
       const defaultFilename = `${sanitizeFilename(payload.project_name || '标书文档')}-技术方案.docx`;
       const defaultDir = app?.getPath ? app.getPath('documents') : process.env.USERPROFILE || process.cwd();
       const result = await dialog.showSaveDialog({
@@ -2948,6 +3029,10 @@ function createExportService({ configStore } = {}) {
         reportProgress(progressContext, 0, '已取消导出。', { phase: 'canceled' });
         return { success: false, canceled: true, message: '已取消导出' };
       }
+
+      reportProgress(progressContext, 2, stats.mermaidCount
+        ? `检测到 ${stats.mermaidCount} 张 Mermaid 图，导出时会转换为 Word 图片。`
+        : '正在准备 Word 导出。');
 
       const warnings = [];
       const config = configStore ? configStore.load() : null;
@@ -2971,5 +3056,6 @@ module.exports = {
   buildDocxResult,
   createExportService,
   inlineSvgClassStyles,
+  normalizeMermaidForExport,
   svgBufferToPngBuffer,
 };

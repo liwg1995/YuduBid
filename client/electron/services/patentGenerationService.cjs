@@ -340,7 +340,7 @@ function buildDisclosureMessages(state, selectedPoint) {
         '你是中国发明专利技术交底书撰写助手。',
         '请基于给定案件信息和主专利点，生成结构完整、可交给代理人继续修改的技术交底书 Markdown 草稿。',
         '正文必须使用中文，避免虚构具体专利号、论文和查新结论；若缺少查新材料，在现有技术部分明确写“待补充查新资料”。',
-        '系统框图和流程图使用 fenced mermaid 代码块，不要使用 ASCII 框图。',
+        '系统框图和流程图使用 fenced mermaid 代码块，不要使用 ASCII 框图。Mermaid 优先使用 flowchart TD；每条节点或连线必须独占一行，节点 ID 使用英文字母和数字，中文放在带引号的节点标签中；不要把 loop、end 等时序图关键字混入 flowchart，也不要用分号把多条语句写在同一行。',
       ].join('\n'),
     },
     {

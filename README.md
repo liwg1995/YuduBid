@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./docs/images/yudubid-icon.png" alt="禹都AI解决方案助手图标" width="120" />
+  <img src="./client/assets/icon_256.png" alt="禹都AI解决方案助手图标" width="120" />
 </p>
 
 # 🌐 禹都AI解决方案助手

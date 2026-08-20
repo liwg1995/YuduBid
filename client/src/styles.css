@@ -8690,7 +8690,9 @@ button {
 
 :root[data-ui-theme="dark"] .app-shell :where(
   .grant-application-help-button,
+  .code-generation-notice-link,
   .official-document-reminder-link,
+  .official-document-template-meta span,
   .thesis-tutor-header-badge,
   .thesis-tutor-profile-summary span,
   .thesis-tutor-tabs button:not(.is-active)
@@ -8698,6 +8700,12 @@ button {
   color: #b9d1ff;
   background: rgba(139, 182, 255, 0.12);
   border-color: rgba(139, 182, 255, 0.3);
+}
+
+:root[data-ui-theme="dark"] .app-shell .code-generation-notice-link:hover {
+  color: #dbe8ff;
+  background: rgba(139, 182, 255, 0.18);
+  border-color: rgba(139, 182, 255, 0.42);
 }
 
 :root[data-ui-theme="dark"] .app-shell :where(
@@ -9102,12 +9110,32 @@ button {
 
 :root[data-ui-theme="dark"] body [role="dialog"] :where(
   .official-document-template-preview-section,
-  .official-document-template-preview-grid article
+  .official-document-template-preview-grid article,
+  .grant-application-export-progress
 ) {
   color: var(--yb-text);
   background: rgba(21, 31, 50, 0.94);
   border-color: var(--yb-control-border);
   box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] body [role="dialog"] .grant-application-export-progress strong {
+  color: var(--yb-text);
+}
+
+:root[data-ui-theme="dark"] body [role="dialog"] .grant-application-export-progress em {
+  color: #83b4ff;
+}
+
+:root[data-ui-theme="dark"] body [role="dialog"] .grant-application-export-progress progress,
+:root[data-ui-theme="dark"] body [role="dialog"] .grant-application-export-progress progress::-webkit-progress-bar {
+  background: rgba(100, 149, 237, 0.16);
+}
+
+:root[data-ui-theme="dark"] body [role="dialog"] .grant-application-export-progress.is-error {
+  color: #ff9a8b;
+  background: rgba(196, 70, 58, 0.14);
+  border-color: rgba(255, 138, 120, 0.28);
 }
 
 :root[data-ui-theme="dark"] body [role="dialog"] :where(

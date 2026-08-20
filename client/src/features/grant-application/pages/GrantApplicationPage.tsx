@@ -856,10 +856,9 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     const title = exportAll ? buildFullExportTitle(activeProjectName) : buildExportTitle(copy, activeProjectName);
 
     try {
-      setExportDialogOpen(true);
-      setExportProgress({ running: true, progress: 2, message: '正在准备导出 Word。', error: '' });
       unsubscribe = window.yibiao.export.onWordExportProgress((event: WordExportProgressEvent) => {
         if (event.requestId && event.requestId !== requestId) return;
+        setExportDialogOpen(true);
         setExportProgress({
           running: event.phase === 'running',
           progress: event.progress,
@@ -881,10 +880,12 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         showToast('已取消导出', 'info');
         return;
       }
+      setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message: result.message || 'Word 已导出', error: '' });
       showToast(result.message || 'Word 已导出', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出 Word 失败';
+      setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message, error: message });
       showToast(message, 'error');
     } finally {
@@ -938,10 +939,9 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     let unsubscribe: (() => void) | undefined;
 
     try {
-      setExportDialogOpen(true);
-      setExportProgress({ running: true, progress: 2, message: '正在准备申报书定稿包。', error: '' });
       unsubscribe = window.yibiao.export.onWordExportProgress((event: WordExportProgressEvent) => {
         if (event.requestId && event.requestId !== requestId) return;
+        setExportDialogOpen(true);
         setExportProgress({
           running: event.phase === 'running',
           progress: event.progress,
@@ -963,10 +963,12 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         showToast('已取消导出', 'info');
         return;
       }
+      setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message: result.message || '申报书定稿包已导出', error: '' });
       showToast(result.message || '申报书定稿包已导出', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出申报书定稿包失败';
+      setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message, error: message });
       showToast(message, 'error');
     } finally {
@@ -1002,10 +1004,9 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     let unsubscribe: (() => void) | undefined;
 
     try {
-      setExportDialogOpen(true);
-      setExportProgress({ running: true, progress: 2, message: '正在准备申报表填报包。', error: '' });
       unsubscribe = window.yibiao.export.onWordExportProgress((event: WordExportProgressEvent) => {
         if (event.requestId && event.requestId !== requestId) return;
+        setExportDialogOpen(true);
         setExportProgress({
           running: event.phase === 'running',
           progress: event.progress,
@@ -1032,10 +1033,12 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         showToast('已取消导出', 'info');
         return;
       }
+      setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message: result.message || '申报表填报包已导出', error: '' });
       showToast(result.message || '申报表填报包已导出', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出申报表填报包失败';
+      setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message, error: message });
       showToast(message, 'error');
     } finally {
@@ -1076,10 +1079,9 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     let unsubscribe: (() => void) | undefined;
 
     try {
-      setExportDialogOpen(true);
-      setExportProgress({ running: true, progress: 2, message: '正在准备按模板栏目导出。', error: '' });
       unsubscribe = window.yibiao.export.onWordExportProgress((event: WordExportProgressEvent) => {
         if (event.requestId && event.requestId !== requestId) return;
+        setExportDialogOpen(true);
         setExportProgress({
           running: event.phase === 'running',
           progress: event.progress,
@@ -1106,10 +1108,12 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         showToast('已取消导出', 'info');
         return;
       }
+      setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message: result.message || '按模板栏目填报稿已导出', error: '' });
       showToast(result.message || '按模板栏目填报稿已导出', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出按模板栏目填报稿失败';
+      setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message, error: message });
       showToast(message, 'error');
     } finally {
