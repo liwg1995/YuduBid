@@ -411,7 +411,7 @@ https://github.com/liwg1995/YuduBid
 ## 🐱 关于品牌
 
 <p align="center">
-  <img src="./docs/images/logo-tm.png" alt="YuduBid 设置关于页中的禹都一只猫品牌标识" width="90" />
+  <img src="./docs/images/yudu-pm.png" alt="YuduBid 设置关于页中的禹都一只猫品牌标识" width="90" />
 </p>
 
 <p align="center">
