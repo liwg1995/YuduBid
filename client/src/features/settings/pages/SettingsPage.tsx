@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
+import brandProducerLogo from '../../../assets/brand-producer-logo.svg';
 import { configurableFeatureModules } from '../../../app/menuConfig';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
@@ -2175,7 +2176,17 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 </small>
               )}
             </div>
-            <div><span>项目代号</span><strong>YuDuBid</strong></div>
+            <div className="about-project-card">
+              <span>项目代号</span>
+              <strong>YuDuBid</strong>
+              <span className="about-brand-producer" aria-label="禹都一只猫出品">
+                <span className="about-brand-mark">
+                  <img src={brandProducerLogo} alt="禹都一只猫" />
+                  <sup className="about-brand-copyright" aria-hidden="true">©</sup>
+                </span>
+                <b>出品</b>
+              </span>
+            </div>
           </div>
           <Dialog.Root open={releaseDialogOpen} onOpenChange={setReleaseDialogOpen}>
             <Dialog.Portal>

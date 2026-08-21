@@ -411,6 +411,10 @@ https://github.com/liwg1995/YuduBid
 ## 🐱 关于品牌
 
 <p align="center">
+  <img src="./docs/images/about-brand-v0.9.4.png" alt="YuduBid 设置关于页中的禹都一只猫品牌标识" width="900" />
+</p>
+
+<p align="center">
 
 - 禹都AI解决方案助手
 

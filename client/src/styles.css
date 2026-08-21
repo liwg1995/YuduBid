@@ -6861,6 +6861,90 @@ button {
   text-decoration: none;
 }
 
+.about-project-card {
+  min-height: 112px;
+  padding-right: 300px !important;
+}
+
+.about-brand-producer {
+  position: absolute;
+  top: 50%;
+  right: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  overflow: visible;
+  border: 1px solid rgba(47, 111, 237, 0.16);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.92), transparent 38%),
+    linear-gradient(135deg, rgba(223, 235, 255, 0.9), rgba(247, 249, 255, 0.82) 52%, rgba(228, 235, 252, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 10px 28px rgba(60, 103, 181, 0.1);
+  color: var(--yb-text) !important;
+  transform: translateY(-50%);
+}
+
+.about-brand-mark {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.about-brand-producer img {
+  display: block;
+  width: 160px;
+  height: auto;
+}
+
+.about-brand-copyright {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  color: #2f6fed;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.about-brand-producer b {
+  color: var(--yb-text-soft);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+:root[data-ui-theme="dark"] .about-brand-producer img {
+  filter: invert(1);
+}
+
+:root[data-ui-theme="dark"] .about-brand-producer {
+  border-color: rgba(126, 166, 255, 0.22);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(126, 166, 255, 0.16), transparent 40%),
+    linear-gradient(135deg, rgba(27, 45, 78, 0.94), rgba(18, 29, 51, 0.92) 54%, rgba(34, 42, 76, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 12px 30px rgba(0, 0, 0, 0.24);
+}
+
+:root[data-ui-theme="dark"] .about-brand-copyright {
+  color: #8eb2ff;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .about-brand-producer {
+    background: #edf3ff;
+  }
+
+  :root[data-ui-theme="dark"] .about-brand-producer {
+    background: #1b2942;
+  }
+}
+
 .about-version-card strong {
   display: flex;
   align-items: center;
@@ -8153,6 +8237,10 @@ button {
   .demo-signal-grid,
   .about-grid {
     grid-template-columns: 1fr;
+  }
+
+  .about-project-card {
+    padding-right: 300px !important;
   }
 
   .demo-hero-card,
