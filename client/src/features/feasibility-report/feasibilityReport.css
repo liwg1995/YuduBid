@@ -1,0 +1,918 @@
+.feasibility-report-page {
+  height: 100%;
+  min-height: 0;
+  padding-bottom: 24px;
+}
+
+.feasibility-project-hero,
+.feasibility-project-guide,
+.feasibility-project-card {
+  border: 1px solid var(--yb-border-soft);
+  border-radius: 18px;
+  background: var(--yb-card-bg);
+  box-shadow: 0 16px 42px rgba(33, 116, 253, 0.06);
+}
+
+.feasibility-project-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 24px;
+}
+
+.feasibility-project-hero strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--yb-text);
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.feasibility-project-hero p,
+.feasibility-project-guide p,
+.feasibility-project-card p {
+  margin: 6px 0 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.feasibility-project-guide {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+  gap: 28px;
+  padding: 24px;
+}
+
+.feasibility-project-guide-copy strong {
+  display: block;
+  color: var(--yb-text);
+  font-size: 18px;
+}
+
+.feasibility-project-guide-copy small {
+  display: block;
+  margin-top: 12px;
+  color: var(--yb-text-muted);
+  line-height: 1.6;
+}
+
+.feasibility-project-guide-flow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.feasibility-project-guide-flow span {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  padding: 8px 12px;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(33, 116, 253, 0.06);
+  border: 1px solid rgba(33, 116, 253, 0.1);
+  border-radius: 10px;
+}
+
+.feasibility-project-list {
+  display: grid;
+  gap: 12px;
+}
+
+.feasibility-project-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.feasibility-project-toolbar label {
+  width: min(420px, 100%);
+}
+
+.feasibility-project-toolbar input,
+.feasibility-project-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  color: var(--yb-text);
+  background: var(--yb-control-bg);
+  border: 1px solid var(--yb-control-border);
+  border-radius: 10px;
+  outline: none;
+}
+
+.feasibility-project-toolbar input:focus,
+.feasibility-project-name-input:focus {
+  border-color: rgba(33, 116, 253, 0.6);
+  box-shadow: 0 0 0 3px rgba(33, 116, 253, 0.1);
+}
+
+.feasibility-project-toolbar > span {
+  color: var(--yb-text-muted);
+  font-size: 12px;
+}
+
+.feasibility-project-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+}
+
+.feasibility-project-card.is-active {
+  border-color: rgba(33, 116, 253, 0.32);
+}
+
+.feasibility-project-card-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.feasibility-project-name-input {
+  max-width: 520px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.feasibility-project-card strong,
+.feasibility-project-empty strong {
+  color: var(--yb-text);
+  font-size: 16px;
+}
+
+.feasibility-project-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.feasibility-project-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-height: 210px;
+  align-content: center;
+  padding: 28px;
+  color: var(--yb-text-soft);
+  background: rgba(var(--yb-surface-rgb), 0.66);
+  border: 1px dashed rgba(33, 116, 253, 0.26);
+  border-radius: 18px;
+}
+
+.feasibility-project-empty p {
+  margin: 0 0 4px;
+  line-height: 1.7;
+}
+
+.feasibility-create-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 101;
+  width: min(520px, calc(100vw - 40px));
+  padding: 0;
+  color: var(--yb-text);
+  background: var(--yb-surface);
+  border: 1px solid var(--yb-border);
+  border-radius: 20px;
+  box-shadow: 0 28px 72px rgba(23, 32, 51, 0.24);
+  transform: translate(-50%, -50%);
+}
+
+.feasibility-create-dialog form {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.feasibility-confirm-dialog {
+  display: grid;
+  gap: 24px;
+  padding: 24px;
+}
+
+.feasibility-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.feasibility-dialog-head h2 {
+  margin: 0;
+}
+
+.feasibility-dialog-head p {
+  margin: 8px 0 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.feasibility-create-field {
+  display: grid;
+  gap: 8px;
+  color: var(--yb-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.feasibility-create-field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  color: var(--yb-text);
+  background: var(--yb-control-bg);
+  border: 1px solid var(--yb-control-border);
+  border-radius: 10px;
+  outline: none;
+}
+
+.feasibility-create-field input:focus {
+  border-color: rgba(33, 116, 253, 0.6);
+  box-shadow: 0 0 0 3px rgba(33, 116, 253, 0.1);
+}
+
+.feasibility-workbench {
+  overflow: hidden;
+}
+
+.feasibility-step-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.feasibility-step-command-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  flex: 0 0 auto;
+}
+
+.feasibility-step-summary {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  min-width: 92px;
+}
+
+.feasibility-step-summary > span,
+.feasibility-step-summary > small {
+  color: var(--yb-text-muted);
+  font-size: 11px;
+}
+
+.feasibility-step-summary > strong {
+  margin: 0;
+  color: var(--yb-primary);
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.feasibility-step-content {
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 2px 12px;
+  scrollbar-gutter: stable;
+}
+
+.feasibility-step-loading {
+  display: grid;
+  place-content: center;
+  min-height: 240px;
+  padding: 28px;
+  color: var(--yb-text-soft);
+  text-align: center;
+  border: 1px dashed var(--yb-border);
+  border-radius: 14px;
+}
+
+.feasibility-step-loading strong { color: var(--yb-text); }
+.feasibility-step-loading p { margin: 8px 0 0; }
+
+.feasibility-stage-empty {
+  min-height: 190px;
+  padding: 26px;
+  color: var(--yb-text-soft);
+  background: rgba(var(--yb-surface-rgb), 0.54);
+  border: 1px dashed var(--yb-border);
+  border-radius: 14px;
+}
+
+.feasibility-stage-empty strong {
+  color: var(--yb-text);
+}
+
+.feasibility-stage-empty p {
+  margin: 8px 0 0;
+  line-height: 1.7;
+}
+
+.feasibility-materials-panel,
+.feasibility-sources-panel {
+  display: grid;
+  gap: 22px;
+}
+
+.feasibility-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--yb-border-soft);
+}
+
+.feasibility-panel-head h3 {
+  margin: 0;
+  color: var(--yb-text);
+  font-size: 18px;
+}
+
+.feasibility-panel-head p {
+  max-width: 720px;
+  margin: 7px 0 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.feasibility-save-state {
+  flex: 0 0 auto;
+  color: var(--yb-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.feasibility-save-state.is-dirty {
+  color: #a46612;
+}
+
+.feasibility-materials-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.feasibility-materials-grid .field-project-type,
+.feasibility-materials-grid .field-industry {
+  grid-column: span 4;
+}
+
+.feasibility-materials-grid .field-projectName,
+.feasibility-materials-grid .field-constructionUnit {
+  grid-column: span 8;
+}
+
+.feasibility-materials-grid .field-constructionPeriodYears,
+.feasibility-materials-grid .field-operationPeriodYears {
+  grid-column: span 2;
+}
+
+.feasibility-materials-grid .field-totalInvestment {
+  grid-column: span 3;
+}
+
+.feasibility-materials-grid .field-fundingSource {
+  grid-column: span 5;
+}
+
+.feasibility-materials-grid label {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  color: var(--yb-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.feasibility-materials-grid label.is-wide {
+  grid-column: 1 / -1;
+}
+
+.feasibility-materials-grid input,
+.feasibility-materials-grid select,
+.feasibility-materials-grid textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  color: var(--yb-text);
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.55;
+  background: var(--yb-control-bg);
+  border: 1px solid var(--yb-control-border);
+  border-radius: 10px;
+  outline: none;
+}
+
+.feasibility-materials-grid textarea {
+  min-height: 118px;
+  resize: vertical;
+}
+
+.feasibility-materials-grid input:focus,
+.feasibility-materials-grid select:focus,
+.feasibility-materials-grid textarea:focus {
+  border-color: rgba(33, 116, 253, 0.6);
+  box-shadow: 0 0 0 3px rgba(33, 116, 253, 0.1);
+}
+
+.feasibility-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.feasibility-source-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-height: 220px;
+  align-content: center;
+  padding: 28px;
+  color: var(--yb-text-soft);
+  background: rgba(var(--yb-surface-rgb), 0.54);
+  border: 1px dashed var(--yb-border);
+  border-radius: 14px;
+}
+
+.feasibility-source-empty strong {
+  color: var(--yb-text);
+}
+
+.feasibility-source-empty p {
+  max-width: 680px;
+  margin: 0 0 4px;
+  line-height: 1.7;
+}
+
+.feasibility-source-workspace {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.34fr) minmax(0, 1fr);
+  min-height: 480px;
+  overflow: hidden;
+  border: 1px solid var(--yb-border-soft);
+  border-radius: 14px;
+}
+
+.feasibility-source-list {
+  min-width: 0;
+  overflow: auto;
+  padding: 10px;
+  background: rgba(var(--yb-surface-rgb), 0.56);
+  border-right: 1px solid var(--yb-border-soft);
+}
+
+.feasibility-source-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.feasibility-source-list article.is-active {
+  background: rgba(33, 116, 253, 0.08);
+  border-color: rgba(33, 116, 253, 0.22);
+}
+
+.feasibility-source-select {
+  min-width: 0;
+  padding: 11px 4px 11px 11px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.feasibility-source-select strong,
+.feasibility-source-select span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feasibility-source-select strong {
+  color: var(--yb-text);
+  font-size: 13px;
+}
+
+.feasibility-source-select span {
+  margin-top: 5px;
+  color: var(--yb-text-muted);
+  font-size: 11px;
+}
+
+.feasibility-source-remove {
+  margin-right: 8px;
+  padding: 6px;
+  color: var(--yb-text-muted);
+  font-size: 11px;
+  background: transparent;
+  border: 0;
+}
+
+.feasibility-source-remove:hover:not(:disabled) {
+  color: var(--yb-danger, #b44338);
+}
+
+.feasibility-source-reader {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  background: var(--yb-card-bg);
+}
+
+.feasibility-source-reader > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--yb-border-soft);
+}
+
+.feasibility-source-reader > header div {
+  min-width: 0;
+}
+
+.feasibility-source-reader > header strong,
+.feasibility-source-reader > header span {
+  display: block;
+}
+
+.feasibility-source-reader > header strong {
+  overflow: hidden;
+  color: var(--yb-text);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feasibility-source-reader > header span {
+  margin-top: 4px;
+  color: var(--yb-text-muted);
+  font-size: 11px;
+}
+
+.feasibility-source-reader > header > span {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.feasibility-source-reader-body {
+  min-height: 0;
+  max-height: 620px;
+  overflow: auto;
+  padding: 22px;
+}
+
+.feasibility-reader-status {
+  margin: 0;
+  color: var(--yb-text-muted);
+}
+
+.feasibility-source-note {
+  margin: 0;
+  color: var(--yb-text-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.feasibility-stage-content { display: grid; gap: 16px; min-height: 0; }
+.feasibility-action-card, .feasibility-config-card, .feasibility-result-card, .feasibility-task-card { border: 1px solid var(--yb-border-soft); border-radius: 16px; background: var(--yb-surface, #fff); padding: 18px; }
+.feasibility-action-card, .feasibility-result-head, .feasibility-task-card > div { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.feasibility-action-card p, .feasibility-muted { margin: 6px 0 0; color: var(--yb-text-muted); line-height: 1.65; }
+.feasibility-task-card progress { width: 100%; height: 8px; margin: 12px 0; accent-color: var(--yb-accent, #2563eb); }
+.feasibility-task-card ol { margin: 0; padding-left: 20px; color: var(--yb-text-muted); font-size: 12px; line-height: 1.7; }
+.feasibility-result-card { min-height: 180px; overflow: auto; }
+.feasibility-result-head { margin-bottom: 16px; }
+.feasibility-result-head > div { display: flex; gap: 8px; }
+.feasibility-config-card { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, .5fr); gap: 14px; }
+.feasibility-config-card label { display: grid; gap: 7px; color: var(--yb-text-muted); font-size: 12px; }
+.feasibility-config-card select, .feasibility-config-card input, .feasibility-outline-row input, .feasibility-outline-tree textarea, .feasibility-ai-adjust textarea { border: 1px solid var(--yb-control-border); border-radius: 9px; background: var(--yb-control-bg); color: var(--yb-text); padding: 9px 11px; font: inherit; }
+.feasibility-config-card fieldset { grid-column: 1 / -1; border: 1px solid var(--yb-border-soft); border-radius: 12px; padding: 12px; }
+.feasibility-config-card .feasibility-check { display: flex; grid-template-columns: auto 1fr; align-items: center; margin: 7px 0; }
+.feasibility-config-card > button { justify-self: start; }
+.feasibility-outline-tree { display: grid; gap: 10px; }
+.feasibility-outline-tree .feasibility-outline-tree { margin: 10px 0 0 22px; border-left: 2px solid var(--yb-border-soft); padding-left: 14px; }
+.feasibility-outline-row { display: grid; grid-template-columns: 48px minmax(180px, 1fr) auto auto; gap: 8px; align-items: center; }
+.feasibility-outline-row button { border: 0; background: transparent; color: var(--yb-accent, #2563eb); cursor: pointer; }
+.feasibility-outline-row button:disabled { opacity: .35; cursor: default; }
+.feasibility-outline-tree textarea { width: calc(100% - 56px); min-height: 52px; margin: 6px 0 0 56px; resize: vertical; box-sizing: border-box; }
+.feasibility-ai-adjust { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 18px; }
+.feasibility-ai-adjust textarea { min-height: 70px; resize: vertical; }
+.feasibility-content-actions > div:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.feasibility-content-workspace { display: grid; grid-template-columns: minmax(260px, 32%) minmax(0, 1fr); min-height: 560px; overflow: hidden; border: 1px solid var(--yb-border-soft); border-radius: 16px; background: var(--yb-surface, #fff); }
+.feasibility-content-tree { min-height: 0; max-height: 680px; overflow: auto; border-right: 1px solid var(--yb-border-soft); }
+.feasibility-content-tree button { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; width: 100%; gap: 9px; align-items: center; padding: 12px; border: 0; border-bottom: 1px solid var(--yb-border-soft); background: transparent; color: var(--yb-text); text-align: left; cursor: pointer; }
+.feasibility-content-tree button:hover, .feasibility-content-tree button.is-active { background: color-mix(in srgb, var(--yb-accent, #2563eb) 10%, transparent); }
+.feasibility-content-tree button > span { color: var(--yb-text-muted); font-size: 11px; }
+.feasibility-content-tree button div { min-width: 0; }
+.feasibility-content-tree button strong, .feasibility-content-tree button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feasibility-content-tree button small { margin-top: 4px; color: var(--yb-text-muted); font-size: 10px; }
+.feasibility-content-tree button i { border-radius: 999px; padding: 3px 7px; background: var(--yb-control-bg); color: var(--yb-text-muted); font-size: 10px; font-style: normal; }
+.feasibility-content-tree button i.is-success { color: #16845b; }
+.feasibility-content-tree button i.is-running { color: var(--yb-accent, #2563eb); }
+.feasibility-content-tree button i.is-error { color: #c2413b; }
+.feasibility-content-reader { min-width: 0; max-height: 680px; overflow: auto; padding: 20px; }
+.feasibility-content-reader > header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+.feasibility-content-reader > header p { margin: 5px 0 0; color: var(--yb-text-muted); font-size: 11px; }
+.feasibility-content-reader > header > div:last-child { display: flex; gap: 8px; }
+.feasibility-delivery-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px; border: 1px solid var(--yb-border-soft); border-radius: 16px; background: var(--yb-surface, #fff); }
+.feasibility-delivery-card p, .feasibility-export-card p { margin: 6px 0 0; color: var(--yb-text-muted); line-height: 1.6; }
+.feasibility-delivery-card > div:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.feasibility-export-card { padding: 16px 18px; border: 1px solid var(--yb-border-soft); border-radius: 14px; background: var(--yb-surface, #fff); }
+.feasibility-export-card > div { display: flex; justify-content: space-between; gap: 12px; }
+.feasibility-export-card progress { width: 100%; height: 8px; margin: 12px 0; accent-color: var(--yb-accent, #2563eb); }
+.feasibility-export-card small { display: block; margin-top: 7px; color: var(--yb-text-muted); }
+.feasibility-export-card.is-error { border-color: color-mix(in srgb, #c2413b 50%, var(--yb-border-soft)); }
+.detail-help-card.feasibility-full-preview { width: min(1040px, calc(100vw - 48px)); max-width: 1040px; height: min(86vh, 900px); display: flex; grid-template-rows: none; flex-direction: column; }
+.feasibility-full-preview-body { min-height: 0; overflow: auto; padding: 22px; border: 1px solid var(--yb-border-soft); border-radius: 12px; background: var(--yb-surface, #fff); }
+
+:root[data-ui-theme="dark"] .app-shell :where(.feasibility-action-card, .feasibility-config-card, .feasibility-result-card, .feasibility-task-card) { background: rgba(17, 27, 45, 0.92); border-color: var(--yb-control-border); }
+:root[data-ui-theme="dark"] .app-shell .feasibility-content-workspace { background: rgba(17, 27, 45, 0.92); border-color: var(--yb-control-border); }
+:root[data-ui-theme="dark"] .app-shell :where(.feasibility-delivery-card, .feasibility-export-card, .feasibility-full-preview-body) { background: rgba(17, 27, 45, 0.92); border-color: var(--yb-control-border); }
+:root[data-ui-theme="dark"] body .feasibility-full-preview-body.markdown-viewer :where(th, td) { border-color: var(--yb-border); }
+:root[data-ui-theme="dark"] body .feasibility-full-preview-body.markdown-viewer th { color: var(--yb-text); background: rgba(23, 34, 55, 0.82); }
+
+:root[data-ui-theme="dark"] .app-shell :where(
+  .feasibility-project-hero,
+  .feasibility-project-guide,
+  .feasibility-project-card,
+  .feasibility-project-empty,
+  .feasibility-stage-empty,
+  .feasibility-step-loading
+) {
+  background: rgba(17, 27, 45, 0.92);
+  border-color: var(--yb-control-border);
+  box-shadow: none;
+}
+
+:root[data-ui-theme="dark"] .app-shell :where(
+  .feasibility-source-empty,
+  .feasibility-source-list,
+  .feasibility-source-reader
+) {
+  background: rgba(17, 27, 45, 0.92);
+  border-color: var(--yb-control-border);
+}
+
+@media (max-width: 980px) {
+  .feasibility-project-guide {
+    grid-template-columns: 1fr;
+  }
+
+  .feasibility-source-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .feasibility-source-list {
+    max-height: 260px;
+    border-right: 0;
+    border-bottom: 1px solid var(--yb-border-soft);
+  }
+}
+
+@media (max-width: 720px) {
+  .feasibility-project-hero,
+  .feasibility-project-card,
+  .feasibility-project-context {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .feasibility-project-actions {
+    justify-content: flex-start;
+  }
+
+  .feasibility-project-guide-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .feasibility-step-command-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .feasibility-step-summary {
+    justify-items: start;
+  }
+
+  .feasibility-panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .feasibility-materials-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .feasibility-materials-grid label.is-wide {
+    grid-column: auto;
+  }
+
+  .feasibility-action-card, .feasibility-result-head { align-items: stretch; flex-direction: column; }
+  .feasibility-config-card { grid-template-columns: 1fr; }
+  .feasibility-config-card fieldset { grid-column: auto; }
+  .feasibility-outline-row { grid-template-columns: 38px 1fr; }
+  .feasibility-outline-row button { grid-column: auto; }
+  .feasibility-ai-adjust { grid-template-columns: 1fr; }
+  .feasibility-content-workspace { grid-template-columns: 1fr; }
+  .feasibility-content-tree { max-height: 260px; border-right: 0; border-bottom: 1px solid var(--yb-border-soft); }
+  .feasibility-content-reader > header { flex-direction: column; }
+  .feasibility-delivery-card { align-items: stretch; flex-direction: column; }
+  .feasibility-delivery-card > div:last-child { justify-content: flex-start; }
+  .detail-help-card.feasibility-full-preview { width: calc(100vw - 24px); }
+}
+
+/* 可研报告采用与技术方案一致的紧凑、任务型工作区。 */
+.feasibility-project-context { min-height: 0; padding: 10px 16px; border-radius: 12px; }
+.feasibility-project-context strong { margin-top: 2px; font-size: 15px; }
+.feasibility-step-page { gap: 8px; }
+.feasibility-step-command-bar { min-height: 0; padding: 9px 14px; border-radius: 13px; }
+.feasibility-step-command-bar strong { margin: 2px 0 1px; font-size: 18px; }
+.feasibility-step-command-bar p { max-width: 920px; font-size: 11px; line-height: 1.4; }
+.feasibility-step-summary { gap: 0; }
+.feasibility-step-summary > strong { font-size: 17px; }
+.feasibility-step-summary > span, .feasibility-step-summary > small { font-size: 10px; }
+.feasibility-step-content { overflow: auto; }
+.feasibility-step-content > .feasibility-stage-content { height: 100%; }
+
+.feasibility-materials-panel, .feasibility-sources-panel { gap: 14px; }
+.feasibility-panel-head { gap: 14px; padding-bottom: 10px; }
+.feasibility-panel-head h3 { font-size: 16px; }
+.feasibility-panel-head p { margin-top: 3px; font-size: 12px; line-height: 1.5; }
+.feasibility-materials-grid { gap: 12px 16px; }
+.feasibility-materials-grid label { gap: 5px; }
+.feasibility-materials-grid input, .feasibility-materials-grid select, .feasibility-materials-grid textarea { padding: 8px 10px; }
+.feasibility-materials-grid textarea { min-height: 96px; }
+
+.feasibility-analysis-layout, .feasibility-outline-layout, .feasibility-parameters-layout { grid-template-rows: auto minmax(0, 1fr); gap: 10px; overflow: hidden; }
+.feasibility-content-layout { grid-template-rows: auto auto minmax(0, 1fr); gap: 6px; overflow: hidden; }
+.feasibility-step-action-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; padding: 10px 14px; background: var(--yb-card-bg); border: 1px solid var(--yb-border-soft); border-radius: 14px; }
+.feasibility-step-action-row > div:first-child { min-width: 0; }
+.feasibility-step-action-row > div:last-child { display: flex; align-items: center; gap: 8px; }
+.feasibility-step-action-row strong { color: var(--yb-text); font-size: 16px; }
+.feasibility-step-action-row p { margin: 3px 0 0; color: var(--yb-text-soft); font-size: 12px; line-height: 1.45; }
+.feasibility-icon-action { display: inline-grid; width: 38px; height: 38px; place-items: center; color: var(--yb-primary); font-size: 20px; background: rgba(33, 116, 253, 0.06); border: 1px solid rgba(33, 116, 253, 0.2); border-radius: 10px; }
+
+.feasibility-three-pane-workspace { display: grid; grid-template-columns: minmax(230px, 0.72fr) minmax(360px, 1.2fr) minmax(320px, 1fr); min-height: 0; overflow: hidden; background: var(--yb-card-bg); border: 1px solid var(--yb-border-soft); border-radius: 16px; }
+.feasibility-task-card { display: grid; grid-template-rows: auto auto auto auto minmax(0, 1fr); align-content: start; min-width: 0; min-height: 0; overflow: hidden; padding: 0; background: rgba(var(--yb-surface-rgb), 0.5); border: 0; border-right: 1px solid var(--yb-border-soft); border-radius: 0; }
+.feasibility-task-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 16px; border-bottom: 1px solid var(--yb-border-soft); }
+.feasibility-task-card > header strong { color: var(--yb-text); font-size: 15px; }
+.feasibility-task-card > header span { color: var(--yb-text-muted); font-size: 11px; }
+.feasibility-task-progress-head { padding: 14px 16px 6px; }
+.feasibility-task-progress-head span { color: var(--yb-text-soft); font-size: 12px; font-weight: 700; }
+.feasibility-task-progress-head strong { color: var(--yb-primary); font-size: 15px; }
+.feasibility-task-card progress, .feasibility-export-card progress { width: auto; height: 12px; margin: 0 16px 10px; overflow: hidden; accent-color: var(--yb-primary); border: 0; border-radius: 999px; }
+.feasibility-task-card progress::-webkit-progress-bar, .feasibility-export-card progress::-webkit-progress-bar { background: rgba(33, 116, 253, 0.1); border-radius: 999px; }
+.feasibility-task-card progress::-webkit-progress-value, .feasibility-export-card progress::-webkit-progress-value { background: linear-gradient(90deg, #2174fd, #6357d9); border-radius: 999px; }
+.feasibility-task-message { min-height: 34px; margin: 0; padding: 0 16px 12px; color: var(--yb-text-soft); font-size: 11px; line-height: 1.55; }
+.feasibility-task-card ol { min-height: 0; overflow: auto; margin: 0; padding: 12px 12px 90px; border-top: 1px solid var(--yb-border-soft); list-style: none; }
+.feasibility-task-card ol li { margin-bottom: 8px; padding: 10px 11px; color: var(--yb-text-muted); font-size: 11px; line-height: 1.5; background: var(--yb-control-bg); border: 1px solid var(--yb-border-soft); border-radius: 10px; }
+.feasibility-task-card ol li.is-current { color: var(--yb-text); border-color: rgba(33, 116, 253, 0.28); }
+
+.feasibility-document-editor-pane, .feasibility-document-preview-pane, .feasibility-outline-structure-pane, .feasibility-outline-detail-pane { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
+.feasibility-document-editor-pane, .feasibility-outline-structure-pane { border-right: 1px solid var(--yb-border-soft); }
+.feasibility-document-editor-pane > header, .feasibility-document-preview-pane > header, .feasibility-outline-structure-pane > header, .feasibility-outline-detail-pane > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 12px 16px; border-bottom: 1px solid var(--yb-border-soft); }
+.feasibility-document-editor-pane > header > div:last-child { display: flex; gap: 7px; }
+.feasibility-inline-actions { flex: 0 0 auto; align-items: center; flex-wrap: nowrap; }
+.feasibility-inline-actions :is(.primary-action, .secondary-action) { min-width: 0; padding: 8px 12px; white-space: nowrap; }
+.feasibility-document-editor-pane > header strong, .feasibility-document-preview-pane > header strong, .feasibility-outline-structure-pane > header strong, .feasibility-outline-detail-pane > header strong { display: block; color: var(--yb-text); font-size: 16px; }
+.feasibility-document-editor-pane > header p, .feasibility-outline-structure-pane > header span, .feasibility-outline-detail-pane > header span { margin: 2px 0 0; color: var(--yb-text-muted); font-size: 10px; }
+.feasibility-editor-body, .feasibility-document-preview-pane > div, .feasibility-outline-navigation-scroll, .feasibility-outline-detail-body, .feasibility-content-reader-body { min-height: 0; overflow: auto; }
+.feasibility-editor-body > pre { min-height: 100%; box-sizing: border-box; margin: 0; padding: 18px; color: var(--yb-text); font: 13px/1.75 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; background: transparent; }
+.feasibility-document-preview-pane > div { padding: 18px; }
+.feasibility-workbench .markdown-editor { height: 100%; border: 0; border-radius: 0; }
+.feasibility-workbench .markdown-editor-textarea { min-height: 100%; padding-bottom: 16px; scroll-padding-bottom: 16px; }
+.feasibility-pane-empty { display: grid; place-content: center; height: 100%; min-height: 220px; padding: 24px; color: var(--yb-text-soft); text-align: center; }
+.feasibility-pane-empty strong { color: var(--yb-text); font-size: 17px; }
+.feasibility-pane-empty p { max-width: 420px; margin: 8px 0 0; line-height: 1.65; }
+
+.feasibility-outline-workspace { grid-template-columns: minmax(230px, 0.72fr) minmax(380px, 1.25fr) minmax(300px, 0.85fr); }
+.feasibility-outline-navigation-scroll { padding: 10px; }
+.feasibility-outline-structure-pane > .outline-tree-list { min-height: 0; padding-bottom: 90px; }
+.feasibility-outline-structure-pane .outline-tree-head { min-height: 68px; }
+.feasibility-outline-structure-pane .outline-tree-tools { display: flex; flex-wrap: nowrap; }
+.feasibility-outline-navigation button { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 7px; width: calc(100% - (var(--outline-level) - 1) * 18px); margin: 3px 0 3px calc((var(--outline-level) - 1) * 18px); padding: 9px 10px; color: var(--yb-text); text-align: left; background: transparent; border: 1px solid transparent; border-radius: 10px; }
+.feasibility-outline-navigation button:hover, .feasibility-outline-navigation button.is-active { background: rgba(33, 116, 253, 0.07); border-color: rgba(33, 116, 253, 0.22); }
+.feasibility-outline-navigation button > span { color: var(--yb-primary); text-align: center; }
+.feasibility-outline-navigation button strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.feasibility-outline-detail-body { display: grid; align-content: start; gap: 13px; padding: 16px; }
+.feasibility-outline-detail-body label, .feasibility-outline-settings-body > label { display: grid; gap: 6px; color: var(--yb-text-soft); font-size: 11px; font-weight: 700; }
+.feasibility-outline-detail-body input, .feasibility-outline-detail-body textarea, .feasibility-outline-settings-body input, .feasibility-outline-settings-body select { width: 100%; box-sizing: border-box; padding: 9px 10px; color: var(--yb-text); font: inherit; background: var(--yb-control-bg); border: 1px solid var(--yb-control-border); border-radius: 9px; }
+.feasibility-outline-detail-body textarea { min-height: 88px; resize: vertical; }
+.feasibility-outline-detail-body > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.feasibility-outline-settings { width: min(760px, calc(100vw - 32px)); max-width: 760px; }
+.feasibility-outline-settings-body { display: grid; grid-template-columns: 1fr 180px; gap: 16px; min-height: 0; overflow: auto; }
+.feasibility-outline-knowledge-picker { grid-column: 1 / -1; }
+.feasibility-outline-knowledge-picker .outline-knowledge-grid { grid-template-columns: minmax(0, 1fr) minmax(190px, 230px); }
+.feasibility-outline-knowledge-picker :is(.outline-knowledge-folder-list.compact, .outline-knowledge-selected-list) { max-height: 230px; }
+.feasibility-outline-settings footer { display: flex; justify-content: flex-end; }
+.feasibility-outline-settings > h2 { margin: 0; color: var(--yb-text); font-size: 20px; }
+.feasibility-outline-settings > p { margin: -8px 0 0; color: var(--yb-text-soft); }
+.feasibility-ai-adjust-block { display: grid !important; gap: 8px !important; padding-top: 14px; border-top: 1px solid var(--yb-border-soft); }
+.feasibility-ai-adjust-block small { color: var(--yb-text-muted); font-size: 11px; line-height: 1.5; }
+.feasibility-ai-adjust-block button { justify-self: stretch; }
+
+.feasibility-content-command-row { gap: 10px; padding: 9px 12px; border-radius: 12px; box-shadow: none; }
+.feasibility-content-command-row > div:first-child { min-width: 0; }
+.feasibility-content-command-row > div:last-child { flex-wrap: nowrap; justify-content: flex-end; }
+.feasibility-content-command-row strong { margin: 0 0 2px; font-size: 17px; }
+.feasibility-content-command-row p { overflow: hidden; font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.feasibility-content-command-row .content-generation-stats { flex-wrap: nowrap; gap: 5px; }
+.feasibility-content-command-row .content-generation-stats span { gap: 3px; padding: 5px 8px; font-size: 10px; }
+.feasibility-content-command-row .content-generation-stats strong { margin: 0; font-size: 13px; }
+.feasibility-content-command-row .content-generation-actions { gap: 6px; }
+.feasibility-content-command-row .content-generation-actions button { padding: 8px 13px; white-space: nowrap; }
+.feasibility-content-stat-actions > span { padding: 7px 10px; color: var(--yb-text-soft); font-size: 11px; background: rgba(33, 116, 253, 0.05); border: 1px solid rgba(33, 116, 253, 0.15); border-radius: 999px; }
+.feasibility-content-stat-actions > span strong { margin-right: 3px; color: var(--yb-primary); font-size: 14px; }
+.feasibility-content-secondary-actions { display: flex; justify-content: flex-end; gap: 7px; min-height: 0; overflow-x: auto; }
+.feasibility-content-secondary-actions button { white-space: nowrap; }
+.feasibility-content-workspace { grid-template-columns: 360px minmax(0, 1fr); min-height: 0; height: 100%; border-radius: 16px; }
+.feasibility-content-sidebar { display: grid; grid-template-rows: minmax(205px, 0.58fr) minmax(260px, 1fr); min-width: 0; min-height: 0; overflow: hidden; border-right: 1px solid var(--yb-border-soft); }
+.feasibility-content-sidebar .feasibility-task-card { border-right: 0; border-bottom: 1px solid var(--yb-border-soft); }
+.feasibility-content-sidebar .feasibility-task-card ol { padding-bottom: 12px; }
+.feasibility-content-tree { min-height: 0; max-height: none; overflow: auto; border-right: 0; }
+.feasibility-content-tree > header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--yb-border-soft); }
+.feasibility-content-tree > header strong { color: var(--yb-text); font-size: 14px; }
+.feasibility-content-tree > header span { color: var(--yb-text-muted); font-size: 10px; }
+.feasibility-content-navigation { padding: 5px 6px; }
+.feasibility-content-navigation .feasibility-content-navigation { padding: 0 0 0 12px; }
+.feasibility-content-tree .feasibility-content-group, .feasibility-content-tree .feasibility-content-navigation button { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; box-sizing: border-box; padding: 8px; color: var(--yb-text); text-align: left; border: 1px solid transparent; border-radius: 9px; }
+.feasibility-content-tree .feasibility-content-navigation button { border-bottom: 1px solid transparent; background: transparent; }
+.feasibility-content-tree .feasibility-content-navigation button:hover, .feasibility-content-tree .feasibility-content-navigation button.is-active { background: rgba(33, 116, 253, 0.07); border-color: rgba(33, 116, 253, 0.2); }
+.feasibility-content-tree .feasibility-content-navigation strong, .feasibility-content-tree .feasibility-content-navigation small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feasibility-content-tree .feasibility-content-navigation strong { font-size: 11px; }
+.feasibility-content-tree .feasibility-content-navigation small { margin-top: 2px; color: var(--yb-text-muted); font-size: 9px; }
+.feasibility-content-tree .feasibility-content-navigation i { padding: 3px 6px; color: var(--yb-text-muted); font-size: 9px; font-style: normal; background: var(--yb-control-bg); border-radius: 999px; }
+.feasibility-content-status-dot { width: 8px; height: 8px; margin: auto; background: #aab6c8; border: 4px solid rgba(170, 182, 200, 0.16); border-radius: 50%; }
+.feasibility-content-status-dot.is-running { background: var(--yb-primary); border-color: rgba(33, 116, 253, 0.14); }
+.feasibility-content-status-dot.is-success { background: #16915f; border-color: rgba(22, 145, 95, 0.14); }
+.feasibility-content-status-dot.is-error { background: #c2413b; border-color: rgba(194, 65, 59, 0.14); }
+.feasibility-content-reader { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; max-height: none; padding: 0; }
+.feasibility-content-reader > header { margin: 0; padding: 14px 18px; border-bottom: 1px solid var(--yb-border-soft); }
+.feasibility-content-reader-body { padding: 18px 22px 90px; }
+.feasibility-content-layout { position: relative; }
+.feasibility-content-layout > .content-generation-workspace { min-height: 0; }
+.feasibility-content-layout .content-reader-panel { position: relative; grid-template-rows: auto minmax(0, 1fr); }
+.feasibility-content-layout .content-reader-head { gap: 12px; padding: 11px 16px; }
+.feasibility-content-layout .content-reader-head strong { margin: 3px 0; font-size: 18px; }
+.feasibility-content-layout .content-reader-head p { font-size: 11px; line-height: 1.4; }
+.feasibility-content-layout .content-reader-actions { gap: 6px; }
+.feasibility-content-layout .content-reader-actions button { padding: 8px 12px; white-space: nowrap; }
+.feasibility-content-layout .content-reader-panel > .markdown-viewer,
+.feasibility-content-layout .content-reader-panel > .markdown-editor { min-height: 0; }
+.feasibility-content-utility-actions { display: flex; z-index: 2; justify-content: flex-end; flex-wrap: nowrap; gap: 6px; min-width: 0; overflow-x: auto; padding: 6px 10px; background: var(--yb-card-bg); border: 1px solid var(--yb-border-soft); border-radius: 11px; scrollbar-width: thin; }
+.feasibility-content-utility-actions button { flex: 0 0 auto; min-width: 0; padding: 7px 10px; white-space: nowrap; }
+.feasibility-content-layout > .feasibility-export-card { position: absolute; right: 18px; bottom: 18px; z-index: 20; width: min(520px, calc(100% - 36px)); box-shadow: var(--yb-shadow); }
+
+:root[data-ui-theme="dark"] .app-shell :where(.feasibility-step-action-row, .feasibility-three-pane-workspace) { background: rgba(15, 22, 36, 0.92); border-color: var(--yb-control-border); }
+:root[data-ui-theme="dark"] .app-shell .feasibility-task-card { background: rgba(17, 27, 45, 0.72); }
+
+@media (max-width: 1180px) {
+  .feasibility-three-pane-workspace, .feasibility-outline-workspace { grid-template-columns: 220px minmax(320px, 1fr) minmax(280px, 0.85fr); }
+  .feasibility-content-workspace { grid-template-columns: 300px minmax(0, 1fr); }
+  .feasibility-content-stat-actions > span { display: none; }
+}
+
+@media (max-width: 1080px) {
+  .feasibility-materials-grid .field-project-type,
+  .feasibility-materials-grid .field-industry,
+  .feasibility-materials-grid .field-projectName,
+  .feasibility-materials-grid .field-constructionUnit {
+    grid-column: span 6;
+  }
+
+  .feasibility-materials-grid .field-constructionPeriodYears,
+  .feasibility-materials-grid .field-operationPeriodYears,
+  .feasibility-materials-grid .field-totalInvestment,
+  .feasibility-materials-grid .field-fundingSource {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 900px) {
+  .feasibility-analysis-layout, .feasibility-outline-layout, .feasibility-parameters-layout, .feasibility-content-layout { overflow: auto; }
+  .feasibility-three-pane-workspace, .feasibility-outline-workspace { grid-template-columns: 1fr; overflow: visible; }
+  .feasibility-task-card { min-height: 280px; border-right: 0; border-bottom: 1px solid var(--yb-border-soft); }
+  .feasibility-document-editor-pane, .feasibility-outline-structure-pane { min-height: 480px; border-right: 0; border-bottom: 1px solid var(--yb-border-soft); }
+  .feasibility-document-preview-pane, .feasibility-outline-detail-pane { min-height: 480px; }
+  .feasibility-content-workspace { grid-template-columns: 1fr; height: auto; }
+  .feasibility-content-sidebar { min-height: 680px; border-right: 0; border-bottom: 1px solid var(--yb-border-soft); }
+  .feasibility-materials-grid > label { grid-column: 1 / -1 !important; }
+}

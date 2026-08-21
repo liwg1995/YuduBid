@@ -46,8 +46,8 @@ const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
 ];
 
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
-const agnesAiCnRegisterUrl = 'https://agnes-ai.cn';
-const agnesAiGlobalRegisterUrl = 'https://agnes-ai.com';
+const agnesAiCnRegisterUrl = 'https://platform.agnes-ai.cn';
+const agnesAiGlobalRegisterUrl = 'https://platform.agnes-ai.com';
 const agnesAiCnBaseUrl = 'https://apihub.agnes-ai.cn/v1';
 const agnesAiGlobalBaseUrl = 'https://apihub.agnes-ai.com/v1';
 const agnesAiNotice = `🔔 Agnes AI 国内站与国际站使用公告

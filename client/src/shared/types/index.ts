@@ -60,6 +60,19 @@ export type {
 } from './config';
 export type { AppMenuGroup, AppMenuItem, SectionId } from './navigation';
 export type { OutlineData, OutlineItem, OutlineMode, TechnicalRequirementGroup } from './outline';
+export type {
+  FeasibilityBackgroundTaskState,
+  FeasibilityContentSectionState,
+  FeasibilityOutlineTemplate,
+  FeasibilityProjectInfo,
+  FeasibilityProjectList,
+  FeasibilityProjectPayload,
+  FeasibilityProjectRecord,
+  FeasibilityProjectType,
+  FeasibilityReportState,
+  FeasibilityReportStep,
+  FeasibilitySourceFile,
+} from './contracts/feasibilityReport';
 export type { LatestReleaseInfo, ReleaseInstallerDownloadRequest, ReleaseInstallerDownloadResult, UpdateCheckResult, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange, WordExportProgressEvent, WordExportResult, YuDuBidBridge } from './ipc';
 export type {
   SoftwareCopyrightAnalysis,

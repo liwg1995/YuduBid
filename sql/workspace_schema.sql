@@ -4,7 +4,7 @@
 -- 1. 本文件用于开源开发者阅读、评审和排查问题，展示 workspace/yibiao.sqlite 的目标完整表结构。
 -- 2. 用户运行客户端时不需要手动执行本文件。
 -- 3. 客户端运行时建表和升级以 Electron Main 侧 migration 代码为准。
--- 4. 当前运行代码已落地 technical_plan_* v1、duplicate_check_* / rejection_check_* v2、knowledge_* v3、technical_plan_global_fact_groups v4、已有方案扩写元数据 v5 和原方案源文件模板元数据 v6 目标结构。
+-- 4. 当前运行代码已升级到 v17；可研报告项目使用独立 SQLite 工作区，并复用本目标结构中的 feasibility_report_* 表。
 -- 5. 每次表结构调整后，需要同步更新本文件和 runtime migration 版本。
 -- 6. 本文件不保存历史版本，每次更新都写入最新目标完整结构。
 
@@ -14,7 +14,7 @@ PRAGMA busy_timeout = 5000;
 
 -- 目标完整结构版本。
 -- 运行时代码应通过 PRAGMA user_version 判断是否需要自动升级。
-PRAGMA user_version = 6;
+PRAGMA user_version = 17;
 
 -- ============================================================================
 -- 技术方案 technical_plan_*（v1 已落地）
@@ -835,3 +835,96 @@ CREATE TABLE IF NOT EXISTS opportunity_scan_runs (
   updated_at TEXT NOT NULL,
   FOREIGN KEY (source_id) REFERENCES opportunity_sources(source_id) ON DELETE CASCADE
 );
+
+-- ============================================================================
+-- 可研报告 feasibility_report_*（v17 已落地）
+-- ============================================================================
+
+-- 每个可研项目使用独立数据库，本表在项目数据库中只保留一行 id = 1。
+CREATE TABLE IF NOT EXISTS feasibility_report_meta (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  step TEXT NOT NULL DEFAULT 'materials',
+  project_info_json TEXT,
+  analysis_markdown_path TEXT,
+  analysis_markdown_hash TEXT,
+  analysis_markdown_chars INTEGER NOT NULL DEFAULT 0,
+  outline_template TEXT NOT NULL DEFAULT 'government',
+  target_words INTEGER NOT NULL DEFAULT 30000,
+  key_parameters_markdown_path TEXT,
+  key_parameters_markdown_hash TEXT,
+  key_parameters_markdown_chars INTEGER NOT NULL DEFAULT 0,
+  outline_project_name TEXT,
+  outline_project_overview TEXT,
+  content_generation_options_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS feasibility_report_sources (
+  source_id TEXT PRIMARY KEY,
+  file_name TEXT NOT NULL,
+  markdown_path TEXT NOT NULL,
+  markdown_chars INTEGER NOT NULL DEFAULT 0,
+  content_hash TEXT NOT NULL,
+  parser_label TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  imported_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_feasibility_report_sources_order
+ON feasibility_report_sources(sort_order);
+
+CREATE TABLE IF NOT EXISTS feasibility_report_reference_docs (
+  document_id TEXT PRIMARY KEY,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_feasibility_report_reference_docs_order
+ON feasibility_report_reference_docs(sort_order);
+
+CREATE TABLE IF NOT EXISTS feasibility_report_tasks (
+  type TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  progress INTEGER NOT NULL DEFAULT 0,
+  logs_json TEXT,
+  stats_json TEXT,
+  error TEXT,
+  pause_requested INTEGER NOT NULL DEFAULT 0,
+  started_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- 正文以 outline_nodes.content 为权威来源。
+CREATE TABLE IF NOT EXISTS feasibility_report_outline_nodes (
+  node_id TEXT PRIMARY KEY,
+  parent_node_id TEXT,
+  sort_order INTEGER NOT NULL,
+  level INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  knowledge_item_ids_json TEXT,
+  content TEXT NOT NULL DEFAULT '',
+  content_source TEXT NOT NULL DEFAULT 'none',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (parent_node_id) REFERENCES feasibility_report_outline_nodes(node_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_feasibility_report_outline_parent_order
+ON feasibility_report_outline_nodes(parent_node_id, sort_order);
+
+CREATE INDEX IF NOT EXISTS idx_feasibility_report_outline_level
+ON feasibility_report_outline_nodes(level);
+
+CREATE TABLE IF NOT EXISTS feasibility_report_content_sections (
+  node_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'idle',
+  error TEXT,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (node_id) REFERENCES feasibility_report_outline_nodes(node_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_feasibility_report_content_sections_status
+ON feasibility_report_content_sections(status);

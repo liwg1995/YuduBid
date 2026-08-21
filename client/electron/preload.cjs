@@ -284,6 +284,40 @@ const bridge = {
     saveChapterContent: (payload) => ipcRenderer.invoke('technical-plan:save-chapter-content', payload),
     clear: (workflowKind) => ipcRenderer.invoke('technical-plan:clear', workflowKind),
   },
+  feasibilityReport: {
+    listProjects: () => ipcRenderer.invoke('feasibility-report:list-projects'),
+    createProject: (payload) => ipcRenderer.invoke('feasibility-report:create-project', payload),
+    renameProject: (payload) => ipcRenderer.invoke('feasibility-report:rename-project', payload),
+    deleteProject: (payload) => ipcRenderer.invoke('feasibility-report:delete-project', payload),
+    switchProject: (payload) => ipcRenderer.invoke('feasibility-report:switch-project', payload),
+    loadState: (payload) => ipcRenderer.invoke('feasibility-report:load-state', payload),
+    updateStep: (payload) => ipcRenderer.invoke('feasibility-report:update-step', payload),
+    saveProjectInfo: (payload) => ipcRenderer.invoke('feasibility-report:save-project-info', payload),
+    importSources: (payload) => ipcRenderer.invoke('feasibility-report:import-sources', payload),
+    readSourceMarkdown: (payload) => ipcRenderer.invoke('feasibility-report:read-source-markdown', payload),
+    removeSource: (payload) => ipcRenderer.invoke('feasibility-report:remove-source', payload),
+    saveAnalysis: (payload) => ipcRenderer.invoke('feasibility-report:save-analysis', payload),
+    saveOutlineConfig: (payload) => ipcRenderer.invoke('feasibility-report:save-outline-config', payload),
+    saveOutline: (payload) => ipcRenderer.invoke('feasibility-report:save-outline', payload),
+    saveKeyParameters: (payload) => ipcRenderer.invoke('feasibility-report:save-key-parameters', payload),
+    saveChapterContent: (payload) => ipcRenderer.invoke('feasibility-report:save-chapter-content', payload),
+    saveContentGenerationOptions: (payload) => ipcRenderer.invoke('feasibility-report:save-content-generation-options', payload),
+    startAnalysis: (payload) => ipcRenderer.invoke('feasibility-report:start-analysis', payload),
+    startOutline: (payload) => ipcRenderer.invoke('feasibility-report:start-outline', payload),
+    startOutlineAdjustment: (payload) => ipcRenderer.invoke('feasibility-report:start-outline-adjustment', payload),
+    startParameters: (payload) => ipcRenderer.invoke('feasibility-report:start-parameters', payload),
+    startContent: (payload) => ipcRenderer.invoke('feasibility-report:start-content', payload),
+    pauseContent: (payload) => ipcRenderer.invoke('feasibility-report:pause-content', payload),
+    startHumanWriting: (payload) => ipcRenderer.invoke('feasibility-report:start-human-writing', payload),
+    getActiveTasks: (payload) => ipcRenderer.invoke('feasibility-report:get-active-tasks', payload),
+    onTaskEvent: (callback) => {
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.send('feasibility-report:subscribe-tasks');
+      ipcRenderer.on('feasibility-report:task-event', listener);
+      return () => ipcRenderer.removeListener('feasibility-report:task-event', listener);
+    },
+    clear: (payload) => ipcRenderer.invoke('feasibility-report:clear', payload),
+  },
   duplicateCheck: {
     loadState: () => ipcRenderer.invoke('duplicate-check:load-state'),
     saveFiles: (payload) => ipcRenderer.invoke('duplicate-check:save-files', payload),

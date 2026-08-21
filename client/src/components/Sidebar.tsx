@@ -18,6 +18,7 @@ const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>>
   'presales-workbench': BriefcaseIcon,
   'technical-plan': TechnicalPlanIcon,
   'existing-plan-expansion': PlanExpansionIcon,
+  'feasibility-report': DraftingIcon,
   'business-bid': BriefcaseIcon,
   'project-management': ProjectManagementIcon,
   'project-types': TemplateIcon,

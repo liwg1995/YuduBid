@@ -10,6 +10,7 @@ const BusinessBidPage = lazy(() => import('../features/business-bid/pages/Busine
 const CodeGenerationPage = lazy(() => import('../features/code-generation/pages/CodeGenerationPage'));
 const DeveloperTestPage = lazy(() => import('../features/developer/pages/DeveloperTestPage'));
 const DuplicateCheckPage = lazy(() => import('../features/duplicate-check/pages/DuplicateCheckPage'));
+const FeasibilityReportHome = lazy(() => import('../features/feasibility-report/pages/FeasibilityReportHome'));
 const GrantApplicationPage = lazy(() => import('../features/grant-application/pages/GrantApplicationPage'));
 const GrantApplicationProjectsPage = lazy(() => import('../features/grant-application/pages/GrantApplicationProjectsPage'));
 const KnowledgeBasePage = lazy(() => import('../features/knowledge-base/pages/KnowledgeBasePage'));
@@ -49,6 +50,8 @@ function AppRouteContent({ activeSection, featureModuleSettings, onSectionChange
       return <TechnicalPlanHome workflowKind="technical-plan" onSectionChange={onSectionChange} />;
     case 'existing-plan-expansion':
       return <TechnicalPlanHome workflowKind="existing-plan-expansion" onSectionChange={onSectionChange} />;
+    case 'feasibility-report':
+      return <FeasibilityReportHome />;
     case 'business-bid':
       return <BusinessBidPage />;
     case 'project-management':

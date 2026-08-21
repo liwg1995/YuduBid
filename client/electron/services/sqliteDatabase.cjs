@@ -3,7 +3,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const { getWorkspaceDatabasePath } = require('../utils/paths.cjs');
 
-const schemaVersion = 15;
+const schemaVersion = 17;
 
 function createInitialSchema(db) {
   db.exec(`
@@ -894,6 +894,97 @@ function createOpportunityExpandedSourcesSchema(db) {
   statement.run('ccgp-central-deal', '中国政府采购网·中央成交公告', 'ccgp-central-deal', 'https://www.ccgp.gov.cn/cggg/zygg/cjgg/index.htm', timestamp, timestamp);
 }
 
+function createFeasibilityReportSchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS feasibility_report_meta (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      step TEXT NOT NULL DEFAULT 'materials',
+      project_info_json TEXT,
+      analysis_markdown_path TEXT,
+      analysis_markdown_hash TEXT,
+      analysis_markdown_chars INTEGER NOT NULL DEFAULT 0,
+      outline_template TEXT NOT NULL DEFAULT 'government',
+      target_words INTEGER NOT NULL DEFAULT 30000,
+      key_parameters_markdown_path TEXT,
+      key_parameters_markdown_hash TEXT,
+      key_parameters_markdown_chars INTEGER NOT NULL DEFAULT 0,
+      outline_project_name TEXT,
+      outline_project_overview TEXT,
+      content_generation_options_json TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS feasibility_report_sources (
+      source_id TEXT PRIMARY KEY,
+      file_name TEXT NOT NULL,
+      markdown_path TEXT NOT NULL,
+      markdown_chars INTEGER NOT NULL DEFAULT 0,
+      content_hash TEXT NOT NULL,
+      parser_label TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      imported_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_feasibility_report_sources_order
+    ON feasibility_report_sources(sort_order);
+
+    CREATE TABLE IF NOT EXISTS feasibility_report_reference_docs (
+      document_id TEXT PRIMARY KEY,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_feasibility_report_reference_docs_order
+    ON feasibility_report_reference_docs(sort_order);
+
+    CREATE TABLE IF NOT EXISTS feasibility_report_tasks (
+      type TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      progress INTEGER NOT NULL DEFAULT 0,
+      logs_json TEXT,
+      stats_json TEXT,
+      error TEXT,
+      pause_requested INTEGER NOT NULL DEFAULT 0,
+      started_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS feasibility_report_outline_nodes (
+      node_id TEXT PRIMARY KEY,
+      parent_node_id TEXT,
+      sort_order INTEGER NOT NULL,
+      level INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      knowledge_item_ids_json TEXT,
+      content TEXT NOT NULL DEFAULT '',
+      content_source TEXT NOT NULL DEFAULT 'none',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (parent_node_id) REFERENCES feasibility_report_outline_nodes(node_id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_feasibility_report_outline_parent_order
+    ON feasibility_report_outline_nodes(parent_node_id, sort_order);
+
+    CREATE INDEX IF NOT EXISTS idx_feasibility_report_outline_level
+    ON feasibility_report_outline_nodes(level);
+
+    CREATE TABLE IF NOT EXISTS feasibility_report_content_sections (
+      node_id TEXT PRIMARY KEY,
+      status TEXT NOT NULL DEFAULT 'idle',
+      error TEXT,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (node_id) REFERENCES feasibility_report_outline_nodes(node_id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_feasibility_report_content_sections_status
+    ON feasibility_report_content_sections(status);
+  `);
+}
+
 const migrations = [
   {
     version: 1,
@@ -969,6 +1060,18 @@ const migrations = [
     version: 15,
     description: '新增地方采购生命周期公告和中央成交公告来源',
     up: createOpportunityExpandedSourcesSchema,
+  },
+  {
+    version: 16,
+    description: '新增可研报告工作区表结构',
+    up: createFeasibilityReportSchema,
+  },
+  {
+    version: 17,
+    description: '新增可研报告正文配图生成配置',
+    up(db) {
+      addColumnIfMissing(db, 'feasibility_report_meta', 'content_generation_options_json', 'TEXT');
+    },
   },
 ];
 

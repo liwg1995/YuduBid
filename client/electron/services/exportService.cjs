@@ -2629,7 +2629,50 @@ async function parseMarkdown(content) {
     import('remark-parse'),
     import('remark-gfm'),
   ]);
-  return unified().use(remarkParse.default).use(remarkGfm.default).parse(normalizeMarkdownTablesForDocx(content));
+  const tree = unified().use(remarkParse.default).use(remarkGfm.default).parse(normalizeMarkdownTablesForDocx(content));
+  tree.children = repairMalformedStrongNodes(tree.children || []);
+  return tree;
+}
+
+function splitMalformedStrongTextNode(node) {
+  const source = String(node?.value || '');
+  // AI 正文偶尔会输出 `**内容。 **`。结束标记前的空白会让 CommonMark
+  // 将整段视为普通文本，因此在 AST 的 text 节点中兼容修复；code/inlineCode
+  // 节点不会进入这里，避免修改用户需要原样保留的代码内容。
+  const malformedStrongPattern = /\*\*((?:(?!\*\*)[^\r\n])*?\S)([ \t\u3000]+)\*\*/g;
+  const nodes = [];
+  let cursor = 0;
+  let match;
+
+  while ((match = malformedStrongPattern.exec(source)) !== null) {
+    if (match.index > cursor) {
+      nodes.push({ type: 'text', value: source.slice(cursor, match.index) });
+    }
+    nodes.push({
+      type: 'strong',
+      children: [{ type: 'text', value: match[1] }],
+    });
+    nodes.push({ type: 'text', value: match[2] });
+    cursor = match.index + match[0].length;
+  }
+
+  if (!nodes.length) return [node];
+  if (cursor < source.length) {
+    nodes.push({ type: 'text', value: source.slice(cursor) });
+  }
+  return nodes;
+}
+
+function repairMalformedStrongNodes(nodes = []) {
+  return nodes.flatMap((node) => {
+    if (node.type === 'text') {
+      return splitMalformedStrongTextNode(node);
+    }
+    if (Array.isArray(node.children)) {
+      return [{ ...node, children: repairMalformedStrongNodes(node.children) }];
+    }
+    return [node];
+  });
 }
 
 async function markdownToDocxBlocks(content, context = {}) {
@@ -2743,6 +2786,7 @@ async function buildDocxResult(payload, options = {}) {
   const officialDocumentEnabled = payload.document_profile === 'official-document' || payload.documentProfile === 'official-document';
   const projectManagementDocumentEnabled = payload.document_profile === 'project-management' || payload.documentProfile === 'project-management';
   const presalesProposalDocumentEnabled = payload.document_profile === 'presales-proposal' || payload.documentProfile === 'presales-proposal';
+  const feasibilityReportEnabled = payload.document_profile === 'feasibility-report' || payload.documentProfile === 'feasibility-report';
   const structuredDocumentEnabled = projectManagementDocumentEnabled || presalesProposalDocumentEnabled;
   const formalDocumentEnabled = officialDocumentEnabled || structuredDocumentEnabled;
   const wordOptimizationEnabled = !formalDocumentEnabled && isWordOptimizationEnabled(options.config);
@@ -2754,6 +2798,7 @@ async function buildDocxResult(payload, options = {}) {
     officialDocumentEnabled,
     projectManagementDocumentEnabled,
     presalesProposalDocumentEnabled,
+    feasibilityReportEnabled,
     wordOptimizationEnabled,
     convertedLeafCount: 0,
     convertedMermaidCount: 0,
@@ -2773,6 +2818,14 @@ async function buildDocxResult(payload, options = {}) {
   const tocChildren = structuredDocumentEnabled ? createProjectManagementTocPage() : [];
   const children = structuredDocumentEnabled
     ? []
+    : feasibilityReportEnabled
+    ? [
+        paragraph([textRun(payload.project_name || '建设项目', { bold: true, size: 34, font: '黑体', color: '000000' })], { alignment: AlignmentType.CENTER, before: 1600, after: 420, indent: { left: 0, right: 0 } }),
+        paragraph([textRun(payload.document_title || '可行性研究报告', { bold: true, size: 44, font: '黑体', color: '000000' })], { alignment: AlignmentType.CENTER, after: 1600, indent: { left: 0, right: 0 } }),
+        paragraph([textRun(payload.construction_unit || '', { size: 24, font: '宋体', color: '000000' })], { alignment: AlignmentType.CENTER, after: 180, indent: { left: 0, right: 0 } }),
+        paragraph([textRun(payload.report_date || new Date().toLocaleDateString('zh-CN'), { size: 22, font: '宋体', color: '000000' })], { alignment: AlignmentType.CENTER, after: 300, indent: { left: 0, right: 0 } }),
+        pageBreakParagraph(),
+      ]
     : officialDocumentEnabled
     ? []
     : wordOptimizationEnabled
@@ -3017,7 +3070,10 @@ function createExportService({ configStore } = {}) {
 
       const stats = countOutlineStats(payload.outline || []);
       const progressContext = { onProgress, warnings: [], stats };
-      const defaultFilename = `${sanitizeFilename(payload.project_name || '标书文档')}-技术方案.docx`;
+      const feasibilityReport = payload.document_profile === 'feasibility-report' || payload.documentProfile === 'feasibility-report';
+      const defaultFilename = feasibilityReport
+        ? `${sanitizeFilename(payload.project_name || '建设项目')}-可行性研究报告.docx`
+        : `${sanitizeFilename(payload.project_name || '标书文档')}-技术方案.docx`;
       const defaultDir = app?.getPath ? app.getPath('documents') : process.env.USERPROFILE || process.cwd();
       const result = await dialog.showSaveDialog({
         title: '导出 Word 文档',

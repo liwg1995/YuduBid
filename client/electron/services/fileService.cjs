@@ -558,6 +558,69 @@ function createFileService({ app, configStore } = {}) {
       };
     },
 
+    async importDocuments(options = {}) {
+      const config = configStore ? configStore.load() : { file_parser: { provider: 'local' } };
+      const provider = config.file_parser?.provider || 'local';
+      const supportedExtensions = getSelectableExtensions(provider);
+      const result = await dialog.showOpenDialog({
+        title: options.title || '选择项目资料（可多选）',
+        properties: options.multiple === false ? ['openFile'] : ['openFile', 'multiSelections'],
+        filters: [
+          { name: options.filterName || parserLabels[provider] || '项目资料', extensions: [...supportedExtensions].map((item) => item.slice(1)) },
+          { name: '所有文件', extensions: ['*'] },
+        ],
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, canceled: true, message: '已取消选择', documents: [] };
+      }
+
+      const documents = [];
+      const storageApp = options.storageApp || app;
+      for (const [index, filePath] of result.filePaths.entries()) {
+        const ext = path.extname(filePath).toLowerCase();
+        const parser = resolveFileParser(config, filePath);
+        if (!supportedExtensions.has(ext) || !parser.supported) {
+          return {
+            success: false,
+            message: `当前${parserLabels[provider] || '解析方式'}不支持文件：${path.basename(filePath)}`,
+            documents,
+          };
+        }
+
+        const assetScope = typeof options.createAssetScope === 'function'
+          ? String(options.createAssetScope({ filePath, index }) || '').trim()
+          : String(options.assetScope || 'documents').trim();
+        try {
+          const content = (await parseDocumentWithConfig(storageApp, filePath, config, {
+            assetScope: assetScope || 'documents',
+            preserveImages: options.preserveImages === true,
+          })).trim();
+          if (!content) throw new Error('未提取到有效 Markdown 内容');
+          documents.push({
+            file_name: path.basename(filePath),
+            file_content: content,
+            file_ext: ext,
+            parser_provider: parser.provider,
+            parser_label: parserLabels[parser.provider] || '本地解析',
+            asset_scope: assetScope || 'documents',
+          });
+        } catch (error) {
+          return {
+            success: false,
+            message: `${path.basename(filePath)}：${formatImportError(error, filePath)}`,
+            documents,
+          };
+        }
+      }
+
+      return {
+        success: true,
+        message: `已解析 ${documents.length} 份项目资料`,
+        documents,
+      };
+    },
+
     async importRejectionCheckDocument(role = 'tender') {
       const documentRole = role === 'bid' ? 'bid' : 'tender';
       const documentLabel = documentRole === 'bid' ? '投标文件' : '招标文件';

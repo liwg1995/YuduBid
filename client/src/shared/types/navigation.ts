@@ -4,6 +4,7 @@ export type SectionId =
   | 'presales-workbench'
   | 'technical-plan'
   | 'existing-plan-expansion'
+  | 'feasibility-report'
   | 'business-bid'
   | 'project-management'
   | 'project-types'

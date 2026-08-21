@@ -1,6 +1,6 @@
 {
   "name": "yudubid-client",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
@@ -38,6 +38,8 @@
     "verify:thesis-tutor": "node scripts/verify-thesis-tutor.cjs",
     "verify:project-management": "node scripts/verify-project-management.cjs",
     "verify:project-management:electron": "electron scripts/verify-project-management-electron.cjs",
+    "verify:feasibility-report": "electron scripts/verify-feasibility-report-electron.cjs",
+    "verify:feasibility-tasks": "node scripts/verify-feasibility-tasks.cjs",
     "verify:software-copyright": "node scripts/verify-software-copyright.cjs",
     "verify:software-copyright:release": "node scripts/verify-software-copyright-release.cjs",
     "verify:software-copyright:artifact": "node scripts/verify-software-copyright-artifact.cjs",

@@ -8,6 +8,7 @@ const { registerCodeGenerationIpc } = require('./codeGenerationIpc.cjs');
 const { registerConfigIpc } = require('./configIpc.cjs');
 const { registerDuplicateCheckIpc } = require('./duplicateCheckIpc.cjs');
 const { registerExportIpc } = require('./exportIpc.cjs');
+const { registerFeasibilityReportIpc } = require('./feasibilityReportIpc.cjs');
 const { registerFileIpc } = require('./fileIpc.cjs');
 const { registerGrantApplicationIpc } = require('./grantApplicationIpc.cjs');
 const { registerKnowledgeBaseIpc } = require('./knowledgeBaseIpc.cjs');
@@ -27,6 +28,8 @@ const { createConfigStore } = require('../services/configStore.cjs');
 const { createDuplicateCheckService } = require('../services/duplicateCheckService.cjs');
 const { createDuplicateCheckStore } = require('../services/duplicateCheckStore.cjs');
 const { createExportService } = require('../services/exportService.cjs');
+const { createFeasibilityReportStoreRouter } = require('../services/feasibilityReportStoreRouter.cjs');
+const { createFeasibilityReportTaskService } = require('../services/feasibilityReportTaskService.cjs');
 const { createFileService } = require('../services/fileService.cjs');
 const { createGrantApplicationService } = require('../services/grantApplicationService.cjs');
 const { createKnowledgeBaseService } = require('../services/knowledgeBaseService.cjs');
@@ -622,6 +625,32 @@ function registerUnavailableTechnicalPlanIpc(error) {
     'technical-plan:save-content-generation-options',
     'technical-plan:save-chapter-content',
     'technical-plan:clear',
+    'feasibility-report:list-projects',
+    'feasibility-report:create-project',
+    'feasibility-report:rename-project',
+    'feasibility-report:delete-project',
+    'feasibility-report:switch-project',
+    'feasibility-report:load-state',
+    'feasibility-report:update-step',
+    'feasibility-report:save-project-info',
+    'feasibility-report:import-sources',
+    'feasibility-report:read-source-markdown',
+    'feasibility-report:remove-source',
+    'feasibility-report:save-analysis',
+    'feasibility-report:save-outline-config',
+    'feasibility-report:save-outline',
+    'feasibility-report:save-key-parameters',
+    'feasibility-report:save-chapter-content',
+    'feasibility-report:save-content-generation-options',
+    'feasibility-report:start-analysis',
+    'feasibility-report:start-outline',
+    'feasibility-report:start-outline-adjustment',
+    'feasibility-report:start-parameters',
+    'feasibility-report:start-content',
+    'feasibility-report:pause-content',
+    'feasibility-report:start-human-writing',
+    'feasibility-report:get-active-tasks',
+    'feasibility-report:clear',
     'duplicate-check:load-state',
     'duplicate-check:save-files',
     'duplicate-check:save-ui-state',
@@ -707,15 +736,18 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
       technicalPlanStore,
       existingPlanExpansionStore,
     });
+    const feasibilityReportStoreRouter = createFeasibilityReportStoreRouter({ app, fileService });
+    const technicalDiagramService = createTechnicalDiagramService({ app });
+    const feasibilityReportTaskService = createFeasibilityReportTaskService({ aiService, technicalDiagramService, knowledgeBaseService, feasibilityReportStore: feasibilityReportStoreRouter });
     const duplicateCheckStore = createDuplicateCheckStore({ app, db: sqliteDatabase.db });
     const rejectionCheckStore = createRejectionCheckStore({ app, db: sqliteDatabase.db, fileService, technicalPlanStore: technicalPlanStoreRouter });
     const bidOpportunityService = createBidOpportunityService({ app, db: sqliteDatabase.db, fileService, presalesWorkbenchService, aiService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore });
     const duplicateCheckService = createDuplicateCheckService({ app, configStore, workspaceStore: duplicateCheckStore });
-    const technicalDiagramService = createTechnicalDiagramService({ app });
     const taskService = createTaskService({ aiService, technicalDiagramService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService });
     registerKnowledgeBaseIpc({ knowledgeBaseService });
     registerBidOpportunityIpc({ bidOpportunityService });
     registerTechnicalPlanIpc({ technicalPlanStore: technicalPlanStoreRouter });
+    registerFeasibilityReportIpc({ feasibilityReportStore: feasibilityReportStoreRouter, feasibilityReportTaskService });
     registerDuplicateCheckIpc({ duplicateCheckStore });
     registerRejectionCheckIpc({ rejectionCheckStore });
     registerTaskIpc({ taskService });
