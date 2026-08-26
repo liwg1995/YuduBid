@@ -12,6 +12,14 @@ const workflowStages = new Set(['discovery', 'screening', 'qualification', 'deci
 const decisionOutcomes = new Set(['undecided', 'bid', 'no_bid']);
 const noticeTypes = ['采购意向', '供应商征集', '资格预审', '招标公告', '竞争性磋商', '竞争性谈判', '询价公告', '单一来源', '更正/补遗', '中标/成交', '废标/终止', '其他'];
 const stageOrder = { intention: 10, collection: 20, prequalification: 30, tender: 40, correction: 50, result: 60, terminated: 70, other: 0 };
+const enterpriseKeywordAliases = [
+  ['云计算', ['云服务', '云资源', '私有云', '混合云', '云中心', '云平台']],
+  ['边缘计算', ['边缘云', '边缘节点', '边缘智能']],
+  ['云边端', ['云边协同', '云端协同', '端云协同']],
+  ['智能体', ['ai智能体', '智能代理', '大模型应用']],
+  ['国产', ['国产化', '信创', '自主可控', '麒麟', '统信', '鲲鹏', '飞腾', '龙芯']],
+  ['iso质量体系', ['iso9001', '质量管理体系', '质量体系认证']],
+];
 
 function now() {
   return new Date().toISOString();
@@ -89,6 +97,69 @@ function titleSimilarity(left, right) {
   let common = 0;
   for (const item of a) if (b.has(item)) common += 1;
   return (2 * common) / (a.size + b.size);
+}
+
+function compactSearchText(value) {
+  return String(value || '').toLowerCase().replace(/\s+/g, '');
+}
+
+function enterpriseProfileTerms(values) {
+  const entries = Array.isArray(values) ? values : [values];
+  return [...new Set(entries.flatMap((value) => String(value || '').split(/[,，、;；/|\n]+/)).map((value) => compactSearchText(value)).filter((value) => value.length >= 2))];
+}
+
+function enterpriseTermVariants(term) {
+  const variants = new Set([term]);
+  for (const [trigger, aliases] of enterpriseKeywordAliases) {
+    if (!term.includes(trigger)) continue;
+    variants.add(trigger);
+    for (const alias of aliases) variants.add(alias);
+  }
+  return [...variants];
+}
+
+function matchEnterpriseProfile(opportunity, profile) {
+  const searchable = compactSearchText(`${opportunity.title} ${opportunity.summary} ${opportunity.buyer} ${opportunity.region} ${opportunity.industry}`)
+    .replace(/(?:[\p{Script=Han}]{0,12}政府采购[\p{Script=Han}]{0,8}|[\p{Script=Han}]{0,4}采)云平台/gu, '');
+  const regionText = compactSearchText(`${opportunity.region} ${opportunity.title} ${opportunity.buyer}`);
+  const reasons = [];
+  let score = 0;
+
+  const addCategory = (label, values, weight, maximum, target = searchable, ignored = new Set()) => {
+    let categoryScore = 0;
+    for (const term of enterpriseProfileTerms(values)) {
+      if (ignored.has(term) || !enterpriseTermVariants(term).some((variant) => target.includes(variant))) continue;
+      categoryScore = Math.min(maximum, categoryScore + weight);
+      if (reasons.length < 5) reasons.push(`${label}：${term.length > 24 ? `${term.slice(0, 24)}…` : term}`);
+    }
+    score += categoryScore;
+  };
+
+  addCategory('核心能力', profile.capabilities, 30, 60);
+  addCategory('目标行业', profile.industries, 18, 30);
+  addCategory('服务区域', profile.serviceRegions, 15, 20, regionText, new Set(['全国', '全国范围', '不限地区']));
+  addCategory('企业资质', profile.qualifications, 18, 30);
+  addCategory('人员证书', profile.personnel, 12, 24);
+  addCategory('类似业绩', profile.performances, 14, 28);
+  addCategory('竞争优势', profile.advantages, 10, 20);
+
+  const normalizedScore = Math.min(100, score);
+  return {
+    enterpriseMatchScore: normalizedScore,
+    enterpriseMatchLevel: normalizedScore >= 50 ? 'high' : normalizedScore >= 25 ? 'medium' : normalizedScore > 0 ? 'low' : 'none',
+    enterpriseMatchReasons: reasons,
+  };
+}
+
+function rankByEnterpriseProfile(items, profile) {
+  const configured = enterpriseProfileTerms([
+    ...(profile.industries || []), ...(profile.serviceRegions || []), ...(profile.capabilities || []),
+    ...(profile.qualifications || []), ...(profile.personnel || []), ...(profile.performances || []), profile.advantages || '',
+  ]).length > 0;
+  if (!configured) return items;
+  return items.map((item, index) => ({ ...item, ...matchEnterpriseProfile(item, profile), enterpriseSortIndex: index }))
+    .sort((left, right) => right.enterpriseMatchScore - left.enterpriseMatchScore || left.enterpriseSortIndex - right.enterpriseSortIndex)
+    .map(({ enterpriseSortIndex: _enterpriseSortIndex, ...item }) => item);
 }
 
 function extractBudget(content) {
@@ -177,8 +248,10 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
   const subscribers = new Set();
   const activeAnalyses = new Set();
   const activeScans = new Set();
+  const lastEmittedScanProgress = new Map();
   let activeScanAll = null;
   let latestScanBatch = null;
+  let relationInboxCache = { signature: '', count: 0 };
   fs.mkdirSync(contentDir, { recursive: true });
 
   function emit(opportunityId) {
@@ -299,6 +372,7 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
   function emitScan(sourceId) {
     const scan = getLatestScans()[sourceId] || null;
     const source = listSources().find((item) => item.sourceId === sourceId) || null;
+    if (scan) lastEmittedScanProgress.set(sourceId, scan.progress);
     const payload = { scan, source, scanBatch: getScanBatch() };
     for (const webContents of subscribers) {
       if (webContents.isDestroyed()) subscribers.delete(webContents);
@@ -306,13 +380,14 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
     }
   }
 
-  function updateScan(runId, sourceId, patch) {
+  function updateScan(runId, sourceId, patch, { emitEvent = true } = {}) {
     const current = scanFromRow(db.prepare('SELECT * FROM opportunity_scan_runs WHERE run_id=?').get(runId));
     const next = { ...current, ...patch, updatedAt: now() };
     db.prepare(`UPDATE opportunity_scan_runs SET status=?,progress=?,message=?,fetched_count=?,matched_count=?,created_count=?,updated_count=?,
       skipped_count=?,errors_json=?,finished_at=?,updated_at=? WHERE run_id=?`).run(next.status, next.progress, next.message, next.fetchedCount,
       next.matchedCount, next.createdCount, next.updatedCount, next.skippedCount, JSON.stringify(next.errors || []), next.finishedAt || null, next.updatedAt, runId);
-    emitScan(sourceId);
+    const lastProgress = lastEmittedScanProgress.get(sourceId) ?? -Infinity;
+    if (emitEvent && (next.status !== 'running' || next.progress - lastProgress >= 8)) emitScan(sourceId);
     return next;
   }
 
@@ -648,8 +723,11 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
   }
 
   function applyScore(opportunityId) {
-    const opportunity = getOpportunity(opportunityId);
-    const scored = scoreOpportunity(opportunity, listMonitors());
+    const row = db.prepare('SELECT * FROM bid_opportunities WHERE opportunity_id=?').get(opportunityId);
+    if (!row) return;
+    const opportunity = opportunityFromRow(row);
+    const monitors = listMonitors();
+    const scored = scoreOpportunity(opportunity, monitors);
     const transaction = db.transaction(() => {
       db.prepare(`UPDATE bid_opportunities SET rule_score=?, information_score=?, value_score=?, feasibility_score=?, recommendation=?,
         matched_keywords_json=?, risk_flags_json=?, updated_at=? WHERE opportunity_id=?`).run(
@@ -657,7 +735,7 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
         JSON.stringify(scored.keywords), JSON.stringify(scored.risks), now(), opportunityId,
       );
       db.prepare('DELETE FROM opportunity_monitor_matches WHERE opportunity_id=?').run(opportunityId);
-      for (const monitor of listMonitors()) {
+      for (const monitor of monitors) {
         const one = scoreOpportunity(opportunity, [monitor]);
         if (one.score <= 0) continue;
         db.prepare('INSERT INTO opportunity_monitor_matches (opportunity_id, monitor_id, matched_keywords_json, match_score, matched_at) VALUES (?, ?, ?, ?, ?)')
@@ -779,7 +857,7 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
               if (result.action === 'created') createdCount += 1;
               else if (result.action === 'updated') updatedCount += 1;
               else skippedCount += 1;
-              if (getOpportunity(result.opportunityId).monitorMatches?.length) matchedCount += 1;
+              if (db.prepare('SELECT 1 FROM opportunity_monitor_matches WHERE opportunity_id=? LIMIT 1').get(result.opportunityId)) matchedCount += 1;
             }
           }
         } catch (error) {
@@ -789,7 +867,7 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
       }
       const status = errors.length === candidates.length ? 'error' : 'success';
       const finishedAt = now();
-      const final = updateScan(runId, sourceId, { status, progress: 100, message: status === 'success' ? `扫描完成，新增 ${createdCount} 条` : '扫描失败，未成功解析公告', createdCount, updatedCount, skippedCount, matchedCount, errors, finishedAt });
+      const final = updateScan(runId, sourceId, { status, progress: 100, message: status === 'success' ? `扫描完成，新增 ${createdCount} 条` : '扫描失败，未成功解析公告', createdCount, updatedCount, skippedCount, matchedCount, errors, finishedAt }, { emitEvent: false });
       db.prepare(`UPDATE opportunity_sources SET health_status=?,last_run_at=?,last_success_at=?,last_error=?,last_result_json=?,updated_at=? WHERE source_id=?`)
         .run(status === 'success' ? (errors.length ? 'warning' : 'healthy') : 'error', finishedAt, status === 'success' ? finishedAt : source.lastSuccessAt || null,
           errors.slice(0, 5).join('\n'), JSON.stringify(final), finishedAt, sourceId);
@@ -797,12 +875,13 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
     } catch (error) {
       const finishedAt = now();
       const message = error.message || String(error);
-      const final = updateScan(runId, sourceId, { status: 'error', progress: 100, message: '数据源扫描失败', errors: [message], finishedAt });
+      const final = updateScan(runId, sourceId, { status: 'error', progress: 100, message: '数据源扫描失败', errors: [message], finishedAt }, { emitEvent: false });
       db.prepare('UPDATE opportunity_sources SET health_status=?,last_run_at=?,last_error=?,last_result_json=?,updated_at=? WHERE source_id=?')
         .run('error', finishedAt, message, JSON.stringify(final), finishedAt, sourceId);
       emitScan(sourceId);
     } finally {
       activeScans.delete(sourceId);
+      lastEmittedScanProgress.delete(sourceId);
     }
   }
 
@@ -870,20 +949,19 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
     return { success: true, message: '文件已解析并创建投标机会', opportunity };
   }
 
-  function listOpportunities(filters = {}) {
+  function filterOpportunities(items, filters = {}) {
     const keyword = text(filters.keyword, 200).toLowerCase();
     const monitorId = text(filters.monitorId, 80);
     const status = text(filters.status, 30);
     const inbox = text(filters.inbox, 30);
-    const rows = db.prepare('SELECT * FROM bid_opportunities ORDER BY updated_at DESC').all().map((row) => opportunityFromRow(row, { includeContent: false }));
-    return rows.filter((item) => {
+    const monitorOpportunityIds = monitorId
+      ? new Set(db.prepare('SELECT opportunity_id FROM opportunity_monitor_matches WHERE monitor_id=?').all(monitorId).map((row) => row.opportunity_id))
+      : null;
+    return items.filter((item) => {
       if (status && item.status !== status) return false;
       if (inbox && !matchesInbox(item, inbox)) return false;
       if (keyword && !`${item.title} ${item.buyer} ${item.region} ${item.summary} ${item.matchedKeywords.join(' ')}`.toLowerCase().includes(keyword)) return false;
-      if (monitorId) {
-        const match = db.prepare('SELECT 1 FROM opportunity_monitor_matches WHERE opportunity_id=? AND monitor_id=?').get(item.opportunityId, monitorId);
-        if (!match) return false;
-      }
+      if (monitorOpportunityIds && !monitorOpportunityIds.has(item.opportunityId)) return false;
       return true;
     });
   }
@@ -938,6 +1016,15 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
       if (hasCandidate) count += 1;
     }
     return count;
+  }
+
+  function getRelationInboxCount(items) {
+    const state = db.prepare(`SELECT COUNT(*) item_count, MAX(updated_at) latest_item_update FROM bid_opportunities`).get();
+    const clusterState = db.prepare(`SELECT COUNT(*) cluster_count, MAX(updated_at) latest_cluster_update FROM opportunity_project_clusters`).get();
+    const signature = `${state.item_count}:${state.latest_item_update || ''}:${clusterState.cluster_count}:${clusterState.latest_cluster_update || ''}`;
+    if (relationInboxCache.signature === signature) return relationInboxCache.count;
+    relationInboxCache = { signature, count: countRelationInbox(items) };
+    return relationInboxCache.count;
   }
 
   function updateStatus(payload = {}) {
@@ -1065,23 +1152,24 @@ function createBidOpportunityService({ app, db, fileService, presalesWorkbenchSe
   function getSnapshot(filters = {}) {
     ensureProjectClusters();
     recoverInterruptedAnalyses();
-    const opportunities = listOpportunities(filters);
+    const allItems = db.prepare('SELECT * FROM bid_opportunities ORDER BY updated_at DESC').all().map((row) => opportunityFromRow(row, { includeContent: false }));
+    const enterpriseProfile = getEnterpriseProfile();
+    const opportunities = rankByEnterpriseProfile(filterOpportunities(allItems, filters), enterpriseProfile);
     const counts = db.prepare(`SELECT COUNT(*) total,
       SUM(CASE WHEN status='new' THEN 1 ELSE 0 END) new_count,
       SUM(CASE WHEN status='review' THEN 1 ELSE 0 END) review_count,
       SUM(CASE WHEN status='following' THEN 1 ELSE 0 END) following_count,
       SUM(CASE WHEN status='abandoned' THEN 1 ELSE 0 END) abandoned_count
       FROM bid_opportunities`).get();
-    const allItems = db.prepare('SELECT * FROM bid_opportunities ORDER BY updated_at DESC').all().map((row) => opportunityFromRow(row, { includeContent: false }));
     const inboxCounts = { new: 0, changes: 0, due: 0, tasks: 0, relation: 0 };
     for (const item of allItems) {
       for (const key of ['new', 'changes', 'due', 'tasks']) if (matchesInbox(item, key)) inboxCounts[key] += 1;
     }
-    inboxCounts.relation = countRelationInbox(allItems);
+    inboxCounts.relation = getRelationInboxCount(allItems);
     const operatingMetrics = buildOperatingMetrics(allItems);
     const sources = listSources();
     const scans = getLatestScans();
-    return { opportunities, monitors: listMonitors(), enterpriseProfile: getEnterpriseProfile(), sources, scans, scanBatch: getScanBatch(), diagnostics: buildDiagnostics(sources, scans), backup: getBackupStatus(), inboxCounts, operatingMetrics, counts: { total: counts.total || 0, new: counts.new_count || 0, review: counts.review_count || 0, following: counts.following_count || 0, abandoned: counts.abandoned_count || 0 } };
+    return { opportunities, monitors: listMonitors(), enterpriseProfile, sources, scans, scanBatch: getScanBatch(), diagnostics: buildDiagnostics(sources, scans), backup: getBackupStatus(), inboxCounts, operatingMetrics, counts: { total: counts.total || 0, new: counts.new_count || 0, review: counts.review_count || 0, following: counts.following_count || 0, abandoned: counts.abandoned_count || 0 } };
   }
 
   function recoverInterruptedAnalyses() {

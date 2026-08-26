@@ -116,6 +116,8 @@
 .opportunity-overview-recent button strong, .opportunity-overview-recent button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .opportunity-overview-recent button strong { color: var(--yb-text); font-size: 11px; }
 .opportunity-overview-recent button small, .opportunity-overview-recent button em { color: var(--yb-text-muted); font-size: 9px; font-style: normal; }
+.opportunity-overview-recent .opportunity-enterprise-match { width: max-content; padding: 2px 6px; color: #8a6500; font-weight: 800; background: #fff3cf; border-radius: 999px; }
+.opportunity-overview-recent .opportunity-enterprise-match.is-high { color: #14714b; background: #e3f5eb; }
 .opportunity-overview-attention > div:last-child { display: grid; gap: 7px; }
 .opportunity-overview-attention > div:last-child button { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 9px; padding: 9px 10px; color: inherit; text-align: left; background: #f7f9fc; border: 0; border-radius: 8px; cursor: pointer; }
 .opportunity-overview-attention button:hover { background: #eef4fb; }
@@ -255,6 +257,8 @@
 .opportunity-batch-bar button:disabled { opacity: .5; cursor: not-allowed; }
 .opportunity-list-scroll { min-height: 0; overflow: auto; }
 .opportunity-list-row { position: relative; }
+.opportunity-load-more { display: block; width: calc(100% - 24px); margin: 12px; padding: 10px 12px; color: var(--yb-primary); font-size: 11px; font-weight: 800; background: #f4f8fe; border: 1px solid #cbdcf2; border-radius: 8px; cursor: pointer; }
+.opportunity-load-more:hover { background: #eaf2fd; border-color: #a9c5e8; }
 .opportunity-list-row.is-batch { display: grid; grid-template-columns: 34px minmax(0, 1fr); background: #fff; border-bottom: 1px solid #edf0f4; }
 .opportunity-list-row.is-batch .opportunity-list-item { border-bottom: 0; }
 .opportunity-row-check { display: grid; place-items: start center; padding-top: 18px; }
@@ -277,6 +281,9 @@
 .opportunity-item-tags { display: flex; flex-wrap: wrap; gap: 5px; padding-left: 49px; }
 .opportunity-item-tags span { padding: 3px 7px; color: #536579; font-size: 10px; background: #f1f4f8; border-radius: 5px; }
 .opportunity-item-tags span.is-risk { color: #a94b2f; background: #fff0eb; }
+.opportunity-item-tags span.is-enterprise-match { color: #7d620c; font-weight: 800; background: #fff3cf; }
+.opportunity-item-tags span.is-enterprise-match.is-medium { color: #28639a; background: #e8f2fd; }
+.opportunity-item-tags span.is-enterprise-match.is-high { color: #14714b; background: #e3f5eb; }
 
 .opportunity-detail-panel { display: grid; grid-template-rows: auto auto auto auto minmax(0, 1fr); overflow: hidden; }
 .opportunity-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 18px 20px 14px; }

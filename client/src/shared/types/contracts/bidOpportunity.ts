@@ -96,6 +96,9 @@ export interface BidOpportunity {
   recommendation: string;
   matchedKeywords: string[];
   riskFlags: string[];
+  enterpriseMatchScore?: number;
+  enterpriseMatchLevel?: 'high' | 'medium' | 'low' | 'none';
+  enterpriseMatchReasons?: string[];
   status: OpportunityStatus;
   owner: string;
   notes: string;

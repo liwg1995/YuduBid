@@ -1,17 +1,17 @@
 {
   "name": "yudubid-client",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
   "license": "AGPL-3.0-only",
   "homepage": "https://bid.olei.me/",
   "repository": {
-  "type": "git",
-  "url": "https://github.com/liwg1995/YuduBid.git"
+    "type": "git",
+    "url": "https://github.com/liwg1995/YuduBid.git"
   },
   "bugs": {
-  "url": "https://github.com/liwg1995/YuduBid/issues"
+    "url": "https://github.com/liwg1995/YuduBid/issues"
   },
   "main": "electron/main.cjs",
   "type": "module",

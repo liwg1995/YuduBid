@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { MarkdownRenderer } from '../../../shared/ui';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { SectionId } from '../../../shared/types/navigation';
@@ -14,6 +14,7 @@ const emptySnapshot: OpportunitySnapshot = { opportunities: [], monitors: [], en
 const noticeTypes = ['采购意向', '供应商征集', '资格预审', '招标公告', '竞争性磋商', '竞争性谈判', '询价公告', '单一来源', '更正/补遗', '中标/成交', '废标/终止', '其他'];
 const statusLabels: Record<OpportunityStatus, string> = { new: '新机会', review: '待判断', following: '跟进中', won: '已中标', abandoned: '已放弃', archived: '已归档' };
 const workflowLabels: Record<OpportunityWorkflowStage, string> = { discovery: '新发现', screening: '初筛', qualification: '资格核验', decision: '决策评审', bidding: '立项投标', closed: '已结束' };
+const opportunityPageSize = 100;
 
 const emptyDraft: OpportunityDraft = {
   title: '', noticeType: '招标公告', sourceName: '手工录入', sourceUrl: '', projectCode: '', buyer: '', region: '', industry: '',
@@ -82,9 +83,13 @@ function BidOpportunityPage({ onNavigate }: BidOpportunityPageProps) {
   const [batchOwner, setBatchOwner] = useState('');
   const [confirmAction, setConfirmAction] = useState<'bulk' | 'delete-monitor' | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [visibleCount, setVisibleCount] = useState(opportunityPageSize);
+  const refreshedScanRuns = useRef(new Set<string>());
   const deferredKeyword = useDeferredValue(keyword);
 
   const activeItems = snapshot.opportunities;
+  const visibleItems = activeItems.slice(0, visibleCount);
+  const enterpriseProfileConfigured = Boolean(snapshot.enterpriseProfile.industries.length || snapshot.enterpriseProfile.serviceRegions.length || snapshot.enterpriseProfile.capabilities.length || snapshot.enterpriseProfile.qualifications.length || snapshot.enterpriseProfile.personnel.length || snapshot.enterpriseProfile.performances.length || snapshot.enterpriseProfile.advantages.trim());
   const selectedDeadline = selected ? deadline(selected.bidDeadline) : null;
   const monitorRuleText = useMemo(() => {
     const parts = [];
@@ -106,22 +111,28 @@ function BidOpportunityPage({ onNavigate }: BidOpportunityPageProps) {
   }, [selected?.opportunityId, selected?.updatedAt]);
 
   useEffect(() => {
+    setVisibleCount(opportunityPageSize);
     setLoading(true); setLoadError('');
     load().catch((error) => { const message = error instanceof Error ? error.message : '加载投标机会失败'; setLoadError(message); showToast(message, 'error'); }).finally(() => setLoading(false));
   }, [deferredKeyword, status, monitorId, inbox]);
 
   useEffect(() => {
+    let cancelled = false;
     const unsubscribe = window.yibiao?.bidOpportunity?.onEvent(({ opportunity, scan, source, scanBatch }) => {
       if (opportunity) {
         if (opportunity.opportunityId === selectedId) setSelected(opportunity);
         setSnapshot((current) => ({ ...current, opportunities: current.opportunities.map((item) => item.opportunityId === opportunity.opportunityId ? opportunity : item) }));
       }
       if (scan || source || scanBatch) setSnapshot((current) => ({ ...current, scans: scan ? { ...current.scans, [scan.sourceId]: scan } : current.scans, sources: source ? current.sources.map((item) => item.sourceId === source.sourceId ? source : item) : current.sources, scanBatch: scanBatch || current.scanBatch }));
-      if (scan && scan.status !== 'running') {
-        void bridge().getSnapshot({ keyword: deferredKeyword, status, monitorId, inbox }).then((next) => setSnapshot(next));
+      if (scan && scan.status !== 'running' && scanBatch?.status !== 'running' && !refreshedScanRuns.current.has(scan.runId)) {
+        if (refreshedScanRuns.current.size >= 200) refreshedScanRuns.current.clear();
+        refreshedScanRuns.current.add(scan.runId);
+        void bridge().getSnapshot({ keyword: deferredKeyword, status, monitorId, inbox }).then((next) => {
+          if (!cancelled) setSnapshot(next);
+        });
       }
     });
-    return () => unsubscribe?.();
+    return () => { cancelled = true; unsubscribe?.(); };
   }, [deferredKeyword, inbox, monitorId, selectedId, status]);
 
   async function load(preferredId?: string) {
@@ -294,10 +305,10 @@ function BidOpportunityPage({ onNavigate }: BidOpportunityPageProps) {
   async function saveProfile() {
     setSaving(true);
     try {
-      const saved = await bridge().saveEnterpriseProfile(profileDraft);
-      setSnapshot((current) => ({ ...current, enterpriseProfile: saved }));
+      await bridge().saveEnterpriseProfile(profileDraft);
+      await load(selectedId);
       setProfileOpen(false);
-      showToast('企业能力画像已保存', 'success');
+      showToast('企业能力画像已保存，机会已按匹配度重新排序', 'success');
     } catch (error) { showToast(error instanceof Error ? error.message : '保存企业画像失败', 'error'); }
     finally { setSaving(false); }
   }
@@ -435,17 +446,17 @@ function BidOpportunityPage({ onNavigate }: BidOpportunityPageProps) {
         </aside>
 
         <main className="opportunity-list-panel">
-          <div className="opportunity-list-head"><div><strong>{inbox ? ({ new: '新发现', tasks: '今日待办', changes: '重要变化', due: '即将截止', relation: '待确认关联' }[inbox]) : status ? statusLabels[status as OpportunityStatus] : monitorId ? '方案匹配结果' : '全部机会'}</strong><span>共 {activeItems.length} 条</span></div><div className="opportunity-list-tools"><button type="button" className={batchMode ? 'is-active' : ''} onClick={() => { setBatchMode(!batchMode); setSelectedIds([]); }}>{batchMode ? '退出批量' : '批量处理'}</button><select aria-label="状态筛选" value={status} onChange={(event) => { setStatus(event.target.value); setInbox(''); }}><option value="">全部状态</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div></div>
+          <div className="opportunity-list-head"><div><strong>{inbox ? ({ new: '新发现', tasks: '今日待办', changes: '重要变化', due: '即将截止', relation: '待确认关联' }[inbox]) : status ? statusLabels[status as OpportunityStatus] : monitorId ? '方案匹配结果' : '全部机会'}</strong><span>共 {activeItems.length} 条{enterpriseProfileConfigured ? ' · 画像匹配优先' : ''}</span></div><div className="opportunity-list-tools"><button type="button" className={batchMode ? 'is-active' : ''} onClick={() => { setBatchMode(!batchMode); setSelectedIds([]); }}>{batchMode ? '退出批量' : '批量处理'}</button><select aria-label="状态筛选" value={status} onChange={(event) => { setStatus(event.target.value); setInbox(''); }}><option value="">全部状态</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div></div>
           {batchMode && <div className="opportunity-batch-bar"><label><input type="checkbox" checked={activeItems.length > 0 && selectedIds.length === activeItems.length} onChange={(event) => setSelectedIds(event.target.checked ? activeItems.map((item) => item.opportunityId) : [])} />全选</label><span>已选 {selectedIds.length} 条</span><select aria-label="批量状态" value={batchStatus} onChange={(event) => setBatchStatus(event.target.value)}><option value="">状态不变</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><input aria-label="批量负责人" value={batchOwner} onChange={(event) => setBatchOwner(event.target.value)} placeholder="分配负责人" /><button type="button" onClick={() => { if (!selectedIds.length) return showToast('请先勾选需要处理的机会', 'info'); if (!batchStatus && !batchOwner.trim()) return showToast('请选择目标状态或填写负责人', 'info'); setConfirmAction('bulk'); }} disabled={saving || !selectedIds.length}>应用</button></div>}
           <div className="opportunity-list-scroll">
-            {loading ? <div className="opportunity-list-skeleton" aria-label="正在加载本地机会库">{[0, 1, 2, 3].map((item) => <div key={item}><i /><span /><span /><small /></div>)}</div> : loadError ? <div className="opportunity-empty is-error"><strong>机会库加载失败</strong><span>{loadError}</span><button type="button" className="secondary-action" onClick={() => { setLoading(true); setLoadError(''); load().catch((error) => setLoadError(error instanceof Error ? error.message : '重新加载失败')).finally(() => setLoading(false)); }}>重新加载</button></div> : activeItems.length ? activeItems.map((item) => {
+            {loading ? <div className="opportunity-list-skeleton" aria-label="正在加载本地机会库">{[0, 1, 2, 3].map((item) => <div key={item}><i /><span /><span /><small /></div>)}</div> : loadError ? <div className="opportunity-empty is-error"><strong>机会库加载失败</strong><span>{loadError}</span><button type="button" className="secondary-action" onClick={() => { setLoading(true); setLoadError(''); load().catch((error) => setLoadError(error instanceof Error ? error.message : '重新加载失败')).finally(() => setLoading(false)); }}>重新加载</button></div> : activeItems.length ? <>{visibleItems.map((item) => {
               const due = deadline(item.bidDeadline);
               return <div key={item.opportunityId} className={`opportunity-list-row ${batchMode ? 'is-batch' : ''}`}>{batchMode && <label className="opportunity-row-check"><input type="checkbox" checked={selectedIds.includes(item.opportunityId)} onChange={(event) => setSelectedIds(event.target.checked ? [...selectedIds, item.opportunityId] : selectedIds.filter((id) => id !== item.opportunityId))} /><span className="sr-only">选择 {item.title}</span></label>}<button type="button" className={`opportunity-list-item ${selectedId === item.opportunityId ? 'is-selected' : ''}`} onClick={() => selectOpportunity(item.opportunityId)}>
                 <div className="opportunity-item-top"><span className={`opportunity-grade is-${item.valueScore >= 72 ? 'high' : item.valueScore >= 48 ? 'medium' : 'low'}`}>{item.valueScore}</span><div><strong title={item.title}>{item.title}</strong><span title={`${item.noticeType} · ${item.buyer || '采购人待确认'} · ${item.region || '地区待确认'}`}>{item.noticeType} · {item.buyer || '采购人待确认'} · {item.region || '地区待确认'}</span>{item.projectClusterId && <small>项目链路 · {item.announcementStage === 'intention' ? '意向阶段' : item.announcementStage === 'tender' ? '采购公告阶段' : item.noticeType}</small>}</div></div>
                 <div className="opportunity-item-meta"><span>{money(item.budget)}</span><span className={`is-${due.level}`}>{due.text}</span><em>{statusLabels[item.status]}</em></div>
-                <div className="opportunity-item-tags">{item.matchedKeywords.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}{item.riskFlags.slice(0, 1).map((risk) => <span key={risk} className="is-risk">{risk}</span>)}</div>
+                <div className="opportunity-item-tags">{Boolean(item.enterpriseMatchScore) && <span className={`is-enterprise-match is-${item.enterpriseMatchLevel}`} title={item.enterpriseMatchReasons?.join('；')}>画像匹配 {item.enterpriseMatchScore}</span>}{item.matchedKeywords.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}{item.riskFlags.slice(0, 1).map((risk) => <span key={risk} className="is-risk">{risk}</span>)}</div>
               </button></div>;
-            }) : <div className="opportunity-empty"><strong>当前视图暂无机会</strong><span>可以录入公告、导入本地文件，或调整筛选条件。</span><button type="button" className="primary-action" onClick={openCreate}>录入第一条机会</button></div>}
+            })}{visibleItems.length < activeItems.length && <button type="button" className="opportunity-load-more" onClick={() => setVisibleCount((count) => count + opportunityPageSize)}>继续加载（已显示 {visibleItems.length} / {activeItems.length}）</button>}</> : <div className="opportunity-empty"><strong>当前视图暂无机会</strong><span>可以录入公告、导入本地文件，或调整筛选条件。</span><button type="button" className="primary-action" onClick={openCreate}>录入第一条机会</button></div>}
           </div>
         </main>
 
