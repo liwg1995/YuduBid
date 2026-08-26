@@ -1,4 +1,8 @@
 export { default as FloatingToolbar } from './FloatingToolbar';
+export { default as AppSwitch } from './AppSwitch';
+export type { AppSwitchProps } from './AppSwitch';
+export { default as ProgressBar } from './ProgressBar';
+export type { ProgressBarProps, ProgressBarTone } from './ProgressBar';
 export { default as DetailHelpLink } from './DetailHelpLink';
 export type { DetailHelpLinkProps } from './DetailHelpLink';
 export { default as InputWithAction } from './InputWithAction';

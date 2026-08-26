@@ -19,6 +19,7 @@ const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>>
   'technical-plan': TechnicalPlanIcon,
   'existing-plan-expansion': PlanExpansionIcon,
   'feasibility-report': DraftingIcon,
+  'bid-template-management': TemplateIcon,
   'business-bid': BriefcaseIcon,
   'project-management': ProjectManagementIcon,
   'project-types': TemplateIcon,

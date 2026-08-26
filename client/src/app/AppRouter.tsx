@@ -6,6 +6,7 @@ import type { ThesisTutorInitialPanel } from '../features/thesis-tutor/pages/The
 import HomePage from '../features/home/pages/HomePage';
 
 const BidOpportunityPage = lazy(() => import('../features/bid-opportunity/pages/BidOpportunityPage'));
+const BidTemplateManagementPage = lazy(() => import('../features/export-format/pages/BidTemplateManagementPage'));
 const BusinessBidPage = lazy(() => import('../features/business-bid/pages/BusinessBidPage'));
 const CodeGenerationPage = lazy(() => import('../features/code-generation/pages/CodeGenerationPage'));
 const DeveloperTestPage = lazy(() => import('../features/developer/pages/DeveloperTestPage'));
@@ -52,6 +53,8 @@ function AppRouteContent({ activeSection, featureModuleSettings, onSectionChange
       return <TechnicalPlanHome workflowKind="existing-plan-expansion" onSectionChange={onSectionChange} />;
     case 'feasibility-report':
       return <FeasibilityReportHome />;
+    case 'bid-template-management':
+      return <BidTemplateManagementPage />;
     case 'business-bid':
       return <BusinessBidPage />;
     case 'project-management':

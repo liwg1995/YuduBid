@@ -19,6 +19,8 @@ const { registerProjectManagementIpc } = require('./projectManagementIpc.cjs');
 const { registerRejectionCheckIpc } = require('./rejectionCheckIpc.cjs');
 const { registerSoftwareCopyrightIpc } = require('./softwareCopyrightIpc.cjs');
 const { registerTaskIpc } = require('./taskIpc.cjs');
+const { registerSystemFontIpc } = require('./systemFontIpc.cjs');
+const { registerTemplateIpc } = require('./templateIpc.cjs');
 const { registerTechnicalPlanIpc } = require('./technicalPlanIpc.cjs');
 const { registerThesisTutorIpc } = require('./thesisTutorIpc.cjs');
 const { createAiService } = require('../services/aiService.cjs');
@@ -42,6 +44,8 @@ const { createRejectionCheckStore } = require('../services/rejectionCheckStore.c
 const { createSoftwareCopyrightService } = require('../services/softwareCopyrightService.cjs');
 const { createSqliteDatabase } = require('../services/sqliteDatabase.cjs');
 const { createTaskService } = require('../services/taskService.cjs');
+const { createSystemFontService } = require('../services/systemFontService.cjs');
+const { createTemplateStore } = require('../services/templateStore.cjs');
 const { createTechnicalPlanStore } = require('../services/technicalPlanStore.cjs');
 const { createTechnicalDiagramService } = require('../services/technicalDiagramService.cjs');
 const { createThesisTutorService } = require('../services/thesisTutorService.cjs');
@@ -685,6 +689,11 @@ function registerUnavailableTechnicalPlanIpc(error) {
     'tasks:start-rejection-check',
     'tasks:start-duplicate-analysis',
     'tasks:get-active',
+    'bid-templates:list',
+    'bid-templates:get',
+    'bid-templates:create',
+    'bid-templates:update',
+    'bid-templates:delete',
   ].forEach((channel) => ipcMain.handle(channel, throwUnavailable));
   ipcMain.on('tasks:subscribe', () => {});
 }
@@ -694,7 +703,8 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const usageStatsStore = createUsageStatsStore(app);
   const aiService = createAiService({ app, configStore, usageStatsStore });
   const fileService = createFileService({ app, configStore });
-  const exportService = createExportService({ configStore });
+  let templateStore = null;
+  const exportService = createExportService({ configStore, getTemplateStore: () => templateStore });
   const codeGenerationService = createCodeGenerationService({ app });
   const officialDocumentService = createOfficialDocumentService({ app, aiService, configStore });
   const grantApplicationService = createGrantApplicationService({ app, aiService, configStore });
@@ -702,6 +712,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const presalesWorkbenchService = createPresalesWorkbenchService({ app, fileService, aiService });
   const projectManagementService = createProjectManagementService({ app, aiService, configStore });
   const thesisTutorService = createThesisTutorService({ app, aiService, configStore });
+  const systemFontService = createSystemFontService();
 
   registerConfigIpc({ configStore, aiService });
   registerUsageStatsIpc({ usageStatsStore });
@@ -716,12 +727,14 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   registerThesisTutorIpc({ thesisTutorService });
   registerSoftwareCopyrightIpc({ softwareCopyrightService: createSoftwareCopyrightService({ app, aiService, configStore, codeGenerationService }) });
   registerPatentGenerationIpc({ patentGenerationService });
+  registerSystemFontIpc({ systemFontService });
 
   try {
     const sqliteDatabase = createSqliteDatabase(app);
     const existingPlanExpansionApp = createScopedApp(app, 'existing-plan-expansion');
     const existingPlanExpansionDatabase = createSqliteDatabase(existingPlanExpansionApp);
     const knowledgeBaseStore = createKnowledgeBaseStore({ app, db: sqliteDatabase.db });
+    templateStore = createTemplateStore({ app, db: sqliteDatabase.db });
     const knowledgeBaseService = createKnowledgeBaseService({ app, aiService, configStore, knowledgeBaseStore });
     const technicalPlanStore = createTechnicalPlanStore({ app, db: sqliteDatabase.db, fileService });
     const existingPlanExpansionStore = createTechnicalPlanStore({
@@ -745,6 +758,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     const duplicateCheckService = createDuplicateCheckService({ app, configStore, workspaceStore: duplicateCheckStore });
     const taskService = createTaskService({ aiService, technicalDiagramService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService });
     registerKnowledgeBaseIpc({ knowledgeBaseService });
+    registerTemplateIpc({ templateStore });
     registerBidOpportunityIpc({ bidOpportunityService });
     registerTechnicalPlanIpc({ technicalPlanStore: technicalPlanStoreRouter });
     registerFeasibilityReportIpc({ feasibilityReportStore: feasibilityReportStoreRouter, feasibilityReportTaskService });

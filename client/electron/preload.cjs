@@ -426,6 +426,20 @@ const bridge = {
       return () => ipcRenderer.removeListener('tasks:event', listener);
     },
   },
+  bidTemplates: {
+    list: () => ipcRenderer.invoke('bid-templates:list'),
+    get: (templateId) => ipcRenderer.invoke('bid-templates:get', templateId),
+    create: (config) => ipcRenderer.invoke('bid-templates:create', config),
+    update: (templateId, config) => ipcRenderer.invoke('bid-templates:update', templateId, config),
+    delete: (templateId) => ipcRenderer.invoke('bid-templates:delete', templateId),
+    selectCoverLogo: () => ipcRenderer.invoke('bid-templates:select-cover-logo'),
+    getCoverLogoPreview: (filePath) => ipcRenderer.invoke('bid-templates:get-cover-logo-preview', filePath),
+    export: (templateId) => ipcRenderer.invoke('bid-templates:export', templateId),
+    import: () => ipcRenderer.invoke('bid-templates:import'),
+  },
+  systemFonts: {
+    list: () => ipcRenderer.invoke('system-fonts:list'),
+  },
   export: {
     exportWord: (payload) => ipcRenderer.invoke('export:word', payload),
     showExportFile: (filePath) => ipcRenderer.invoke('export:show-file', filePath),

@@ -16,6 +16,7 @@ const {
   Document,
   ExternalHyperlink,
   Footer,
+  Header,
   HeadingLevel,
   ImageRun,
   LevelFormat,
@@ -25,6 +26,7 @@ const {
   Packer,
   Paragraph,
   PageNumber,
+  PageOrientation,
   NumberFormat,
   ShadingType,
   SimpleField,
@@ -39,8 +41,10 @@ const {
   VerticalAlign,
   WidthType,
 } = require('docx');
+const { SIZE_TO_PT, normalizeBidExportTemplate } = require('./bidTemplateFormat.cjs');
 
 const MAX_IMAGE_WIDTH = 520;
+const PAPER_DIMENSIONS_MM = { a4: { width: 210, height: 297 }, a3: { width: 297, height: 420 }, a5: { width: 148, height: 210 }, b4: { width: 250, height: 353 }, b5: { width: 176, height: 250 }, letter: { width: 215.9, height: 279.4 }, legal: { width: 215.9, height: 355.6 }, '16k': { width: 184, height: 260 } };
 const NUMBERING_REFERENCE_PREFIX = 'technical-plan-numbering';
 const DOCX_TABLE_WIDTH_TWIPS = 9000;
 const REMOTE_IMAGE_FETCH_TIMEOUT_MS = 12000;
@@ -608,6 +612,236 @@ function isWordOptimizationEnabled(config) {
   return Boolean(config?.skill_settings?.skills?.['word-optimization']?.enabled);
 }
 
+function colorWithoutHash(value, fallback = '000000') {
+  return String(value || fallback).replace(/^#/, '').toUpperCase();
+}
+
+function pointsToHalfPoints(value, fallback = 12) {
+  const points = Number.isFinite(Number(value)) ? Number(value) : fallback;
+  return Math.max(13, Math.round(points * 2));
+}
+
+function pointsToTwips(value, fallback = 0) {
+  const points = Number.isFinite(Number(value)) ? Number(value) : fallback;
+  return Math.max(0, Math.round(points * 20));
+}
+
+function centimetersToTwips(value, fallback = 2.54) {
+  const centimeters = Number.isFinite(Number(value)) ? Number(value) : fallback;
+  return Math.max(284, Math.round(centimeters * 567));
+}
+
+function lineSpacingToTwips(value, fallback = 1.5) {
+  const multiple = Number.isFinite(Number(value)) ? Number(value) : fallback;
+  return Math.max(240, Math.round(multiple * 240));
+}
+
+function measurementToPoints(value, unit = 'pt', fontSizePoints = 12) {
+  const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
+  if (unit === 'in') return amount * 72;
+  if (unit === 'cm') return amount * 28.3465;
+  if (unit === 'mm') return amount * 2.83465;
+  if (unit === 'line') return amount * fontSizePoints;
+  if (unit === 'auto') return 0;
+  return amount;
+}
+
+function paragraphSpacingToTwips(value, unit, fontSizePoints = 12) {
+  return pointsToTwips(measurementToPoints(value, unit, fontSizePoints));
+}
+
+function customLineSpacing(value, mode = 'multiple', unit = 'multiple') {
+  if (mode === 'single') return { line: 240, lineRule: LineRuleType.AUTO };
+  if (mode === 'one-and-half') return { line: 360, lineRule: LineRuleType.AUTO };
+  if (mode === 'double') return { line: 480, lineRule: LineRuleType.AUTO };
+  if (mode === 'at-least') return { line: pointsToTwips(measurementToPoints(value, unit)), lineRule: LineRuleType.AT_LEAST };
+  if (mode === 'exact') return { line: pointsToTwips(measurementToPoints(value, unit)), lineRule: LineRuleType.EXACTLY };
+  return { line: lineSpacingToTwips(value, 1), lineRule: LineRuleType.AUTO };
+}
+
+function docxAlignment(value, fallback = AlignmentType.JUSTIFIED) {
+  return {
+    left: AlignmentType.LEFT,
+    center: AlignmentType.CENTER,
+    right: AlignmentType.RIGHT,
+    justify: AlignmentType.JUSTIFIED,
+    '左对齐': AlignmentType.LEFT,
+    '居中对齐': AlignmentType.CENTER,
+    '右对齐': AlignmentType.RIGHT,
+    '两端对齐': AlignmentType.JUSTIFIED,
+  }[value] || fallback;
+}
+
+function chineseSizeToPoints(value, fallback = 12) {
+  return SIZE_TO_PT[value] || fallback;
+}
+
+function customBodyRunOptions(context, overrides = {}) {
+  const body = context?.exportFormat?.body_text;
+  if (!context?.customTemplateEnabled || !body) return overrides;
+  return {
+    font: body.font,
+    size: pointsToHalfPoints(chineseSizeToPoints(body.size)),
+    color: '000000',
+    optimized: true,
+    ...overrides,
+  };
+}
+
+function customBodyParagraphOptions(context, overrides = {}) {
+  const body = context?.exportFormat?.body_text;
+  if (!context?.customTemplateEnabled || !body) return overrides;
+  return {
+    optimized: true,
+    alignment: docxAlignment(body.alignment),
+    spacing: {
+      before: paragraphSpacingToTwips(body.spacing_before_pt, body.spacing_before_unit, chineseSizeToPoints(body.size)),
+      after: paragraphSpacingToTwips(body.spacing_after_pt, body.spacing_after_unit, chineseSizeToPoints(body.size)),
+      ...customLineSpacing(body.line_spacing_multiple, body.line_spacing_mode, body.line_spacing_unit),
+    },
+    indent: { left: Math.round(body.list_indent_chars * 240), right: 0, firstLine: Math.round(body.first_line_indent_chars * 240) },
+    ...overrides,
+  };
+}
+
+function customHeadingStyle(context, level) {
+  if (!context?.customTemplateEnabled) return null;
+  const headings = context.exportFormat?.headings || [];
+  return headings[Math.max(0, Math.min(headings.length - 1, Number(level || 1) - 1))] || null;
+}
+
+function customHeadingDecoration(context, level) {
+  const frame = context?.customTemplateEnabled ? context.exportFormat?.heading_border : null;
+  if (!frame?.enabled) return {};
+  const border = { style: BorderStyle.SINGLE, size: 6, color: colorWithoutHash(frame.border_color, 'CFD8EE') };
+  return {
+    border: { top: border, bottom: border, left: border, right: border },
+    shading: { type: ShadingType.CLEAR, fill: colorWithoutHash(frame.level_cell_colors?.[Math.min(8, Math.max(0, level - 1))], 'FFFFFF') },
+  };
+}
+
+function headingNumberingFormat(headingStyle) {
+  if (headingStyle?.numbering_format !== 'custom') return LevelFormat.DECIMAL;
+  const template = String(headingStyle.numbering_template || '');
+  if (template.includes('{zh}')) return LevelFormat.CHINESE_COUNTING;
+  if (template.includes('{circled}')) return LevelFormat.DECIMAL_ENCLOSED_CIRCLE;
+  if (template.includes('{ALPHA}')) return LevelFormat.UPPER_LETTER;
+  if (template.includes('{alpha}')) return LevelFormat.LOWER_LETTER;
+  if (template.includes('{ROMAN}')) return LevelFormat.UPPER_ROMAN;
+  if (template.includes('{roman}')) return LevelFormat.LOWER_ROMAN;
+  return LevelFormat.DECIMAL;
+}
+
+function headingNumberingText(headingStyle, level) {
+  const currentLevel = Math.max(1, Math.min(9, Number(level || 1)));
+  const full = Array.from({ length: currentLevel }, (_item, index) => `%${index + 1}`).join('.');
+  if (headingStyle?.numbering_format !== 'custom') return full;
+
+  const template = String(headingStyle.numbering_template || '');
+  if (!template) return '';
+  const current = `%${currentLevel}`;
+  const tailStart = currentLevel >= 3 ? 3 : currentLevel;
+  const tail = Array.from({ length: currentLevel - tailStart + 1 }, (_item, index) => `%${tailStart + index}`).join('.');
+  return template
+    .replace(/\{tail(\d+)\}/g, (_match, startLevelText) => {
+      const startLevel = Number(startLevelText);
+      if (!Number.isFinite(startLevel) || startLevel < 1 || startLevel > currentLevel) return '';
+      return Array.from({ length: currentLevel - startLevel + 1 }, (_item, index) => `%${startLevel + index}`).join('.');
+    })
+    .replace(/\{(?:zh|num|circled|alpha|ALPHA|roman|ROMAN)\}/g, current)
+    .replace(/\{tail\}/g, tail)
+    .replace(/\{full\}/g, full);
+}
+
+function staticHeadingNumberParts(value) {
+  return String(value || '')
+    .split('.')
+    .map((part) => Number.parseInt(part, 10))
+    .filter((part) => Number.isFinite(part) && part > 0);
+}
+
+function staticHeadingNumberToChinese(value) {
+  const number = Math.max(1, Math.min(9999, Math.floor(value)));
+  const digits = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+  const units = ['', '十', '百', '千'];
+  const source = String(number);
+  let result = '';
+  let pendingZero = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const digit = Number(source[index]);
+    const unitIndex = source.length - index - 1;
+    if (digit === 0) {
+      pendingZero = result.length > 0;
+      continue;
+    }
+    if (pendingZero) result += '零';
+    if (!(digit === 1 && unitIndex === 1 && result === '')) result += digits[digit];
+    result += units[unitIndex];
+    pendingZero = false;
+  }
+  return result;
+}
+
+function staticHeadingNumberToCircled(value) {
+  const circled = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
+  return circled[value - 1] || String(value);
+}
+
+function staticHeadingNumberToAlpha(value, upper = false) {
+  let number = Math.max(1, Math.floor(value));
+  let result = '';
+  while (number > 0) {
+    number -= 1;
+    result = String.fromCharCode(97 + (number % 26)) + result;
+    number = Math.floor(number / 26);
+  }
+  return upper ? result.toUpperCase() : result;
+}
+
+function staticHeadingNumberToRoman(value, upper = false) {
+  let number = Math.max(1, Math.min(3999, Math.floor(value)));
+  const pairs = [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
+  let result = '';
+  for (const [amount, symbol] of pairs) {
+    while (number >= amount) {
+      result += symbol;
+      number -= amount;
+    }
+  }
+  return upper ? result.toUpperCase() : result;
+}
+
+function staticHeadingNumber(outlineId, headingStyle) {
+  const parts = staticHeadingNumberParts(outlineId);
+  if (!parts.length) return '';
+  if (headingStyle?.numbering_format !== 'custom') return parts.join('.');
+  const current = parts[parts.length - 1];
+  const tail = (parts.length >= 3 ? parts.slice(2) : [current]).join('.');
+  return String(headingStyle.numbering_template || '')
+    .replace(/\{tail(\d+)\}/g, (_match, startLevelText) => {
+      const startLevel = Number(startLevelText);
+      if (!Number.isFinite(startLevel) || startLevel < 1 || startLevel > 9 || startLevel > parts.length) return '';
+      return parts.slice(startLevel - 1).join('.');
+    })
+    .replace(/\{zh\}/g, staticHeadingNumberToChinese(current))
+    .replace(/\{num\}/g, String(current))
+    .replace(/\{tail\}/g, tail)
+    .replace(/\{full\}/g, parts.join('.'))
+    .replace(/\{circled\}/g, staticHeadingNumberToCircled(current))
+    .replace(/\{alpha\}/g, staticHeadingNumberToAlpha(current))
+    .replace(/\{ALPHA\}/g, staticHeadingNumberToAlpha(current, true))
+    .replace(/\{roman\}/g, staticHeadingNumberToRoman(current))
+    .replace(/\{ROMAN\}/g, staticHeadingNumberToRoman(current, true))
+    .trim();
+}
+
+function staticHeadingTitle(outlineId, title, headingStyle) {
+  const prefix = staticHeadingNumber(outlineId, headingStyle);
+  if (!prefix) return String(title || '');
+  const separator = /[、，。；：）)】\]》〉]$/.test(prefix) ? '' : ' ';
+  return `${prefix}${separator}${title || ''}`;
+}
+
 function textRun(text, options = {}) {
   const sourceText = options.cleanMarkdown ? stripInlineMarkdownMarkers(text) : text;
   const normalizedText = options.normalizeNumbering ? normalizeLeadingNumbering(sourceText) : sourceText;
@@ -704,6 +938,7 @@ function paragraph(children, options = {}) {
     border: options.border,
     shading: options.shading,
     keepNext: options.keepNext,
+    pageBreakBefore: options.pageBreakBefore,
     outlineLevel: options.outlineLevel,
     style: options.style,
     tabStops: options.tabStops,
@@ -921,6 +1156,83 @@ function centeredPageNumberFooter(options = {}) {
   });
 }
 
+function customTemplateHeader(page) {
+  if (!page?.header_enabled) return undefined;
+  return new Header({
+    children: [paragraph([textRun(page.header_text || '', { font: page.header_font, size: pointsToHalfPoints(chineseSizeToPoints(page.header_size, 9)), color: colorWithoutHash(page.header_color, '536176') })], {
+      alignment: docxAlignment(page.header_alignment, AlignmentType.CENTER),
+      indent: { left: 0, right: 0, firstLine: 0 },
+      before: 0,
+      after: 0,
+    })],
+  });
+}
+
+function customTemplateFooter(page) {
+  if (!page?.footer_enabled && !page?.page_number_enabled) return undefined;
+  const children = [];
+  if (page.footer_enabled && page.footer_text) children.push(textRun(page.footer_text, { font: page.footer_font, size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)), color: colorWithoutHash(page.footer_color, '536176') }));
+  if (page.footer_enabled && page.footer_text && page.page_number_enabled) children.push(textRun('  ·  ', { size: 18, color: '666666' }));
+  if (page.page_number_enabled) {
+    const format = page.page_number_format || '{page}';
+    const [prefix, suffix] = format.split('{page}');
+    if (prefix) children.push(textRun(prefix, { font: page.footer_font, size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)) }));
+    children.push(new TextRun({ children: [PageNumber.CURRENT], font: page.footer_font || 'Times New Roman', size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)), color: colorWithoutHash(page.footer_color, '000000') }));
+    if (suffix) children.push(textRun(suffix, { font: page.footer_font, size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)) }));
+  }
+  return new Footer({
+    children: [paragraph(children, {
+      alignment: docxAlignment(page.footer_alignment, AlignmentType.CENTER),
+      indent: { left: 0, right: 0, firstLine: 0 },
+      before: 0,
+      after: 0,
+    })],
+  });
+}
+
+function resolveCustomCoverText(value, payload) {
+  return String(value || '')
+    .replaceAll('{project_name}', String(payload.project_name || payload.projectName || '投标项目'))
+    .replaceAll('{date}', new Date().toLocaleDateString('zh-CN'));
+}
+
+async function createCustomBidCover(payload, context) {
+  const cover = context.exportFormat.cover;
+  const alignment = docxAlignment(cover.alignment, AlignmentType.CENTER);
+  const color = colorWithoutHash(cover.text_color, '000000');
+  const children = [];
+
+  if (cover.logo_path) {
+    try {
+      const loadedSource = await loadImage(cover.logo_path, context);
+      const loaded = await normalizeImageForDocx(loadedSource);
+      if (loaded?.buffer && loaded.type) {
+        const dimensions = getSafeImageDimensions(loaded.buffer);
+        const width = Math.max(38, Math.round(cover.logo_width_cm * 37.795));
+        const height = Math.max(20, Math.round(width * (dimensions.height || width) / (dimensions.width || width)));
+        children.push(paragraph([new ImageRun({ type: loaded.type, data: loaded.buffer, transformation: { width, height } })], {
+          alignment,
+          after: 720,
+          indent: { left: 0, right: 0 },
+        }));
+      }
+    } catch (error) {
+      addWarning(context, `封面 Logo 未能导出：${error.message || '图片读取失败'}`);
+    }
+  }
+
+  children.push(
+    paragraph([textRun(resolveCustomCoverText(cover.project_name, payload), { font: cover.font, size: pointsToHalfPoints(chineseSizeToPoints(cover.project_name_size, 22)), color, bold: cover.bold })], { alignment, before: cover.logo_path ? 0 : 1600, after: 420, indent: { left: 0, right: 0 } }),
+    paragraph([textRun(resolveCustomCoverText(cover.document_title, payload), { font: cover.font, size: pointsToHalfPoints(chineseSizeToPoints(cover.document_title_size, 42)), color, bold: true })], { alignment, after: 1800, indent: { left: 0, right: 0 } }),
+  );
+
+  for (const value of [cover.tenderer, cover.bidder, cover.compilation_date]) {
+    const resolved = resolveCustomCoverText(value, payload);
+    if (resolved) children.push(paragraph([textRun(resolved, { font: cover.font, size: pointsToHalfPoints(chineseSizeToPoints(cover.info_size, 14)), color, bold: cover.bold })], { alignment, after: 180, indent: { left: 0, right: 0 } }));
+  }
+  return children;
+}
+
 function createProjectManagementTocStyles() {
   return [1, 2, 3, 4].map((level) => ({
     id: `TOC${level}`,
@@ -963,7 +1275,7 @@ function createPresalesProposalTocStyles() {
   }));
 }
 
-function tableBorders(optimized = false, projectManagementDocument = false) {
+function tableBorders(optimized = false, projectManagementDocument = false, templateStyle = null) {
   if (projectManagementDocument) {
     return {
       top: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
@@ -976,13 +1288,18 @@ function tableBorders(optimized = false, projectManagementDocument = false) {
   }
 
   if (optimized) {
+    const templateBorder = templateStyle ? {
+      style: BorderStyle.SINGLE,
+      size: Math.max(1, Math.round(templateStyle.border_width * 8)),
+      color: colorWithoutHash(templateStyle.border_color),
+    } : null;
     return {
-      top: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
-      bottom: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
-      left: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
-      right: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
-      insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
-      insideVertical: { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+      top: templateBorder || { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+      bottom: templateBorder || { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+      left: templateBorder || { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+      right: templateBorder || { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+      insideHorizontal: templateBorder || { style: BorderStyle.SINGLE, size: 4, color: '000000' },
+      insideVertical: templateBorder || { style: BorderStyle.SINGLE, size: 4, color: '000000' },
     };
   }
 
@@ -1010,14 +1327,18 @@ function tableCellWidth(columnSpan, totalColumns) {
   return Math.round((DOCX_TABLE_WIDTH_TWIPS * safeSpan) / safeTotal);
 }
 
-function createTableCell({ children, isHeader = false, columnSpan = 1, totalColumns = 1, optimized = false, projectManagementDocument = false }) {
+function createTableCell({ children, isHeader = false, columnSpan = 1, totalColumns = 1, optimized = false, projectManagementDocument = false, templateStyle = null, templateCellStyle = null }) {
   const safeSpan = Math.max(1, columnSpan || 1);
   return new TableCell({
     children,
-    shading: isHeader && !optimized && !projectManagementDocument ? { type: ShadingType.CLEAR, fill: 'F1F6FF' } : undefined,
+    shading: templateCellStyle
+      ? { type: ShadingType.CLEAR, fill: colorWithoutHash(templateCellStyle.background_color, 'FFFFFF') }
+      : isHeader && !optimized && !projectManagementDocument ? { type: ShadingType.CLEAR, fill: 'F1F6FF' } : undefined,
     margins: projectManagementDocument
       ? { top: 80, bottom: 80, left: 100, right: 100 }
-      : { top: 120, bottom: 120, left: 140, right: 140 },
+      : templateStyle
+        ? { top: pointsToTwips(templateStyle.cell_padding_pt), bottom: pointsToTwips(templateStyle.cell_padding_pt), left: pointsToTwips(templateStyle.cell_padding_pt), right: pointsToTwips(templateStyle.cell_padding_pt) }
+        : { top: 120, bottom: 120, left: 140, right: 140 },
     columnSpan: safeSpan > 1 ? safeSpan : undefined,
     width: { size: tableCellWidth(safeSpan, totalColumns), type: WidthType.DXA },
     verticalAlign: optimized || projectManagementDocument ? VerticalAlign.CENTER : undefined,
@@ -1029,11 +1350,11 @@ function createDocxTable(rows, columnCount, options = {}) {
   const projectManagementDocument = Boolean(options.projectManagementDocument);
   return new Table({
     rows,
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    columnWidths: tableColumnWidths(columnCount),
-    layout: optimized || projectManagementDocument ? TableLayoutType.AUTOFIT : TableLayoutType.FIXED,
+    width: options.templateStyle?.full_width === false ? { size: 0, type: WidthType.AUTO } : { size: 100, type: WidthType.PERCENTAGE },
+    columnWidths: options.templateStyle?.full_width === false ? undefined : tableColumnWidths(columnCount),
+    layout: options.templateStyle?.full_width === false ? TableLayoutType.AUTOFIT : optimized || projectManagementDocument ? TableLayoutType.AUTOFIT : TableLayoutType.FIXED,
     alignment: projectManagementDocument ? AlignmentType.CENTER : undefined,
-    borders: tableBorders(optimized, projectManagementDocument),
+    borders: tableBorders(optimized, projectManagementDocument, options.templateStyle),
   });
 }
 
@@ -1182,14 +1503,64 @@ function normalizeMarkdownTablesForDocx(content) {
   return lines.join('\n');
 }
 
-function createOrderedListReference(context) {
+function createListReference(context, ordered) {
   if (!context.numberingReferences) {
     context.numberingReferences = [];
   }
   context.numberingIndex = (context.numberingIndex || 0) + 1;
   const reference = `${NUMBERING_REFERENCE_PREFIX}-${context.numberingIndex}`;
-  context.numberingReferences.push(reference);
+  context.numberingReferences.push({
+    reference,
+    ordered,
+    style: ordered
+      ? context.customTemplateEnabled ? context.exportFormat.body_text.ordered_list_style : 'decimal-dot'
+      : context.customTemplateEnabled ? context.exportFormat.body_text.list_style : 'disc',
+  });
   return reference;
+}
+
+function createOrderedListReference(context) {
+  return createListReference(context, true);
+}
+
+function createUnorderedListReference(context) {
+  return createListReference(context, false);
+}
+
+function customListIndent(context) {
+  const indentChars = Number(context?.exportFormat?.body_text?.list_indent_chars);
+  const left = Math.max(240, Math.round((Number.isFinite(indentChars) ? indentChars : 2) * 240));
+  return { left, hanging: 240, right: 0 };
+}
+
+function orderedListNumbering(style, level) {
+  const placeholder = `%${level + 1}`;
+  const definitions = {
+    'decimal-dot': { format: LevelFormat.DECIMAL, text: `${placeholder}.` },
+    'decimal-paren': { format: LevelFormat.DECIMAL, text: `${placeholder})` },
+    'decimal-full-paren': { format: LevelFormat.DECIMAL, text: `（${placeholder}）` },
+    'chinese-dot': { format: LevelFormat.CHINESE_COUNTING, text: `${placeholder}、` },
+    'chinese-paren': { format: LevelFormat.CHINESE_COUNTING, text: `（${placeholder}）` },
+    'lower-alpha': { format: LevelFormat.LOWER_LETTER, text: `${placeholder}.` },
+    'upper-alpha': { format: LevelFormat.UPPER_LETTER, text: `${placeholder}.` },
+    'lower-roman': { format: LevelFormat.LOWER_ROMAN, text: `${placeholder}.` },
+    'upper-roman': { format: LevelFormat.UPPER_ROMAN, text: `${placeholder}.` },
+  };
+  return definitions[style] || definitions['decimal-dot'];
+}
+
+function unorderedListNumbering(style, level) {
+  const symbols = {
+    disc: '•',
+    circle: '○',
+    square: '■',
+    diamond: '◆',
+    dash: '—',
+    check: '✓',
+    arrow: '➢',
+    sparkle: '✧',
+  };
+  return { format: LevelFormat.BULLET, text: symbols[style] || symbols.disc, level };
 }
 
 function headingLevel(level) {
@@ -1198,7 +1569,8 @@ function headingLevel(level) {
   if (level === 3) return HeadingLevel.HEADING_3;
   if (level === 4) return HeadingLevel.HEADING_4;
   if (level === 5) return HeadingLevel.HEADING_5;
-  return HeadingLevel.HEADING_6;
+  if (level === 6) return HeadingLevel.HEADING_6;
+  return undefined;
 }
 
 function headingStyleId(level) {
@@ -1267,8 +1639,20 @@ function isManualTableCaptionText(value) {
     || /^\s*表\s+\d+\s+\S+/.test(String(value || '').trim());
 }
 
-function captionTextRun(value) {
-  return textRun(value, { font: '黑体', size: 21, color: '000000' });
+function captionStyle(context = {}, type = 'figure') {
+  if (!context.customTemplateEnabled) return null;
+  return type === 'table' ? context.exportFormat?.table : context.exportFormat?.image;
+}
+
+function captionTextRun(value, context = {}, type = 'figure') {
+  const imageStyle = captionStyle(context, type);
+  return textRun(value, {
+    font: imageStyle?.caption_font || '黑体',
+    size: imageStyle ? pointsToHalfPoints(chineseSizeToPoints(imageStyle.caption_size, 10.5)) : 21,
+    bold: imageStyle?.caption_bold,
+    italics: imageStyle?.caption_italic,
+    color: '000000',
+  });
 }
 
 function summarizeCaptionName(value, fallback = '') {
@@ -1371,16 +1755,21 @@ function nextCaptionSequence(context, type) {
 function createCaptionParagraph(context, type, name, fallback = '') {
   const sequence = nextCaptionSequence(context, type);
   const captionName = summarizeCaptionName(name, fallback);
+  const style = captionStyle(context, type);
   return paragraph([
-    captionTextRun(`${sequence.label} `),
+    captionTextRun(`${sequence.label} `, context, type),
     new SimpleField(`SEQ ${sequence.identifier} \\* ARABIC`, sequence.cachedValue),
-    ...(captionName ? [captionTextRun(` ${captionName}`)] : []),
+    ...(captionName ? [captionTextRun(` ${captionName}`, context, type)] : []),
   ], {
     optimized: true,
-    alignment: AlignmentType.CENTER,
+    alignment: style ? docxAlignment(style.caption_alignment, AlignmentType.CENTER) : AlignmentType.CENTER,
     indent: { left: 0, right: 0 },
     tabStops: [],
-    run: { font: '黑体', size: 21, color: '000000' },
+    run: {
+      font: style?.caption_font || '黑体',
+      size: style ? pointsToHalfPoints(chineseSizeToPoints(style.caption_size, 10.5)) : 21,
+      color: '000000',
+    },
   });
 }
 
@@ -1856,7 +2245,7 @@ async function imageRunFromNode(node, context, options = {}) {
     : context.presalesProposalDocumentEnabled
       ? PRESALES_PROPOSAL_IMAGE_MAX_WIDTH
     : context.wordOptimizationEnabled
-      ? WORD_OPTIMIZATION_IMAGE_MAX_WIDTH
+      ? Math.round(WORD_OPTIMIZATION_IMAGE_MAX_WIDTH * (context.customTemplateEnabled ? context.exportFormat.image.max_width_percent / 100 : 1))
       : MAX_IMAGE_WIDTH;
   const maxImageHeight = context.projectManagementDocumentEnabled
     ? PROJECT_MANAGEMENT_IMAGE_MAX_HEIGHT
@@ -1884,7 +2273,10 @@ async function imageRunFromNode(node, context, options = {}) {
 }
 
 async function imageParagraphFromSource(source, alt, context, options = {}) {
-  return paragraph([await imageRunFromNode({ url: source, alt }, context, options)], { alignment: AlignmentType.CENTER });
+  const alignment = context.customTemplateEnabled
+    ? docxAlignment(context.exportFormat.image.alignment, AlignmentType.CENTER)
+    : AlignmentType.CENTER;
+  return paragraph([await imageRunFromNode({ url: source, alt }, context, options)], { alignment });
 }
 
 function looksLikeTextDiagram(value) {
@@ -1919,6 +2311,7 @@ function renderTextDiagramToDataUrl(value) {
 }
 
 async function inlineRuns(nodes = [], context = {}, marks = {}) {
+  marks = customBodyRunOptions(context, marks);
   const runs = [];
 
   for (const node of nodes) {
@@ -1979,6 +2372,7 @@ function hasBlockHtmlChildren($, node) {
 }
 
 async function htmlInlineRuns($, nodes = [], context = {}, marks = {}) {
+  marks = customBodyRunOptions(context, marks);
   const runs = [];
 
   for (const node of nodes) {
@@ -2024,6 +2418,7 @@ async function htmlInlineRuns($, nodes = [], context = {}, marks = {}) {
 async function htmlTableToDocx($, tableNode, context) {
   const rows = [];
   const optimized = Boolean(context.wordOptimizationEnabled);
+  const templateStyle = context.customTemplateEnabled ? context.exportFormat.table : null;
   const rowDescriptors = $(tableNode).find('tr').toArray().map((rowNode) => {
     const cells = $(rowNode).children('th,td').toArray().map((cellNode) => ({
       node: cellNode,
@@ -2041,20 +2436,26 @@ async function htmlTableToDocx($, tableNode, context) {
     for (const [cellIndex, cell] of row.cells.entries()) {
       const cellNode = cell.node;
       const isHeader = htmlTagName(cellNode) === 'th' || (optimized && rows.length === 0);
+      const templateCellStyle = templateStyle ? (isHeader ? templateStyle.header_row : cellIndex === 0 ? templateStyle.first_column : templateStyle.body_cell) : null;
       const remainingSpan = cellIndex === row.cells.length - 1 ? maxColumns - row.columnCount : 0;
       cells.push(createTableCell({
         children: [paragraph(await htmlInlineRuns($, $(cellNode).contents().toArray(), context, {
           bold: isHeader,
-          font: optimized && isHeader ? '黑体' : undefined,
+          font: templateCellStyle?.font || (optimized && isHeader ? '黑体' : undefined),
+          size: templateCellStyle ? pointsToHalfPoints(chineseSizeToPoints(templateCellStyle.size)) : undefined,
+          color: templateCellStyle ? colorWithoutHash(templateCellStyle.text_color) : undefined,
           optimized,
         }), {
           after: optimized ? 0 : 80,
           ...optimizedTableCellParagraphOptions(optimized),
+          alignment: templateCellStyle ? docxAlignment(templateCellStyle.alignment, AlignmentType.CENTER) : undefined,
         })],
         isHeader,
         columnSpan: cell.columnSpan + Math.max(0, remainingSpan),
         totalColumns: maxColumns,
         optimized,
+        templateStyle,
+        templateCellStyle,
       }));
     }
     rows.push(new TableRow({ children: cells, tableHeader: optimized && rows.length === 0 }));
@@ -2066,23 +2467,32 @@ async function htmlTableToDocx($, tableNode, context) {
 
   const blocks = [];
   if (optimized) {
-    blocks.push(createCaptionParagraph(context, 'table', inferTableCaptionName(context), '数据表'));
+    if (!context.customTemplateEnabled || context.exportFormat.table.caption_enabled) {
+      blocks.push(createCaptionParagraph(context, 'table', inferTableCaptionName(context), '数据表'));
+    }
   }
-  blocks.push(createDocxTable(rows, maxColumns, { optimized }));
+  blocks.push(createDocxTable(rows, maxColumns, { optimized, templateStyle }));
   return blocks;
 }
 
 async function htmlListToDocx($, listNode, context, options = {}) {
   const blocks = [];
   const ordered = htmlTagName(listNode) === 'ol';
-  const numberingReference = ordered ? createOrderedListReference(context) : null;
+  const customUnorderedDisabled = !ordered && context.customTemplateEnabled && context.exportFormat.body_text.list_style === 'none';
+  const numberingReference = ordered
+    ? createOrderedListReference(context)
+    : context.customTemplateEnabled && !customUnorderedDisabled ? createUnorderedListReference(context) : null;
 
   for (const itemNode of $(listNode).children('li').toArray()) {
     const inlineNodes = $(itemNode).contents().toArray().filter((child) => !['ul', 'ol'].includes(htmlTagName(child)));
-    const listOptions = ordered
+    const listOptions = numberingReference
       ? { numbering: { reference: numberingReference, level: Math.min(options.listLevel || 0, 2) } }
-      : { bullet: { level: Math.min(options.listLevel || 0, 2) } };
-    blocks.push(paragraph(await htmlInlineRuns($, inlineNodes, context), listOptions));
+      : customUnorderedDisabled ? {} : { bullet: { level: Math.min(options.listLevel || 0, 2) } };
+    blocks.push(paragraph(await htmlInlineRuns($, inlineNodes, context), {
+      ...customBodyParagraphOptions(context),
+      ...listOptions,
+      indent: context.customTemplateEnabled ? customListIndent(context) : undefined,
+    }));
 
     for (const childList of $(itemNode).children('ul,ol').toArray()) {
       blocks.push(...await htmlListToDocx($, childList, context, { ...options, listLevel: (options.listLevel || 0) + 1 }));
@@ -2114,7 +2524,7 @@ async function htmlNodeToDocxBlocks($, node, context, options = {}) {
   if (tag === 'img') {
     const alt = $(node).attr('alt') || 'HTML 图片';
     const blocks = [await imageParagraphFromSource($(node).attr('src'), alt, context)];
-    if (context.wordOptimizationEnabled) {
+    if (context.wordOptimizationEnabled && (!context.customTemplateEnabled || context.exportFormat.image.caption_enabled)) {
       blocks.push(createCaptionParagraph(context, 'figure', alt, '图片'));
     }
     return blocks;
@@ -2315,8 +2725,10 @@ function projectManagementInlineStatusRuns(value, marks = {}) {
   return runs;
 }
 
-async function tableCellParagraphs(cell, context, isHeader = false) {
+async function tableCellParagraphs(cell, context, isHeader = false, isFirstColumn = false) {
   const optimized = Boolean(context.wordOptimizationEnabled);
+  const templateStyle = context.customTemplateEnabled ? context.exportFormat.table : null;
+  const templateCellStyle = templateStyle ? (isHeader ? templateStyle.header_row : isFirstColumn ? templateStyle.first_column : templateStyle.body_cell) : null;
   const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
   const projectTableParagraphOptions = projectManagementDocument
     ? {
@@ -2338,15 +2750,16 @@ async function tableCellParagraphs(cell, context, isHeader = false) {
   if (phrasingNodes.length) {
     return [paragraph(await inlineRuns(phrasingNodes, context, {
       bold: isHeader,
-      font: projectManagementDocument ? '仿宋_GB2312' : optimized && isHeader ? '黑体' : undefined,
-      size: projectManagementDocument ? PROJECT_MANAGEMENT_TABLE_FONT_SIZE : undefined,
-      color: projectManagementDocument ? '000000' : undefined,
+      font: projectManagementDocument ? '仿宋_GB2312' : templateCellStyle?.font || (optimized && isHeader ? '黑体' : undefined),
+      size: projectManagementDocument ? PROJECT_MANAGEMENT_TABLE_FONT_SIZE : templateCellStyle ? pointsToHalfPoints(chineseSizeToPoints(templateCellStyle.size)) : undefined,
+      color: projectManagementDocument ? '000000' : templateCellStyle ? colorWithoutHash(templateCellStyle.text_color) : undefined,
       optimized,
       cleanMarkdown: projectManagementDocument,
     }), {
       after: optimized ? 0 : 80,
       ...optimizedTableCellParagraphOptions(optimized),
       ...projectTableParagraphOptions,
+      alignment: templateCellStyle ? docxAlignment(templateCellStyle.alignment, AlignmentType.CENTER) : undefined,
     })];
   }
 
@@ -2364,10 +2777,13 @@ async function tableCellParagraphs(cell, context, isHeader = false) {
   if (optimized && paragraphNodes.length) {
     return Promise.all(paragraphNodes.map(async (node) => paragraph(await inlineRuns(node.children || [], context, {
       bold: isHeader,
-      font: isHeader ? '黑体' : '宋体',
+      font: templateCellStyle?.font || (isHeader ? '黑体' : '宋体'),
+      size: templateCellStyle ? pointsToHalfPoints(chineseSizeToPoints(templateCellStyle.size)) : undefined,
+      color: templateCellStyle ? colorWithoutHash(templateCellStyle.text_color) : undefined,
       optimized,
     }), {
       ...optimizedTableCellParagraphOptions(true),
+      alignment: templateCellStyle ? docxAlignment(templateCellStyle.alignment, AlignmentType.CENTER) : undefined,
     })));
   }
 
@@ -2394,6 +2810,7 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
   for (const node of nodes) {
     if (node.type === 'heading') {
       const headingDepth = headingNumberingLevel(node.depth);
+      const customHeading = customHeadingStyle(context, node.depth);
       const officialHeadingFont = node.depth === 1 ? '小标宋体' : node.depth === 2 ? '黑体' : '楷体_GB2312';
       const headingRuns = structuredDocument
         ? [textRun(stripLeadingNumbering(stripInlineMarkdownMarkers(nodeText(node))) || stripInlineMarkdownMarkers(nodeText(node)), {
@@ -2409,27 +2826,31 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
             node.children,
             context,
             optimized
-              ? { font: '黑体', color: '000000', optimized, normalizeNumbering: true }
+              ? customHeading
+                ? { font: customHeading.font, size: pointsToHalfPoints(chineseSizeToPoints(customHeading.size)), bold: customHeading.bold, color: colorWithoutHash(customHeading.text_color), optimized, normalizeNumbering: false }
+                : { font: '黑体', color: '000000', optimized, normalizeNumbering: true }
               : officialDocument
                 ? { font: officialHeadingFont, color: '000000', size: node.depth === 1 ? 44 : 32, normalizeNumbering: true }
                 : {},
           );
       blocks.push(paragraph(headingRuns, {
         heading: headingLevel(node.depth),
+        outlineLevel: headingNumberingLevel(node.depth),
         style: headingStyleId(node.depth),
-        before: optimized || formalDocument ? 0 : node.depth === 1 ? 280 : 180,
-        after: optimized || formalDocument ? 0 : 120,
+        before: customHeading ? paragraphSpacingToTwips(customHeading.spacing_before_pt, customHeading.spacing_before_unit, chineseSizeToPoints(customHeading.size)) : optimized || formalDocument ? 0 : node.depth === 1 ? 280 : 180,
+        after: customHeading ? paragraphSpacingToTwips(customHeading.spacing_after_pt, customHeading.spacing_after_unit, chineseSizeToPoints(customHeading.size)) : optimized || formalDocument ? 0 : 120,
+        spacing: customHeading ? { before: paragraphSpacingToTwips(customHeading.spacing_before_pt, customHeading.spacing_before_unit, chineseSizeToPoints(customHeading.size)), after: paragraphSpacingToTwips(customHeading.spacing_after_pt, customHeading.spacing_after_unit, chineseSizeToPoints(customHeading.size)), ...customLineSpacing(customHeading.line_spacing, customHeading.line_spacing_mode, customHeading.line_spacing_unit) } : undefined,
         optimized,
         officialDocument,
         projectManagementDocument,
         presalesProposalDocument,
         keepNext: optimized || formalDocument ? true : undefined,
-        numbering: optimized || structuredDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
+        numbering: context.customTemplateEnabled ? undefined : optimized || structuredDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
         indent: optimized || formalDocument ? { left: 0, right: 0 } : undefined,
         tabStops: optimized || formalDocument ? [] : undefined,
         // 标题只有一行时不能使用两端对齐，否则中文字符会被拉开。
         // 保留正式公文一级标题居中，其余标题统一左对齐并保留编号缩进。
-        alignment: officialDocument && node.depth === 1 ? AlignmentType.CENTER : AlignmentType.LEFT,
+        alignment: customHeading ? docxAlignment(customHeading.alignment, AlignmentType.LEFT) : officialDocument && node.depth === 1 ? AlignmentType.CENTER : AlignmentType.LEFT,
       }));
       rememberParagraphText(context, nodeText(node));
     } else if (node.type === 'paragraph') {
@@ -2465,6 +2886,7 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         }));
         if (bodyNodes.length && nodeText({ children: bodyNodes }).trim()) {
           blocks.push(paragraph(await inlineRuns(bodyNodes, context, runMarks), {
+            ...customBodyParagraphOptions(context),
             optimized,
             officialDocument,
             projectManagementDocument,
@@ -2478,7 +2900,9 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
       if (!options.inTable && optimized && isImageOnlyParagraph(node)) {
         const imageNode = (node.children || []).find((child) => child.type === 'image');
         blocks.push(await imageParagraphFromSource(imageNode?.url, imageNode?.alt || '图片', context));
-        blocks.push(createCaptionParagraph(context, 'figure', imageNode?.alt || '', '图片'));
+        if (!context.customTemplateEnabled || context.exportFormat.image.caption_enabled) {
+          blocks.push(createCaptionParagraph(context, 'figure', imageNode?.alt || '', '图片'));
+        }
         context.lastParagraphText = '';
       } else if (!options.inTable && optimized && (isManualFigureCaptionText(text) || isManualTableCaptionText(text))) {
         context.lastParagraphText = '';
@@ -2492,17 +2916,22 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
           : officialDocument
             ? { font: '仿宋_GB2312', size: 32, color: '000000' }
             : {}), {
+          ...(!options.inTable ? customBodyParagraphOptions(context) : {}),
           after: formalDocument ? 0 : options.inTable ? 80 : 160,
           optimized,
           officialDocument,
           projectManagementDocument,
           presalesProposalDocument,
-          alignment: options.inTable && (optimized || projectManagementDocument)
+          alignment: !options.inTable && context.customTemplateEnabled
+            ? docxAlignment(context.exportFormat.body_text.alignment)
+            : options.inTable && (optimized || projectManagementDocument)
             ? AlignmentType.CENTER
             : isNumberedBodyParagraph(text)
               ? AlignmentType.LEFT
             : !options.inTable && (isImageOnlyParagraph(node) || isFigureCaptionParagraph(node)) ? AlignmentType.CENTER : undefined,
-          indent: projectManagementDocument && options.inTable
+          indent: !options.inTable && context.customTemplateEnabled && !isNumberedBodyParagraph(text)
+            ? { left: 0, right: 0, firstLine: Math.round(context.exportFormat.body_text.first_line_indent_chars * 240) }
+            : projectManagementDocument && options.inTable
             ? optimizedTableCellIndent()
             : formalDocument
             ? { left: 0, right: 0, firstLine: WORD_TWO_CHARS_TWIPS }
@@ -2520,29 +2949,34 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         }
       }
     } else if (node.type === 'list') {
-      const numberingReference = node.ordered ? createOrderedListReference(context) : null;
+      const customUnorderedDisabled = !node.ordered && context.customTemplateEnabled && context.exportFormat.body_text.list_style === 'none';
+      const numberingReference = node.ordered
+        ? createOrderedListReference(context)
+        : context.customTemplateEnabled && !customUnorderedDisabled ? createUnorderedListReference(context) : null;
       for (const item of node.children || []) {
         const firstParagraph = (item.children || []).find((child) => child.type === 'paragraph');
         const restChildren = (item.children || []).filter((child) => child !== firstParagraph);
-        const listOptions = node.ordered
+        const listOptions = numberingReference
           ? { numbering: { reference: numberingReference, level: Math.min(options.listLevel || 0, 2) } }
-          : { bullet: { level: Math.min(options.listLevel || 0, 2) } };
+          : customUnorderedDisabled ? {} : { bullet: { level: Math.min(options.listLevel || 0, 2) } };
         blocks.push(paragraph(await inlineRuns(firstParagraph?.children || [], context, optimized
           ? { optimized }
           : projectManagementDocument
             ? { font: '仿宋_GB2312', size: 32, color: '000000', cleanMarkdown: true }
             : {}), {
+          ...customBodyParagraphOptions(context),
           ...listOptions,
           optimized,
           projectManagementDocument,
           alignment: AlignmentType.LEFT,
-          indent: optimized ? optimizedNumberedBodyIndent() : projectManagementDocument ? optimizedNumberedBodyIndent() : undefined,
+          indent: context.customTemplateEnabled ? customListIndent(context) : optimized ? optimizedNumberedBodyIndent() : projectManagementDocument ? optimizedNumberedBodyIndent() : undefined,
           tabStops: optimized || projectManagementDocument ? [] : undefined,
         }));
         blocks.push(...await markdownNodesToDocx(restChildren, context, { ...options, listLevel: (options.listLevel || 0) + 1 }));
       }
     } else if (node.type === 'table') {
       const rows = [];
+      const templateStyle = context.customTemplateEnabled ? context.exportFormat.table : null;
       const maxColumns = Math.max(1, ...(node.children || []).map((row) => row.children?.length || 0));
       for (const [rowIndex, row] of (node.children || []).entries()) {
         const cells = [];
@@ -2552,21 +2986,23 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
             ? Math.max(1, maxColumns - rowCells.length + 1)
             : 1;
           cells.push(createTableCell({
-            children: await tableCellParagraphs(cell, context, rowIndex === 0),
+            children: await tableCellParagraphs(cell, context, rowIndex === 0, cellIndex === 0),
             isHeader: rowIndex === 0,
             columnSpan,
             totalColumns: maxColumns,
             optimized,
             projectManagementDocument,
+            templateStyle,
+            templateCellStyle: templateStyle ? (rowIndex === 0 ? templateStyle.header_row : cellIndex === 0 ? templateStyle.first_column : templateStyle.body_cell) : null,
           }));
         }
         rows.push(new TableRow({ children: cells, tableHeader: (optimized || projectManagementDocument) && rowIndex === 0 }));
       }
       if (rows.length) {
-        if (optimized) {
+        if (optimized && (!context.customTemplateEnabled || context.exportFormat.table.caption_enabled)) {
           blocks.push(createCaptionParagraph(context, 'table', inferMarkdownTableCaptionName(node, context), '数据表'));
         }
-        blocks.push(createDocxTable(rows, maxColumns, { optimized, projectManagementDocument }));
+        blocks.push(createDocxTable(rows, maxColumns, { optimized, projectManagementDocument, templateStyle }));
       }
     } else if (node.type === 'blockquote') {
       for (const child of node.children || []) {
@@ -2596,7 +3032,7 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
           addWarning(context, message);
           blocks.push(textRun(`[${message}]`, { color: 'C83220' }));
         }
-        if (optimized) {
+        if (optimized && (!context.customTemplateEnabled || context.exportFormat.image.caption_enabled)) {
           blocks.push(createCaptionParagraph(context, 'figure', `Mermaid 图 ${nextIndex}`, 'Mermaid 图'));
         }
         context.convertedMermaidCount = nextIndex;
@@ -2692,31 +3128,49 @@ async function addOutlineItems(children, items, context, level = 1) {
   const structuredDocument = projectManagementDocument || presalesProposalDocument;
   const formalDocument = officialDocument || structuredDocument;
   for (const item of items || []) {
+    const customHeading = customHeadingStyle(context, level);
     const rawTitle = item.title || '未命名章节';
-    const title = optimized || structuredDocument
-      ? stripLeadingNumbering(rawTitle) || rawTitle
+    const cleanTitle = stripLeadingNumbering(rawTitle) || rawTitle;
+    const suppressSmallestNumber = context.customTemplateEnabled && context.exportFormat.heading_border?.enabled && context.exportFormat.heading_border.min_heading_left_enabled && level >= 6;
+    const title = context.customTemplateEnabled
+      ? context.exportFormat.auto_numbering_enabled
+        ? cleanTitle
+        : staticHeadingTitle(item.id, cleanTitle, customHeading)
+      : optimized || structuredDocument
+      ? cleanTitle
       : `${item.id || ''} ${rawTitle}`.trim();
     const shouldRenderTitle = !(officialDocument && item.hideTitle);
     if (shouldRenderTitle) {
       children.push(paragraph([textRun(title, {
-        bold: true,
-        font: projectManagementDocument ? '楷体_GB2312' : optimized || officialDocument || presalesProposalDocument ? '黑体' : undefined,
-        color: optimized || formalDocument ? '000000' : undefined,
-        size: projectManagementDocument ? (level === 1 ? 32 : 30) : presalesProposalDocument ? (level === 1 ? 30 : 28) : officialDocument ? 32 : undefined,
+        bold: customHeading ? customHeading.bold : true,
+        font: customHeading?.font || (projectManagementDocument ? '楷体_GB2312' : optimized || officialDocument || presalesProposalDocument ? '黑体' : undefined),
+        color: customHeading ? colorWithoutHash(customHeading.text_color) : optimized || formalDocument ? '000000' : undefined,
+        size: customHeading ? pointsToHalfPoints(chineseSizeToPoints(customHeading.size)) : projectManagementDocument ? (level === 1 ? 32 : 30) : presalesProposalDocument ? (level === 1 ? 30 : 28) : officialDocument ? 32 : undefined,
         cleanMarkdown: structuredDocument,
       })], {
+        ...customHeadingDecoration(context, level),
         heading: headingLevel(level),
+        outlineLevel: headingNumberingLevel(level),
         style: headingStyleId(level),
-        before: optimized || formalDocument ? 0 : level === 1 ? 320 : 200,
-        after: optimized || formalDocument ? 0 : 120,
+        before: customHeading ? paragraphSpacingToTwips(customHeading.spacing_before_pt, customHeading.spacing_before_unit, chineseSizeToPoints(customHeading.size)) : optimized || formalDocument ? 0 : level === 1 ? 320 : 200,
+        after: customHeading ? paragraphSpacingToTwips(customHeading.spacing_after_pt, customHeading.spacing_after_unit, chineseSizeToPoints(customHeading.size)) : optimized || formalDocument ? 0 : 120,
+        spacing: customHeading ? { before: paragraphSpacingToTwips(customHeading.spacing_before_pt, customHeading.spacing_before_unit, chineseSizeToPoints(customHeading.size)), after: paragraphSpacingToTwips(customHeading.spacing_after_pt, customHeading.spacing_after_unit, chineseSizeToPoints(customHeading.size)), ...customLineSpacing(customHeading.line_spacing, customHeading.line_spacing_mode, customHeading.line_spacing_unit) } : undefined,
         optimized,
         officialDocument,
         projectManagementDocument,
         presalesProposalDocument,
         keepNext: optimized || formalDocument ? true : undefined,
-        numbering: optimized || structuredDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) } : undefined,
-        indent: optimized || formalDocument ? { left: 0, right: 0 } : undefined,
+        numbering: context.customTemplateEnabled
+          ? context.exportFormat.auto_numbering_enabled && !suppressSmallestNumber
+            ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) }
+            : undefined
+          : optimized || structuredDocument
+          ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) }
+          : undefined,
+        indent: customHeading ? { left: 0, right: 0, firstLine: Math.round(customHeading.first_line_indent_chars * 240) } : optimized || formalDocument ? { left: 0, right: 0 } : undefined,
         tabStops: optimized || formalDocument ? [] : undefined,
+        alignment: suppressSmallestNumber ? AlignmentType.LEFT : customHeading ? docxAlignment(customHeading.alignment, AlignmentType.LEFT) : undefined,
+        pageBreakBefore: context.customTemplateEnabled && level === 1 && context.exportFormat.heading_level1_page_break_before ? true : undefined,
       }));
       rememberParagraphText(context, title);
     }
@@ -2739,7 +3193,8 @@ function createNumberingConfig(context) {
   const optimized = Boolean(context.wordOptimizationEnabled);
   const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
   const presalesProposalDocument = Boolean(context.presalesProposalDocumentEnabled);
-  const headingNumberingEnabled = optimized || projectManagementDocument || presalesProposalDocument;
+  const customHeadingNumberingEnabled = Boolean(context.customTemplateEnabled && context.exportFormat?.auto_numbering_enabled);
+  const headingNumberingEnabled = optimized || projectManagementDocument || presalesProposalDocument || customHeadingNumberingEnabled;
   if (!references.length && !headingNumberingEnabled) {
     return undefined;
   }
@@ -2748,31 +3203,38 @@ function createNumberingConfig(context) {
     config: [
       ...(headingNumberingEnabled ? [{
         reference: WORD_OPTIMIZATION_HEADING_REFERENCE,
-        levels: Array.from({ length: 9 }, (_item, level) => ({
+        levels: Array.from({ length: 9 }, (_item, level) => {
+          const customHeading = customHeadingNumberingEnabled ? customHeadingStyle(context, level + 1) : null;
+          return {
           level,
-          format: LevelFormat.DECIMAL,
-          text: Array.from({ length: level + 1 }, (_part, index) => `%${index + 1}`).join('.'),
+          format: customHeading ? headingNumberingFormat(customHeading) : LevelFormat.DECIMAL,
+          text: customHeading ? headingNumberingText(customHeading, level + 1) : Array.from({ length: level + 1 }, (_part, index) => `%${index + 1}`).join('.'),
           alignment: AlignmentType.START,
           suffix: LevelSuffix.SPACE,
           style: {
             paragraph: {
-              indent: { left: 360 + level * 180, hanging: 0 },
-              spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
+              indent: customHeadingNumberingEnabled ? { left: 0, hanging: 0 } : { left: 360 + level * 180, hanging: 0 },
+              spacing: customHeadingNumberingEnabled
+                ? { before: 0, after: 0, ...customLineSpacing(customHeading.line_spacing, customHeading.line_spacing_mode, customHeading.line_spacing_unit) }
+                : { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
             },
-            run: { font: projectManagementDocument ? '楷体_GB2312' : '黑体', size: projectManagementDocument ? 28 : 24, bold: true, color: '000000' },
+            run: customHeadingNumberingEnabled
+              ? { font: customHeading.font, size: pointsToHalfPoints(chineseSizeToPoints(customHeading.size)), bold: customHeading.bold, color: colorWithoutHash(customHeading.text_color) }
+              : { font: projectManagementDocument ? '楷体_GB2312' : '黑体', size: projectManagementDocument ? 28 : 24, bold: true, color: '000000' },
           },
-        })),
+        };}),
       }] : []),
-      ...references.map((reference) => ({
-        reference,
+      ...references.map((definition) => ({
+        reference: definition.reference,
         levels: [0, 1, 2].map((level) => ({
           level,
-          format: LevelFormat.DECIMAL,
-          text: `%${level + 1}.`,
+          ...(definition.ordered
+            ? orderedListNumbering(definition.style, level)
+            : unorderedListNumbering(definition.style, level)),
           alignment: AlignmentType.START,
           style: {
             paragraph: {
-              indent: optimized || projectManagementDocument ? optimizedNumberedBodyIndent() : { left: 720 + level * 420, hanging: 260 },
+              indent: context.customTemplateEnabled ? customListIndent(context) : optimized || projectManagementDocument ? optimizedNumberedBodyIndent() : { left: 720 + level * 420, hanging: 260 },
             },
           },
         })),
@@ -2789,7 +3251,15 @@ async function buildDocxResult(payload, options = {}) {
   const feasibilityReportEnabled = payload.document_profile === 'feasibility-report' || payload.documentProfile === 'feasibility-report';
   const structuredDocumentEnabled = projectManagementDocumentEnabled || presalesProposalDocumentEnabled;
   const formalDocumentEnabled = officialDocumentEnabled || structuredDocumentEnabled;
-  const wordOptimizationEnabled = !formalDocumentEnabled && isWordOptimizationEnabled(options.config);
+  const documentScope = payload.documentScope || payload.document_scope;
+  const exportMode = payload.exportMode || payload.export_mode;
+  const customTemplateEnabled = !formalDocumentEnabled && documentScope === 'bid' && exportMode === 'custom-template';
+  const exportFormat = customTemplateEnabled ? normalizeBidExportTemplate(payload.exportFormat || payload.export_format) : null;
+  const customCoverEnabled = Boolean(customTemplateEnabled && exportFormat.cover?.enabled);
+  const wordOptimizationEnabled = !formalDocumentEnabled && (
+    customTemplateEnabled
+    || (documentScope === 'bid' && exportMode === 'basic' ? false : isWordOptimizationEnabled(options.config))
+  );
   const context = {
     baseDir: payload.base_dir || payload.baseDir,
     onProgress: options.onProgress,
@@ -2800,6 +3270,8 @@ async function buildDocxResult(payload, options = {}) {
     presalesProposalDocumentEnabled,
     feasibilityReportEnabled,
     wordOptimizationEnabled,
+    customTemplateEnabled,
+    exportFormat,
     convertedLeafCount: 0,
     convertedMermaidCount: 0,
     numberingReferences: [],
@@ -2810,7 +3282,7 @@ async function buildDocxResult(payload, options = {}) {
     lastParagraphText: '',
     recentParagraphTexts: [],
   };
-  const coverChildren = projectManagementDocumentEnabled
+  const structuredCoverChildren = projectManagementDocumentEnabled
     ? createProjectManagementCover(payload)
     : presalesProposalDocumentEnabled
     ? createPresalesProposalCover(payload)
@@ -2818,7 +3290,7 @@ async function buildDocxResult(payload, options = {}) {
   const tocChildren = structuredDocumentEnabled ? createProjectManagementTocPage() : [];
   const children = structuredDocumentEnabled
     ? []
-    : feasibilityReportEnabled
+    : feasibilityReportEnabled && !customCoverEnabled
     ? [
         paragraph([textRun(payload.project_name || '建设项目', { bold: true, size: 34, font: '黑体', color: '000000' })], { alignment: AlignmentType.CENTER, before: 1600, after: 420, indent: { left: 0, right: 0 } }),
         paragraph([textRun(payload.document_title || '可行性研究报告', { bold: true, size: 44, font: '黑体', color: '000000' })], { alignment: AlignmentType.CENTER, after: 1600, indent: { left: 0, right: 0 } }),
@@ -2828,7 +3300,7 @@ async function buildDocxResult(payload, options = {}) {
       ]
     : officialDocumentEnabled
     ? []
-    : wordOptimizationEnabled
+    : wordOptimizationEnabled && !customCoverEnabled
     ? [
         paragraph([textRun(payload.project_name || '投标技术文件', { bold: true, size: 34, font: '黑体', color: '000000' })], {
           alignment: AlignmentType.CENTER,
@@ -2841,6 +3313,8 @@ async function buildDocxResult(payload, options = {}) {
         paragraph([textRun('内容由 AI 生成', { italics: true, size: 18 })], { alignment: AlignmentType.CENTER, after: 120 }),
         paragraph([textRun(payload.project_name || '投标技术文件', { bold: true, size: 34 })], { alignment: AlignmentType.CENTER, after: 300 }),
       ];
+
+  const customCoverChildren = customCoverEnabled ? await createCustomBidCover(payload, context) : [];
 
   reportProgress(context, 10, stats.mermaidCount
     ? `准备导出正文，并转换 ${stats.mermaidCount} 张 Mermaid 图。`
@@ -2861,6 +3335,12 @@ async function buildDocxResult(payload, options = {}) {
         alignment: AlignmentType.JUSTIFIED,
         indent: optimizedBodyIndent(),
       }
+    : customTemplateEnabled
+    ? {
+        spacing: { before: paragraphSpacingToTwips(exportFormat.body_text.spacing_before_pt, exportFormat.body_text.spacing_before_unit, chineseSizeToPoints(exportFormat.body_text.size)), after: paragraphSpacingToTwips(exportFormat.body_text.spacing_after_pt, exportFormat.body_text.spacing_after_unit, chineseSizeToPoints(exportFormat.body_text.size)), ...customLineSpacing(exportFormat.body_text.line_spacing_multiple, exportFormat.body_text.line_spacing_mode, exportFormat.body_text.line_spacing_unit) },
+        alignment: docxAlignment(exportFormat.body_text.alignment),
+        indent: { firstLine: Math.round(exportFormat.body_text.first_line_indent_chars * 240) },
+      }
     : wordOptimizationEnabled
     ? {
         spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
@@ -2868,14 +3348,14 @@ async function buildDocxResult(payload, options = {}) {
         indent: optimizedBodyIndent(),
       }
     : { spacing: { line: 360, after: 160 } };
-  const optimizedHeadingStyle = wordOptimizationEnabled || structuredDocumentEnabled
+  const optimizedHeadingStyle = wordOptimizationEnabled || structuredDocumentEnabled || customTemplateEnabled
     ? {
         basedOn: 'Normal',
         next: 'Normal',
         quickFormat: true,
         run: {
-          font: projectManagementDocumentEnabled ? '楷体_GB2312' : '黑体',
-          size: projectManagementDocumentEnabled ? 30 : presalesProposalDocumentEnabled ? 28 : 24,
+          font: customTemplateEnabled ? exportFormat.headings[0].font : projectManagementDocumentEnabled ? '楷体_GB2312' : '黑体',
+          size: customTemplateEnabled ? pointsToHalfPoints(chineseSizeToPoints(exportFormat.headings[0].size)) : projectManagementDocumentEnabled ? 30 : presalesProposalDocumentEnabled ? 28 : 24,
           bold: true,
           color: '000000',
         },
@@ -2889,6 +3369,33 @@ async function buildDocxResult(payload, options = {}) {
         },
       }
     : undefined;
+  const configuredHeadingStyle = (level) => ({
+    ...optimizedHeadingStyle,
+    run: customTemplateEnabled
+      ? (() => {
+          const heading = exportFormat.headings[Math.min(level - 1, exportFormat.headings.length - 1)];
+          return { font: heading.font, size: pointsToHalfPoints(chineseSizeToPoints(heading.size)), bold: heading.bold, color: colorWithoutHash(heading.text_color) };
+        })()
+      : projectManagementDocumentEnabled
+      ? { font: '楷体_GB2312', size: level === 1 ? 32 : level === 2 ? 30 : 28, bold: true, color: '000000' }
+      : presalesProposalDocumentEnabled
+      ? { font: '黑体', size: level === 1 ? 30 : level === 2 ? 28 : 26, bold: true, color: '000000' }
+      : optimizedHeadingStyle.run,
+    paragraph: customTemplateEnabled
+      ? (() => {
+          const heading = exportFormat.headings[Math.min(level - 1, exportFormat.headings.length - 1)];
+          return {
+            spacing: { before: paragraphSpacingToTwips(heading.spacing_before_pt, heading.spacing_before_unit, chineseSizeToPoints(heading.size)), after: paragraphSpacingToTwips(heading.spacing_after_pt, heading.spacing_after_unit, chineseSizeToPoints(heading.size)), ...customLineSpacing(heading.line_spacing, heading.line_spacing_mode, heading.line_spacing_unit) },
+            alignment: docxAlignment(heading.alignment, AlignmentType.LEFT),
+            indent: { left: 0, right: 0 },
+            tabStops: [],
+            numbering: exportFormat.auto_numbering_enabled && !(exportFormat.heading_border?.enabled && exportFormat.heading_border.min_heading_left_enabled && level >= 6)
+              ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingNumberingLevel(level) }
+              : undefined,
+          };
+        })()
+      : optimizedHeadingStyle.paragraph,
+  });
   const sections = structuredDocumentEnabled
     ? [
         {
@@ -2898,7 +3405,7 @@ async function buildDocxResult(payload, options = {}) {
               margin: projectManagementPageMargin(),
             },
           },
-          children: coverChildren,
+          children: structuredCoverChildren,
         },
         {
           properties: {
@@ -2927,17 +3434,69 @@ async function buildDocxResult(payload, options = {}) {
           children,
         },
       ]
+    : customCoverEnabled
+    ? [
+        {
+          properties: {
+            type: SectionType.NEXT_PAGE,
+            page: {
+              size: (() => { const dimensions = PAPER_DIMENSIONS_MM[exportFormat.page.paper_size] || PAPER_DIMENSIONS_MM.a4; return { width: centimetersToTwips(dimensions.width / 10), height: centimetersToTwips(dimensions.height / 10), orientation: exportFormat.page.orientation === 'landscape' ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT }; })(),
+              margin: {
+                top: centimetersToTwips(exportFormat.page.margin_top_cm),
+                right: centimetersToTwips(exportFormat.page.margin_right_cm),
+                bottom: centimetersToTwips(exportFormat.page.margin_bottom_cm),
+                left: centimetersToTwips(exportFormat.page.margin_left_cm),
+                footer: centimetersToTwips(exportFormat.page.footer_distance_cm),
+              },
+            },
+          },
+          headers: !exportFormat.cover.hide_header_footer && customTemplateHeader(exportFormat.page) ? { default: customTemplateHeader(exportFormat.page) } : undefined,
+          footers: !exportFormat.cover.hide_header_footer && customTemplateFooter(exportFormat.page) ? { default: customTemplateFooter(exportFormat.page) } : undefined,
+          children: customCoverChildren,
+        },
+        {
+          properties: {
+            type: SectionType.NEXT_PAGE,
+            page: {
+              size: (() => { const dimensions = PAPER_DIMENSIONS_MM[exportFormat.page.paper_size] || PAPER_DIMENSIONS_MM.a4; return { width: centimetersToTwips(dimensions.width / 10), height: centimetersToTwips(dimensions.height / 10), orientation: exportFormat.page.orientation === 'landscape' ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT }; })(),
+              margin: {
+                top: centimetersToTwips(exportFormat.page.margin_top_cm),
+                right: centimetersToTwips(exportFormat.page.margin_right_cm),
+                bottom: centimetersToTwips(exportFormat.page.margin_bottom_cm),
+                left: centimetersToTwips(exportFormat.page.margin_left_cm),
+                footer: centimetersToTwips(exportFormat.page.footer_distance_cm),
+              },
+              pageNumbers: exportFormat.page.page_number_enabled ? { start: exportFormat.page.page_number_start } : undefined,
+            },
+          },
+          headers: customTemplateHeader(exportFormat.page) ? { default: customTemplateHeader(exportFormat.page) } : undefined,
+          footers: customTemplateFooter(exportFormat.page) ? { default: customTemplateFooter(exportFormat.page) } : undefined,
+          children,
+        },
+      ]
     : [{
         properties: {
           page: {
-            margin: officialDocumentEnabled
+            size: customTemplateEnabled ? (() => { const dimensions = PAPER_DIMENSIONS_MM[exportFormat.page.paper_size] || PAPER_DIMENSIONS_MM.a4; return { width: centimetersToTwips(dimensions.width / 10), height: centimetersToTwips(dimensions.height / 10), orientation: exportFormat.page.orientation === 'landscape' ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT }; })() : undefined,
+            margin: customTemplateEnabled
+              ? {
+                  top: centimetersToTwips(exportFormat.page.margin_top_cm),
+                  right: centimetersToTwips(exportFormat.page.margin_right_cm),
+                  bottom: centimetersToTwips(exportFormat.page.margin_bottom_cm),
+                  left: centimetersToTwips(exportFormat.page.margin_left_cm),
+                  footer: centimetersToTwips(exportFormat.page.footer_distance_cm),
+                }
+              : officialDocumentEnabled
               ? { top: 2098, right: 1475, bottom: 1890, left: 1587 }
               : { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+            pageNumbers: customTemplateEnabled && exportFormat.page.page_number_enabled ? { start: exportFormat.page.page_number_start } : undefined,
           },
+          ...(customTemplateEnabled && exportFormat.page.first_page_different ? { titlePage: true } : {}),
         },
-        footers: wordOptimizationEnabled ? {
-          default: centeredPageNumberFooter(),
-        } : undefined,
+        headers: customTemplateEnabled && customTemplateHeader(exportFormat.page) ? { default: customTemplateHeader(exportFormat.page) } : undefined,
+        footers: customTemplateEnabled
+          ? customTemplateFooter(exportFormat.page) ? { default: customTemplateFooter(exportFormat.page) } : undefined
+          : wordOptimizationEnabled ? { default: centeredPageNumberFooter() } : undefined,
         children,
       }];
 
@@ -2954,21 +3513,26 @@ async function buildDocxResult(payload, options = {}) {
             ? { font: '宋体', size: 24, color: '000000' }
             : officialDocumentEnabled
             ? { font: '仿宋_GB2312', size: 32, color: '000000' }
+            : customTemplateEnabled
+            ? { font: exportFormat.body_text.font, size: pointsToHalfPoints(chineseSizeToPoints(exportFormat.body_text.size)), color: '000000' }
             : { font: '宋体', size: 24, color: wordOptimizationEnabled ? '000000' : undefined },
           paragraph: defaultParagraphStyle,
         },
+        ...(customTemplateEnabled ? {
+          heading1: configuredHeadingStyle(1),
+          heading2: configuredHeadingStyle(2),
+          heading3: configuredHeadingStyle(3),
+          heading4: configuredHeadingStyle(4),
+          heading5: configuredHeadingStyle(5),
+          heading6: configuredHeadingStyle(6),
+        } : {}),
       },
       paragraphStyles: [
-        ...(wordOptimizationEnabled || structuredDocumentEnabled ? [
-          ...Array.from({ length: 9 }, (_item, index) => index + 1).map((level) => ({
+        ...(wordOptimizationEnabled || structuredDocumentEnabled || customTemplateEnabled ? [
+          ...(customTemplateEnabled ? [7, 8, 9] : Array.from({ length: 9 }, (_item, index) => index + 1)).map((level) => ({
             id: `Heading${level}`,
             name: `Heading ${level}`,
-            ...optimizedHeadingStyle,
-            run: projectManagementDocumentEnabled
-              ? { font: '楷体_GB2312', size: level === 1 ? 32 : level === 2 ? 30 : 28, bold: true, color: '000000' }
-              : presalesProposalDocumentEnabled
-              ? { font: '黑体', size: level === 1 ? 30 : level === 2 ? 28 : 26, bold: true, color: '000000' }
-              : optimizedHeadingStyle.run,
+            ...configuredHeadingStyle(level),
           })),
         ] : [
           ...[7, 8, 9].map((level) => ({
@@ -3049,7 +3613,40 @@ async function exportOriginalTemplateWord(payload = {}, onProgress) {
   return { success: true, path: result.filePath, filePath: result.filePath, message, warnings: progressContext.warnings };
 }
 
-function createExportService({ configStore } = {}) {
+function resolveBidTemplatePayload(payload = {}, templateStore) {
+  const documentScope = payload.documentScope || payload.document_scope;
+  const exportMode = payload.exportMode || payload.export_mode;
+  if (exportMode !== 'custom-template') return payload;
+  if (documentScope !== 'bid') {
+    throw new Error('自定义招投标模板不能用于其他业务模块');
+  }
+
+  const templateId = String(payload.templateId || payload.template_id || '').trim();
+  if (!templateId) {
+    if (payload.templatePreview === true || payload.template_preview === true) {
+      if (!(payload.exportFormat || payload.export_format)) {
+        throw new Error('未找到当前模板的测试导出配置');
+      }
+      return payload;
+    }
+    throw new Error('请选择一个已保存的招投标模板');
+  }
+
+  if (!templateStore || typeof templateStore.get !== 'function') {
+    throw new Error('招投标模板服务尚未就绪，请重启客户端后重试');
+  }
+  const template = templateStore.get(templateId);
+  if (!template) {
+    throw new Error('所选招投标模板已不存在，请重新选择');
+  }
+  return {
+    ...payload,
+    templateId: template.templateId,
+    exportFormat: template.config,
+  };
+}
+
+function createExportService({ configStore, getTemplateStore } = {}) {
   return {
     showExportFile(filePath) {
       const target = String(filePath || '').trim();
@@ -3066,6 +3663,20 @@ function createExportService({ configStore } = {}) {
 
       if (!Array.isArray(payload.outline) || !payload.outline.length) {
         throw new Error('没有可导出的目录内容');
+      }
+
+      const config = configStore ? configStore.load() : null;
+      const documentScope = payload.documentScope || payload.document_scope;
+      const exportMode = payload.exportMode || payload.export_mode;
+      if (exportMode === 'custom-template') {
+        const templateStore = typeof getTemplateStore === 'function' ? getTemplateStore() : null;
+        payload = resolveBidTemplatePayload(payload, templateStore);
+      }
+      if (documentScope === 'bid' && exportMode === 'custom-template' && !(payload.exportFormat || payload.export_format)) {
+        throw new Error('未找到本次导出的自定义模板配置');
+      }
+      if (documentScope === 'bid' && exportMode === 'word-optimization' && !isWordOptimizationEnabled(config)) {
+        throw new Error('请先到 设置 > 技能管理 启用 word-optimization');
       }
 
       const stats = countOutlineStats(payload.outline || []);
@@ -3091,7 +3702,6 @@ function createExportService({ configStore } = {}) {
         : '正在准备 Word 导出。');
 
       const warnings = [];
-      const config = configStore ? configStore.load() : null;
       const buildResult = await buildDocxResult(payload, { onProgress, warnings, config });
       reportProgress({ onProgress, warnings: buildResult.warnings, stats: buildResult.stats }, 96, '正在写入 Word 文件。');
       fs.writeFileSync(result.filePath, buildResult.buffer);
@@ -3113,5 +3723,6 @@ module.exports = {
   createExportService,
   inlineSvgClassStyles,
   normalizeMermaidForExport,
+  resolveBidTemplatePayload,
   svgBufferToPngBuffer,
 };

@@ -59,6 +59,16 @@ export type {
   TextModelProfiles,
 } from './config';
 export type { AppMenuGroup, AppMenuItem, SectionId } from './navigation';
+export type {
+  BidBodyStyleConfig,
+  BidExportTemplateConfig,
+  BidExportTemplateRecord,
+  BidHeadingStyleConfig,
+  BidImageStyleConfig,
+  BidPageStyleConfig,
+  BidTableStyleConfig,
+  BidWordExportMode,
+} from './exportFormat';
 export type { OutlineData, OutlineItem, OutlineMode, TechnicalRequirementGroup } from './outline';
 export type {
   FeasibilityBackgroundTaskState,

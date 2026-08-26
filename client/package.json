@@ -1,6 +1,6 @@
 {
   "name": "yudubid-client",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
@@ -22,6 +22,7 @@
     "verify:offline": "npm run verify:ipc-contract && npm run verify:task-recovery && npm run verify:thesis-tutor && npm run verify:project-management && npm run verify:model-capabilities && npm run verify:mermaid-packaging && npm run verify:renderer-packaging && npm run verify:asset-packaging && npm run verify:document-security && npm run verify:code-generation && npm run verify:patent-generation && npm run verify:software-copyright",
     "verify:document-security": "node scripts/verify-document-security.cjs",
     "verify:mermaid-export": "electron scripts/verify-mermaid-export.cjs",
+    "verify:bid-template-export": "electron scripts/verify-bid-template-export.cjs",
     "verify:mermaid-packaging": "node scripts/verify-mermaid-packaging.cjs",
     "verify:renderer-packaging": "node scripts/verify-renderer-packaging.cjs",
     "verify:asset-packaging": "node scripts/verify-asset-packaging.cjs",

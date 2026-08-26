@@ -4,7 +4,7 @@
 -- 1. 本文件用于开源开发者阅读、评审和排查问题，展示 workspace/yibiao.sqlite 的目标完整表结构。
 -- 2. 用户运行客户端时不需要手动执行本文件。
 -- 3. 客户端运行时建表和升级以 Electron Main 侧 migration 代码为准。
--- 4. 当前运行代码已升级到 v17；可研报告项目使用独立 SQLite 工作区，并复用本目标结构中的 feasibility_report_* 表。
+-- 4. 当前运行代码已升级到 v18；可研报告项目使用独立 SQLite 工作区，并复用本目标结构中的 feasibility_report_* 表。
 -- 5. 每次表结构调整后，需要同步更新本文件和 runtime migration 版本。
 -- 6. 本文件不保存历史版本，每次更新都写入最新目标完整结构。
 
@@ -14,7 +14,7 @@ PRAGMA busy_timeout = 5000;
 
 -- 目标完整结构版本。
 -- 运行时代码应通过 PRAGMA user_version 判断是否需要自动升级。
-PRAGMA user_version = 17;
+PRAGMA user_version = 18;
 
 -- ============================================================================
 -- 技术方案 technical_plan_*（v1 已落地）
@@ -928,3 +928,18 @@ CREATE TABLE IF NOT EXISTS feasibility_report_content_sections (
 
 CREATE INDEX IF NOT EXISTS idx_feasibility_report_content_sections_status
 ON feasibility_report_content_sections(status);
+
+-- ============================================================================
+-- 招投标 Word 导出模板 bid_export_templates（v18 已落地）
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS bid_export_templates (
+  template_id TEXT PRIMARY KEY,
+  template_name TEXT NOT NULL,
+  config_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_bid_export_templates_updated
+ON bid_export_templates(updated_at DESC);

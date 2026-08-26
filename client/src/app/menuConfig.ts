@@ -29,6 +29,11 @@ export const appMenuItems: AppMenuItem[] = [
     description: '项目论证与报告编制',
   },
   {
+    id: 'bid-template-management',
+    label: '模板管理',
+    description: '管理招投标 Word 导出模板',
+  },
+  {
     id: 'knowledge-base',
     label: '知识库',
     description: '素材、模板和案例资产',

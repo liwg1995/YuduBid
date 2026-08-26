@@ -3,7 +3,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const { getWorkspaceDatabasePath } = require('../utils/paths.cjs');
 
-const schemaVersion = 17;
+const schemaVersion = 18;
 
 function createInitialSchema(db) {
   db.exec(`
@@ -985,6 +985,21 @@ function createFeasibilityReportSchema(db) {
   `);
 }
 
+function createBidExportTemplatesSchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bid_export_templates (
+      template_id TEXT PRIMARY KEY,
+      template_name TEXT NOT NULL,
+      config_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bid_export_templates_updated
+    ON bid_export_templates(updated_at DESC);
+  `);
+}
+
 const migrations = [
   {
     version: 1,
@@ -1072,6 +1087,11 @@ const migrations = [
     up(db) {
       addColumnIfMissing(db, 'feasibility_report_meta', 'content_generation_options_json', 'TEXT');
     },
+  },
+  {
+    version: 18,
+    description: '新增招投标 Word 导出模板表结构',
+    up: createBidExportTemplatesSchema,
   },
 ];
 

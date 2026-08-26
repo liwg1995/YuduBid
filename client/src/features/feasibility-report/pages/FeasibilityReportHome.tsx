@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { OutlineItem, WordExportProgressEvent } from '../../../shared/types';
+import type { BidExportTemplateRecord, BidWordExportMode, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
 import { FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useAppDialog } from '../../../shared/ui';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import {
@@ -16,6 +16,7 @@ import AnalysisPanel from '../components/AnalysisPanel';
 import OutlinePanel from '../components/OutlinePanel';
 import ParametersPanel from '../components/ParametersPanel';
 import ContentPanel from '../components/ContentPanel';
+import BidWordExportDialog from '../../export-format/components/BidWordExportDialog';
 import { isTaskRunning } from '../components/TaskProgressCard';
 import '../feasibilityReport.css';
 
@@ -86,6 +87,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
   const [loading, setLoading] = useState(true);
   const [savingStep, setSavingStep] = useState(false);
   const [exportProgress, setExportProgress] = useState<ExportProgressState>(initialExportProgress);
+  const [exportChoiceOpen, setExportChoiceOpen] = useState(false);
 
   useEffect(() => {
     let disposed = false;
@@ -182,7 +184,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
     } catch (error) { showToast(`重置可研报告失败：${getErrorMessage(error)}`, 'error'); }
   };
 
-  const exportWord = async () => {
+  const exportWord = async (mode: Exclude<BidWordExportMode, 'original-template'> = 'word-optimization', template?: BidExportTemplateRecord) => {
     if (!reportState?.outlineData?.outline.length || !completedContentCount) {
       showToast('当前没有可导出的正文', 'info');
       return;
@@ -221,6 +223,10 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
       });
       const result = await window.yibiao?.export.exportWord({
         requestId,
+        documentScope: 'bid',
+        exportMode: mode,
+        exportFormat: template?.config,
+        templateId: template?.templateId,
         documentProfile: 'feasibility-report',
         document_title: '可行性研究报告',
         project_name: reportState.projectInfo.projectName || reportState.projectName,
@@ -275,7 +281,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
             : completedContentCount
               ? '导出当前可行性研究报告正文'
               : '请先生成正文再导出',
-        onClick: () => void exportWord(),
+        onClick: () => setExportChoiceOpen(true),
       },
     ]
     : [
@@ -367,6 +373,12 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
           )}
         </div>
       </main>
+      <BidWordExportDialog
+        open={exportChoiceOpen}
+        onOpenChange={setExportChoiceOpen}
+        disabled={exportProgress.running}
+        onConfirm={exportWord}
+      />
       <Dialog.Root
         open={exportProgress.open}
         onOpenChange={(open) => {

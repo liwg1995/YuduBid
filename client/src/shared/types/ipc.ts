@@ -1,6 +1,7 @@
 import type { ChatCompletionRequest, JsonCompletionRequest } from './ai';
 import type { DuplicateCheckWorkspaceState, FileSelectionResult } from './bid';
 import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelCapabilityInfo, ModelListResult } from './config';
+import type { BidExportTemplateConfig, BidExportTemplateRecord } from './exportFormat';
 import type { CodeGenerationSelectResult, CodeGenerationState } from './contracts/codeGeneration';
 import type { GrantApplicationPanel, GrantApplicationProfile, GrantApplicationProject, GrantApplicationProjectList, GrantApplicationState, GrantFormFieldMapping, GrantProposalModuleKey, GrantProposalTemplateMapping, GrantProposalVisualSettings, GrantTemplateFillReport } from './contracts/grantApplication';
 import type { FeasibilityBackgroundTaskState, FeasibilityContentGenerationOptions, FeasibilityOutlineTemplate, FeasibilityProjectInfo, FeasibilityProjectList, FeasibilityProjectPayload, FeasibilityProjectRecord, FeasibilityReportState, FeasibilityReportStep, FeasibilityTaskEvent } from './contracts/feasibilityReport';
@@ -487,6 +488,20 @@ export interface YuDuBidBridge {
     startDuplicateAnalysis: (payload: unknown) => Promise<unknown>;
     getActiveTasks: () => Promise<unknown[]>;
     onTaskEvent: <TState = unknown, TRejectionCheckState = unknown, TDuplicateCheckState = unknown>(callback: (event: TaskEvent<TState, TRejectionCheckState, TDuplicateCheckState>) => void) => () => void;
+  };
+  bidTemplates: {
+    list: () => Promise<BidExportTemplateRecord[]>;
+    get: (templateId: string) => Promise<BidExportTemplateRecord | null>;
+    create: (config: BidExportTemplateConfig) => Promise<BidExportTemplateRecord>;
+    update: (templateId: string, config: BidExportTemplateConfig) => Promise<BidExportTemplateRecord>;
+    delete: (templateId: string) => Promise<{ success: boolean; message: string }>;
+    selectCoverLogo: () => Promise<{ canceled: boolean; path?: string; dataUrl?: string }>;
+    getCoverLogoPreview: (filePath: string) => Promise<{ dataUrl: string }>;
+    export: (templateId: string) => Promise<{ success: boolean; canceled?: boolean; path?: string; message?: string }>;
+    import: () => Promise<{ success: boolean; canceled?: boolean; path?: string; renamed?: boolean; template?: BidExportTemplateRecord; message?: string }>;
+  };
+  systemFonts: {
+    list: () => Promise<string[]>;
   };
   export: {
   exportWord: (payload: unknown) => Promise<WordExportResult>;

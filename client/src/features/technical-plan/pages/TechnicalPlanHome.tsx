@@ -5,12 +5,13 @@ import BidAnalysisPage from './BidAnalysisPage';
 import OutlineEditPage from './OutlineEditPage';
 import GlobalFactsPage from './GlobalFactsPage';
 import ContentEditPage from './ContentEditPage';
+import BidWordExportDialog from '../../export-format/components/BidWordExportDialog';
 import { useTechnicalPlanWorkflow } from '../hooks/useTechnicalPlanWorkflow';
 import { getBidAnalysisTasks } from '../services/bidAnalysisWorkflow';
 import { FloatingToolbar, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useAppDialog, useToast } from '../../../shared/ui';
 import { countReadableWords } from '../../../shared/utils/wordCount';
 import type { BackgroundTaskState, BidAnalysisTasks, ContentGenerationOptions, ContentTableRequirement, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
-import type { OutlineData, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
+import type { BidExportTemplateRecord, BidWordExportMode, OutlineData, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
 import type { SectionId } from '../../../shared/types/navigation';
 
 const steps: TechnicalPlanStep[] = [
@@ -211,7 +212,6 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const [originalPlanMarkdown, setOriginalPlanMarkdown] = useState('');
   const [exportProgress, setExportProgress] = useState<ExportProgressState>(initialExportProgress);
   const [exportChoiceOpen, setExportChoiceOpen] = useState(false);
-  const [wordOptimizationEnabled, setWordOptimizationEnabled] = useState(false);
   const [contentEditSelectedItemId, setContentEditSelectedItemId] = useState('');
   const [expandSelectedItemIds, setExpandSelectedItemIds] = useState<Set<string>>(new Set());
   const [previewExpandItemId, setPreviewExpandItemId] = useState('');
@@ -656,25 +656,15 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     };
   }, [projectId, requiresOriginalPlan, showToast, state.originalPlanFile, workflowKind]);
 
-  const loadWordOptimizationEnabled = async () => {
-    const config = await window.yibiao?.config.load();
-    return Boolean(config?.skill_settings?.skills?.['word-optimization']?.enabled);
-  };
-
-  const openExportChoice = async () => {
+  const openExportChoice = () => {
     if (!state.outlineData?.outline?.length) {
       showToast('请先生成目录', 'info');
       return;
     }
-    try {
-      setWordOptimizationEnabled(await loadWordOptimizationEnabled());
-      setExportChoiceOpen(true);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '读取技能配置失败', 'error');
-    }
+    setExportChoiceOpen(true);
   };
 
-  const exportWord = async () => {
+  const exportWord = async (mode: Exclude<BidWordExportMode, 'original-template'> = 'word-optimization', template?: BidExportTemplateRecord) => {
     if (!state.outlineData?.outline?.length) {
       showToast('请先生成目录', 'info');
       return;
@@ -714,6 +704,10 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
 
       const result = await window.yibiao?.export.exportWord({
         requestId,
+        documentScope: 'bid',
+        exportMode: mode,
+        exportFormat: template?.config,
+        templateId: template?.templateId,
         workflowKind,
         projectId,
         project_name: state.outlineData.project_name || projectName || state.projectName,
@@ -748,17 +742,6 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     } finally {
       unsubscribe?.();
     }
-  };
-
-  const exportOptimizedWord = async () => {
-    const enabled = await loadWordOptimizationEnabled();
-    setWordOptimizationEnabled(enabled);
-    if (!enabled) {
-      showToast('请先到 设置 > 技能管理 启用 word-optimization', 'info');
-      return;
-    }
-    setExportChoiceOpen(false);
-    await exportWord();
   };
 
   const exportOriginalFormatWord = async () => {
@@ -993,7 +976,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         variant: 'primary' as const,
         disabled: isContentGenerating || isExporting || !state.outlineData,
         tooltip: isContentGenerating ? '正文生成或暂停处理中，完成暂停后再导出' : isExporting ? 'Word 正在导出，请稍候' : isContentPaused ? '正文生成已暂停，可导出当前已完成内容' : generatedContentCount ? '导出当前技术方案正文' : '可导出空目录文档，建议先生成正文',
-        onClick: requiresOriginalPlan ? () => { void openExportChoice(); } : exportWord,
+        onClick: openExportChoice,
       },
       {
         id: 'continue-expand',
@@ -1399,48 +1382,15 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         </Dialog.Portal>
       </Dialog.Root>
 
-      <Dialog.Root open={exportChoiceOpen} onOpenChange={setExportChoiceOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="content-regenerate-card">
-            <div className="content-regenerate-card-head">
-              <span className="section-kicker">Word 导出</span>
-              <Dialog.Title>选择导出方式</Dialog.Title>
-              <Dialog.Description>
-                已有方案扩写支持按原方案格式导出或使用 word-optimization 优化版式导出。
-              </Dialog.Description>
-            </div>
-            <div className="content-generation-config-list">
-              <div className="content-generation-config-row">
-                <span>
-                  <strong>原格式导出</strong>
-                  <small>{state.originalPlanFile?.sourceExt === '.docx' && state.originalPlanFile?.sourcePath ? '基于原 DOCX 文件追加扩写正文，保留原方案已有版式、样式、页眉页脚和图片。' : '当前仅支持以 DOCX 原方案作为原格式模板，请重新导入 DOCX 原方案。'}</small>
-                </span>
-                <button
-                  type="button"
-                  className="secondary-action"
-                  onClick={() => { void exportOriginalFormatWord(); }}
-                  disabled={isExporting || state.originalPlanFile?.sourceExt !== '.docx' || !state.originalPlanFile?.sourcePath}
-                >
-                  原格式导出
-                </button>
-              </div>
-              <div className="content-generation-config-row">
-                <span>
-                  <strong>优化格式导出</strong>
-                  <small>{wordOptimizationEnabled ? '使用已启用的 word-optimization 技能统一正文、标题、表格、图片、页码和编号缩进。' : '请先到 设置 > 技能管理 启用 word-optimization。'}</small>
-                </span>
-                <button type="button" className="primary-action" onClick={() => { void exportOptimizedWord(); }} disabled={!wordOptimizationEnabled || isExporting}>
-                  {wordOptimizationEnabled ? '优化格式导出' : '未启用'}
-                </button>
-              </div>
-            </div>
-            <div className="content-regenerate-actions">
-              <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <BidWordExportDialog
+        open={exportChoiceOpen}
+        onOpenChange={setExportChoiceOpen}
+        allowOriginal={requiresOriginalPlan}
+        originalAvailable={state.originalPlanFile?.sourceExt === '.docx' && Boolean(state.originalPlanFile?.sourcePath)}
+        disabled={isExporting}
+        onConfirm={exportWord}
+        onOriginal={exportOriginalFormatWord}
+      />
 
       <Dialog.Root
         open={exportProgress.open}
