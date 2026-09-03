@@ -51,7 +51,7 @@ const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
 const agnesAiCnRegisterUrl = 'https://platform.agnes-ai.cn';
 const agnesAiGlobalRegisterUrl = 'https://platform.agnes-ai.com';
-const agnesAiCnBaseUrl = 'https://apihub.agnes-ai.cn/v1';
+const agnesAiCnBaseUrl = 'https://api.agnes-ai.cn/v1';
 const agnesAiGlobalBaseUrl = 'https://apihub.agnes-ai.com/v1';
 const agnesAiNotice = `🔔 Agnes AI 国内站与国际站使用公告
 
@@ -61,7 +61,7 @@ const agnesAiNotice = `🔔 Agnes AI 国内站与国际站使用公告
 
 中国大陆用户如需继续使用原国际站账户及原有 API Key，只需将原接口 Endpoint 修改为以下地址：
 
-https://apihub.agnes-ai.cn/v1
+https://api.agnes-ai.cn/v1
 
 修改完成后，即可继续使用国际站原有的 API Key。
 

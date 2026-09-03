@@ -6,7 +6,7 @@ const textModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'volcengine', 'xia
 const imageModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'volcengine', 'google-ai-studio', 'custom'];
 const featureModuleIds = ['presales', 'bid', 'official-document', 'project-management', 'thesis-tutor', 'copyright', 'patent'];
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
-const agnesAiCnBaseUrl = 'https://apihub.agnes-ai.cn/v1';
+const agnesAiCnBaseUrl = 'https://api.agnes-ai.cn/v1';
 const agnesAiGlobalBaseUrl = 'https://apihub.agnes-ai.com/v1';
 
 const textProviderBaseUrls = {
