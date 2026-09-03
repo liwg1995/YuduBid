@@ -14,6 +14,7 @@ const { registerGrantApplicationIpc } = require('./grantApplicationIpc.cjs');
 const { registerKnowledgeBaseIpc } = require('./knowledgeBaseIpc.cjs');
 const { registerOfficialDocumentIpc } = require('./officialDocumentIpc.cjs');
 const { registerPatentGenerationIpc } = require('./patentGenerationIpc.cjs');
+const { registerPluginIpc } = require('./pluginIpc.cjs');
 const { registerPresalesWorkbenchIpc } = require('./presalesWorkbenchIpc.cjs');
 const { registerProjectManagementIpc } = require('./projectManagementIpc.cjs');
 const { registerRejectionCheckIpc } = require('./rejectionCheckIpc.cjs');
@@ -38,6 +39,12 @@ const { createKnowledgeBaseService } = require('../services/knowledgeBaseService
 const { createKnowledgeBaseStore } = require('../services/knowledgeBaseStore.cjs');
 const { createOfficialDocumentService } = require('../services/officialDocumentService.cjs');
 const { createPatentGenerationService } = require('../services/patentGenerationService.cjs');
+const { createPluginManager } = require('../plugins/pluginManager.cjs');
+const { registerBidReviewCapabilities } = require('../plugins/bidReviewCapabilities.cjs');
+const { registerFeasibilityReportCapabilities } = require('../plugins/feasibilityReportCapabilities.cjs');
+const { registerTechnicalPlanCapabilities } = require('../plugins/technicalPlanCapabilities.cjs');
+const { registerKnowledgeBaseCapabilities } = require('../plugins/knowledgeBaseCapabilities.cjs');
+const { registerBidOpportunityCapabilities } = require('../plugins/bidOpportunityCapabilities.cjs');
 const { createPresalesWorkbenchService } = require('../services/presalesWorkbenchService.cjs');
 const { createProjectManagementService } = require('../services/projectManagementService.cjs');
 const { createRejectionCheckStore } = require('../services/rejectionCheckStore.cjs');
@@ -702,6 +709,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const configStore = createConfigStore(app);
   const usageStatsStore = createUsageStatsStore(app);
   const aiService = createAiService({ app, configStore, usageStatsStore });
+  const pluginManager = createPluginManager({ app, aiService });
   const fileService = createFileService({ app, configStore });
   let templateStore = null;
   const exportService = createExportService({ configStore, getTemplateStore: () => templateStore });
@@ -727,6 +735,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   registerThesisTutorIpc({ thesisTutorService });
   registerSoftwareCopyrightIpc({ softwareCopyrightService: createSoftwareCopyrightService({ app, aiService, configStore, codeGenerationService }) });
   registerPatentGenerationIpc({ patentGenerationService });
+  registerPluginIpc({ pluginManager });
   registerSystemFontIpc({ systemFontService });
 
   try {
@@ -736,6 +745,9 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     const knowledgeBaseStore = createKnowledgeBaseStore({ app, db: sqliteDatabase.db });
     templateStore = createTemplateStore({ app, db: sqliteDatabase.db });
     const knowledgeBaseService = createKnowledgeBaseService({ app, aiService, configStore, knowledgeBaseStore });
+    registerKnowledgeBaseCapabilities(pluginManager.capabilityRegistry, knowledgeBaseService, {
+      onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
+    });
     const technicalPlanStore = createTechnicalPlanStore({ app, db: sqliteDatabase.db, fileService });
     const existingPlanExpansionStore = createTechnicalPlanStore({
       app: existingPlanExpansionApp,
@@ -750,13 +762,29 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
       existingPlanExpansionStore,
     });
     const feasibilityReportStoreRouter = createFeasibilityReportStoreRouter({ app, fileService });
+    registerFeasibilityReportCapabilities(pluginManager.capabilityRegistry, feasibilityReportStoreRouter);
     const technicalDiagramService = createTechnicalDiagramService({ app });
     const feasibilityReportTaskService = createFeasibilityReportTaskService({ aiService, technicalDiagramService, knowledgeBaseService, feasibilityReportStore: feasibilityReportStoreRouter });
     const duplicateCheckStore = createDuplicateCheckStore({ app, db: sqliteDatabase.db });
     const rejectionCheckStore = createRejectionCheckStore({ app, db: sqliteDatabase.db, fileService, technicalPlanStore: technicalPlanStoreRouter });
     const bidOpportunityService = createBidOpportunityService({ app, db: sqliteDatabase.db, fileService, presalesWorkbenchService, aiService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore });
+    registerBidOpportunityCapabilities(pluginManager.capabilityRegistry, bidOpportunityService, {
+      onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
+    });
     const duplicateCheckService = createDuplicateCheckService({ app, configStore, workspaceStore: duplicateCheckStore });
     const taskService = createTaskService({ aiService, technicalDiagramService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService });
+    registerBidReviewCapabilities(pluginManager.capabilityRegistry, {
+      duplicateCheckStore,
+      rejectionCheckStore,
+      fileService,
+      taskService,
+      onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
+    });
+    registerTechnicalPlanCapabilities(pluginManager.capabilityRegistry, technicalPlanStoreRouter, {
+      taskService,
+      knowledgeBaseService,
+      onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
+    });
     registerKnowledgeBaseIpc({ knowledgeBaseService });
     registerTemplateIpc({ templateStore });
     registerBidOpportunityIpc({ bidOpportunityService });
@@ -768,6 +796,10 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   } catch (error) {
     registerUnavailableTechnicalPlanIpc(error);
   }
+
+  void pluginManager.initialize().catch((error) => {
+    console.warn('[plugins] 插件宿主初始化失败，现有业务功能不受影响', error);
+  });
 
   ipcMain.handle('app:get-version', () => app.getVersion());
 

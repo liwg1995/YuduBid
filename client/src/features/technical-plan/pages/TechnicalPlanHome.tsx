@@ -13,6 +13,7 @@ import { countReadableWords } from '../../../shared/utils/wordCount';
 import type { BackgroundTaskState, BidAnalysisTasks, ContentGenerationOptions, ContentTableRequirement, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
 import type { BidExportTemplateRecord, BidWordExportMode, OutlineData, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
 import type { SectionId } from '../../../shared/types/navigation';
+import type { PluginNavigationTarget } from '../../../shared/types/plugin';
 
 const steps: TechnicalPlanStep[] = [
   'document-analysis',
@@ -160,6 +161,7 @@ function resetGeneratedContent(outlineData: OutlineData): OutlineData {
 
 interface TechnicalPlanHomeProps {
   workflowKind?: TechnicalPlanWorkflowKind;
+  navigationTarget?: PluginNavigationTarget | null;
   onSectionChange?: (section: SectionId) => void;
 }
 
@@ -204,10 +206,15 @@ const expandTableOptions: Array<{ value: ContentTableRequirement; label: string;
   { value: 'heavy', label: '较多', description: '更积极地补充表格，但仍避免硬插。' },
 ];
 
-function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, projectName, onBackToProjects, onSectionChange }: TechnicalPlanWorkbenchProps) {
+function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, projectName, navigationTarget, onBackToProjects, onSectionChange }: TechnicalPlanWorkbenchProps) {
   const { hydrated, state, setState } = useTechnicalPlanWorkflow(workflowKind, projectId);
   const { showToast } = useToast();
   const { confirm } = useAppDialog();
+
+  useEffect(() => {
+    if (!hydrated || !navigationTarget?.viewId || navigationTarget.projectId !== projectId) return;
+    setState((current) => current.step === navigationTarget.viewId ? current : { ...current, step: navigationTarget.viewId! });
+  }, [hydrated, navigationTarget, projectId, setState]);
   const [tenderMarkdown, setTenderMarkdown] = useState('');
   const [originalPlanMarkdown, setOriginalPlanMarkdown] = useState('');
   const [exportProgress, setExportProgress] = useState<ExportProgressState>(initialExportProgress);
@@ -1097,6 +1104,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           referenceKnowledgeDocumentIds={state.referenceKnowledgeDocumentIds}
           outlineData={state.outlineData}
           task={state.outlineGenerationTask}
+          openGenerationConfigRequestId={navigationTarget?.panelId === 'outline-generation-config' ? navigationTarget.requestId : undefined}
           onOutlineConfigChange={(outlineMode, referenceKnowledgeDocumentIds) => {
             setState((prev) => ({ ...prev, outlineMode, referenceKnowledgeDocumentIds }));
             window.yibiao?.technicalPlan.saveOutlineConfig({ workflowKind, projectId, outlineMode, referenceKnowledgeDocumentIds }).then((saved) => {
@@ -1457,7 +1465,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   );
 }
 
-function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }: TechnicalPlanHomeProps) {
+function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, onSectionChange }: TechnicalPlanHomeProps) {
   const { showToast } = useToast();
   const [projectList, setProjectList] = useState<TechnicalPlanProjectList | null>(null);
   const [activeProject, setActiveProject] = useState<TechnicalPlanProject | null>(null);
@@ -1490,8 +1498,10 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }:
       setLoadingProjects(true);
       const nextList = await window.yibiao?.technicalPlan.listProjects(workflowKind);
       setProjectList(nextList || null);
+      return nextList || null;
     } catch (error) {
       showToast(error instanceof Error ? error.message : '读取技术方案项目失败', 'error');
+      return null;
     } finally {
       setLoadingProjects(false);
     }
@@ -1499,8 +1509,18 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }:
 
   useEffect(() => {
     setActiveProject(null);
-    void loadProjects();
-  }, [workflowKind]);
+    void loadProjects().then(async (nextList) => {
+      if (!navigationTarget?.projectId || navigationTarget.workflowKind !== workflowKind) return;
+      const targetProject = nextList?.projects.find((project) => project.id === navigationTarget.projectId);
+      if (!targetProject) return;
+      try {
+        await window.yibiao?.technicalPlan.switchProject({ workflowKind, projectId: targetProject.id });
+        setActiveProject(targetProject);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : '进入项目失败', 'error');
+      }
+    });
+  }, [navigationTarget?.requestId, workflowKind]);
 
   const createProject = async () => {
     const projectName = newProjectName.trim();
@@ -1575,6 +1595,7 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', onSectionChange }:
         workflowKind={workflowKind}
         projectId={activeProject.id}
         projectName={activeProject.name}
+        navigationTarget={navigationTarget}
         onBackToProjects={() => {
           setActiveProject(null);
           void loadProjects();

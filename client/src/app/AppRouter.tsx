@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import type { SectionId } from '../shared/types/navigation';
 import type { FeatureModuleSettings } from '../shared/types';
+import type { PluginNavigationTarget } from '../shared/types/plugin';
 import type { GrantApplicationInitialPanel } from '../features/grant-application/pages/GrantApplicationPage';
 import type { ThesisTutorInitialPanel } from '../features/thesis-tutor/pages/ThesisTutorPage';
 import HomePage from '../features/home/pages/HomePage';
@@ -34,12 +35,13 @@ const ThesisTutorPage = lazy(() => import('../features/thesis-tutor/pages/Thesis
 interface AppRouterProps {
   activeSection: SectionId;
   featureModuleSettings?: FeatureModuleSettings | null;
+  pluginNavigationTarget?: PluginNavigationTarget | null;
   onSectionChange: (section: SectionId) => void;
   onDeveloperModeChange: (developerMode: boolean) => void;
   onFeatureModuleSettingsChange: (settings: FeatureModuleSettings) => void;
 }
 
-function AppRouteContent({ activeSection, featureModuleSettings, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange }: AppRouterProps) {
+function AppRouteContent({ activeSection, featureModuleSettings, pluginNavigationTarget, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange }: AppRouterProps) {
   switch (activeSection) {
     case 'home':
       return <HomePage featureModuleSettings={featureModuleSettings} onNavigate={onSectionChange} />;
@@ -48,9 +50,9 @@ function AppRouteContent({ activeSection, featureModuleSettings, onSectionChange
     case 'presales-workbench':
       return <PresalesWorkbenchPage onNavigate={onSectionChange} />;
     case 'technical-plan':
-      return <TechnicalPlanHome workflowKind="technical-plan" onSectionChange={onSectionChange} />;
+      return <TechnicalPlanHome workflowKind="technical-plan" navigationTarget={pluginNavigationTarget} onSectionChange={onSectionChange} />;
     case 'existing-plan-expansion':
-      return <TechnicalPlanHome workflowKind="existing-plan-expansion" onSectionChange={onSectionChange} />;
+      return <TechnicalPlanHome workflowKind="existing-plan-expansion" navigationTarget={pluginNavigationTarget} onSectionChange={onSectionChange} />;
     case 'feasibility-report':
       return <FeasibilityReportHome />;
     case 'bid-template-management':

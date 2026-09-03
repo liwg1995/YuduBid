@@ -18,6 +18,7 @@ interface OutlineEditPageProps {
   task?: BackgroundTaskState;
   onOutlineConfigChange: (mode: OutlineMode, documentIds: string[]) => void;
   onOutlineGenerated: (outlineData: OutlineData) => void;
+  openGenerationConfigRequestId?: number;
 }
 
 const emptyKnowledgeIndex: KnowledgeBaseIndex = { folders: [], documents: [] };
@@ -122,6 +123,7 @@ function OutlineEditPage({
   task,
   onOutlineConfigChange,
   onOutlineGenerated,
+  openGenerationConfigRequestId,
 }: OutlineEditPageProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -239,6 +241,11 @@ function OutlineEditPage({
     setKnowledgeSearch('');
     setGenerationDialogOpen(true);
   };
+
+  useEffect(() => {
+    if (!openGenerationConfigRequestId || generating || !projectOverview || !techRequirements) return;
+    openGenerationDialog();
+  }, [openGenerationConfigRequestId]);
 
   const saveOutlineConfig = () => {
     onOutlineConfigChange(draftOutlineMode, draftKnowledgeDocumentIds);

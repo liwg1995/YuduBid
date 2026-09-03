@@ -1,15 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AppRouter from './app/AppRouter';
 import StartupSplash from './app/StartupSplash';
 import { isSectionVisible } from './app/menuConfig';
 import AppShell from './components/AppShell';
 import type { FeatureModuleSettings } from './shared/types';
 import type { SectionId } from './shared/types/navigation';
+import type { PluginNavigationTarget } from './shared/types/plugin';
 
 const sectionIds = new Set<SectionId>([
   'home',
+  'presales-projects',
+  'presales-workbench',
   'technical-plan',
   'existing-plan-expansion',
+  'feasibility-report',
+  'bid-template-management',
   'business-bid',
   'project-types',
   'project-management',
@@ -55,9 +60,17 @@ function App() {
   const [activeSection, setActiveSection] = useState<SectionId>(initialSectionFromUrl);
   const [developerMode, setDeveloperMode] = useState(false);
   const [featureModuleSettings, setFeatureModuleSettings] = useState<FeatureModuleSettings | null>(null);
+  const [assistantPluginEnabled, setAssistantPluginEnabled] = useState(false);
+  const [sectionRefreshKeys, setSectionRefreshKeys] = useState<Partial<Record<SectionId, number>>>({});
+  const [pluginNavigationTarget, setPluginNavigationTarget] = useState<PluginNavigationTarget | null>(null);
   const [startupProgress, setStartupProgress] = useState(6);
   const [startupMessage, setStartupMessage] = useState('正在初始化本地配置...');
   const [startupDone, setStartupDone] = useState(false);
+  const sectionVisibilityRef = useRef({ developerMode, featureModuleSettings });
+
+  useEffect(() => {
+    sectionVisibilityRef.current = { developerMode, featureModuleSettings };
+  }, [developerMode, featureModuleSettings]);
 
   useEffect(() => {
     let alive = true;
@@ -141,6 +154,50 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    const refreshPluginState = async () => {
+      try {
+        const plugins = await window.yibiao?.plugins.list() || [];
+        if (alive) setAssistantPluginEnabled(Boolean(plugins.find((plugin) => plugin.id === 'com.yudu.assistant' && plugin.enabled)));
+      } catch (error) {
+        console.warn('读取 Assistant 插件状态失败', error);
+        if (alive) setAssistantPluginEnabled(false);
+      }
+    };
+    void refreshPluginState();
+    const unsubscribe = window.yibiao?.plugins.onEvent((event) => {
+      if (event.type === 'navigation-requested' && event.sectionId) {
+        const section = event.sectionId as SectionId;
+        const visibility = sectionVisibilityRef.current;
+        if (sectionIds.has(section) && isSectionVisible(section, visibility.developerMode, visibility.featureModuleSettings)) {
+          setPluginNavigationTarget({
+            requestId: Date.now(),
+            sectionId: section,
+            ...(event.workflowKind ? { workflowKind: event.workflowKind } : {}),
+            ...(event.projectId ? { projectId: event.projectId } : {}),
+            ...(event.viewId ? { viewId: event.viewId } : {}),
+            ...(event.panelId ? { panelId: event.panelId } : {}),
+          });
+          setActiveSection(section);
+        }
+        return;
+      }
+      if (event.type === 'workspace-changed' && event.sectionId) {
+        const section = event.sectionId as SectionId;
+        if (sectionIds.has(section)) {
+          setSectionRefreshKeys((current) => ({ ...current, [section]: (current[section] || 0) + 1 }));
+        }
+        return;
+      }
+      void refreshPluginState();
+    });
+    return () => {
+      alive = false;
+      unsubscribe?.();
+    };
+  }, []);
+
   const changeSection = useCallback((section: SectionId) => {
     setActiveSection(isSectionVisible(section, developerMode, featureModuleSettings) ? section : 'home');
   }, [developerMode, featureModuleSettings]);
@@ -158,11 +215,14 @@ function App() {
         activeSection={activeSection}
         developerMode={developerMode}
         featureModuleSettings={featureModuleSettings}
+        assistantPluginEnabled={assistantPluginEnabled}
         onSectionChange={changeSection}
       >
         <AppRouter
+          key={`${activeSection}:${sectionRefreshKeys[activeSection] || 0}:${pluginNavigationTarget?.requestId || 0}`}
           activeSection={activeSection}
           featureModuleSettings={featureModuleSettings}
+          pluginNavigationTarget={pluginNavigationTarget?.sectionId === activeSection ? pluginNavigationTarget : null}
           onSectionChange={changeSection}
           onDeveloperModeChange={setDeveloperMode}
           onFeatureModuleSettingsChange={setFeatureModuleSettings}

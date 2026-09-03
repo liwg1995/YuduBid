@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MarkdownEditor, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { OutlineData } from '../../../shared/types';
 import type { BackgroundTaskState, GlobalFactGroupState, TechnicalPlanWorkflowKind } from '../types';
@@ -45,7 +45,6 @@ function GlobalFactsPage({ projectId, workflowKind, outlineData, globalFacts, ta
   const [starting, setStarting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progressCollapsed, setProgressCollapsed] = useState(false);
-  const autoStartedRef = useRef(false);
   const hasOutline = Boolean(outlineData?.outline?.length);
   const running = starting || task?.status === 'running';
   const taskFailed = task?.status === 'error';
@@ -56,7 +55,7 @@ function GlobalFactsPage({ projectId, workflowKind, outlineData, globalFacts, ta
   const totalChars = useMemo(() => globalFacts.reduce((sum, group) => sum + group.content.length, 0), [globalFacts]);
   const dirty = Boolean(activeGroup && (draftTitle !== activeGroup.title || draftContent !== activeGroup.content));
 
-  const startGeneration = useCallback(async (auto = false) => {
+  const startGeneration = useCallback(async () => {
     if (!hasOutline) {
       showToast('请先生成目录，再进行全局事实设定', 'info');
       return;
@@ -65,27 +64,13 @@ function GlobalFactsPage({ projectId, workflowKind, outlineData, globalFacts, ta
     try {
       setStarting(true);
       await window.yibiao?.tasks.startGlobalFactsGeneration({ workflowKind, projectId });
-      if (!auto) {
-        showToast('全局事实设定任务已在后台启动', 'success');
-      }
+      showToast('全局事实设定任务已在后台启动', 'success');
     } catch (error) {
-      if (auto) {
-        autoStartedRef.current = false;
-      }
       showToast(error instanceof Error ? error.message : '启动全局事实设定失败', 'error');
     } finally {
       setStarting(false);
     }
   }, [hasOutline, showToast, workflowKind]);
-
-  useEffect(() => {
-    if (!hasOutline || globalFacts.length || task?.status || starting || autoStartedRef.current) {
-      return;
-    }
-
-    autoStartedRef.current = true;
-    void startGeneration(true);
-  }, [globalFacts.length, hasOutline, starting, startGeneration, task?.status]);
 
   useEffect(() => {
     if (!globalFacts.length) {
@@ -172,7 +157,7 @@ function GlobalFactsPage({ projectId, workflowKind, outlineData, globalFacts, ta
           <span><strong>{globalFacts.length}</strong> 个大项</span>
           <span><strong>{totalChars}</strong> 字</span>
         </div>
-        <button type="button" className="primary-action" onClick={() => startGeneration(false)} disabled={running || !hasOutline}>
+        <button type="button" className="primary-action" onClick={() => startGeneration()} disabled={running || !hasOutline}>
           {running ? '生成中...' : globalFacts.length ? '重新解析' : '开始解析'}
         </button>
       </section>

@@ -408,6 +408,20 @@ const bridge = {
       return () => ipcRenderer.removeListener('patent-generation:event', listener);
     },
   },
+  plugins: {
+    list: () => ipcRenderer.invoke('plugins:list'),
+    importPackage: () => ipcRenderer.invoke('plugins:import'),
+    enable: (pluginId) => ipcRenderer.invoke('plugins:enable', pluginId),
+    disable: (pluginId) => ipcRenderer.invoke('plugins:disable', pluginId),
+    uninstall: (pluginId, options) => ipcRenderer.invoke('plugins:uninstall', pluginId, options),
+    request: (pluginId, method, params) => ipcRenderer.invoke('plugins:request', pluginId, method, params),
+    onEvent: (callback) => {
+      ipcRenderer.send('plugins:subscribe');
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('plugins:event', listener);
+      return () => ipcRenderer.removeListener('plugins:event', listener);
+    },
+  },
   tasks: {
     startBidAnalysis: (payload) => ipcRenderer.invoke('tasks:start-bid-analysis', payload),
     startOutlineGeneration: (payload) => ipcRenderer.invoke('tasks:start-outline-generation', payload),

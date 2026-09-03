@@ -17,6 +17,7 @@ import type { SoftwareCopyrightAiIllustration, SoftwareCopyrightCase, SoftwareCo
 import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanProjectPayload, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from './contracts/technicalPlan';
 import type { ThesisTutorGeneratePayload, ThesisTutorHistoryItem, ThesisTutorImportSourceResult, ThesisTutorProfile, ThesisTutorState, ThesisTutorWorkspaceTransferResult } from './contracts/thesisTutor';
 import type { OutlineData, OutlineMode } from './outline';
+import type { InstalledPluginRecord, PluginEvent, PluginMutationResult } from './plugin';
 
 export interface TaskEvent<TState = unknown, TRejectionCheckState = unknown, TDuplicateCheckState = unknown> {
   task: unknown;
@@ -475,6 +476,15 @@ export interface YuDuBidBridge {
     generateRevision: (payload: { kind: 'merge' | 'correct'; instruction: string }) => Promise<PatentRevisionResult>;
     clear: () => Promise<{ success: boolean; state: PatentGenerationState }>;
     onEvent: (callback: (event: PatentGenerationState) => void) => () => void;
+  };
+  plugins: {
+    list: () => Promise<InstalledPluginRecord[]>;
+    importPackage: () => Promise<PluginMutationResult>;
+    enable: (pluginId: string) => Promise<PluginMutationResult>;
+    disable: (pluginId: string) => Promise<PluginMutationResult>;
+    uninstall: (pluginId: string, options?: { removeData?: boolean }) => Promise<PluginMutationResult>;
+    request: <TResult = unknown>(pluginId: string, method: string, params?: unknown) => Promise<TResult>;
+    onEvent: (callback: (event: PluginEvent) => void) => () => void;
   };
   tasks: {
     startBidAnalysis: (payload: unknown) => Promise<unknown>;

@@ -47,6 +47,7 @@
     "verify:unsigned-artifacts": "node scripts/verify-unsigned-artifacts.cjs",
     "verify:patent-generation": "node scripts/verify-patent-generation.cjs",
     "verify:patent-generation:live": "node scripts/verify-patent-generation-live.cjs",
+    "verify:plugin-host": "electron scripts/verify-plugin-host.cjs",
     "start": "electron ."
   },
   "build": {

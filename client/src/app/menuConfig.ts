@@ -324,6 +324,17 @@ export function getSectionOrder(developerMode: boolean, moduleSettings?: Feature
   return getAppMenuItems(developerMode, moduleSettings).map((item) => item.id);
 }
 
+export function getSectionDescriptor(sectionId: SectionId, developerMode: boolean, moduleSettings?: FeatureModuleSettings | null): AppMenuItem {
+  if (sectionId === 'settings') {
+    return { id: 'settings', label: '设置', description: '应用配置与功能管理' };
+  }
+  return getAppMenuItems(developerMode, moduleSettings).find((item) => item.id === sectionId) || {
+    id: sectionId,
+    label: '当前工作区',
+    description: '当前业务页面',
+  };
+}
+
 export function isSectionVisible(sectionId: SectionId, developerMode: boolean, moduleSettings?: FeatureModuleSettings | null) {
   if (sectionId === 'business-bid') {
     return false;

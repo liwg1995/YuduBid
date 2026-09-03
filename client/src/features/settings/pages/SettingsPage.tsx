@@ -6,8 +6,9 @@ import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '..
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelCapabilityInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
+import PluginManagementPanel from '../plugin-management/PluginManagementPanel';
 
-type SettingsTab = 'general' | 'features' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'usage' | 'about';
+type SettingsTab = 'general' | 'features' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'plugins' | 'usage' | 'about';
 type ReleaseDownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'installing' | 'error';
 
 interface ReleaseDownloadState {
@@ -32,6 +33,7 @@ const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'file-parser', label: '文件解析' },
   { id: 'features', label: '功能管理' },
   { id: 'skills', label: '技能管理' },
+  { id: 'plugins', label: '插件管理' },
   { id: 'usage', label: '用量统计' },
   { id: 'about', label: '关于' },
 ];
@@ -2103,6 +2105,8 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           </div>
         </section>
       )}
+
+      {activeTab === 'plugins' && <PluginManagementPanel />}
 
       {activeTab === 'usage' && (
         <section className="settings-page-section usage-stats-section">
