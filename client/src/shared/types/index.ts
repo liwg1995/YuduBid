@@ -1,4 +1,4 @@
-export type { ChatCompletionRequest, ChatMessage, JsonCompletionRequest } from './ai';
+export type { ChatCompletionRequest, ChatContentPart, ChatImageDetail, ChatImageUrlContentPart, ChatLocalImageContentPart, ChatMessage, ChatTextContentPart, JsonCompletionRequest } from './ai';
 export type {
   CodeGenerationAnalysis,
   CodeGenerationFile,

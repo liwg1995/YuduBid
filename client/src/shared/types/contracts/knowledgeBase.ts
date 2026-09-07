@@ -124,3 +124,48 @@ export interface KnowledgeBaseUploadResult {
 export interface KnowledgeBaseEvent {
   document: KnowledgeDocument;
 }
+
+export interface KnowledgeImageFolder {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeImage {
+  id: string;
+  folder_id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  file_name: string;
+  mime_type: string;
+  size: number;
+  asset_url: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeImageUploadResult extends KnowledgeBaseMutationResult {
+  canceled?: boolean;
+  images?: KnowledgeImage[];
+}
+
+export interface KnowledgeImageReference {
+  database_path: string;
+  node_id: string;
+  title: string;
+}
+
+export interface KnowledgeImageReferenceResult {
+  referenced: boolean;
+  reference_count: number;
+  references: KnowledgeImageReference[];
+}
+
+export interface KnowledgeImageDeleteResult extends KnowledgeBaseMutationResult {
+  referenced?: boolean;
+  reference_count?: number;
+}

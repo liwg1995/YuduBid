@@ -219,6 +219,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const [originalPlanMarkdown, setOriginalPlanMarkdown] = useState('');
   const [exportProgress, setExportProgress] = useState<ExportProgressState>(initialExportProgress);
   const [exportChoiceOpen, setExportChoiceOpen] = useState(false);
+  const [technicalVolumeOpen, setTechnicalVolumeOpen] = useState(false);
+  const [technicalVolumeDraftIds, setTechnicalVolumeDraftIds] = useState<string[]>([]);
   const [contentEditSelectedItemId, setContentEditSelectedItemId] = useState('');
   const [expandSelectedItemIds, setExpandSelectedItemIds] = useState<Set<string>>(new Set());
   const [previewExpandItemId, setPreviewExpandItemId] = useState('');
@@ -671,14 +673,19 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     setExportChoiceOpen(true);
   };
 
-  const exportWord = async (mode: Exclude<BidWordExportMode, 'original-template'> = 'word-optimization', template?: BidExportTemplateRecord) => {
+  const exportWord = async (mode: Exclude<BidWordExportMode, 'original-template'> = 'word-optimization', template?: BidExportTemplateRecord, outlineOverride?: OutlineItem[]) => {
     if (!state.outlineData?.outline?.length) {
       showToast('请先生成目录', 'info');
       return;
     }
 
+    const exportOutline = outlineOverride || state.outlineData.outline;
+    if (!exportOutline.length) {
+      showToast('技术卷尚未选择章节', 'info');
+      return;
+    }
     const requestId = `export-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const mermaidCount = countOutlineMermaidDiagrams(state.outlineData.outline);
+    const mermaidCount = countOutlineMermaidDiagrams(exportOutline);
     let unsubscribe: (() => void) | undefined;
 
     try {
@@ -717,8 +724,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         templateId: template?.templateId,
         workflowKind,
         projectId,
-        project_name: state.outlineData.project_name || projectName || state.projectName,
-        outline: state.outlineData.outline,
+        project_name: `${state.outlineData.project_name || projectName || state.projectName || '技术方案'}${outlineOverride ? '-技术卷' : ''}`,
+        outline: exportOutline,
       });
       if (result?.canceled) {
         setExportProgress(initialExportProgress);
@@ -966,6 +973,51 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     ? collectLeafItems(state.outlineData.outline).filter((item) => item.content?.trim()).length
     : 0;
 
+  const openTechnicalVolume = () => {
+    const rootIds = (state.outlineData?.outline || []).map((item) => item.id);
+    const savedIds = state.technicalVolume?.nodeIds;
+    setTechnicalVolumeDraftIds(Array.isArray(savedIds) ? savedIds.filter((id) => rootIds.includes(id)) : rootIds);
+    setTechnicalVolumeOpen(true);
+  };
+
+  const saveTechnicalVolume = async () => {
+    try {
+      const saved = await window.yibiao?.technicalPlan.saveTechnicalVolume({ workflowKind, projectId, technicalVolume: { nodeIds: technicalVolumeDraftIds } });
+      if (saved) setState((current) => ({ ...current, ...saved }));
+      setTechnicalVolumeOpen(false);
+      showToast('技术卷编排已保存', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '保存技术卷编排失败', 'error');
+    }
+  };
+
+  const toggleTechnicalVolumeNode = (nodeId: string) => {
+    setTechnicalVolumeDraftIds((current) => current.includes(nodeId) ? current.filter((id) => id !== nodeId) : [...current, nodeId]);
+  };
+
+  const moveTechnicalVolumeNode = (nodeId: string, offset: number) => {
+    setTechnicalVolumeDraftIds((current) => {
+      const index = current.indexOf(nodeId);
+      const target = index + offset;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  const exportTechnicalVolume = async () => {
+    const selectedOutline = technicalVolumeDraftIds
+      .map((id) => state.outlineData?.outline?.find((item) => item.id === id))
+      .filter((item): item is OutlineItem => Boolean(item));
+    if (!selectedOutline.length) {
+      showToast('请至少选择一个技术卷章节', 'info');
+      return;
+    }
+    setTechnicalVolumeOpen(false);
+    await exportWord('word-optimization', undefined, selectedOutline);
+  };
+
   const navigationActions = state.step === 'content-edit'
     ? [
       {
@@ -1037,6 +1089,17 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     {
       id: 'technical-plan-navigation',
       actions: navigationActions,
+    },
+    {
+      id: 'technical-volume',
+      actions: [{
+        id: 'technical-volume-compose',
+        label: '技术卷编排',
+        icon: <ToolbarDocumentIcon />,
+        disabled: !state.outlineData?.outline?.length,
+        tooltip: state.outlineData?.outline?.length ? '选择并调整纳入技术卷的一级章节' : '请先生成目录',
+        onClick: openTechnicalVolume,
+      }],
     },
   ];
 
@@ -1456,6 +1519,39 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                 <Dialog.Close className="primary-action" type="button">知道了</Dialog.Close>
               </div>
             )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={technicalVolumeOpen} onOpenChange={setTechnicalVolumeOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="detail-help-modal" />
+          <Dialog.Content className="detail-help-card technical-volume-dialog">
+            <header className="detail-help-head">
+              <div><Dialog.Title>技术卷编排</Dialog.Title><Dialog.Description>选择需要纳入技术卷的一级章节，并调整输出顺序。正文内容不会被修改。</Dialog.Description></div>
+              <Dialog.Close type="button" className="detail-help-close" aria-label="关闭">×</Dialog.Close>
+            </header>
+            <div className="technical-volume-layout">
+              <section className="technical-volume-list">
+                <div className="technical-volume-list-head"><div><strong>一级章节</strong><small>勾选并调整顺序</small></div><span>已选 {technicalVolumeDraftIds.length}/{state.outlineData?.outline?.length || 0}</span></div>
+                {[...(state.outlineData?.outline || [])].sort((left, right) => {
+                  const leftIndex = technicalVolumeDraftIds.indexOf(left.id);
+                  const rightIndex = technicalVolumeDraftIds.indexOf(right.id);
+                  if (leftIndex >= 0 && rightIndex >= 0) return leftIndex - rightIndex;
+                  if (leftIndex >= 0) return -1;
+                  if (rightIndex >= 0) return 1;
+                  return 0;
+                }).map((item) => {
+                  const selectedIndex = technicalVolumeDraftIds.indexOf(item.id);
+                  return <div className={`technical-volume-row${selectedIndex >= 0 ? ' is-selected' : ''}`} key={item.id}>
+                    <label><input type="checkbox" checked={selectedIndex >= 0} onChange={() => toggleTechnicalVolumeNode(item.id)} /><span className="technical-volume-order">{selectedIndex >= 0 ? selectedIndex + 1 : '—'}</span><span className="technical-volume-row-copy"><strong title={item.title}>{item.title}</strong><small>{collectLeafItems([item]).length} 个正文小节</small></span></label>
+                    {selectedIndex >= 0 && <div className="technical-volume-move-actions"><button type="button" disabled={selectedIndex === 0} onClick={() => moveTechnicalVolumeNode(item.id, -1)}>↑<span>上移</span></button><button type="button" disabled={selectedIndex === technicalVolumeDraftIds.length - 1} onClick={() => moveTechnicalVolumeNode(item.id, 1)}>↓<span>下移</span></button></div>}
+                  </div>;
+                })}
+              </section>
+              <section className="technical-volume-preview"><header><strong>目录预览</strong><small>导出时将按此顺序排列</small></header>{technicalVolumeDraftIds.length ? <ol>{technicalVolumeDraftIds.map((id) => { const item = state.outlineData?.outline?.find((node) => node.id === id); return item ? <li key={id}><b>{item.title}</b>{item.children?.length ? <ul>{item.children.map((child) => <li key={child.id}>{child.title}</li>)}</ul> : null}</li> : null; })}</ol> : <p>尚未选择任何章节。</p>}</section>
+            </div>
+            <div className="content-regenerate-actions technical-volume-actions"><button type="button" className="secondary-action" onClick={() => setTechnicalVolumeDraftIds((state.outlineData?.outline || []).map((item) => item.id))}>恢复全部</button><span className="technical-volume-actions-spacer" /><Dialog.Close type="button" className="secondary-action">取消</Dialog.Close><button type="button" className="secondary-action" disabled={!technicalVolumeDraftIds.length} onClick={() => void exportTechnicalVolume()}>导出技术卷</button><button type="button" className="primary-action" onClick={() => void saveTechnicalVolume()}>保存编排</button></div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

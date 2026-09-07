@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { ipcMain, shell } = require('electron');
+const { dialog, ipcMain, shell } = require('electron');
 const { registerAiIpc } = require('./aiIpc.cjs');
 const { registerBidOpportunityIpc } = require('./bidOpportunityIpc.cjs');
 const { registerCodeGenerationIpc } = require('./codeGenerationIpc.cjs');
@@ -27,6 +27,7 @@ const { registerThesisTutorIpc } = require('./thesisTutorIpc.cjs');
 const { createAiService } = require('../services/aiService.cjs');
 const { createBidOpportunityService } = require('../services/bidOpportunityService.cjs');
 const { createCodeGenerationService } = require('../services/codeGenerationService.cjs');
+const { createCheckResultExportService } = require('../services/checkResultExportService.cjs');
 const { createConfigStore } = require('../services/configStore.cjs');
 const { createDuplicateCheckService } = require('../services/duplicateCheckService.cjs');
 const { createDuplicateCheckStore } = require('../services/duplicateCheckStore.cjs');
@@ -37,6 +38,7 @@ const { createFileService } = require('../services/fileService.cjs');
 const { createGrantApplicationService } = require('../services/grantApplicationService.cjs');
 const { createKnowledgeBaseService } = require('../services/knowledgeBaseService.cjs');
 const { createKnowledgeBaseStore } = require('../services/knowledgeBaseStore.cjs');
+const { createKnowledgeImageService } = require('../services/knowledgeImageService.cjs');
 const { createOfficialDocumentService } = require('../services/officialDocumentService.cjs');
 const { createPatentGenerationService } = require('../services/patentGenerationService.cjs');
 const { createPluginManager } = require('../plugins/pluginManager.cjs');
@@ -450,6 +452,9 @@ function createTechnicalPlanStoreRouter({ app, fileService, technicalPlanStore, 
       const outlineData = payload?.outlineData || payload;
       return withProjectMeta(pickStore(payload).saveOutline(outlineData), payload);
     },
+    saveTechnicalVolume(payload = {}) {
+      return withProjectMeta(pickStore(payload).saveTechnicalVolume(payload.technicalVolume || payload), payload);
+    },
     saveGlobalFacts(payload) {
       const globalFacts = Array.isArray(payload) ? payload : payload?.globalFacts;
       return withProjectMeta(pickStore(payload).saveGlobalFacts(globalFacts || []), payload);
@@ -632,6 +637,7 @@ function registerUnavailableTechnicalPlanIpc(error) {
     'technical-plan:switch-workflow-kind',
     'technical-plan:save-outline-config',
     'technical-plan:save-outline',
+    'technical-plan:save-technical-volume',
     'technical-plan:save-global-facts',
     'technical-plan:save-content-generation-options',
     'technical-plan:save-chapter-content',
@@ -666,6 +672,7 @@ function registerUnavailableTechnicalPlanIpc(error) {
     'duplicate-check:save-files',
     'duplicate-check:save-ui-state',
     'duplicate-check:update-state',
+    'duplicate-check:export-excel',
     'duplicate-check:clear',
     'rejection-check:load-state',
     'rejection-check:import-document',
@@ -673,6 +680,7 @@ function registerUnavailableTechnicalPlanIpc(error) {
     'rejection-check:remove-document',
     'rejection-check:save-ui-state',
     'rejection-check:update-state',
+    'rejection-check:export-excel',
     'rejection-check:clear',
     'knowledge-base:get-migration-status',
     'knowledge-base:migrate-legacy',
@@ -686,6 +694,19 @@ function registerUnavailableTechnicalPlanIpc(error) {
     'knowledge-base:read-markdown',
     'knowledge-base:read-items',
     'knowledge-base:read-analysis',
+    'knowledge-image:list-folders',
+    'knowledge-image:create-folder',
+    'knowledge-image:rename-folder',
+    'knowledge-image:delete-folder',
+    'knowledge-image:list',
+    'knowledge-image:upload',
+    'knowledge-image:update',
+    'knowledge-image:move',
+    'knowledge-image:add-tags',
+    'knowledge-image:find-references',
+    'knowledge-image:remove',
+    'knowledge-image:get-data-url',
+    'knowledge-image:get-thumbnail-data-url',
     'tasks:start-bid-analysis',
     'tasks:start-outline-generation',
     'tasks:start-global-facts-generation',
@@ -745,6 +766,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     const knowledgeBaseStore = createKnowledgeBaseStore({ app, db: sqliteDatabase.db });
     templateStore = createTemplateStore({ app, db: sqliteDatabase.db });
     const knowledgeBaseService = createKnowledgeBaseService({ app, aiService, configStore, knowledgeBaseStore });
+    const knowledgeImageService = createKnowledgeImageService({ app, db: sqliteDatabase.db });
     registerKnowledgeBaseCapabilities(pluginManager.capabilityRegistry, knowledgeBaseService, {
       onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
     });
@@ -767,6 +789,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     const feasibilityReportTaskService = createFeasibilityReportTaskService({ aiService, technicalDiagramService, knowledgeBaseService, feasibilityReportStore: feasibilityReportStoreRouter });
     const duplicateCheckStore = createDuplicateCheckStore({ app, db: sqliteDatabase.db });
     const rejectionCheckStore = createRejectionCheckStore({ app, db: sqliteDatabase.db, fileService, technicalPlanStore: technicalPlanStoreRouter });
+    const checkResultExportService = createCheckResultExportService({ app, dialog, rejectionCheckStore, duplicateCheckStore });
     const bidOpportunityService = createBidOpportunityService({ app, db: sqliteDatabase.db, fileService, presalesWorkbenchService, aiService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore });
     registerBidOpportunityCapabilities(pluginManager.capabilityRegistry, bidOpportunityService, {
       onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
@@ -785,13 +808,13 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
       knowledgeBaseService,
       onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
     });
-    registerKnowledgeBaseIpc({ knowledgeBaseService });
+    registerKnowledgeBaseIpc({ knowledgeBaseService, knowledgeImageService });
     registerTemplateIpc({ templateStore });
     registerBidOpportunityIpc({ bidOpportunityService });
     registerTechnicalPlanIpc({ technicalPlanStore: technicalPlanStoreRouter });
     registerFeasibilityReportIpc({ feasibilityReportStore: feasibilityReportStoreRouter, feasibilityReportTaskService });
-    registerDuplicateCheckIpc({ duplicateCheckStore });
-    registerRejectionCheckIpc({ rejectionCheckStore });
+    registerDuplicateCheckIpc({ duplicateCheckStore, checkResultExportService });
+    registerRejectionCheckIpc({ rejectionCheckStore, checkResultExportService });
     registerTaskIpc({ taskService });
   } catch (error) {
     registerUnavailableTechnicalPlanIpc(error);

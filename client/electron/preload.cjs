@@ -263,6 +263,21 @@ const bridge = {
       return () => ipcRenderer.removeListener('knowledge-base:event', listener);
     },
   },
+  knowledgeImage: {
+    listFolders: () => ipcRenderer.invoke('knowledge-image:list-folders'),
+    createFolder: (name) => ipcRenderer.invoke('knowledge-image:create-folder', name),
+    renameFolder: (folderId, name) => ipcRenderer.invoke('knowledge-image:rename-folder', folderId, name),
+    deleteFolder: (folderId, options) => ipcRenderer.invoke('knowledge-image:delete-folder', folderId, options),
+    list: (folderId, query) => ipcRenderer.invoke('knowledge-image:list', folderId, query),
+    upload: (folderId) => ipcRenderer.invoke('knowledge-image:upload', folderId),
+    update: (imageId, patch) => ipcRenderer.invoke('knowledge-image:update', imageId, patch),
+    move: (imageIds, folderId) => ipcRenderer.invoke('knowledge-image:move', imageIds, folderId),
+    addTags: (imageIds, tags) => ipcRenderer.invoke('knowledge-image:add-tags', imageIds, tags),
+    findReferences: (imageId) => ipcRenderer.invoke('knowledge-image:find-references', imageId),
+    remove: (imageId, options) => ipcRenderer.invoke('knowledge-image:remove', imageId, options),
+    getDataUrl: (imageId) => ipcRenderer.invoke('knowledge-image:get-data-url', imageId),
+    getThumbnailDataUrl: (imageId) => ipcRenderer.invoke('knowledge-image:get-thumbnail-data-url', imageId),
+  },
   technicalPlan: {
     listProjects: (workflowKind) => ipcRenderer.invoke('technical-plan:list-projects', workflowKind),
     createProject: (payload) => ipcRenderer.invoke('technical-plan:create-project', payload),
@@ -279,6 +294,7 @@ const bridge = {
     switchWorkflowKind: (workflowKind) => ipcRenderer.invoke('technical-plan:switch-workflow-kind', workflowKind),
     saveOutlineConfig: (payload) => ipcRenderer.invoke('technical-plan:save-outline-config', payload),
     saveOutline: (outlineData) => ipcRenderer.invoke('technical-plan:save-outline', outlineData),
+    saveTechnicalVolume: (payload) => ipcRenderer.invoke('technical-plan:save-technical-volume', payload),
     saveGlobalFacts: (globalFacts) => ipcRenderer.invoke('technical-plan:save-global-facts', globalFacts),
     saveContentGenerationOptions: (options) => ipcRenderer.invoke('technical-plan:save-content-generation-options', options),
     saveChapterContent: (payload) => ipcRenderer.invoke('technical-plan:save-chapter-content', payload),
@@ -323,6 +339,7 @@ const bridge = {
     saveFiles: (payload) => ipcRenderer.invoke('duplicate-check:save-files', payload),
     saveUiState: (payload) => ipcRenderer.invoke('duplicate-check:save-ui-state', payload),
     updateState: (partial) => ipcRenderer.invoke('duplicate-check:update-state', partial),
+    exportExcel: () => ipcRenderer.invoke('duplicate-check:export-excel'),
     clear: () => ipcRenderer.invoke('duplicate-check:clear'),
   },
   rejectionCheck: {
@@ -334,6 +351,7 @@ const bridge = {
     removeDocument: (role) => ipcRenderer.invoke('rejection-check:remove-document', role),
     saveUiState: (payload) => ipcRenderer.invoke('rejection-check:save-ui-state', payload),
     updateState: (partial) => ipcRenderer.invoke('rejection-check:update-state', partial),
+    exportExcel: () => ipcRenderer.invoke('rejection-check:export-excel'),
     clear: () => ipcRenderer.invoke('rejection-check:clear'),
   },
   softwareCopyright: {

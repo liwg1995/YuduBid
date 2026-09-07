@@ -7,6 +7,8 @@ import { DetailHelpLink, MarkdownEditor, MarkdownRenderer, useToast } from '../.
 import type { ClientConfig, ImageModelStatus, OutlineData, OutlineItem } from '../../../shared/types';
 import { countReadableWords } from '../../../shared/utils/wordCount';
 import type { BackgroundTaskState, ContentGenerationOptions, ContentGenerationSectionStatus, ContentGenerationSections, ContentImageStats, ContentTableRequirement, TechnicalPlanWorkflowKind } from '../types';
+import KnowledgeImagePicker from '../../knowledge-base/components/KnowledgeImagePicker';
+import '../../knowledge-base/imageKnowledgeBase.css';
 
 interface ContentEditPageProps {
   projectId?: string;
@@ -345,6 +347,8 @@ function ContentEditPage({
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [draftContent, setDraftContent] = useState('');
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const imageInsertRef = useRef<((markdown: string) => void) | null>(null);
   const [confirmRegenerateItem, setConfirmRegenerateItem] = useState<OutlineItem | null>(null);
   const [requirementItem, setRequirementItem] = useState<OutlineItem | null>(null);
   const [regenerateRequirement, setRegenerateRequirement] = useState('');
@@ -1032,7 +1036,7 @@ function ContentEditPage({
             </div>
           </div>
 
-          {isExpansionWorkflow && originalPlanMarkdown.trim() && (
+          {isExpansionWorkflow && originalPlanMarkdown.trim() && !(editing && !isPreviewing) && (
             <section className="content-original-reference" aria-label="原方案参考">
               <div className="content-original-reference-head">
                 <span className="section-kicker">原方案参考</span>
@@ -1047,11 +1051,27 @@ function ContentEditPage({
           )}
 
           {selectedItem && selectedIsLeaf && editing && !isPreviewing ? (
-            <MarkdownEditor
-              value={draftContent}
-              onChange={setDraftContent}
-              placeholder="输入 Markdown 正文..."
-            />
+            <div className={`content-editing-layout${isExpansionWorkflow && originalPlanMarkdown.trim() ? ' has-original-reference' : ''}`}>
+              <MarkdownEditor
+                value={draftContent}
+                onChange={setDraftContent}
+                placeholder="输入 Markdown 正文..."
+                onRequestImage={(insert) => { imageInsertRef.current = insert; setImagePickerOpen(true); }}
+              />
+              {isExpansionWorkflow && originalPlanMarkdown.trim() && (
+                <section className="content-original-reference" aria-label="原方案参考">
+                  <div className="content-original-reference-head">
+                    <span className="section-kicker">原方案参考</span>
+                    <strong>已有方案原文</strong>
+                  </div>
+                  <div className="markdown-viewer content-original-reference-body">
+                    <MarkdownRenderer>
+                      {originalPlanMarkdown}
+                    </MarkdownRenderer>
+                  </div>
+                </section>
+              )}
+            </div>
           ) : selectedItem && selectedIsLeaf && editing && isPreviewing ? (
             <div className="markdown-viewer content-generation-output">
               {draftContent.trim() ? (
@@ -1075,6 +1095,7 @@ function ContentEditPage({
               <p>该目录下包含 {selectedItem?.children ? collectLeafItems(selectedItem.children).length : 0} 个小节，请选择叶子小节查看具体正文。</p>
             </div>
           )}
+          <KnowledgeImagePicker open={imagePickerOpen} onOpenChange={setImagePickerOpen} onSelect={(image) => { imageInsertRef.current?.(`![${image.name}](${image.asset_url})`); setImagePickerOpen(false); }} />
         </article>
       </section>
 

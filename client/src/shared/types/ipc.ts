@@ -5,7 +5,7 @@ import type { BidExportTemplateConfig, BidExportTemplateRecord } from './exportF
 import type { CodeGenerationSelectResult, CodeGenerationState } from './contracts/codeGeneration';
 import type { GrantApplicationPanel, GrantApplicationProfile, GrantApplicationProject, GrantApplicationProjectList, GrantApplicationState, GrantFormFieldMapping, GrantProposalModuleKey, GrantProposalTemplateMapping, GrantProposalVisualSettings, GrantTemplateFillReport } from './contracts/grantApplication';
 import type { FeasibilityBackgroundTaskState, FeasibilityContentGenerationOptions, FeasibilityOutlineTemplate, FeasibilityProjectInfo, FeasibilityProjectList, FeasibilityProjectPayload, FeasibilityProjectRecord, FeasibilityReportState, FeasibilityReportStep, FeasibilityTaskEvent } from './contracts/feasibilityReport';
-import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeItem } from './contracts/knowledgeBase';
+import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeImage, KnowledgeImageDeleteResult, KnowledgeImageFolder, KnowledgeImageReferenceResult, KnowledgeImageUploadResult, KnowledgeItem } from './contracts/knowledgeBase';
 import type { OfficialDocumentPromptInput } from '../prompts/officialDocument';
 import type { OfficialDocumentImportResult, OfficialDocumentState } from './contracts/officialDocument';
 import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentRevisionResult } from './contracts/patentGeneration';
@@ -14,7 +14,7 @@ import type { BidOpportunity, OpportunityDecisionOutcome, OpportunityDraft, Oppo
 import type { ProjectManagementCommercialInput, ProjectManagementComplianceInput, ProjectManagementDeliveryInput, ProjectManagementDictionaries, ProjectManagementDiscoveryInput, ProjectManagementExecutionInput, ProjectManagementPlanningInput, ProjectManagementProfile, ProjectManagementProjectList, ProjectManagementReportingInput, ProjectManagementRetrospectiveInput, ProjectManagementRiskInput, ProjectManagementStakeholderInput, ProjectManagementState } from './contracts/projectManagement';
 import type { RejectionCheckWorkspaceState, RejectionDocumentRole } from './contracts/rejectionCheck';
 import type { SoftwareCopyrightAiIllustration, SoftwareCopyrightCase, SoftwareCopyrightCaseList, SoftwareCopyrightCaseMutationResult, SoftwareCopyrightCodeManifest, SoftwareCopyrightCodeMaterialReviewChecks, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightDraftVersion, SoftwareCopyrightDraftVersionComparison, SoftwareCopyrightExportBatch, SoftwareCopyrightFields, SoftwareCopyrightManualAssetReviewChecks, SoftwareCopyrightManualReviewChecks, SoftwareCopyrightManualReviewState, SoftwareCopyrightOptions, SoftwareCopyrightSelectResult, SoftwareCopyrightState, SoftwareCopyrightSubmissionReview } from './contracts/softwareCopyright';
-import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanProjectPayload, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from './contracts/technicalPlan';
+import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanProjectPayload, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind, TechnicalVolumeConfig } from './contracts/technicalPlan';
 import type { ThesisTutorGeneratePayload, ThesisTutorHistoryItem, ThesisTutorImportSourceResult, ThesisTutorProfile, ThesisTutorState, ThesisTutorWorkspaceTransferResult } from './contracts/thesisTutor';
 import type { OutlineData, OutlineMode } from './outline';
 import type { InstalledPluginRecord, PluginEvent, PluginMutationResult } from './plugin';
@@ -347,6 +347,21 @@ export interface YuDuBidBridge {
     readAnalysis: (documentId: string) => Promise<KnowledgeAnalysisSnapshot>;
     onEvent: (callback: (event: KnowledgeBaseEvent) => void) => () => void;
   };
+  knowledgeImage: {
+    listFolders: () => Promise<KnowledgeImageFolder[]>;
+    createFolder: (name: string) => Promise<KnowledgeImageFolder>;
+    renameFolder: (folderId: string, name: string) => Promise<KnowledgeImageFolder>;
+    deleteFolder: (folderId: string, options?: { force?: boolean }) => Promise<KnowledgeImageDeleteResult>;
+    list: (folderId: string, query?: string) => Promise<KnowledgeImage[]>;
+    upload: (folderId: string) => Promise<KnowledgeImageUploadResult>;
+    update: (imageId: string, patch: { name?: string; description?: string; tags?: string[] }) => Promise<KnowledgeImage>;
+    move: (imageIds: string[], folderId: string) => Promise<KnowledgeBaseMutationResult>;
+    addTags: (imageIds: string[], tags: string[]) => Promise<KnowledgeBaseMutationResult>;
+    findReferences: (imageId: string) => Promise<KnowledgeImageReferenceResult>;
+    remove: (imageId: string, options?: { force?: boolean }) => Promise<KnowledgeImageDeleteResult>;
+    getDataUrl: (imageId: string) => Promise<string>;
+    getThumbnailDataUrl: (imageId: string) => Promise<string>;
+  };
   technicalPlan: {
     listProjects: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<TechnicalPlanProjectList>;
     createProject: (payload?: { workflowKind?: TechnicalPlanWorkflowKind; projectName?: string; name?: string }) => Promise<{ project: TechnicalPlanProject; projects: TechnicalPlanProjectList }>;
@@ -363,6 +378,7 @@ export interface YuDuBidBridge {
     switchWorkflowKind: (workflowKind: TechnicalPlanWorkflowKind) => Promise<TechnicalPlanState>;
     saveOutlineConfig: (payload: TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; outlineMode: OutlineMode; referenceKnowledgeDocumentIds: string[] }) => Promise<TechnicalPlanState>;
     saveOutline: (payload: OutlineData | (TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; outlineData: OutlineData })) => Promise<TechnicalPlanState>;
+    saveTechnicalVolume: (payload: TechnicalPlanProjectPayload & { technicalVolume: TechnicalVolumeConfig }) => Promise<TechnicalPlanState>;
     saveGlobalFacts: (payload: GlobalFactGroupState[] | (TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; globalFacts: GlobalFactGroupState[] })) => Promise<TechnicalPlanState>;
     saveContentGenerationOptions: (payload: ContentGenerationOptions | (TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; contentGenerationOptions: ContentGenerationOptions })) => Promise<TechnicalPlanState>;
     saveChapterContent: (payload: TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; nodeId: string; content: string }) => Promise<TechnicalPlanState>;
@@ -402,6 +418,7 @@ export interface YuDuBidBridge {
     saveFiles: (payload: Pick<DuplicateCheckWorkspaceState, 'tenderFile' | 'bidFiles'> & Partial<Pick<DuplicateCheckWorkspaceState, 'step' | 'activeAnalysisTab'>>) => Promise<DuplicateCheckWorkspaceState>;
     saveUiState: (payload: Partial<Pick<DuplicateCheckWorkspaceState, 'step' | 'activeAnalysisTab'>>) => Promise<DuplicateCheckWorkspaceState>;
     updateState: (partial: Partial<DuplicateCheckWorkspaceState>) => Promise<DuplicateCheckWorkspaceState>;
+    exportExcel: () => Promise<{ success: boolean; canceled?: boolean; message?: string; path?: string }>;
     clear: () => Promise<{ success: boolean; message?: string; state: DuplicateCheckWorkspaceState }>;
   };
   rejectionCheck: {
@@ -413,6 +430,7 @@ export interface YuDuBidBridge {
     removeDocument: (role: RejectionDocumentRole) => Promise<RejectionCheckWorkspaceState>;
     saveUiState: (payload: Partial<Pick<RejectionCheckWorkspaceState, 'step' | 'activeDocumentTab' | 'activeResultTab' | 'activeCheckResultTab' | 'customCheckItems' | 'checkOptions'>>) => Promise<RejectionCheckWorkspaceState>;
     updateState: (partial: Partial<RejectionCheckWorkspaceState>) => Promise<RejectionCheckWorkspaceState>;
+    exportExcel: () => Promise<{ success: boolean; canceled?: boolean; message?: string; path?: string }>;
     clear: () => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
   };
   softwareCopyright: {

@@ -6,6 +6,7 @@ export interface MarkdownEditorProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  onRequestImage?: (insert: (markdown: string) => void) => void;
 }
 
 const toolbarActions = [
@@ -17,7 +18,7 @@ const toolbarActions = [
   { id: 'ordered-list', label: '有序列表', title: '有序列表', prefix: '1. ', suffix: '', content: '1.' },
 ];
 
-function MarkdownEditor({ value, onChange, placeholder = '输入 Markdown 内容...', className, disabled = false }: MarkdownEditorProps) {
+function MarkdownEditor({ value, onChange, placeholder = '输入 Markdown 内容...', className, disabled = false, onRequestImage }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   function insertMarkdown(prefix: string, suffix = '') {
@@ -41,6 +42,21 @@ function MarkdownEditor({ value, onChange, placeholder = '输入 Markdown 内容
     });
   }
 
+  function insertRawMarkdown(markdown: string) {
+    const textarea = textareaRef.current;
+    if (!textarea || disabled) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const prefix = start > 0 && value[start - 1] !== '\n' ? '\n\n' : '';
+    const suffix = end < value.length && value[end] !== '\n' ? '\n\n' : '\n';
+    const insertion = `${prefix}${markdown}${suffix}`;
+    onChange(value.slice(0, start) + insertion + value.slice(end));
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + insertion.length;
+    });
+  }
+
   return (
     <div className={`markdown-editor${className ? ` ${className}` : ''}`}>
       <div className="markdown-editor-toolbar" aria-label="Markdown 编辑工具栏">
@@ -56,6 +72,18 @@ function MarkdownEditor({ value, onChange, placeholder = '输入 Markdown 内容
             {action.content}
           </button>
         ))}
+        {onRequestImage && (
+          <button
+            type="button"
+            className="markdown-editor-image-action"
+            title="从图片知识库插入素材"
+            aria-label="插入图片"
+            disabled={disabled}
+            onClick={() => onRequestImage(insertRawMarkdown)}
+          >
+            插入图片
+          </button>
+        )}
       </div>
       <textarea
         ref={textareaRef}

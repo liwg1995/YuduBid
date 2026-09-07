@@ -1,4 +1,4 @@
-export type TextModelProvider = 'agnes-ai-cn' | 'agnes-ai-global' | 'volcengine' | 'xiaomi' | 'deepseek' | 'longcat' | 'custom';
+export type TextModelProvider = 'agnes-ai-cn' | 'agnes-ai-global' | 'sensenova' | 'ollama' | 'volcengine' | 'xiaomi' | 'deepseek' | 'longcat' | 'custom';
 
 export interface TextModelConfig {
   api_key: string;
@@ -57,7 +57,7 @@ export interface ImageModelTestResult {
   mime_type?: string;
 }
 
-export type ImageModelProvider = 'agnes-ai-cn' | 'agnes-ai-global' | 'volcengine' | 'google-ai-studio' | 'custom';
+export type ImageModelProvider = 'agnes-ai-cn' | 'agnes-ai-global' | 'sensenova' | 'ollama' | 'comfyui' | 'volcengine' | 'google-ai-studio' | 'custom';
 export type ImageModelStatus = 'untested' | 'available' | 'unavailable';
 
 export interface ImageModelConfig {
@@ -65,6 +65,7 @@ export interface ImageModelConfig {
   base_url?: string;
   api_key: string;
   model_name: string;
+  comfyui_workflow?: string;
   size?: string;
   ratio?: string;
   status?: ImageModelStatus;

@@ -77,6 +77,10 @@ function getKnowledgeBaseDir(app) {
   return path.join(getWorkspaceDir(app), 'knowledge-base');
 }
 
+function getKnowledgeImageLibraryDir(app) {
+  return path.join(getKnowledgeBaseDir(app), 'image-library');
+}
+
 function getSoftwareCopyrightDir(app) {
   return path.join(getWorkspaceDir(app), 'software-copyright');
 }
@@ -126,6 +130,7 @@ module.exports = {
   getGrantApplicationDir,
   getImportedImagesDir,
   getKnowledgeBaseDir,
+  getKnowledgeImageLibraryDir,
   getCodeGenerationDir,
   getOfficialDocumentDir,
   getProjectManagementDir,

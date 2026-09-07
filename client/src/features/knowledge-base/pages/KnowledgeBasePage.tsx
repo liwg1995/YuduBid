@@ -295,7 +295,12 @@ type KnowledgeViewer = {
   mode: 'analysis' | 'items' | 'markdown';
 };
 
-function KnowledgeBasePage() {
+interface KnowledgeBasePageProps {
+  embedded?: boolean;
+  createRequestKey?: number;
+}
+
+function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: KnowledgeBasePageProps) {
   const [index, setIndex] = useState<KnowledgeBaseIndex>(emptyIndex);
   const [activeFolderId, setActiveFolderId] = useState('');
   const [listLoading, setListLoading] = useState(true);
@@ -320,6 +325,7 @@ function KnowledgeBasePage() {
   const documentParseNoticeIdsRef = useRef(new Set<string>());
   const viewerRequestIdRef = useRef(0);
   const viewerTraceRef = useRef<RenderDebugTrace | null>(null);
+  const createRequestRef = useRef(createRequestKey);
   const { showToast } = useToast();
   const { confirm, prompt } = useAppDialog();
   const { showDocumentParseNotice } = useDocumentParseNotice();
@@ -503,12 +509,12 @@ function KnowledgeBasePage() {
     }
   };
 
-  const createFolder = async () => {
+  const createFolderWithName = async (folderName: string) => {
     if (migrationRunning) {
       showToast('知识库迁移中，请稍候', 'info');
       return;
     }
-    const name = newFolderName.trim();
+    const name = folderName.trim();
     if (!name) {
       showToast('请输入文件夹名称', 'info');
       return;
@@ -529,6 +535,21 @@ function KnowledgeBasePage() {
       setCreatingFolder(false);
     }
   };
+
+  const createFolder = async () => createFolderWithName(newFolderName);
+
+  useEffect(() => {
+    if (createRequestKey === createRequestRef.current) return;
+    createRequestRef.current = createRequestKey;
+    void prompt({
+      title: '创建文档资料库',
+      description: '输入资料库名称，创建后即可上传 Word、PDF 或 Markdown 文档。',
+      placeholder: '例如：技术方案资料',
+      confirmLabel: '创建',
+    }).then((name) => {
+      if (name?.trim()) void createFolderWithName(name);
+    });
+  }, [createRequestKey]);
 
   const uploadDocuments = async () => {
     if (migrationRunning) {
@@ -840,14 +861,14 @@ function KnowledgeBasePage() {
           <small>{index.folders.length} 个文件夹 / {index.documents.length} 个文档</small>
         </div>
         <div className="knowledge-toolbar-actions">
-          <button type="button" className="secondary-action" onClick={() => setShowCreateFolder((value) => !value)} disabled={migrationRunning || listLoading}>新建文件夹</button>
+          {!embedded && <button type="button" className="secondary-action" onClick={() => setShowCreateFolder((value) => !value)} disabled={migrationRunning || listLoading}>新建文件夹</button>}
           <button type="button" className="primary-action" onClick={uploadDocuments} disabled={loading || migrationRunning || !activeFolder}>
             {migrationRunning ? '迁移中...' : loading ? '处理中...' : '上传文档'}
           </button>
         </div>
       </section>
 
-      {showCreateFolder && (
+      {!embedded && showCreateFolder && (
         <form
           className="knowledge-create-folder-bar"
           onSubmit={(event) => {

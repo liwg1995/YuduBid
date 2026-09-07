@@ -1,6 +1,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const os = require('node:os');
+const { spawn } = require('node:child_process');
+const { nativeImage } = require('electron');
 const { getAiLogsDir, getGeneratedImagesDir } = require('../utils/paths.cjs');
 const {
   isRetryableHttpStatus,
@@ -21,6 +24,7 @@ const {
 
 const AI_REQUEST_TIMEOUT_MS = 300000;
 const GENERATED_IMAGE_MAX_BYTES = 32 * 1024 * 1024;
+const MULTIMODAL_IMAGE_MAX_EDGE = 2048;
 const MAX_AI_LOG_TITLE_LENGTH = 64;
 const IMAGE_MODEL_TEST_TIMEOUT_MESSAGE = '生图模型测试超时，请检查 Base URL、API Key 或模型名称';
 const OPENAI_IMAGE_PROVIDER_META = {
@@ -34,6 +38,12 @@ const OPENAI_IMAGE_PROVIDER_META = {
     label: 'agnes-ai【国际站】',
     defaultBaseUrl: 'https://apihub.agnes-ai.com/v1',
     logProvider: 'agnes-ai-global',
+    modelLabel: '生图模型名称',
+  },
+  sensenova: {
+    label: '商汤日日新 SenseNova',
+    defaultBaseUrl: 'https://token.sensenova.cn/v1',
+    logProvider: 'sensenova',
     modelLabel: '生图模型名称',
   },
   volcengine: {
@@ -50,6 +60,7 @@ const OPENAI_IMAGE_PROVIDER_META = {
   },
 };
 const AGNES_IMAGE_PROVIDERS = new Set(['agnes-ai-cn', 'agnes-ai-global']);
+const SENSENOVA_IMAGE_PROVIDER = 'sensenova';
 
 function trimBaseUrl(baseUrl) {
   return String(baseUrl || '').trim().replace(/\/+$/, '');
@@ -159,6 +170,34 @@ function createHeaders(apiKey) {
   };
 }
 
+async function prepareMultimodalMessages(messages) {
+  const prepared = [];
+  for (const message of Array.isArray(messages) ? messages : []) {
+    if (!Array.isArray(message.content)) {
+      prepared.push(message);
+      continue;
+    }
+    const content = [];
+    for (const part of message.content) {
+      if (part?.type !== 'local_image') {
+        content.push(part);
+        continue;
+      }
+      const filePath = String(part.path || '').trim();
+      if (!filePath) throw new Error('本地图片路径不能为空');
+      const source = nativeImage.createFromBuffer(await fs.promises.readFile(filePath));
+      if (source.isEmpty()) throw new Error(`无法读取图片：${path.basename(filePath)}`);
+      const size = source.getSize();
+      const resized = Math.max(size.width, size.height) > MULTIMODAL_IMAGE_MAX_EDGE
+        ? source.resize(size.width >= size.height ? { width: MULTIMODAL_IMAGE_MAX_EDGE, quality: 'best' } : { height: MULTIMODAL_IMAGE_MAX_EDGE, quality: 'best' })
+        : source;
+      content.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${resized.toJPEG(85).toString('base64')}`, ...(part.detail ? { detail: part.detail } : {}) } });
+    }
+    prepared.push({ ...message, content });
+  }
+  return prepared;
+}
+
 function imageExtensionFromMime(mimeType) {
   const normalized = String(mimeType || '').toLowerCase();
   if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'jpg';
@@ -174,11 +213,11 @@ function getImageModelAvailability(config) {
     return { available: false, status: imageConfig.status || 'untested', message: '生图模型未测试可用' };
   }
 
-  if (!imageConfig.api_key) {
+  if (imageConfig.provider !== 'ollama' && imageConfig.provider !== 'comfyui' && !imageConfig.api_key) {
     return { available: false, status: 'unavailable', message: '请先填写生图模型 API Key' };
   }
 
-  if (!imageConfig.model_name) {
+  if (!imageConfig.model_name && !(imageConfig.provider === 'comfyui' && String(imageConfig.comfyui_workflow || '').trim())) {
     return { available: false, status: 'unavailable', message: '请先填写生图模型名称' };
   }
 
@@ -689,7 +728,7 @@ async function fetchChatCompletion(app, config, body, options = {}) {
 }
 
 async function chatWithConfig(app, config, request, usageStatsStore) {
-  if (!config.api_key) {
+  if (config.text_model_provider !== 'ollama' && !config.api_key) {
     throw new Error('请先在设置中配置文本模型 API Key');
   }
 
@@ -699,9 +738,10 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
 
   requireBaseUrl(config.base_url, '请先在设置中配置文本模型 Base URL');
 
+  const preparedRequest = { ...request, messages: await prepareMultimodalMessages(request.messages) };
   const requestId = createRequestId();
   const logTitle = resolveAiLogTitle(request, '文本请求');
-  let requestBody = createChatRequestBody(config, request);
+  let requestBody = createChatRequestBody(config, preparedRequest);
   let responseData = null;
   let errorMessage = '';
   const timeoutMs = normalizeRequestTimeoutMs(request);
@@ -723,7 +763,7 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
         if (!response.ok && request.response_format) {
           const detail = await timeout.run(response.text().catch(() => ''));
           if (isResponseFormatUnsupported(detail)) {
-            requestBody = createChatRequestBody(config, request, { omitResponseFormat: true });
+            requestBody = createChatRequestBody(config, preparedRequest, { omitResponseFormat: true });
             response = await timeout.run(fetchChatCompletion(app, config, requestBody, { signal: timeout.signal }));
           } else {
             throw markAiRequestError(new Error(detail || 'AI 请求失败'), {
@@ -809,12 +849,23 @@ async function testOpenAICompatibleImageModel(app, config, provider) {
         ...(imageConfig.model_name === 'agnes-image-2.1-flash' ? { ratio: '1:1' } : {}),
         extra_body: { response_format: 'url' },
       }
-      : {
-        model: imageConfig.model_name,
-        prompt: 'a simple blue dot on a white background',
-        size: '2048x2048',
-        response_format: 'url',
-      };
+      : provider === SENSENOVA_IMAGE_PROVIDER
+        ? {
+          model: imageConfig.model_name,
+          prompt: '白色背景上的一个简单蓝色圆点',
+          size: '2048x2048',
+          n: 1,
+          output_format: 'png',
+          response_format: 'b64_json',
+          watermark: true,
+          prompt_extend: true,
+        }
+        : {
+          model: imageConfig.model_name,
+          prompt: 'a simple blue dot on a white background',
+          size: '2048x2048',
+          response_format: 'url',
+        };
     let response = null;
     try {
       response = await timeout.run(fetchOpenAICompatibleImageResponse(
@@ -920,12 +971,23 @@ async function generateOpenAICompatibleImage(app, config, request, provider) {
       ...(imageConfig.model_name === 'agnes-image-2.1-flash' ? { ratio: request.ratio || imageConfig.ratio || '1:1' } : {}),
       extra_body: { response_format: 'url' },
     }
-    : {
-      model: imageConfig.model_name,
-      prompt: normalizeImagePrompt(request),
-      size: request.size || '2048x2048',
-      response_format: 'url',
-    };
+    : provider === SENSENOVA_IMAGE_PROVIDER
+      ? {
+        model: imageConfig.model_name,
+        prompt: normalizeImagePrompt(request),
+        size: request.size || imageConfig.size || '2048x2048',
+        n: 1,
+        output_format: 'png',
+        response_format: 'b64_json',
+        watermark: true,
+        prompt_extend: true,
+      }
+      : {
+        model: imageConfig.model_name,
+        prompt: normalizeImagePrompt(request),
+        size: request.size || '2048x2048',
+        response_format: 'url',
+      };
   const baseUrl = requireBaseUrl(imageConfig.base_url, `${meta.label} Base URL 缺失，请重新选择服务商后保存配置`);
   let responseData = null;
 
@@ -1058,18 +1120,174 @@ async function generateGoogleImage(app, config, request) {
   }
 }
 
+function runOllamaImageCommand(model, prompt) {
+  return new Promise((resolve, reject) => {
+    if (process.platform !== 'darwin') {
+      reject(new Error('Ollama 本地生图目前仅在 macOS 获得官方支持'));
+      return;
+    }
+    const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yibiao-ollama-image-'));
+    const ollamaCommand = [
+      '/Applications/Ollama.app/Contents/Resources/ollama',
+      '/opt/homebrew/bin/ollama',
+      '/usr/local/bin/ollama',
+    ].find((candidate) => fs.existsSync(candidate)) || 'ollama';
+    const child = spawn(ollamaCommand, ['run', model, prompt], {
+      cwd: outputDir,
+      shell: false,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stderr = '';
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error('Ollama 生图超时，请确认模型已下载且本机资源充足'));
+    }, AI_REQUEST_TIMEOUT_MS);
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk || '').slice(-4000);
+    });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      fs.rmSync(outputDir, { recursive: true, force: true });
+      reject(new Error(error.code === 'ENOENT' ? '未找到 Ollama，请先安装并确保 ollama 命令可用' : error.message));
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      try {
+        if (code !== 0) throw new Error(stderr.trim() || `Ollama 生图失败（退出码 ${code}）`);
+        const imageName = fs.readdirSync(outputDir).find((name) => /\.(png|jpe?g|webp)$/i.test(name));
+        if (!imageName) throw new Error('Ollama 未生成可识别的图片文件，请确认所选模型支持图片生成');
+        const filePath = path.join(outputDir, imageName);
+        resolve({
+          buffer: fs.readFileSync(filePath),
+          mime_type: /\.webp$/i.test(imageName) ? 'image/webp' : /\.jpe?g$/i.test(imageName) ? 'image/jpeg' : 'image/png',
+        });
+      } catch (error) {
+        reject(error);
+      } finally {
+        fs.rmSync(outputDir, { recursive: true, force: true });
+      }
+    });
+  });
+}
+
+async function generateOllamaImage(app, config, request) {
+  const imageConfig = config.image_model || {};
+  if (!imageConfig.model_name) throw new Error('请先填写 Ollama 生图模型名称');
+  const image = await runOllamaImageCommand(imageConfig.model_name, normalizeImagePrompt(request));
+  const saved = saveGeneratedImage(app, image);
+  return { success: true, title: request.title || '', ...saved };
+}
+
+async function testOllamaImageModel(app, config) {
+  const result = await generateOllamaImage(app, config, { prompt: '白色背景上的一个简单蓝色圆点', title: 'Ollama 生图测试' });
+  return {
+    success: true,
+    message: '测试成功：Ollama 已生成图片',
+    image_url: result.asset_url,
+    mime_type: result.mime_type,
+  };
+}
+
+function createComfyUiWorkflow(modelName, prompt) {
+  return {
+    3: { class_type: 'KSampler', inputs: { seed: Math.floor(Math.random() * 2147483647), steps: 24, cfg: 7, sampler_name: 'euler', scheduler: 'normal', denoise: 1, model: ['4', 0], positive: ['6', 0], negative: ['7', 0], latent_image: ['5', 0] } },
+    4: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: modelName } },
+    5: { class_type: 'EmptyLatentImage', inputs: { width: 1024, height: 1024, batch_size: 1 } },
+    6: { class_type: 'CLIPTextEncode', inputs: { text: prompt, clip: ['4', 1] } },
+    7: { class_type: 'CLIPTextEncode', inputs: { text: 'low quality, blurry, watermark, text artifacts', clip: ['4', 1] } },
+    8: { class_type: 'VAEDecode', inputs: { samples: ['3', 0], vae: ['4', 2] } },
+    9: { class_type: 'SaveImage', inputs: { filename_prefix: 'Yibiao', images: ['8', 0] } },
+  };
+}
+
+function prepareComfyUiWorkflow(imageConfig, prompt) {
+  const raw = String(imageConfig.comfyui_workflow || '').trim();
+  if (!raw) return createComfyUiWorkflow(imageConfig.model_name, prompt);
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { throw new Error('ComfyUI 工作流 JSON 解析失败'); }
+  const workflow = parsed?.prompt && typeof parsed.prompt === 'object' ? parsed.prompt : parsed;
+  if (!workflow || typeof workflow !== 'object' || Array.isArray(workflow)) throw new Error('ComfyUI 工作流格式错误，请使用 Save (API Format) 导出的 JSON');
+  const cloned = JSON.parse(JSON.stringify(workflow));
+  const samplers = Object.values(cloned).filter((node) => node?.class_type === 'KSampler' || node?.class_type === 'KSamplerAdvanced');
+  const positiveIds = new Set(samplers.map((node) => Array.isArray(node.inputs?.positive) ? String(node.inputs.positive[0]) : '').filter(Boolean));
+  let injected = false;
+  Object.entries(cloned).forEach(([id, node]) => {
+    if (positiveIds.has(id) && node?.class_type === 'CLIPTextEncode' && typeof node.inputs?.text === 'string') {
+      node.inputs.text = prompt;
+      injected = true;
+    }
+  });
+  if (!injected) {
+    const fallback = Object.values(cloned).find((node) => node?.class_type === 'CLIPTextEncode' && typeof node.inputs?.text === 'string');
+    if (fallback) { fallback.inputs.text = prompt; injected = true; }
+  }
+  if (!injected) throw new Error('ComfyUI 工作流中未找到可写入提示词的 CLIPTextEncode 节点');
+  return cloned;
+}
+
+async function generateComfyUiImage(app, config, request) {
+  const imageConfig = config.image_model || {};
+  const baseUrl = trimBaseUrl(imageConfig.base_url);
+  if (!baseUrl) throw new Error('请先填写 ComfyUI Base URL');
+  if (!imageConfig.model_name && !String(imageConfig.comfyui_workflow || '').trim()) throw new Error('请填写 checkpoint 文件名或粘贴 ComfyUI 工作流 JSON');
+  const clientId = crypto.randomUUID();
+  const queued = await fetch(`${baseUrl}/prompt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: clientId, prompt: prepareComfyUiWorkflow(imageConfig, normalizeImagePrompt(request)) }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!queued.ok) throw new Error(`ComfyUI 提交任务失败（HTTP ${queued.status}）：${await queued.text()}`);
+  const promptId = String((await queued.json()).prompt_id || '');
+  if (!promptId) throw new Error('ComfyUI 未返回任务 ID');
+  const deadline = Date.now() + AI_REQUEST_TIMEOUT_MS;
+  let output;
+  while (Date.now() < deadline) {
+    const response = await fetch(`${baseUrl}/history/${encodeURIComponent(promptId)}`, { signal: AbortSignal.timeout(15000) });
+    if (response.ok) {
+      const history = await response.json();
+      const job = history[promptId];
+      if (job?.status?.status_str === 'error') throw new Error('ComfyUI 工作流执行失败，请检查 checkpoint 和节点配置');
+      output = Object.values(job?.outputs || {}).flatMap((node) => node?.images || [])[0];
+      if (output) break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  if (!output) throw new Error('ComfyUI 生图超时');
+  const params = new URLSearchParams({ filename: output.filename, subfolder: output.subfolder || '', type: output.type || 'output' });
+  const imageResponse = await fetch(`${baseUrl}/view?${params}`, { signal: AbortSignal.timeout(30000) });
+  if (!imageResponse.ok) throw new Error(`读取 ComfyUI 图片失败（HTTP ${imageResponse.status}）`);
+  const contentType = imageResponse.headers.get('content-type') || 'image/png';
+  const saved = saveGeneratedImage(app, { buffer: Buffer.from(await imageResponse.arrayBuffer()), mime_type: contentType.split(';')[0] });
+  return { success: true, title: request.title || '', ...saved };
+}
+
+async function testComfyUiImageModel(app, config) {
+  const result = await generateComfyUiImage(app, config, { prompt: '白色背景上的一个简单蓝色圆点', title: 'ComfyUI 生图测试' });
+  return { success: true, message: '测试成功：ComfyUI 已生成图片', image_url: result.asset_url, mime_type: result.mime_type };
+}
+
 async function generateImageWithConfig(app, config, request) {
   const availability = getImageModelAvailability(config);
   if (!availability.available) {
     throw new Error(availability.message);
   }
 
-  if (config.image_model?.provider === 'agnes-ai-cn' || config.image_model?.provider === 'agnes-ai-global' || config.image_model?.provider === 'volcengine' || config.image_model?.provider === 'custom') {
+  if (config.image_model?.provider === 'agnes-ai-cn' || config.image_model?.provider === 'agnes-ai-global' || config.image_model?.provider === 'sensenova' || config.image_model?.provider === 'volcengine' || config.image_model?.provider === 'custom') {
     return generateOpenAICompatibleImage(app, config, request, config.image_model.provider);
   }
 
   if (config.image_model?.provider === 'google-ai-studio') {
     return generateGoogleImage(app, config, request);
+  }
+
+  if (config.image_model?.provider === 'ollama') {
+    return generateOllamaImage(app, config, request);
+  }
+
+  if (config.image_model?.provider === 'comfyui') {
+    return generateComfyUiImage(app, config, request);
   }
 
   throw new Error('当前生图服务商暂不支持正文配图');
@@ -1099,7 +1317,13 @@ function createAiService({ app, configStore, usageStatsStore }) {
     },
 
     async testImageModel(config) {
-      if (config.image_model?.provider === 'agnes-ai-cn' || config.image_model?.provider === 'agnes-ai-global' || config.image_model?.provider === 'volcengine' || config.image_model?.provider === 'custom') {
+      if (config.image_model?.provider === 'ollama') {
+        return testOllamaImageModel(app, config);
+      }
+      if (config.image_model?.provider === 'comfyui') {
+        return testComfyUiImageModel(app, config);
+      }
+      if (config.image_model?.provider === 'agnes-ai-cn' || config.image_model?.provider === 'agnes-ai-global' || config.image_model?.provider === 'sensenova' || config.image_model?.provider === 'volcengine' || config.image_model?.provider === 'custom') {
         return testOpenAICompatibleImageModel(app, config, config.image_model.provider);
       }
 
@@ -1130,7 +1354,7 @@ function createAiService({ app, configStore, usageStatsStore }) {
     async listModels(configOverride) {
       const config = configOverride || configStore.load();
 
-      if (!config.api_key) {
+      if (config.text_model_provider !== 'ollama' && !config.api_key) {
         return { success: false, message: '请先填写文本模型 API Key', models: [] };
       }
 
@@ -1157,7 +1381,7 @@ function createAiService({ app, configStore, usageStatsStore }) {
       const config = configOverride || configStore.load();
       const baseUrl = trimBaseUrl(config.base_url);
       const model = String(config.model_name || '').trim();
-      if (!config.api_key) return { success: false, message: '请先填写文本模型 API Key', source: 'default' };
+      if (config.text_model_provider !== 'ollama' && !config.api_key) return { success: false, message: '请先填写文本模型 API Key', source: 'default' };
       if (!baseUrl) return { success: false, message: '请先填写文本模型 Base URL', source: 'default' };
       if (!model) return { success: false, message: '请先填写文本模型名称', source: 'default' };
 

@@ -4,7 +4,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { registerIpcHandlers } = require('./ipc/index.cjs');
 const { setupAutoUpdate, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall } = require('./services/updateService.cjs');
-const { getGeneratedImagesDir, getImportedImagesDir, getSoftwareCopyrightDir } = require('./utils/paths.cjs');
+const { getGeneratedImagesDir, getImportedImagesDir, getKnowledgeImageLibraryDir, getSoftwareCopyrightDir } = require('./utils/paths.cjs');
 
 const rendererUrl = process.env.ELECTRON_RENDERER_URL;
 const userDataDir = process.env.YIBIAO_USER_DATA_DIR;
@@ -48,6 +48,7 @@ function registerAssetProtocol() {
       const assetRoots = {
         'generated-images': getGeneratedImagesDir(app),
         'imported-images': getImportedImagesDir(app),
+        'knowledge-images': getKnowledgeImageLibraryDir(app),
         'software-copyright-screenshots': path.join(getSoftwareCopyrightDir(app), 'manual-screenshots'),
         'software-copyright-ai-images': path.join(getSoftwareCopyrightDir(app), 'ai-illustrations'),
       };

@@ -865,7 +865,21 @@ function DuplicateCheckPage() {
     switchStep(nextStep);
   };
 
+  const exportExcel = async () => {
+    try {
+      const result = await window.yibiao?.duplicateCheck.exportExcel();
+      if (!result || result.canceled) return;
+      showToast(result.message || (result.success ? 'Excel 已导出' : '导出失败'), result.success ? 'success' : 'error');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '导出标书查重结果失败', 'error');
+    }
+  };
+
   const toolbarGroups: FloatingToolbarGroup[] = [
+    {
+      id: 'duplicate-check-export',
+      actions: [{ id: 'export-excel', label: '导出 Excel', disabled: isAnalysisRunning, tooltip: '导出当前查重结果', onClick: exportExcel }],
+    },
     {
       id: 'duplicate-check-reset',
       actions: [

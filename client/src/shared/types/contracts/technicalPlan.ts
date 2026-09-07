@@ -204,6 +204,12 @@ export interface TechnicalPlanState {
   contentGenerationPlans: ContentGenerationPlans;
   contentGenerationRuntime?: ContentGenerationRuntimeState;
   outlineData: OutlineData | null;
+  technicalVolume?: TechnicalVolumeConfig;
+}
+
+export interface TechnicalVolumeConfig {
+  nodeIds: string[];
+  updatedAt?: string;
 }
 
 export interface TechnicalPlanProject {

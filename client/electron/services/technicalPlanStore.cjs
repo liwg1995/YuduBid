@@ -4,6 +4,7 @@ const path = require('node:path');
 const { getBidAnalysisTasks } = require('./bidAnalysisTask.cjs');
 const { getTechnicalPlanOriginalPlanMarkdownPath, getTechnicalPlanOriginalPlanSourceDir, getTechnicalPlanTenderMarkdownPath } = require('../utils/paths.cjs');
 const { deleteImportedImageBatches } = require('../utils/importedImages.cjs');
+const { safeRemoveSync } = require('../utils/safeRemove.cjs');
 
 const tenderMarkdownRelativePath = path.join('technical-plan', 'tender.md').replace(/\\/g, '/');
 const originalPlanMarkdownRelativePath = path.join('technical-plan', 'original-plan.md').replace(/\\/g, '/');
@@ -31,6 +32,7 @@ const initialState = {
   contentGenerationSections: {},
   contentGenerationPlans: {},
   contentGenerationRuntime: undefined,
+  technicalVolume: undefined,
   outlineData: null,
 };
 
@@ -675,6 +677,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     if (hasOwn(partial, 'outlineMode') && isValidOutlineMode(partial.outlineMode)) metaUpdates.outline_mode = partial.outlineMode;
     if (hasOwn(partial, 'contentGenerationOptions')) metaUpdates.content_generation_options_json = jsonOrNull(partial.contentGenerationOptions);
     if (hasOwn(partial, 'contentGenerationRuntime')) metaUpdates.content_generation_runtime_json = jsonOrNull(partial.contentGenerationRuntime);
+    if (hasOwn(partial, 'technicalVolume')) metaUpdates.technical_volume_json = jsonOrNull(partial.technicalVolume);
 
     if (Object.keys(metaUpdates).length) updateMeta(metaUpdates);
 
@@ -732,6 +735,14 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       updatedAt: meta.updated_at,
     } : null;
 
+    const configuredVolume = safeJsonParse(meta.technical_volume_json, null);
+    const availableRootIds = (outlineData?.outline || []).map((item) => item.id);
+    const configuredIds = Array.isArray(configuredVolume?.nodeIds) ? configuredVolume.nodeIds : availableRootIds;
+    const technicalVolume = {
+      nodeIds: [...new Set(configuredIds.map(String))].filter((id) => availableRootIds.includes(id)),
+      updatedAt: configuredVolume?.updatedAt,
+    };
+
     return {
       ...initialState,
       workflowKind: normalizeWorkflowKind(meta.workflow_kind),
@@ -753,6 +764,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       contentGenerationSections: loadContentSections(outlineData),
       contentGenerationPlans: loadContentPlans(),
       outlineData,
+      technicalVolume,
     };
   }
 
@@ -807,7 +819,21 @@ function createTechnicalPlanStore({ app, db, fileService }) {
   }
 
   function saveOutlineConfig({ outlineMode, referenceKnowledgeDocumentIds } = {}) {
-    return updateTechnicalPlan({ outlineMode, referenceKnowledgeDocumentIds });
+    const current = loadTechnicalPlan();
+    const nextIds = Array.isArray(referenceKnowledgeDocumentIds) ? [...referenceKnowledgeDocumentIds].sort() : [];
+    const currentIds = Array.isArray(current.referenceKnowledgeDocumentIds) ? [...current.referenceKnowledgeDocumentIds].sort() : [];
+    const changed = outlineMode !== current.outlineMode || JSON.stringify(nextIds) !== JSON.stringify(currentIds);
+    const transaction = db.transaction(() => {
+      applyPartial({ outlineMode, referenceKnowledgeDocumentIds });
+      if (changed && current.outlineData) {
+        db.prepare('DELETE FROM technical_plan_outline_nodes').run();
+        db.prepare("DELETE FROM technical_plan_tasks WHERE type = 'outline-generation'").run();
+        updateMeta({ outline_project_name: null, outline_project_overview: null });
+        clearGlobalFactsAndContentState();
+      }
+    });
+    transaction();
+    return loadTechnicalPlan();
   }
 
   function saveOutline(outlineData) {
@@ -817,6 +843,13 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     });
     transaction();
     return loadTechnicalPlan();
+  }
+
+  function saveTechnicalVolume(value = {}) {
+    const current = loadTechnicalPlan();
+    const availableIds = new Set((current.outlineData?.outline || []).map((item) => item.id));
+    const nodeIds = [...new Set((Array.isArray(value.nodeIds) ? value.nodeIds : []).map(String))].filter((id) => availableIds.has(id));
+    return updateTechnicalPlan({ technicalVolume: { nodeIds, updatedAt: now() } });
   }
 
   function saveGlobalFacts(globalFacts) {
@@ -881,6 +914,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     fs.writeFileSync(tempPath, `${markdown}\n`, 'utf-8');
 
     try {
+      safeRemoveSync(tenderMarkdownPath, { message: '旧招标文件缓存正在被占用，请关闭 Word/WPS 后重试' });
       fs.renameSync(tempPath, tenderMarkdownPath);
       const timestamp = now();
       const transaction = db.transaction(() => {
@@ -1053,6 +1087,9 @@ function createTechnicalPlanStore({ app, db, fileService }) {
 
   function clearTechnicalPlan() {
     const workflowKind = normalizeWorkflowKind(ensureMetaRow().workflow_kind);
+    safeRemoveSync(tenderMarkdownPath, { message: '招标文件缓存正在被占用，请关闭 Word/WPS 后重试' });
+    safeRemoveSync(originalPlanMarkdownPath, { message: '原方案缓存正在被占用，请关闭 Word/WPS 后重试' });
+    safeRemoveSync(originalPlanSourceDir, { recursive: true, message: '原方案文件正在被占用，请关闭 Word/WPS 后重试' });
     const transaction = db.transaction(() => {
       db.prepare('DELETE FROM technical_plan_tasks').run();
       db.prepare('DELETE FROM technical_plan_bid_items').run();
@@ -1064,15 +1101,6 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       updateMeta({ workflow_kind: workflowKind });
     });
     transaction();
-    if (fs.existsSync(tenderMarkdownPath)) {
-      fs.rmSync(tenderMarkdownPath, { force: true });
-    }
-    if (fs.existsSync(originalPlanMarkdownPath)) {
-      fs.rmSync(originalPlanMarkdownPath, { force: true });
-    }
-    if (fs.existsSync(originalPlanSourceDir)) {
-      fs.rmSync(originalPlanSourceDir, { recursive: true, force: true });
-    }
     deleteImportedImageBatches(app, 'technical-plan');
     return { success: true, message: '技术方案缓存已清空', state: loadTechnicalPlan() };
   }
@@ -1091,6 +1119,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     switchWorkflowKind,
     saveOutlineConfig,
     saveOutline,
+    saveTechnicalVolume,
     saveGlobalFacts,
     saveContentGenerationOptions,
     saveChapterContent,

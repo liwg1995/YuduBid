@@ -50,6 +50,7 @@ const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>>
   'patent-prior-art': SearchDocumentIcon,
   'patent-iteration': IterationIcon,
   'knowledge-base': ArchiveIcon,
+  'image-knowledge-base': ChartModelIcon,
   'duplicate-check': CompareIcon,
   'rejection-check': ShieldIcon,
   'bid-opportunity': RadarIcon,

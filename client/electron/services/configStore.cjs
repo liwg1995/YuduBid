@@ -2,8 +2,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { getConfigFilePath } = require('../utils/paths.cjs');
 
-const textModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
-const imageModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'volcengine', 'google-ai-studio', 'custom'];
+const textModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'sensenova', 'ollama', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
+const imageModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'sensenova', 'ollama', 'comfyui', 'volcengine', 'google-ai-studio', 'custom'];
 const featureModuleIds = ['presales', 'bid', 'official-document', 'project-management', 'thesis-tutor', 'copyright', 'patent'];
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
 const agnesAiCnBaseUrl = 'https://api.agnes-ai.cn/v1';
@@ -12,6 +12,8 @@ const agnesAiGlobalBaseUrl = 'https://apihub.agnes-ai.com/v1';
 const textProviderBaseUrls = {
   'agnes-ai-cn': agnesAiCnBaseUrl,
   'agnes-ai-global': agnesAiGlobalBaseUrl,
+  sensenova: 'https://token.sensenova.cn/v1',
+  ollama: 'http://127.0.0.1:11434/v1',
   volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
   xiaomi: 'https://token-plan-cn.xiaomimimo.com/v1',
   deepseek: 'https://api.deepseek.com',
@@ -29,6 +31,16 @@ const defaultTextModelProfiles = {
     api_key: '',
     base_url: textProviderBaseUrls['agnes-ai-global'],
     model_name: 'agnes-2.5-flash',
+  },
+  sensenova: {
+    api_key: '',
+    base_url: textProviderBaseUrls.sensenova,
+    model_name: 'sensenova-6.8-flash-lite',
+  },
+  ollama: {
+    api_key: '',
+    base_url: textProviderBaseUrls.ollama,
+    model_name: '',
   },
   volcengine: {
     api_key: '',
@@ -67,11 +79,39 @@ const defaultImageModelProfiles = {
     tested_at: '',
     last_error: '',
   },
+  sensenova: {
+    provider: 'sensenova',
+    base_url: textProviderBaseUrls.sensenova,
+    api_key: '',
+    model_name: 'sensenova-u1.5-lite',
+    status: 'untested',
+    tested_at: '',
+    last_error: '',
+  },
+  comfyui: {
+    provider: 'comfyui',
+    base_url: 'http://127.0.0.1:8188',
+    api_key: '',
+    model_name: '',
+    comfyui_workflow: '',
+    status: 'untested',
+    tested_at: '',
+    last_error: '',
+  },
   'agnes-ai-global': {
     provider: 'agnes-ai-global',
     base_url: agnesAiGlobalBaseUrl,
     api_key: '',
     model_name: 'agnes-image-2.1-flash',
+    status: 'untested',
+    tested_at: '',
+    last_error: '',
+  },
+  ollama: {
+    provider: 'ollama',
+    base_url: 'http://127.0.0.1:11434',
+    api_key: '',
+    model_name: 'x/z-image-turbo',
     status: 'untested',
     tested_at: '',
     last_error: '',
@@ -165,13 +205,13 @@ function normalizeImageProviderId(value) {
 function normalizeTextModelProfile(provider, profile) {
   const defaults = defaultTextModelProfiles[provider];
   const source = profile || {};
-  const sourceBaseUrl = provider === 'custom'
+  const sourceBaseUrl = provider === 'custom' || provider === 'ollama'
     ? source.base_url !== undefined ? source.base_url : defaults.base_url
     : defaults.base_url;
   return {
     api_key: source.api_key !== undefined ? source.api_key : defaults.api_key,
     base_url: provider === 'xiaomi' && sourceBaseUrl === oldXiaomiBaseUrl ? defaults.base_url : sourceBaseUrl,
-    model_name: (provider.startsWith('agnes-ai-') || provider === 'deepseek' || provider === 'longcat') && !source.model_name
+    model_name: (provider.startsWith('agnes-ai-') || provider === 'sensenova' || provider === 'deepseek' || provider === 'longcat') && !source.model_name
       ? defaults.model_name
       : source.model_name !== undefined ? source.model_name : defaults.model_name,
   };
@@ -191,13 +231,13 @@ function normalizeTextModelProfiles(sourceProfiles) {
 }
 
 function textProfileFromFlatConfig(source, fallback, provider) {
-  const sourceBaseUrl = provider === 'custom'
+  const sourceBaseUrl = provider === 'custom' || provider === 'ollama'
     ? source.base_url !== undefined ? source.base_url : fallback.base_url
     : fallback.base_url;
   return {
     api_key: source.api_key !== undefined ? source.api_key : fallback.api_key,
     base_url: provider === 'xiaomi' && sourceBaseUrl === oldXiaomiBaseUrl ? fallback.base_url : sourceBaseUrl,
-    model_name: provider.startsWith('agnes-ai-') && !source.model_name
+    model_name: (provider.startsWith('agnes-ai-') || provider === 'sensenova') && !source.model_name
       ? fallback.model_name
       : source.model_name !== undefined ? source.model_name : fallback.model_name,
   };
@@ -208,13 +248,14 @@ function normalizeImageModelProfile(provider, profile) {
   const source = profile || {};
   return {
     provider,
-    base_url: provider === 'custom'
+    base_url: provider === 'custom' || provider === 'ollama' || provider === 'comfyui'
       ? source.base_url !== undefined ? source.base_url : defaults.base_url
       : defaults.base_url,
     api_key: source.api_key !== undefined ? source.api_key : defaults.api_key,
-    model_name: provider.startsWith('agnes-ai-') && !source.model_name
+    model_name: (provider.startsWith('agnes-ai-') || provider === 'sensenova') && !source.model_name
       ? defaults.model_name
       : source.model_name !== undefined ? source.model_name : defaults.model_name,
+    comfyui_workflow: source.comfyui_workflow !== undefined ? String(source.comfyui_workflow) : (defaults.comfyui_workflow || ''),
     size: source.size !== undefined ? source.size : defaults.size,
     ratio: source.ratio !== undefined ? source.ratio : defaults.ratio,
     status: source.status !== undefined ? source.status : defaults.status,

@@ -6,7 +6,7 @@ const AdmZip = require('adm-zip');
 const cheerio = require('cheerio');
 const { getSafeImageDimensions } = require('../utils/safeImageDimensions.cjs');
 const { createCanvas, GlobalFonts, loadImage: loadCanvasImage } = require('@napi-rs/canvas');
-const { getGeneratedImagesDir, getImportedImagesDir } = require('../utils/paths.cjs');
+const { getGeneratedImagesDir, getImportedImagesDir, getKnowledgeImageLibraryDir } = require('../utils/paths.cjs');
 const { createLocalImageRenderService } = require('./localImageRenderService.cjs');
 const { assertRemoteHttpUrl, fetchWithTimeout, readResponseBuffer } = require('../utils/secureHttp.cjs');
 const localImageRenderService = createLocalImageRenderService();
@@ -2106,6 +2106,7 @@ function resolveAssetImagePath(url) {
   const assetRoots = {
     'generated-images': getGeneratedImagesDir(app),
     'imported-images': getImportedImagesDir(app),
+    'knowledge-images': getKnowledgeImageLibraryDir(app),
   };
   const rootDir = assetRoots[assetUrl.hostname];
   if (!rootDir) return null;

@@ -36,7 +36,7 @@ export const appMenuItems: AppMenuItem[] = [
   {
     id: 'knowledge-base',
     label: '知识库',
-    description: '素材、模板和案例资产',
+    description: '文档资料与图片素材',
   },
   {
     id: 'duplicate-check',

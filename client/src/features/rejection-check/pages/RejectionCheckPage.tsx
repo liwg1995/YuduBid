@@ -1498,7 +1498,21 @@ function RejectionCheckPage() {
     );
   }
 
+  const exportExcel = async () => {
+    try {
+      const result = await window.yibiao?.rejectionCheck.exportExcel();
+      if (!result || result.canceled) return;
+      showToast(result.message || (result.success ? 'Excel 已导出' : '导出失败'), result.success ? 'success' : 'error');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '导出废标检查结果失败', 'error');
+    }
+  };
+
   const toolbarGroups: FloatingToolbarGroup[] = [
+    {
+      id: 'rejection-check-export',
+      actions: [{ id: 'export-excel', label: '导出 Excel', disabled: extractionRunning || checkRunning, tooltip: '导出当前废标检查结果', onClick: exportExcel }],
+    },
     {
       id: 'rejection-check-reset',
       actions: [

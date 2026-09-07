@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS technical_plan_meta (
   outline_project_overview TEXT,
   content_generation_options_json TEXT,
   content_generation_runtime_json TEXT,
+  technical_volume_json TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -943,3 +944,37 @@ CREATE TABLE IF NOT EXISTS bid_export_templates (
 
 CREATE INDEX IF NOT EXISTS idx_bid_export_templates_updated
 ON bid_export_templates(updated_at DESC);
+
+-- ============================================================================
+-- 本地图片知识库（v19 已落地）
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS knowledge_image_folders (
+  folder_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_images (
+  image_id TEXT PRIMARY KEY,
+  folder_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  file_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size INTEGER NOT NULL DEFAULT 0,
+  file_path TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (folder_id) REFERENCES knowledge_image_folders(folder_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_image_folders_order
+ON knowledge_image_folders(sort_order, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_images_folder_order
+ON knowledge_images(folder_id, sort_order, created_at DESC);

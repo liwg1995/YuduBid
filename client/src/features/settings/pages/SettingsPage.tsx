@@ -10,6 +10,7 @@ import PluginManagementPanel from '../plugin-management/PluginManagementPanel';
 
 type SettingsTab = 'general' | 'features' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'plugins' | 'usage' | 'about';
 type ReleaseDownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'installing' | 'error';
+type LocalModelHelpKind = 'ollama-text' | 'ollama-image' | 'comfyui';
 
 interface ReleaseDownloadState {
   status: ReleaseDownloadStatus;
@@ -27,6 +28,55 @@ const SETTINGS_ACTIVE_TAB_KEY = 'yibiao-settings-active-tab';
 const DEFAULT_SETTINGS_TAB: SettingsTab = 'text-model';
 const githubReleaseDownloadPattern = /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\/[^/]+\/.+/i;
 
+const localModelHelp: Record<LocalModelHelpKind, { title: string; description: string; sections: Array<{ title: string; content: string }> }> = {
+  'ollama-text': {
+    title: 'Ollama 文本模型使用说明',
+    description: '通过本机 Ollama 的 OpenAI 兼容接口运行文本生成任务。',
+    sections: [
+      { title: '使用前准备', content: '先安装并启动 Ollama，再使用 ollama pull <模型名> 下载文本模型。默认地址为 http://127.0.0.1:11434/v1，不需要 API Key。' },
+      { title: '模型名称', content: '填写本机已经安装的模型名称和标签，例如 qwen3:8b。模型不存在时，测试会失败，不会自动下载大模型。' },
+      { title: '能力与性能', content: '生成速度、上下文长度、JSON 输出和图片理解能力取决于所选模型及本机内存/显存。长文档任务建议使用上下文较大的模型。' },
+      { title: '常见问题', content: '连接失败时确认 Ollama 正在运行；若改为局域网地址，需要自行配置 Ollama 监听地址和网络访问权限。' },
+    ],
+  },
+  'ollama-image': {
+    title: 'Ollama 实验生图使用说明',
+    description: '调用本机 Ollama CLI 的实验图片生成能力。',
+    sections: [
+      { title: '平台限制', content: '当前按 Ollama 官方实验能力仅支持 macOS。Windows 和 Linux 暂不启用此调用路径。' },
+      { title: '使用前准备', content: '安装并启动 Ollama，提前下载支持图片生成的模型，例如 x/z-image-turbo 或 x/flux2-klein；API Key 留空。' },
+      { title: '调用方式', content: '应用会在本机临时目录运行 ollama run，并读取模型生成的 PNG、JPG 或 WebP 文件。生成结束后会清理临时目录。' },
+      { title: '注意事项', content: '该能力仍属实验特性，模型输出格式可能随 Ollama 版本变化；正式批量生成前请先点击“测试”。' },
+    ],
+  },
+  comfyui: {
+    title: 'ComfyUI 工作流使用说明',
+    description: '连接本机或局域网 ComfyUI，并复用 API 格式的文生图工作流。',
+    sections: [
+      { title: '服务地址', content: '默认地址为 http://127.0.0.1:8188，不需要 API Key。局域网使用时请填写可访问的 ComfyUI 地址，并自行确认防火墙和访问权限。' },
+      { title: '推荐方式', content: '在 ComfyUI 中调通文生图流程，然后使用 “Save (API Format)” 导出 JSON，将完整内容粘贴到“工作流 JSON”。不要使用普通界面工作流 JSON。' },
+      { title: '提示词注入', content: '应用会定位 KSampler 正向输入连接的 CLIPTextEncode 节点并替换提示词，其余 checkpoint、LoRA、采样器和自定义节点配置保持不变。' },
+      { title: '备用方式', content: '工作流 JSON 留空时，可填写 checkpoints 目录中的模型文件名，应用会构建一个标准 1024×1024 工作流。复杂模型建议使用自定义工作流。' },
+      { title: '排查方法', content: '先确保同一工作流能在 ComfyUI 中独立运行，并包含 SaveImage 等图片输出节点；随后回到设置点击“测试”。' },
+    ],
+  },
+};
+
+function validateComfyUiWorkflowJson(value: string) {
+  const raw = value.trim();
+  if (!raw) return { status: 'empty' as const, label: '未填写，将使用标准工作流' };
+  try {
+    const parsed = JSON.parse(raw);
+    const workflow = parsed?.prompt && typeof parsed.prompt === 'object' ? parsed.prompt : parsed;
+    if (!workflow || typeof workflow !== 'object' || Array.isArray(workflow) || !Object.keys(workflow).length) {
+      return { status: 'error' as const, label: 'JSON 中没有有效的工作流节点' };
+    }
+    return { status: 'valid' as const, label: `JSON 有效，识别到 ${Object.keys(workflow).length} 个节点` };
+  } catch {
+    return { status: 'error' as const, label: 'JSON 格式错误，请检查括号、引号和逗号' };
+  }
+}
+
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'text-model', label: '文本模型' },
   { id: 'image-model', label: '生图模型' },
@@ -41,6 +91,8 @@ const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
 const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
   { value: 'agnes-ai-cn', label: 'agnes-ai【中国大陆】' },
   { value: 'agnes-ai-global', label: 'agnes-ai【国际站】' },
+  { value: 'sensenova', label: '商汤日日新 SenseNova' },
+  { value: 'ollama', label: 'Ollama（本地）' },
   { value: 'volcengine', label: '火山方舟' },
   { value: 'xiaomi', label: '小米 token plan' },
   { value: 'deepseek', label: 'DeepSeek' },
@@ -53,6 +105,7 @@ const agnesAiCnRegisterUrl = 'https://platform.agnes-ai.cn';
 const agnesAiGlobalRegisterUrl = 'https://platform.agnes-ai.com';
 const agnesAiCnBaseUrl = 'https://api.agnes-ai.cn/v1';
 const agnesAiGlobalBaseUrl = 'https://apihub.agnes-ai.com/v1';
+const senseNovaDocsUrl = 'https://platform.sensenova.cn/docs';
 const agnesAiNotice = `🔔 Agnes AI 国内站与国际站使用公告
 
 ⚠️【重要说明】
@@ -94,6 +147,8 @@ Base URL：https://api.agnes-ai.cn/v1
 const textProviderDefaults: TextModelProfiles = {
   'agnes-ai-cn': { api_key: '', base_url: agnesAiCnBaseUrl, model_name: 'agnes-2.5-flash' },
   'agnes-ai-global': { api_key: '', base_url: agnesAiGlobalBaseUrl, model_name: 'agnes-2.5-flash' },
+  sensenova: { api_key: '', base_url: 'https://token.sensenova.cn/v1', model_name: 'sensenova-6.8-flash-lite' },
+  ollama: { api_key: '', base_url: 'http://127.0.0.1:11434/v1', model_name: '' },
   volcengine: { api_key: '', base_url: 'https://ark.cn-beijing.volces.com/api/v3', model_name: '' },
   xiaomi: { api_key: '', base_url: 'https://token-plan-cn.xiaomimimo.com/v1', model_name: '' },
   deepseek: { api_key: '', base_url: 'https://api.deepseek.com', model_name: 'deepseek-v4-flash' },
@@ -105,10 +160,13 @@ const agnesTextModelNames = ['agnes-2.5-flash', 'agnes-2.0-flash', 'agnes-2.5-pr
 const agnesImageModelNames = ['agnes-image-2.1-flash', 'agnes-image-2.0-flash'];
 const deepseekTextModelNames = ['deepseek-v4-flash', 'deepseek-v4-pro'];
 const longcatTextModelNames = ['LongCat-2.0'];
+const senseNovaTextModelNames = ['sensenova-6.8-flash-lite', 'deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2', 'kimi-k3'];
+const senseNovaImageModelNames = ['sensenova-u1.5-lite', 'sensenova-u1-fast'];
 
 const textProviderApiKeyUrls: Partial<Record<TextModelProvider, string>> = {
   'agnes-ai-cn': agnesAiCnRegisterUrl,
   'agnes-ai-global': agnesAiGlobalRegisterUrl,
+  sensenova: senseNovaDocsUrl,
   volcengine: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
   xiaomi: 'https://platform.xiaomimimo.com/console/api-keys',
   deepseek: 'https://platform.deepseek.com/api_keys',
@@ -127,6 +185,7 @@ function getAgnesTextModels(provider: TextModelProvider): string[] {
 }
 
 function getBuiltInTextModels(provider: TextModelProvider): string[] {
+  if (provider === 'sensenova') return [...senseNovaTextModelNames];
   if (provider === 'deepseek') return [...deepseekTextModelNames];
   if (provider === 'longcat') return [...longcatTextModelNames];
   return getAgnesTextModels(provider);
@@ -137,12 +196,13 @@ function supportsThinkingSettings(provider: TextModelProvider): boolean {
 }
 
 function getAgnesImageModels(provider: ImageModelProvider): string[] {
+  if (provider === 'sensenova') return [...senseNovaImageModelNames];
   return provider === 'agnes-ai-cn' || provider === 'agnes-ai-global' ? [...agnesImageModelNames] : [];
 }
 
 function normalizeTextModelProfile(provider: TextModelProvider, profile?: Partial<TextModelConfig>): TextModelConfig {
   const defaults = textProviderDefaults[provider];
-  const baseUrl = provider === 'custom' ? profile?.base_url ?? defaults.base_url : defaults.base_url;
+  const baseUrl = provider === 'custom' || provider === 'ollama' ? profile?.base_url ?? defaults.base_url : defaults.base_url;
   return {
     api_key: profile?.api_key ?? defaults.api_key,
     base_url: provider === 'xiaomi' && baseUrl === oldXiaomiBaseUrl ? defaults.base_url : baseUrl,
@@ -202,7 +262,7 @@ function normalizeTextModelProfiles(profiles?: Partial<TextModelProfiles>): Text
 function textProfileFromState(textModel: SettingsPageState['textModel']): TextModelConfig {
   return {
     api_key: textModel.api_key,
-    base_url: textModel.provider === 'custom' ? textModel.base_url : textProviderDefaults[textModel.provider].base_url,
+    base_url: textModel.provider === 'custom' || textModel.provider === 'ollama' ? textModel.base_url : textProviderDefaults[textModel.provider].base_url,
     model_name: textModel.model_name,
   };
 }
@@ -210,6 +270,9 @@ function textProfileFromState(textModel: SettingsPageState['textModel']): TextMo
 const imageProviders: Array<{ value: ImageModelProvider; label: string }> = [
   { value: 'agnes-ai-cn', label: 'agnes-ai【中国大陆】' },
   { value: 'agnes-ai-global', label: 'agnes-ai【国际站】' },
+  { value: 'sensenova', label: '商汤日日新 SenseNova' },
+  { value: 'ollama', label: 'Ollama 本地生图（实验）' },
+  { value: 'comfyui', label: 'ComfyUI（本地）' },
   { value: 'volcengine', label: '火山方舟' },
   { value: 'google-ai-studio', label: 'Google AI Studio' },
   { value: 'custom', label: '自定义 OpenAI-like' },
@@ -234,6 +297,35 @@ const imageProviderDefaults: ImageModelProfiles = {
     model_name: 'agnes-image-2.1-flash',
     size: '2K',
     ratio: '1:1',
+    status: 'untested',
+    tested_at: '',
+    last_error: '',
+  },
+  sensenova: {
+    provider: 'sensenova',
+    base_url: 'https://token.sensenova.cn/v1',
+    api_key: '',
+    model_name: 'sensenova-u1.5-lite',
+    size: '2048x2048',
+    status: 'untested',
+    tested_at: '',
+    last_error: '',
+  },
+  ollama: {
+    provider: 'ollama',
+    base_url: 'http://127.0.0.1:11434',
+    api_key: '',
+    model_name: 'x/z-image-turbo',
+    status: 'untested',
+    tested_at: '',
+    last_error: '',
+  },
+  comfyui: {
+    provider: 'comfyui',
+    base_url: 'http://127.0.0.1:8188',
+    api_key: '',
+    model_name: '',
+    comfyui_workflow: '',
     status: 'untested',
     tested_at: '',
     last_error: '',
@@ -270,6 +362,9 @@ const imageProviderDefaults: ImageModelProfiles = {
 const imageProviderApiKeyUrls: Record<ImageModelProvider, string> = {
   'agnes-ai-cn': agnesAiCnRegisterUrl,
   'agnes-ai-global': agnesAiGlobalRegisterUrl,
+  sensenova: senseNovaDocsUrl,
+  ollama: 'https://ollama.com/blog/image-generation',
+  comfyui: 'https://docs.comfy.org/development/core-concepts/api-services',
   volcengine: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
   'google-ai-studio': 'https://aistudio.google.com/api-keys',
   custom: '',
@@ -278,6 +373,9 @@ const imageProviderApiKeyUrls: Record<ImageModelProvider, string> = {
 const imageProviderLabels: Record<ImageModelProvider, string> = {
   'agnes-ai-cn': 'agnes-ai【中国大陆】',
   'agnes-ai-global': 'agnes-ai【国际站】',
+  sensenova: '商汤日日新 SenseNova',
+  ollama: 'Ollama 本地生图',
+  comfyui: 'ComfyUI 本地生图',
   volcengine: '火山方舟',
   'google-ai-studio': 'Google AI Studio',
   custom: '自定义生图服务',
@@ -285,28 +383,40 @@ const imageProviderLabels: Record<ImageModelProvider, string> = {
 
 function getImageBaseUrlDescription(provider: ImageModelProvider) {
   if (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global') return 'agnes-ai OpenAI 兼容接口地址';
+  if (provider === 'sensenova') return '日日新 TokenPlan OpenAI 兼容接口地址';
   if (provider === 'volcengine') return '火山方舟 OpenAI 兼容接口地址';
+  if (provider === 'ollama') return 'Ollama 本地服务地址；生图调用本机 Ollama CLI（目前仅官方支持 macOS）';
+  if (provider === 'comfyui') return '本地 ComfyUI 服务地址，默认 http://127.0.0.1:8188';
   if (provider === 'custom') return '填写兼容 OpenAI /images/generations 的接口地址';
   return 'Google Gemini API REST 地址';
 }
 
 function getImageApiKeyDescription(provider: ImageModelProvider) {
   if (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global') return '用于调用 agnes-ai 图片生成 API';
+  if (provider === 'sensenova') return '用于调用日日新 U1.5 Lite / U1 Fast 图片生成 API';
   if (provider === 'volcengine') return '用于调用火山方舟图片生成 API';
+  if (provider === 'ollama') return '本地 Ollama 不需要 API Key，可留空';
+  if (provider === 'comfyui') return '本地 ComfyUI 不需要 API Key，可留空';
   if (provider === 'custom') return '用于调用自定义 OpenAI-like 生图接口';
   return '用于调用 Google AI Studio Gemini API';
 }
 
 function getImageModelDescription(provider: ImageModelProvider) {
   if (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global') return '填写 agnes-ai 已开通的生图模型名称';
+  if (provider === 'sensenova') return '选择日日新图片生成模型；U1.5 Lite 支持生成与编辑，当前应用接入文生图';
   if (provider === 'volcengine') return '填写火山方舟控制台中已开通的模型或推理接入点 ID';
+  if (provider === 'ollama') return '填写已安装的实验生图模型，例如 x/z-image-turbo 或 x/flux2-klein';
+  if (provider === 'comfyui') return '填写 ComfyUI checkpoints 目录中的模型文件名';
   if (provider === 'custom') return '填写自定义接口支持的生图模型名称';
   return '选择或填写支持图片生成的 Gemini 模型';
 }
 
 function getImageModelPlaceholder(provider: ImageModelProvider) {
   if (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global') return '请输入已开通的生图模型名称';
+  if (provider === 'sensenova') return 'sensenova-u1.5-lite';
   if (provider === 'volcengine') return '请输入已开通的模型或推理接入点 ID';
+  if (provider === 'ollama') return '例如 x/z-image-turbo';
+  if (provider === 'comfyui') return '例如 dreamshaper_8.safetensors';
   if (provider === 'custom') return '请输入 OpenAI-like 生图模型名称';
   return 'gemini-3.1-flash-image-preview';
 }
@@ -354,9 +464,10 @@ function normalizeImageModelProfile(provider: ImageModelProvider, profile?: Part
   const defaults = imageProviderDefaults[provider];
   return {
     provider,
-    base_url: provider === 'custom' ? profile?.base_url ?? defaults.base_url : defaults.base_url,
+    base_url: provider === 'custom' || provider === 'ollama' || provider === 'comfyui' ? profile?.base_url ?? defaults.base_url : defaults.base_url,
     api_key: profile?.api_key ?? defaults.api_key,
-    model_name: provider.startsWith('agnes-ai-') && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
+    model_name: (provider.startsWith('agnes-ai-') || provider === 'sensenova') && !profile?.model_name ? defaults.model_name : profile?.model_name ?? defaults.model_name,
+    comfyui_workflow: profile?.comfyui_workflow ?? defaults.comfyui_workflow ?? '',
     size: profile?.size ?? defaults.size,
     ratio: profile?.ratio ?? defaults.ratio,
     status: profile?.status ?? defaults.status,
@@ -375,9 +486,12 @@ function normalizeImageModelProfiles(profiles?: Partial<ImageModelProfiles>): Im
 function imageProfileFromState(imageModel: ImageModelConfig): ImageModelConfig {
   return {
     provider: imageModel.provider,
-    base_url: imageModel.provider === 'custom' ? imageModel.base_url || '' : imageProviderDefaults[imageModel.provider].base_url,
+    base_url: imageModel.provider === 'custom' || imageModel.provider === 'ollama' || imageModel.provider === 'comfyui'
+      ? imageModel.base_url || ''
+      : imageProviderDefaults[imageModel.provider].base_url,
     api_key: imageModel.api_key,
     model_name: imageModel.model_name,
+    comfyui_workflow: imageModel.comfyui_workflow || '',
     size: imageModel.size,
     ratio: imageModel.ratio,
     status: imageModel.status || 'untested',
@@ -634,6 +748,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const [latestRelease, setLatestRelease] = useState<LatestReleaseInfo | null>(null);
   const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
   const [agnesNoticeOpen, setAgnesNoticeOpen] = useState(false);
+  const [localModelHelpKind, setLocalModelHelpKind] = useState<LocalModelHelpKind | null>(null);
   const [releaseDownloadState, setReleaseDownloadState] = useState<ReleaseDownloadState>(() => createInitialReleaseDownloadState());
   const [usageStats, setUsageStats] = useState<UsageStatsSummary | null>(null);
   const [usageRange, setUsageRange] = useState<UsageTrendRange>('14d');
@@ -1251,7 +1366,12 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     try {
       setLoadingModels('text');
       const result = await window.yibiao?.config.listModels(createClientConfig());
-      const models = result?.models?.length ? result.models : getBuiltInTextModels(state.textModel.provider);
+      const builtInModels = getBuiltInTextModels(state.textModel.provider);
+      const remoteModels = result?.models || [];
+      const availableSenseNovaModels = remoteModels.filter((model) => builtInModels.includes(model));
+      const models = state.textModel.provider === 'sensenova'
+        ? availableSenseNovaModels.length > 0 ? availableSenseNovaModels : builtInModels
+        : remoteModels.length > 0 ? remoteModels : builtInModels;
       setTextModels(models);
       if (result?.success && models.length > 0) {
         setState((prev) => ({
@@ -1292,13 +1412,13 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const fetchImageModels = async () => {
     try {
       setLoadingModels('image');
-      if (state.imageModel.provider === 'agnes-ai-cn' || state.imageModel.provider === 'agnes-ai-global' || state.imageModel.provider === 'custom') {
+      if (state.imageModel.provider === 'agnes-ai-cn' || state.imageModel.provider === 'agnes-ai-global' || state.imageModel.provider === 'sensenova' || state.imageModel.provider === 'ollama' || state.imageModel.provider === 'custom') {
         const providerLabel = imageProviderLabels[state.imageModel.provider];
         const baseUrl = state.imageModel.provider === 'custom'
           ? state.imageModel.base_url || ''
           : state.imageModel.base_url || imageProviderDefaults[state.imageModel.provider].base_url || '';
 
-        if (!state.imageModel.api_key.trim()) {
+        if (state.imageModel.provider !== 'ollama' && !state.imageModel.api_key.trim()) {
           setImageModels([]);
           showToast(`请先填写${providerLabel} API Key`, 'info');
           return;
@@ -1317,7 +1437,12 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           base_url: baseUrl,
           model_name: state.imageModel.model_name,
         });
-        const models = result?.models?.length ? result.models : getAgnesImageModels(state.imageModel.provider);
+        const builtInModels = getAgnesImageModels(state.imageModel.provider);
+        const remoteModels = result?.models || [];
+        const availableSenseNovaModels = remoteModels.filter((model) => builtInModels.includes(model));
+        const models = state.imageModel.provider === 'sensenova'
+          ? availableSenseNovaModels.length > 0 ? availableSenseNovaModels : builtInModels
+          : remoteModels.length > 0 ? remoteModels : builtInModels;
         setImageModels(models);
         if (result?.success && models.length > 0) {
           setState((prev) => ({
@@ -1455,6 +1580,30 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const imageModelStatus: ImageModelStatus = state.imageModel.status || 'untested';
   const currentImageStatus = imageStatusMeta[imageModelStatus];
   const imageTestTime = formatImageTestTime(state.imageModel.tested_at);
+  const comfyUiWorkflowValidation = validateComfyUiWorkflowJson(state.imageModel.comfyui_workflow || '');
+  const pasteComfyUiWorkflow = async () => {
+    try {
+      const value = await navigator.clipboard.readText();
+      if (!value.trim()) {
+        showToast('剪贴板中没有可粘贴的内容', 'info');
+        return;
+      }
+      updateImageModelConfig({ comfyui_workflow: value });
+      showToast('已粘贴剪贴板中的工作流 JSON', 'success');
+    } catch {
+      showToast('无法读取剪贴板，请使用 Command/Ctrl + V 粘贴', 'error');
+    }
+  };
+  const formatComfyUiWorkflow = () => {
+    const raw = String(state.imageModel.comfyui_workflow || '').trim();
+    if (!raw) return;
+    try {
+      updateImageModelConfig({ comfyui_workflow: JSON.stringify(JSON.parse(raw), null, 2) });
+      showToast('工作流 JSON 已格式化', 'success');
+    } catch {
+      showToast('JSON 格式错误，修正后才能格式化', 'error');
+    }
+  };
   const settingsToolbarGroups: FloatingToolbarGroup[] = canSaveActiveTab
     ? [
         {
@@ -1601,8 +1750,9 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                       🔔 查看使用公告
                     </button>
                   )}
+                  {state.textModel.provider === 'ollama' && <button type="button" className="settings-notice-link" onClick={() => setLocalModelHelpKind('ollama-text')}>ⓘ Ollama 使用说明</button>}
                 </div>
-                <span>选择服务商会自动使用预置 Base URL；只有自定义服务商允许修改</span>
+                <span>选择服务商会自动使用预置 Base URL；自定义服务商和 Ollama 允许修改</span>
                 {(state.textModel.provider === 'agnes-ai-cn' || state.textModel.provider === 'agnes-ai-global') && (
                   <span>
                     注册地址：
@@ -1639,7 +1789,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 value={state.textModel.base_url}
                 placeholder={currentTextProviderDefault.base_url || '例如 https://api.openai.com/v1'}
                 onChange={(event) => updateTextModelConfig({ base_url: event.target.value }, { clearModels: true })}
-                disabled={state.textModel.provider !== 'custom'}
+                disabled={state.textModel.provider !== 'custom' && state.textModel.provider !== 'ollama'}
               />
             </label>
             <label className="settings-row">
@@ -1650,7 +1800,8 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               <InputWithAction
                 type="password"
                 value={state.textModel.api_key}
-                placeholder="请输入文本模型 API Key"
+                placeholder={state.textModel.provider === 'ollama' ? '本地 Ollama 无需填写' : '请输入文本模型 API Key'}
+                disabled={state.textModel.provider === 'ollama'}
                 onChange={(event) => updateTextModelConfig({ api_key: event.target.value }, { clearModels: true })}
                 actionLabel="获取"
                 actionTitle="打开当前服务商的 API Key 获取页面"
@@ -1793,6 +1944,8 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                       🔔 查看使用公告
                     </button>
                   )}
+                  {state.imageModel.provider === 'ollama' && <button type="button" className="settings-notice-link" onClick={() => setLocalModelHelpKind('ollama-image')}>ⓘ 实验生图说明</button>}
+                  {state.imageModel.provider === 'comfyui' && <button type="button" className="settings-notice-link" onClick={() => setLocalModelHelpKind('comfyui')}>ⓘ 工作流使用说明</button>}
                 </div>
                 <span>各家生图接口不统一，先选择服务商再配置模型</span>
                 {(state.imageModel.provider === 'agnes-ai-cn' || state.imageModel.provider === 'agnes-ai-global') && (
@@ -1834,7 +1987,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 value={state.imageModel.base_url || ''}
                 placeholder={state.imageModel.provider === 'custom' ? 'https://api.example.com/v1' : imageProviderDefaults[state.imageModel.provider].base_url}
                 onChange={(event) => updateImageModelConfig({ base_url: event.target.value }, { clearModels: true })}
-                disabled={state.imageModel.provider !== 'custom'}
+                disabled={state.imageModel.provider !== 'custom' && state.imageModel.provider !== 'ollama' && state.imageModel.provider !== 'comfyui'}
               />
             </label>
             <label className="settings-row">
@@ -1845,17 +1998,43 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               <InputWithAction
                 type="password"
                 value={state.imageModel.api_key}
-                placeholder="请输入生图服务 API Key"
+                placeholder={state.imageModel.provider === 'ollama' || state.imageModel.provider === 'comfyui' ? '本地服务无需填写' : '请输入生图服务 API Key'}
+                disabled={state.imageModel.provider === 'ollama' || state.imageModel.provider === 'comfyui'}
                 onChange={(event) => updateImageModelConfig({ api_key: event.target.value }, { clearModels: true })}
                 actionLabel="获取"
                 actionTitle="打开当前生图服务商的 API Key 获取页面"
                 onAction={() => { void openImageProviderApiKeyPage(); }}
               />
             </label>
+            {state.imageModel.provider === 'comfyui' ? <div className="comfy-workflow-setting">
+              <div className="comfy-workflow-card">
+                <header className="comfy-workflow-head">
+                  <div>
+                    <div className="comfy-workflow-title"><strong>工作流 JSON</strong><span>可选</span></div>
+                    <p>粘贴 ComfyUI “Save (API Format)” 导出的完整工作流。留空时使用下方 checkpoint 构建标准工作流。</p>
+                  </div>
+                  <div className="comfy-workflow-actions">
+                    <button type="button" onClick={() => void pasteComfyUiWorkflow()}>粘贴</button>
+                    <button type="button" disabled={!state.imageModel.comfyui_workflow?.trim()} onClick={formatComfyUiWorkflow}>格式化</button>
+                    <button type="button" disabled={!state.imageModel.comfyui_workflow} onClick={() => updateImageModelConfig({ comfyui_workflow: '' })}>清空</button>
+                  </div>
+                </header>
+                <div className="comfy-workflow-editor">
+                  <div className="comfy-workflow-editor-bar"><span>workflow.json</span><small>API FORMAT</small></div>
+                  <textarea
+                    spellCheck={false}
+                    value={state.imageModel.comfyui_workflow || ''}
+                    placeholder={'{\n  "3": {\n    "class_type": "KSampler",\n    "inputs": { ... }\n  }\n}'}
+                    onChange={(event) => updateImageModelConfig({ comfyui_workflow: event.target.value })}
+                  />
+                </div>
+                <footer className={`comfy-workflow-foot is-${comfyUiWorkflowValidation.status}`}><span>{comfyUiWorkflowValidation.label}</span><small>{(state.imageModel.comfyui_workflow || '').length.toLocaleString()} 字符</small></footer>
+              </div>
+            </div> : null}
             <label className="settings-row">
               <div className="settings-row-copy">
                 <strong>模型名称</strong>
-                <span>{getImageModelDescription(state.imageModel.provider)}</span>
+                <span>{state.imageModel.provider === 'comfyui' ? '工作流留空时，填写用于标准工作流的 checkpoint 文件名' : getImageModelDescription(state.imageModel.provider)}</span>
               </div>
               <div className="settings-control-with-action">
                 {imageModels.length > 0 ? (
@@ -2338,6 +2517,23 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
             <div className="release-detail-actions">
               <Dialog.Close className="primary-action" type="button">知道了</Dialog.Close>
             </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <Dialog.Root open={Boolean(localModelHelpKind)} onOpenChange={(open) => { if (!open) setLocalModelHelpKind(null); }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="release-detail-card local-model-help-card">
+            {localModelHelpKind && <>
+              <div className="release-detail-head">
+                <span>LOCAL MODEL</span>
+                <Dialog.Title>{localModelHelp[localModelHelpKind].title}</Dialog.Title>
+                <Dialog.Description>{localModelHelp[localModelHelpKind].description}</Dialog.Description>
+                <Dialog.Close className="release-detail-close" type="button" aria-label="关闭说明">×</Dialog.Close>
+              </div>
+              <div className="local-model-help-content">{localModelHelp[localModelHelpKind].sections.map((section) => <section key={section.title}><strong>{section.title}</strong><p>{section.content}</p></section>)}</div>
+              <div className="release-detail-actions"><Dialog.Close className="primary-action" type="button">知道了</Dialog.Close></div>
+            </>}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
