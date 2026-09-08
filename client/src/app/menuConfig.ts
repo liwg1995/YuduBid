@@ -205,6 +205,11 @@ const thesisTutorMenuItems: AppMenuItem[] = [
 
 const patentMenuItems: AppMenuItem[] = [
   {
+    id: 'patent-projects',
+    label: '专利项目',
+    description: '创建、检索和管理专利项目',
+  },
+  {
     id: 'patent-mining',
     label: '专利挖掘',
     description: '项目扫描与专利点分析',
@@ -216,13 +221,13 @@ const patentMenuItems: AppMenuItem[] = [
   },
   {
     id: 'patent-prior-art',
-    label: '查新分析',
-    description: '现有技术检索与差异分析',
+    label: '查新增强',
+    description: '可选，补充现有技术与区别点',
   },
   {
     id: 'patent-iteration',
-    label: '修订迭代',
-    description: '补充材料、纠错和版本留档',
+    label: '修订新版本',
+    description: '可选，补充、纠错和版本留档',
   },
 ];
 

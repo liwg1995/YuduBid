@@ -8,7 +8,7 @@ import type { FeasibilityBackgroundTaskState, FeasibilityContentGenerationOption
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeImage, KnowledgeImageDeleteResult, KnowledgeImageFolder, KnowledgeImageReferenceResult, KnowledgeImageUploadResult, KnowledgeItem } from './contracts/knowledgeBase';
 import type { OfficialDocumentPromptInput } from '../prompts/officialDocument';
 import type { OfficialDocumentImportResult, OfficialDocumentState } from './contracts/officialDocument';
-import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentRevisionResult } from './contracts/patentGeneration';
+import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentPoint, PatentRevisionResult, PatentWorkspaceProjectList } from './contracts/patentGeneration';
 import type { PresalesAnalysisInput, PresalesArchitectureInput, PresalesDiagramInput, PresalesExportRecord, PresalesManualMaterialInput, PresalesMaterialItem, PresalesPresentationInput, PresalesProjectList, PresalesProjectProfile, PresalesProjectState, PresalesResearchInput } from './contracts/presalesWorkbench';
 import type { BidOpportunity, OpportunityDecisionOutcome, OpportunityDraft, OpportunityEnterpriseProfile, OpportunityMonitor, OpportunityMonitorDraft, OpportunityScanBatch, OpportunityScanRun, OpportunitySnapshot, OpportunitySource, OpportunityStatus, OpportunityWorkflowStage } from './contracts/bidOpportunity';
 import type { ProjectManagementCommercialInput, ProjectManagementComplianceInput, ProjectManagementDeliveryInput, ProjectManagementDictionaries, ProjectManagementDiscoveryInput, ProjectManagementExecutionInput, ProjectManagementPlanningInput, ProjectManagementProfile, ProjectManagementProjectList, ProjectManagementReportingInput, ProjectManagementRetrospectiveInput, ProjectManagementRiskInput, ProjectManagementStakeholderInput, ProjectManagementState } from './contracts/projectManagement';
@@ -481,11 +481,22 @@ export interface YuDuBidBridge {
     onEvent: (callback: (event: SoftwareCopyrightState) => void) => () => void;
   };
   patentGeneration: {
+    listProjects: () => Promise<PatentWorkspaceProjectList>;
+    createProject: (payload: { name: string; caseName?: string; topic?: string; applicationType?: PatentCaseInfo['applicationType'] }) => Promise<{ project: PatentWorkspaceProjectList['projects'][number]; state: PatentGenerationState }>;
+    switchProject: (projectId: string) => Promise<PatentGenerationState>;
+    renameProject: (payload: { id: string; name: string }) => Promise<PatentWorkspaceProjectList>;
+    archiveProject: (payload: { id: string; archived: boolean }) => Promise<PatentWorkspaceProjectList>;
+    deleteProject: (projectId: string) => Promise<PatentWorkspaceProjectList>;
     loadState: () => Promise<PatentGenerationState>;
     saveCaseInfo: (payload: Partial<PatentCaseInfo>) => Promise<PatentGenerationState>;
+    generateTechnicalTopic: () => Promise<PatentGenerationState>;
     selectPatentPoint: (pointId: string) => Promise<PatentGenerationState>;
+    generateFactSupplements: (pointId: string) => Promise<PatentGenerationState>;
+    saveFactSupplements: (payload: { pointId: string; supplements: NonNullable<PatentPoint['factSupplements']> }) => Promise<PatentGenerationState>;
     selectProject: () => Promise<PatentGenerationSelectProjectResult>;
-    startMining: () => Promise<PatentGenerationState>;
+    startMining: (payload?: { resume?: boolean }) => Promise<PatentGenerationState>;
+    pauseMining: () => Promise<PatentGenerationState>;
+    stopMining: () => Promise<PatentGenerationState>;
     generateDisclosureDraft: () => Promise<PatentGenerationState>;
     readDisclosureDraft: (draftId?: string) => Promise<PatentDisclosureDraftFile>;
     saveDisclosureDraft: (payload: { id: string; content: string }) => Promise<PatentGenerationState>;

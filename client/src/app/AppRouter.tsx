@@ -21,6 +21,7 @@ const PatentDisclosurePage = lazy(() => import('../features/patent-generation/pa
 const PatentIterationPage = lazy(() => import('../features/patent-generation/pages/PatentIterationPage'));
 const PatentMiningPage = lazy(() => import('../features/patent-generation/pages/PatentMiningPage'));
 const PatentPriorArtPage = lazy(() => import('../features/patent-generation/pages/PatentPriorArtPage'));
+const PatentProjectsPage = lazy(() => import('../features/patent-generation/pages/PatentProjectsPage'));
 const PresalesProjectsPage = lazy(() => import('../features/presales-workbench/pages/PresalesProjectsPage'));
 const PresalesWorkbenchPage = lazy(() => import('../features/presales-workbench/pages/PresalesWorkbenchPage'));
 const ProjectHistoryPage = lazy(() => import('../features/project-management/pages/ProjectHistoryPage'));
@@ -96,13 +97,15 @@ function AppRouteContent({ activeSection, featureModuleSettings, pluginNavigatio
     case 'software-copyright':
       return <SoftwareCopyrightPage />;
     case 'patent-mining':
-      return <PatentMiningPage />;
+      return <PatentMiningPage onNavigate={onSectionChange} />;
+    case 'patent-projects':
+      return <PatentProjectsPage onNavigate={onSectionChange} />;
     case 'patent-disclosure':
-      return <PatentDisclosurePage />;
+      return <PatentDisclosurePage onNavigate={onSectionChange} />;
     case 'patent-prior-art':
-      return <PatentPriorArtPage />;
+      return <PatentPriorArtPage onNavigate={onSectionChange} />;
     case 'patent-iteration':
-      return <PatentIterationPage />;
+      return <PatentIterationPage onNavigate={onSectionChange} />;
     case 'knowledge-base':
       return <KnowledgeLibraryPage />;
     case 'image-knowledge-base':

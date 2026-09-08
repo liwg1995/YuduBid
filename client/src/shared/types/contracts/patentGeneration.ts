@@ -5,7 +5,8 @@ export type PatentGenerationStage =
   | 'prior-art'
   | 'iteration';
 
-export type PatentTypePreference = 'method' | 'system' | 'device' | 'unknown';
+export type PatentApplicationType = 'invention' | 'utility-model' | 'design' | 'unknown';
+export type PatentClaimForm = 'method' | 'system' | 'device' | 'storage-medium';
 
 export interface PatentContactInfo {
   name: string;
@@ -16,8 +17,27 @@ export interface PatentContactInfo {
 export interface PatentCaseInfo {
   caseName: string;
   topic: string;
-  patentType: PatentTypePreference;
+  applicationType: PatentApplicationType;
+  claimForms: PatentClaimForm[];
   contact: PatentContactInfo;
+}
+
+export interface PatentEvidence {
+  filePath: string;
+  lineStart?: number;
+  lineEnd?: number;
+  excerpt: string;
+  evidenceType: 'technical-problem' | 'technical-means' | 'implementation' | 'technical-effect';
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface PatentPointScores {
+  technicality: number;
+  noveltyPotential: number;
+  inventivenessPotential: number;
+  evidenceStrength: number;
+  feasibility: number;
+  protectionValue: number;
 }
 
 export interface PatentProjectInfo {
@@ -42,6 +62,17 @@ export interface PatentPoint {
   difference: string;
   feasibility: string;
   recommendedClaims: string[];
+  evidence: PatentEvidence[];
+  assumptions: string[];
+  missingFacts: string[];
+  factSupplements?: Array<{
+    fact: string;
+    content: string;
+    basis: string;
+    confidence: 'high' | 'medium' | 'low';
+    source: 'ai' | 'manual';
+  }>;
+  scores?: PatentPointScores;
   score?: number;
   qualityWarnings?: string[];
 }
@@ -49,7 +80,7 @@ export interface PatentPoint {
 export interface PatentTaskState {
   task_id: string;
   type: string;
-  status: 'idle' | 'running' | 'success' | 'error';
+  status: 'idle' | 'running' | 'pausing' | 'paused' | 'stopping' | 'stopped' | 'success' | 'error';
   progress: number;
   message: string;
   logs: string[];
@@ -64,6 +95,7 @@ export interface PatentDisclosureDraft {
   file_path: string;
   created_at: string;
   updated_at: string;
+  qualityWarnings?: string[];
 }
 
 export interface PatentDisclosureDraftFile extends PatentDisclosureDraft {
@@ -105,4 +137,24 @@ export interface PatentGenerationSelectProjectResult {
   success: boolean;
   message?: string;
   state: PatentGenerationState;
+}
+
+export interface PatentWorkspaceProject {
+  id: string;
+  name: string;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
+  caseName: string;
+  topic: string;
+  applicationType: PatentApplicationType;
+  stage: PatentGenerationStage;
+  candidateCount: number;
+  draftCount: number;
+  selectedPatentTitle: string;
+}
+
+export interface PatentWorkspaceProjectList {
+  activeProjectId: string;
+  projects: PatentWorkspaceProject[];
 }

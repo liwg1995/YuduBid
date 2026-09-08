@@ -45,6 +45,7 @@ const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>>
   'thesis-format': FormatIcon,
   'code-generation': CodeIcon,
   'software-copyright': CertificateIcon,
+  'patent-projects': ProjectManagementIcon,
   'patent-mining': PatentIdeaIcon,
   'patent-disclosure': PatentDocumentIcon,
   'patent-prior-art': SearchDocumentIcon,

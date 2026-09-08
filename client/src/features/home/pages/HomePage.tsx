@@ -83,8 +83,8 @@ const featureCards: Array<{ title: string; text: string; action: string; section
   {
     title: '专利生成',
     text: '从项目资料中挖掘可保护技术点，并生成交底书、查新分析和修订版本留档。',
-    action: '进入专利挖掘',
-    section: 'patent-mining',
+    action: '进入专利项目',
+    section: 'patent-projects',
     tone: 'violet',
     icon: 'patent',
     tags: ['挖掘', '交底', '查新'],

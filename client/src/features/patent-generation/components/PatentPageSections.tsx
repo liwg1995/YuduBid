@@ -2,7 +2,9 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
-import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationState, PatentPoint, PatentTaskState, PatentTypePreference } from '../types';
+import { toChineseErrorMessage } from '../../../shared/utils/userFacingError';
+import type { PatentApplicationType, PatentCaseInfo, PatentClaimForm, PatentDisclosureDraftFile, PatentGenerationState, PatentPoint, PatentTaskState } from '../types';
+import { getConfirmedFactSupplements, getUnresolvedMissingFacts } from '../factSupplements';
 
 export type PatentCaseInfoPatch = Partial<Omit<PatentCaseInfo, 'contact'>> & {
   contact?: Partial<PatentCaseInfo['contact']>;
@@ -25,6 +27,11 @@ export interface PatentPreviewItem {
   detail: string;
   id?: string;
   qualityWarnings?: string[];
+  evidenceCount?: number;
+  missingFactCount?: number;
+  confirmedFactCount?: number;
+  missingFacts?: string[];
+  factSupplements?: PatentPoint['factSupplements'];
 }
 
 interface PatentExportProgressView {
@@ -35,12 +42,19 @@ interface PatentExportProgressView {
   error?: string;
 }
 
-const patentTypeLabels: Record<PatentTypePreference, string> = {
-  method: '方法',
-  system: '系统',
-  device: '装置',
+const patentTypeLabels: Record<PatentApplicationType, string> = {
+  invention: '发明',
+  'utility-model': '实用新型',
+  design: '外观设计',
   unknown: '暂不确定',
 };
+
+const claimFormOptions: Array<{ value: PatentClaimForm; label: string }> = [
+  { value: 'method', label: '方法' },
+  { value: 'system', label: '系统' },
+  { value: 'device', label: '装置' },
+  { value: 'storage-medium', label: '存储介质' },
+];
 
 const patentFieldTooltipWidth = 260;
 const patentFieldTooltipGap = 10;
@@ -132,7 +146,7 @@ function PatentFieldLabel({ label, hint }: { label: string; hint: string }) {
   );
 }
 
-export function formatPatentUpdatedAt(value: string) {
+function formatPatentUpdatedAt(value: string) {
   if (!value) return '尚未保存';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '尚未保存';
@@ -159,6 +173,9 @@ interface PatentHeroProps {
   workflowSteps: PatentStep[];
   onPrimaryAction?: () => void;
   onReimportProject?: () => void;
+  onPauseMining?: () => void;
+  onResumeMining?: () => void;
+  onStopMining?: () => void;
 }
 
 function PatentUsageHelp() {
@@ -202,7 +219,7 @@ function PatentUsageHelp() {
             <section className="patent-usage-help-grid">
               <article>
                 <strong>第一步：先做专利挖掘</strong>
-                <p>点击“选择项目资料”，选择一个项目目录。系统会扫描文档和代码，输出 3-5 个候选专利点，并按创新性、区别点和可实施性排序。</p>
+                <p>选择项目目录后，系统会扫描文档和代码，输出带项目证据、事实缺口和分维度评分的候选专利点。</p>
               </article>
               <article>
                 <strong>第二步：确定主专利点</strong>
@@ -214,7 +231,7 @@ function PatentUsageHelp() {
               </article>
               <article>
                 <strong>第四步：生成并修订交底书</strong>
-                <p>生成交底书后，先人工检查技术方案、实施例和保护点；有补充材料或纠错说明时，到“修订迭代”生成新版本，旧稿会保留。</p>
+                <p>生成后会自动检查章节、图示、实施例和保护点结构。仍需确认的问题会保留在草稿上方，修订时旧稿不会被覆盖。</p>
               </article>
             </section>
 
@@ -278,120 +295,84 @@ export function PatentHero({
   kicker,
   title,
   description,
-  actionLabel,
   caseSummary,
   loading,
   updatedAt,
-  metrics,
   task,
   projectSelected,
-  processing,
   mining,
   generatingDraft,
   enableMiningActions,
   enableDisclosureDraft,
-  showUsageHelp = false,
-  workflowSteps,
-  onPrimaryAction,
-  onReimportProject,
+  onPauseMining,
+  onResumeMining,
+  onStopMining,
 }: PatentHeroProps) {
   const taskType = task?.type || (enableMiningActions ? 'patent-mining' : enableDisclosureDraft ? 'patent-disclosure' : '');
-  const isHeroTask = Boolean(task && (
-    (enableMiningActions && taskType === 'patent-mining')
-    || (enableDisclosureDraft && taskType === 'patent-disclosure')
-  ));
+  const isHeroTask = Boolean(task && enableMiningActions && taskType === 'patent-mining');
   const heroTaskRunning = task?.status === 'running' && isHeroTask;
-  const heroTaskFinished = Boolean(task && isHeroTask && (task.status === 'success' || task.status === 'error'));
+  const heroTaskPausing = task?.status === 'pausing' && isHeroTask;
+  const heroTaskPaused = task?.status === 'paused' && isHeroTask;
+  const heroTaskStopping = task?.status === 'stopping' && isHeroTask;
+  const heroTaskStopped = task?.status === 'stopped' && isHeroTask;
+  const heroTaskError = task?.status === 'error' && isHeroTask;
   const optimisticMining = enableMiningActions && projectSelected && mining && !heroTaskRunning;
-  const optimisticDisclosure = enableDisclosureDraft && generatingDraft && !heroTaskRunning;
-  const showHeroProgress = heroTaskRunning || heroTaskFinished || optimisticMining || optimisticDisclosure;
-  const heroProgress = heroTaskRunning || heroTaskFinished
+  const showHeroProgress = heroTaskRunning || heroTaskPausing || heroTaskPaused || heroTaskStopping || heroTaskStopped || heroTaskError || optimisticMining;
+  const heroProgress = isHeroTask
     ? Math.min(100, Math.max(0, Number(task?.progress || 0)))
     : 8;
-  const heroProgressMessage = heroTaskRunning || heroTaskFinished
-    ? task?.message || '正在处理...'
-    : optimisticMining
-      ? '正在启动专利挖掘...'
-      : '正在启动交底书生成...';
-  const heroLatestLog = heroTaskRunning || heroTaskFinished ? task?.logs?.filter(Boolean).at(-1) : '';
-  const primaryLabel = enableMiningActions
-    ? !projectSelected
-      ? '导入项目资料'
-      : processing
-        ? '挖掘中...'
-        : '开始挖掘专利'
-    : processing
-      ? '处理中...'
-      : generatingDraft
-        ? '生成中...'
-        : actionLabel;
-
+  const heroProgressMessage = isHeroTask
+    ? heroTaskError ? toChineseErrorMessage(task?.error || task?.message) : task?.message || '正在处理...'
+    : '正在启动专利挖掘...';
+  const heroLatestLog = isHeroTask ? task?.logs?.filter(Boolean).at(-1) : '';
+  const heroProgressLabel = heroTaskRunning && heroProgress >= 88 ? '处理中' : `${heroProgress}%`;
   return (
     <section className="demo-hero-card">
-      <div className="demo-hero-copy">
-        <div className="patent-hero-kicker-row">
-          <span className="section-kicker">{kicker}</span>
-          <PatentWorkflowHelp kicker={kicker} steps={workflowSteps} />
-          {showUsageHelp && <PatentUsageHelp />}
-        </div>
-        <h2>{title}</h2>
-        <p>{description}</p>
-        <div className="patent-case-summary" title={caseSummary}>
-          <span>当前案件</span>
-          <strong>{loading ? '读取中...' : caseSummary}</strong>
-          <small>更新时间：{formatPatentUpdatedAt(updatedAt)}</small>
-        </div>
-        <div className="demo-hero-actions">
-          <button
-            type="button"
-            className="primary-action"
-            onClick={onPrimaryAction}
-            disabled={loading || processing || generatingDraft || (!enableMiningActions && !enableDisclosureDraft)}
-          >
-            {primaryLabel}
-          </button>
-          {enableMiningActions && projectSelected && (
-            <button
-              type="button"
-              className="secondary-action"
-              onClick={onReimportProject}
-              disabled={loading || processing || generatingDraft}
-            >
-              重新导入
-            </button>
-          )}
+      <div className={`demo-hero-copy${showHeroProgress ? ' has-task-progress' : ''}`}>
+        <div className="patent-hero-intro">
+          <div className="patent-hero-kicker-row">
+            <span className="section-kicker">{kicker}</span>
+          </div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+          <div className="patent-case-summary" title={caseSummary}>
+            <span>当前案件</span>
+            <strong>{loading ? '正在读取项目资料…' : caseSummary}</strong>
+            <small>更新时间：{formatPatentUpdatedAt(updatedAt)}</small>
+          </div>
         </div>
         {showHeroProgress && (
           <div className={`patent-task-progress patent-hero-progress${task?.status === 'error' ? ' is-error' : task?.status === 'success' ? ' is-success' : ''}`} role="status" aria-live="polite">
             <div className="patent-task-progress-head">
               <strong>{heroProgressMessage}</strong>
-              <span>{heroProgress}%</span>
+              <span>{heroProgressLabel}</span>
             </div>
             <div className="patent-task-progress-track" aria-label={`${enableMiningActions ? '专利挖掘' : '交底书生成'}进度`}>
               <span style={{ width: `${heroProgress}%` }} />
             </div>
             {heroLatestLog && <p>{heroLatestLog}</p>}
+            {enableMiningActions && isHeroTask && (
+              <div className="patent-task-controls">
+                {heroTaskRunning && <button type="button" onClick={onPauseMining}>暂停</button>}
+                {heroTaskPaused && <button type="button" className="is-primary" onClick={onResumeMining}>继续</button>}
+                {(heroTaskRunning || heroTaskPausing || heroTaskPaused) && <button type="button" className="is-danger" onClick={onStopMining}>停止</button>}
+                {(heroTaskPausing || heroTaskStopping) && <button type="button" disabled>{heroTaskPausing ? '暂停中...' : '停止中...'}</button>}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      <div className="demo-metric-stack" aria-label={`${kicker}规划指标`}>
-        {metrics.map((metric) => (
-          <article key={metric.label}>
-            <span>{metric.label}</span>
-            <strong>{metric.value}</strong>
-            <small>{metric.detail}</small>
-          </article>
-        ))}
-      </div>
     </section>
   );
 }
 
 interface PatentCasePanelProps {
   caseInfo: PatentCaseInfo;
+  selectedPatentPoint: PatentPoint | null;
   loading: boolean;
   saving: boolean;
+  generatingTopic: boolean;
   selectingProject: boolean;
   mining: boolean;
   isRunning: boolean;
@@ -399,6 +380,8 @@ interface PatentCasePanelProps {
   enableMiningActions: boolean;
   onCaseInfoChange: (partial: PatentCaseInfoPatch) => void;
   onSaveCaseInfo: () => void;
+  onGenerateTopic: () => void;
+  onUseSelectedPatentName: () => void;
   onResetCase: () => void;
   onSelectProject: () => void;
   onStartMining: () => void;
@@ -406,8 +389,10 @@ interface PatentCasePanelProps {
 
 export function PatentCasePanel({
   caseInfo,
+  selectedPatentPoint,
   loading,
   saving,
+  generatingTopic,
   selectingProject,
   mining,
   isRunning,
@@ -415,6 +400,8 @@ export function PatentCasePanel({
   enableMiningActions,
   onCaseInfoChange,
   onSaveCaseInfo,
+  onGenerateTopic,
+  onUseSelectedPatentName,
   onResetCase,
   onSelectProject,
   onStartMining,
@@ -425,42 +412,74 @@ export function PatentCasePanel({
         <div>
           <span className="section-kicker">案件信息</span>
           <h3 className="patent-case-title">
-            <span>共享专利案件</span>
+            <span>专利基本信息</span>
             <PatentHintIcon
-              label="共享专利案件"
-              hint="这是一套贯穿专利挖掘、交底书生成、查新分析和修订迭代的案件基础信息。保存后，各页面会共用同一案件名称、技术主题、专利类型倾向和联系人信息，避免重复填写，并作为生成交底书与导出 Word 的上下文。"
+              label="专利基本信息"
+                hint="这些信息用于专利挖掘、交底书生成和 Word 导出。专利名称可以直接采用主专利点名称，也可以在生成前人工调整。"
             />
           </h3>
         </div>
-        <span className="demo-soft-pill">{patentTypeLabels[caseInfo.patentType]}</span>
+        <span className="demo-soft-pill">{patentTypeLabels[caseInfo.applicationType]}</span>
       </div>
       <div className="patent-case-form">
-        <label>
-          <PatentFieldLabel label="案件名称" hint="例如：一种投标文件风险项自动检查方法及系统" />
-          <input
-            value={caseInfo.caseName}
-            onChange={(event) => onCaseInfoChange({ caseName: event.target.value })}
-          />
+        <label className="patent-case-name-field">
+          <PatentFieldLabel label="专利名称" hint="用于交底书标题和导出文件名。可以直接采用主专利点名称，也可以人工调整。" />
+          <span className="patent-case-name-control">
+            <input
+              value={caseInfo.caseName}
+              onChange={(event) => onCaseInfoChange({ caseName: event.target.value })}
+            />
+            {selectedPatentPoint && caseInfo.caseName !== selectedPatentPoint.title && (
+              <button type="button" onClick={onUseSelectedPatentName} disabled={saving}>
+                使用主专利点名称
+              </button>
+            )}
+          </span>
+          <small>主专利点决定技术内容，专利名称用于成稿标题，两者可保持一致。</small>
         </label>
         <label>
           <PatentFieldLabel label="技术主题" hint="例如：投标文件合规性自动检查" />
-          <input
-            value={caseInfo.topic}
-            onChange={(event) => onCaseInfoChange({ topic: event.target.value })}
-          />
+          <span className="patent-case-name-control patent-topic-control">
+            <input value={caseInfo.topic} onChange={(event) => onCaseInfoChange({ topic: event.target.value })} />
+            <button type="button" onClick={onGenerateTopic} disabled={generatingTopic || loading}>
+              {generatingTopic ? '生成中…' : 'AI 生成'}
+            </button>
+          </span>
         </label>
         <label>
-          <PatentFieldLabel label="专利类型倾向" hint="不确定时保持默认，后续可根据候选专利点再调整为方法、系统或装置。" />
+          <PatentFieldLabel label="申请类型" hint="发明、实用新型和外观设计是申请类型；方法、系统、装置属于权利要求保护形态。" />
           <select
-            value={caseInfo.patentType}
-            onChange={(event) => onCaseInfoChange({ patentType: event.target.value as PatentTypePreference })}
+            value={caseInfo.applicationType}
+            onChange={(event) => onCaseInfoChange({ applicationType: event.target.value as PatentApplicationType })}
           >
-            <option value="unknown">暂不确定</option>
-            <option value="method">方法</option>
-            <option value="system">系统</option>
-            <option value="device">装置</option>
+            <option value="invention">发明</option>
+            <option value="utility-model">实用新型</option>
+            <option value="design">外观设计</option>
+            <option value="unknown">暂不确定（按发明分析）</option>
           </select>
         </label>
+        <fieldset className="patent-claim-form-field">
+          <legend><PatentFieldLabel label="权利要求形态" hint="可多选。发明通常可组合方法、系统和存储介质；实用新型通常选择装置。" /></legend>
+          <div className="patent-claim-options">
+            {claimFormOptions.map((option) => {
+              const checked = caseInfo.claimForms.includes(option.value);
+              return (
+                <label key={option.value} className={checked ? 'is-checked' : ''}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => onCaseInfoChange({
+                      claimForms: checked
+                        ? caseInfo.claimForms.filter((item) => item !== option.value)
+                        : [...caseInfo.claimForms, option.value],
+                    })}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
         <label>
           <PatentFieldLabel label="联系人" hint="填写技术联系人姓名，便于导出的交底书保留案件联系信息。" />
           <input
@@ -507,7 +526,7 @@ export function PatentCasePanel({
             <strong>{state?.project?.name || '尚未选择项目'}</strong>
             <span>{state?.scanSummary || '选择项目目录后，会扫描技术文档和核心代码摘要。'}</span>
             {state?.task?.message && <em>{state.task.message}</em>}
-            {state?.task?.error && <em className="is-error">{state.task.error}</em>}
+            {state?.task?.error && <em className="is-error">{toChineseErrorMessage(state.task.error)}</em>}
           </div>
         )}
       </div>
@@ -541,6 +560,8 @@ export function PatentWorkflowPanel({ kicker, steps }: { kicker: string; steps: 
 }
 
 export function PatentSelectedPointPanel({ selectedPatentPoint }: { selectedPatentPoint: PatentPoint | null }) {
+  const confirmedFactSupplements = selectedPatentPoint ? getConfirmedFactSupplements(selectedPatentPoint) : [];
+  const unresolvedMissingFacts = selectedPatentPoint ? getUnresolvedMissingFacts(selectedPatentPoint) : [];
   return (
     <section className="demo-panel patent-selected-point-panel">
       <div className="demo-panel-head">
@@ -556,6 +577,38 @@ export function PatentSelectedPointPanel({ selectedPatentPoint }: { selectedPate
             <span>核心创新</span>
             <p>{selectedPatentPoint.innovation || '未生成'}</p>
           </article>
+          <article>
+            <span>项目证据</span>
+            {selectedPatentPoint.evidence?.length ? (
+              <div className="patent-evidence-list">
+                {selectedPatentPoint.evidence.map((item, index) => (
+                  <p key={`${item.filePath}-${index}`}>
+                    <strong>{item.filePath}{item.lineStart ? `:${item.lineStart}${item.lineEnd ? `-${item.lineEnd}` : ''}` : ''}</strong>
+                    {item.excerpt}
+                  </p>
+                ))}
+              </div>
+            ) : <p>暂无可回查证据，建议补充技术文档或核心实现。</p>}
+          </article>
+          {confirmedFactSupplements.length ? (
+            <article className="is-confirmed">
+              <span>已补充事实</span>
+              <div className="patent-confirmed-facts">
+                {confirmedFactSupplements.map((item, index) => (
+                    <p key={`${index}-${item.fact}`}>
+                      <strong>{item.fact}</strong>
+                      {item.content}
+                    </p>
+                  ))}
+              </div>
+            </article>
+          ) : null}
+          {unresolvedMissingFacts.length ? (
+            <article className="is-warning">
+              <span>待补事实</span>
+              <p>{unresolvedMissingFacts.join('；')}</p>
+            </article>
+          ) : null}
           <article>
             <span>区别点</span>
             <p>{selectedPatentPoint.difference || '未生成'}</p>
@@ -587,10 +640,26 @@ interface PatentResultPanelProps {
   items: PatentPreviewItem[];
   enablePatentPointSelection: boolean;
   selectingPointId: string;
+  generatingFactPointId: string;
+  savingFactPointId: string;
   onSelectPatentPoint: (pointId: string) => void;
+  onGenerateFactSupplements: (pointId: string) => void;
+  onSaveFactSupplements: (pointId: string, supplements: NonNullable<PatentPoint['factSupplements']>) => void;
 }
 
-export function PatentResultPanel({ previewTitle, items, enablePatentPointSelection, selectingPointId, onSelectPatentPoint }: PatentResultPanelProps) {
+export function PatentResultPanel({ previewTitle, items, enablePatentPointSelection, selectingPointId, generatingFactPointId, savingFactPointId, onSelectPatentPoint, onGenerateFactSupplements, onSaveFactSupplements }: PatentResultPanelProps) {
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(() => new Set());
+  const [supplementDrafts, setSupplementDrafts] = useState<Record<string, string>>({});
+
+  function toggleItem(itemKey: string) {
+    setExpandedItems((current) => {
+      const next = new Set(current);
+      if (next.has(itemKey)) next.delete(itemKey);
+      else next.add(itemKey);
+      return next;
+    });
+  }
+
   return (
     <section className="demo-panel demo-table-panel patent-result-panel">
       <div className="demo-panel-head">
@@ -600,28 +669,165 @@ export function PatentResultPanel({ previewTitle, items, enablePatentPointSelect
         </div>
       </div>
       <div className="demo-table-list">
-        {items.map((item) => (
-          <article key={item.id || item.title} className={item.status === '已选' ? 'is-selected' : ''}>
-            <strong>{item.title}</strong>
-            <span className="demo-status-pill is-ok">{item.status}</span>
-            <p>{item.detail}</p>
-            {item.qualityWarnings?.length ? (
-              <div className="patent-quality-warning-list">
-                {item.qualityWarnings.map((warning) => <em key={warning}>{warning}</em>)}
+        {items.map((item) => {
+          const itemKey = item.id || item.title;
+          const expanded = expandedItems.has(itemKey);
+          const confirmedSupplements = (item.factSupplements || []).filter((entry) => entry.source === 'manual' && entry.content.trim());
+          const confirmedDraftsValid = confirmedSupplements.every((supplement, index) => (
+            supplementDrafts[`${itemKey}::confirmed::${index}`] ?? supplement.content
+          ).trim());
+          return (
+          <article key={itemKey} className={`${item.status === '已选' ? 'is-selected ' : ''}${expanded ? 'is-expanded' : ''}`}>
+            <div className="patent-result-summary">
+              <strong>{item.title}</strong>
+              <span className="demo-status-pill is-ok">{item.status}</span>
+            </div>
+            {(item.evidenceCount !== undefined || item.missingFactCount !== undefined) && (
+              <div className="patent-result-meta">
+                <span>{item.evidenceCount || 0} 条项目证据</span>
+                {Boolean(item.confirmedFactCount) && (
+                  <button
+                    type="button"
+                    className="patent-confirmed-fact-status"
+                    aria-expanded={expanded}
+                    onClick={() => toggleItem(itemKey)}
+                  >
+                    <i aria-hidden="true">✓</i>
+                    {item.confirmedFactCount === 1 ? '已补充' : `已补充 ${item.confirmedFactCount} 项`}
+                    <span aria-hidden="true">{expanded ? '收起' : '查看'}</span>
+                  </button>
+                )}
+                {item.missingFactCount ? (
+                  <button
+                    type="button"
+                    className="patent-missing-facts-trigger is-warning"
+                    aria-expanded={expanded}
+                    onClick={() => toggleItem(itemKey)}
+                  >
+                    {item.missingFactCount} 项待补事实
+                    <span aria-hidden="true">{expanded ? '收起' : '查看'}</span>
+                  </button>
+                ) : !item.confirmedFactCount ? <span>0 项待补事实</span> : null}
               </div>
-            ) : null}
-            {enablePatentPointSelection && item.id && (
+            )}
+            {expanded && (
+              <div className="patent-result-details">
+                <p>{item.detail}</p>
+                {confirmedSupplements.length ? (
+                  <div className="patent-confirmed-facts-editor">
+                    <div className="patent-confirmed-facts-editor-head">
+                      <strong><i aria-hidden="true">✓</i> 已确认的补充内容</strong>
+                      <span>可继续修改，保存后交底书将使用最新内容</span>
+                    </div>
+                    {confirmedSupplements.map((supplement, index) => {
+                      const draftKey = `${itemKey}::confirmed::${index}`;
+                      return (
+                        <label key={`${supplement.fact}-${index}`}>
+                          <span>{supplement.fact}</span>
+                          <textarea
+                            value={supplementDrafts[draftKey] ?? supplement.content}
+                            onChange={(event) => setSupplementDrafts((current) => ({ ...current, [draftKey]: event.target.value }))}
+                          />
+                        </label>
+                      );
+                    })}
+                    {item.id && (
+                      <div className="patent-confirmed-facts-editor-actions">
+                        <span>修改后请再次保存确认。</span>
+                        <button
+                          type="button"
+                          disabled={savingFactPointId === item.id || !confirmedDraftsValid}
+                          onClick={() => onSaveFactSupplements(item.id || '', confirmedSupplements.map((supplement, index) => ({
+                            ...supplement,
+                            content: supplementDrafts[`${itemKey}::confirmed::${index}`] ?? supplement.content,
+                            source: 'manual',
+                          })))}
+                        >
+                          {savingFactPointId === item.id ? '保存中...' : '保存修改'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+                {item.missingFacts?.length ? (
+                  <div className="patent-missing-facts-list">
+                    <div className="patent-missing-facts-head">
+                      <strong>需要补充的事实</strong>
+                      {item.id && (
+                        <button type="button" onClick={() => onGenerateFactSupplements(item.id || '')} disabled={generatingFactPointId === item.id}>
+                          {generatingFactPointId === item.id ? 'AI 生成中...' : 'AI 建议补充'}
+                        </button>
+                      )}
+                    </div>
+                    {item.missingFacts.map((fact, index) => {
+                      const supplement = item.factSupplements?.find((entry) => entry.fact === fact) || item.factSupplements?.[index];
+                      const draftKey = `${itemKey}::${index}`;
+                      return (
+                        <label key={`${index}-${fact}`}>
+                          <span>{index + 1}. {fact}</span>
+                          <textarea
+                            value={supplementDrafts[draftKey] ?? supplement?.content ?? ''}
+                            placeholder="可点击 AI 建议补充，再根据实际情况修改"
+                            onChange={(event) => setSupplementDrafts((current) => ({ ...current, [draftKey]: event.target.value }))}
+                          />
+                          {supplement?.basis && <small>建议依据：{supplement.basis}，置信度：{supplement.confidence === 'high' ? '高' : supplement.confidence === 'medium' ? '中' : '低'}</small>}
+                        </label>
+                      );
+                    })}
+                    {item.id && (
+                      <div className="patent-missing-facts-actions">
+                        <span>AI 内容仅为建议，保存前请人工确认。</span>
+                        <button
+                          type="button"
+                          className="is-primary"
+                          disabled={savingFactPointId === item.id}
+                          onClick={() => onSaveFactSupplements(item.id || '', (item.missingFacts || []).map((fact, index) => {
+                            const existing = item.factSupplements?.find((entry) => entry.fact === fact) || item.factSupplements?.[index];
+                            return {
+                              fact,
+                              content: supplementDrafts[`${itemKey}::${index}`] ?? existing?.content ?? '',
+                              basis: existing?.basis || '',
+                              confidence: existing?.confidence || 'low',
+                              source: 'manual',
+                            };
+                          }))}
+                        >
+                          {savingFactPointId === item.id ? '保存中...' : '保存补充内容'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+                {item.qualityWarnings?.length ? (
+                  <div className="patent-quality-warning-list">
+                    {item.qualityWarnings.map((warning) => <em key={warning}>{warning}</em>)}
+                  </div>
+                ) : null}
+              </div>
+            )}
+            <div className="patent-result-actions">
+              <button
+                type="button"
+                className="patent-result-toggle"
+                aria-expanded={expanded}
+                onClick={() => toggleItem(itemKey)}
+              >
+                {expanded ? '收起详情' : '查看详情'}
+              </button>
+              {enablePatentPointSelection && item.id && (
               <button
                 type="button"
                 className="secondary-action patent-select-point-action"
                 onClick={() => onSelectPatentPoint(item.id || '')}
                 disabled={selectingPointId === item.id || item.status === '已选'}
               >
-                {item.status === '已选' ? '当前主专利点' : selectingPointId === item.id ? '设置中...' : '设为主专利点'}
+                {item.status === '已选' ? '主专利点' : selectingPointId === item.id ? '设置中...' : '设为主专利点'}
               </button>
-            )}
+              )}
+            </div>
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -651,11 +857,14 @@ interface PatentDraftPanelProps {
   generatingDraft: boolean;
   isRunning: boolean;
   selectedPatentPoint: PatentPoint | null;
+  priorArtReady: boolean;
   exportMessage: string;
+  exportFilePath: string;
   onDraftContentChange: (value: string) => void;
   onDraftViewModeChange: (mode: 'edit' | 'preview') => void;
   onSaveDraft: () => void;
   onExportWord: () => void;
+  onOpenExportLocation: () => void;
   onGenerateDraft: () => void;
 }
 
@@ -670,17 +879,20 @@ export function PatentDraftPanel({
   generatingDraft,
   isRunning,
   selectedPatentPoint,
+  priorArtReady,
   exportMessage,
+  exportFilePath,
   onDraftContentChange,
   onDraftViewModeChange,
   onSaveDraft,
   onExportWord,
+  onOpenExportLocation,
   onGenerateDraft,
 }: PatentDraftPanelProps) {
   const showExportProgress = exportingWord || Boolean(exportProgress.message);
   const showDraftProgress = !showExportProgress
     && task?.type === 'patent-disclosure'
-    && (task.status === 'running' || task.status === 'success' || task.status === 'error');
+    && (task.status === 'running' || task.status === 'error');
   const draftProgress = Math.min(100, Math.max(0, Number(task?.progress || 0)));
   const latestDraftLog = task?.logs?.filter(Boolean).at(-1);
   const wordExportProgress = Math.min(100, Math.max(0, Number(exportProgress.progress || 0)));
@@ -710,11 +922,41 @@ export function PatentDraftPanel({
           </button>
         </div>
       </div>
+      {draftFile?.qualityWarnings?.length ? (
+        <div className="patent-quality-gate is-warning" role="status">
+          <div className="patent-quality-gate-copy">
+            <strong>自动质量检查有 {draftFile.qualityWarnings.length} 项未通过</strong>
+            <span>{draftFile.qualityWarnings.join('；')}</span>
+          </div>
+          <div className="patent-quality-gate-actions">
+            <button type="button" className="secondary-action" onClick={() => onDraftViewModeChange('edit')}>
+              定位到编辑
+            </button>
+            {draftFile.qualityWarnings.some((warning) => warning.startsWith('正文篇幅不足') || warning.startsWith('缺少')) && (
+              <button type="button" className="primary-action" onClick={onGenerateDraft} disabled={generatingDraft || isRunning}>
+                重新生成补足
+              </button>
+            )}
+          </div>
+          <small>修改后点击“保存草稿”，系统会重新检查；此处不是仅点击确认即可忽略的提示。</small>
+        </div>
+      ) : draftFile ? (
+        <div className="patent-quality-gate is-ok" role="status">
+          <strong>结构质量检查已通过</strong>
+          <span>导出前仍建议核对技术事实、查新来源和代理人格式要求。</span>
+        </div>
+      ) : null}
+      {draftFile && !priorArtReady && (
+        <div className="patent-optional-prior-art-note" role="note">
+          <strong>未进行查新增强</strong>
+          <span>查新增强属于可选环节，不影响交底书生成；如需提高现有技术与区别点的可靠性，可后续补充。</span>
+        </div>
+      )}
       {exportMessage && !showExportProgress && <p className="patent-export-message">{exportMessage}</p>}
       {showExportProgress && (
         <div className={`patent-task-progress patent-export-progress${exportProgress.error ? ' is-error' : ''}`} role="status" aria-live="polite">
           <div className="patent-task-progress-head">
-            <strong>{exportProgress.message || '正在导出 Word...'}</strong>
+            <strong>{exportProgress.error ? toChineseErrorMessage(exportProgress.error) : exportProgress.message || '正在导出 Word...'}</strong>
             <span>{wordExportProgress}%</span>
           </div>
           <div className="patent-task-progress-track" aria-label="Word 导出进度">
@@ -724,6 +966,14 @@ export function PatentDraftPanel({
             <div className="patent-export-warnings">
               {exportProgress.warnings.slice(0, 3).map((warning) => <p key={warning}>{warning}</p>)}
               {exportProgress.warnings.length > 3 && <p>还有 {exportProgress.warnings.length - 3} 条导出提示，请打开 Word 核对。</p>}
+            </div>
+          )}
+          {!exportProgress.error && exportFilePath && (
+            <div className="patent-export-location">
+              <span title={exportFilePath}>导出位置：{exportFilePath}</span>
+              <button type="button" className="secondary-action" onClick={onOpenExportLocation}>
+                打开导出位置
+              </button>
             </div>
           )}
         </div>
@@ -737,7 +987,7 @@ export function PatentDraftPanel({
           <div className="patent-task-progress-track" aria-label="交底书生成进度">
             <span style={{ width: `${draftProgress}%` }} />
           </div>
-          {latestDraftLog && <p>{latestDraftLog}</p>}
+          {latestDraftLog && <p>{task?.status === 'error' ? toChineseErrorMessage(task.error || latestDraftLog) : latestDraftLog}</p>}
         </div>
       )}
       {draftFile ? (
@@ -745,7 +995,7 @@ export function PatentDraftPanel({
           <MarkdownEditor value={draftContent} onChange={onDraftContentChange} placeholder="生成后可在这里编辑技术交底书 Markdown 草稿..." />
         ) : (
           <div className="patent-draft-preview">
-            <MarkdownRenderer allowRawHtml={false}>{draftContent}</MarkdownRenderer>
+            <MarkdownRenderer allowRawHtml={false} enableMermaid>{draftContent}</MarkdownRenderer>
           </div>
         )
       ) : (

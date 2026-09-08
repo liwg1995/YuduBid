@@ -1156,6 +1156,17 @@ function centeredPageNumberFooter(options = {}) {
   });
 }
 
+function emptyFooter() {
+  return new Footer({
+    children: [paragraph([textRun('')], {
+      indent: { left: 0, right: 0 },
+      tabStops: [],
+      before: 0,
+      after: 0,
+    })],
+  });
+}
+
 function customTemplateHeader(page) {
   if (!page?.header_enabled) return undefined;
   return new Header({
@@ -2805,8 +2816,9 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
   const officialDocument = Boolean(context.officialDocumentEnabled);
   const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
   const presalesProposalDocument = Boolean(context.presalesProposalDocumentEnabled);
+  const patentDisclosureDocument = Boolean(context.patentDisclosureEnabled);
   const structuredDocument = projectManagementDocument || presalesProposalDocument;
-  const formalDocument = officialDocument || structuredDocument;
+  const formalDocument = officialDocument || structuredDocument || patentDisclosureDocument;
 
   for (const node of nodes) {
     if (node.type === 'heading') {
@@ -3126,8 +3138,9 @@ async function addOutlineItems(children, items, context, level = 1) {
   const officialDocument = Boolean(context.officialDocumentEnabled);
   const projectManagementDocument = Boolean(context.projectManagementDocumentEnabled);
   const presalesProposalDocument = Boolean(context.presalesProposalDocumentEnabled);
+  const patentDisclosureDocument = Boolean(context.patentDisclosureEnabled);
   const structuredDocument = projectManagementDocument || presalesProposalDocument;
-  const formalDocument = officialDocument || structuredDocument;
+  const formalDocument = officialDocument || structuredDocument || patentDisclosureDocument;
   for (const item of items || []) {
     const customHeading = customHeadingStyle(context, level);
     const rawTitle = item.title || '未命名章节';
@@ -3140,11 +3153,11 @@ async function addOutlineItems(children, items, context, level = 1) {
       : optimized || structuredDocument
       ? cleanTitle
       : `${item.id || ''} ${rawTitle}`.trim();
-    const shouldRenderTitle = !(officialDocument && item.hideTitle);
+    const shouldRenderTitle = !((officialDocument || patentDisclosureDocument) && item.hideTitle);
     if (shouldRenderTitle) {
       children.push(paragraph([textRun(title, {
         bold: customHeading ? customHeading.bold : true,
-        font: customHeading?.font || (projectManagementDocument ? '楷体_GB2312' : optimized || officialDocument || presalesProposalDocument ? '黑体' : undefined),
+        font: customHeading?.font || (projectManagementDocument ? '楷体_GB2312' : optimized || officialDocument || presalesProposalDocument || patentDisclosureDocument ? '黑体' : undefined),
         color: customHeading ? colorWithoutHash(customHeading.text_color) : optimized || formalDocument ? '000000' : undefined,
         size: customHeading ? pointsToHalfPoints(chineseSizeToPoints(customHeading.size)) : projectManagementDocument ? (level === 1 ? 32 : 30) : presalesProposalDocument ? (level === 1 ? 30 : 28) : officialDocument ? 32 : undefined,
         cleanMarkdown: structuredDocument,
@@ -3250,8 +3263,9 @@ async function buildDocxResult(payload, options = {}) {
   const projectManagementDocumentEnabled = payload.document_profile === 'project-management' || payload.documentProfile === 'project-management';
   const presalesProposalDocumentEnabled = payload.document_profile === 'presales-proposal' || payload.documentProfile === 'presales-proposal';
   const feasibilityReportEnabled = payload.document_profile === 'feasibility-report' || payload.documentProfile === 'feasibility-report';
+  const patentDisclosureEnabled = payload.document_profile === 'patent-disclosure' || payload.documentProfile === 'patent-disclosure';
   const structuredDocumentEnabled = projectManagementDocumentEnabled || presalesProposalDocumentEnabled;
-  const formalDocumentEnabled = officialDocumentEnabled || structuredDocumentEnabled;
+  const formalDocumentEnabled = officialDocumentEnabled || structuredDocumentEnabled || patentDisclosureEnabled;
   const documentScope = payload.documentScope || payload.document_scope;
   const exportMode = payload.exportMode || payload.export_mode;
   const customTemplateEnabled = !formalDocumentEnabled && documentScope === 'bid' && exportMode === 'custom-template';
@@ -3270,6 +3284,7 @@ async function buildDocxResult(payload, options = {}) {
     projectManagementDocumentEnabled,
     presalesProposalDocumentEnabled,
     feasibilityReportEnabled,
+    patentDisclosureEnabled,
     wordOptimizationEnabled,
     customTemplateEnabled,
     exportFormat,
@@ -3299,6 +3314,12 @@ async function buildDocxResult(payload, options = {}) {
         paragraph([textRun(payload.report_date || new Date().toLocaleDateString('zh-CN'), { size: 22, font: '宋体', color: '000000' })], { alignment: AlignmentType.CENTER, after: 300, indent: { left: 0, right: 0 } }),
         pageBreakParagraph(),
       ]
+    : patentDisclosureEnabled
+    ? [
+        paragraph([textRun(payload.project_name || '专利技术交底书', { bold: true, size: 38, font: '黑体', color: '000000' })], { alignment: AlignmentType.CENTER, before: 1500, after: 360, indent: { left: 0, right: 0 } }),
+        paragraph([textRun(payload.document_title || '专利技术交底书', { bold: true, size: 30, font: '黑体', color: '000000' })], { alignment: AlignmentType.CENTER, after: 1200, indent: { left: 0, right: 0 } }),
+        paragraph([textRun(new Date().toLocaleDateString('zh-CN'), { size: 22, font: '宋体', color: '000000' })], { alignment: AlignmentType.CENTER, after: 300, indent: { left: 0, right: 0 } }),
+      ]
     : officialDocumentEnabled
     ? []
     : wordOptimizationEnabled && !customCoverEnabled
@@ -3324,7 +3345,13 @@ async function buildDocxResult(payload, options = {}) {
   reportProgress(context, 90, '正在生成 Word 文件。');
 
   const numbering = createNumberingConfig(context);
-  const defaultParagraphStyle = officialDocumentEnabled || projectManagementDocumentEnabled
+  const defaultParagraphStyle = patentDisclosureEnabled
+    ? {
+        spacing: { before: 0, after: 120, line: 420, lineRule: LineRuleType.AUTO },
+        alignment: AlignmentType.JUSTIFIED,
+        indent: { firstLine: WORD_TWO_CHARS_TWIPS },
+      }
+    : officialDocumentEnabled || projectManagementDocumentEnabled
     ? {
         spacing: { before: 0, after: 0, line: 560, lineRule: LineRuleType.EXACTLY },
         alignment: AlignmentType.JUSTIFIED,
@@ -3349,14 +3376,14 @@ async function buildDocxResult(payload, options = {}) {
         indent: optimizedBodyIndent(),
       }
     : { spacing: { line: 360, after: 160 } };
-  const optimizedHeadingStyle = wordOptimizationEnabled || structuredDocumentEnabled || customTemplateEnabled
+  const optimizedHeadingStyle = wordOptimizationEnabled || structuredDocumentEnabled || patentDisclosureEnabled || customTemplateEnabled
     ? {
         basedOn: 'Normal',
         next: 'Normal',
         quickFormat: true,
         run: {
           font: customTemplateEnabled ? exportFormat.headings[0].font : projectManagementDocumentEnabled ? '楷体_GB2312' : '黑体',
-          size: customTemplateEnabled ? pointsToHalfPoints(chineseSizeToPoints(exportFormat.headings[0].size)) : projectManagementDocumentEnabled ? 30 : presalesProposalDocumentEnabled ? 28 : 24,
+          size: customTemplateEnabled ? pointsToHalfPoints(chineseSizeToPoints(exportFormat.headings[0].size)) : projectManagementDocumentEnabled ? 30 : patentDisclosureEnabled ? 32 : presalesProposalDocumentEnabled ? 28 : 24,
           bold: true,
           color: '000000',
         },
@@ -3379,6 +3406,8 @@ async function buildDocxResult(payload, options = {}) {
         })()
       : projectManagementDocumentEnabled
       ? { font: '楷体_GB2312', size: level === 1 ? 32 : level === 2 ? 30 : 28, bold: true, color: '000000' }
+      : patentDisclosureEnabled
+      ? { font: '黑体', size: level === 1 ? 32 : level === 2 ? 28 : level === 3 ? 26 : 24, bold: true, color: '000000' }
       : presalesProposalDocumentEnabled
       ? { font: '黑体', size: level === 1 ? 30 : level === 2 ? 28 : 26, bold: true, color: '000000' }
       : optimizedHeadingStyle.run,
@@ -3435,6 +3464,31 @@ async function buildDocxResult(payload, options = {}) {
           children,
         },
       ]
+    : patentDisclosureEnabled
+    ? [
+        {
+          properties: {
+            type: SectionType.NEXT_PAGE,
+            page: {
+              margin: { top: 1440, right: 1700, bottom: 1440, left: 1700 },
+            },
+          },
+          // 显式绑定空白页脚，避免 Word/WPS 将后一节的页码页脚反向继承到封面。
+          footers: { default: emptyFooter() },
+          children: children.slice(0, 3),
+        },
+        {
+          properties: {
+            type: SectionType.NEXT_PAGE,
+            page: {
+              margin: { top: 1440, right: 1700, bottom: 1440, left: 1700 },
+              pageNumbers: { start: 1, formatType: NumberFormat.DECIMAL },
+            },
+          },
+          footers: { default: centeredPageNumberFooter() },
+          children: children.slice(3),
+        },
+      ]
     : customCoverEnabled
     ? [
         {
@@ -3487,6 +3541,8 @@ async function buildDocxResult(payload, options = {}) {
                   left: centimetersToTwips(exportFormat.page.margin_left_cm),
                   footer: centimetersToTwips(exportFormat.page.footer_distance_cm),
                 }
+              : patentDisclosureEnabled
+              ? { top: 1440, right: 1700, bottom: 1440, left: 1700 }
               : officialDocumentEnabled
               ? { top: 2098, right: 1475, bottom: 1890, left: 1587 }
               : { top: 1440, right: 1440, bottom: 1440, left: 1440 },
@@ -3497,20 +3553,22 @@ async function buildDocxResult(payload, options = {}) {
         headers: customTemplateEnabled && customTemplateHeader(exportFormat.page) ? { default: customTemplateHeader(exportFormat.page) } : undefined,
         footers: customTemplateEnabled
           ? customTemplateFooter(exportFormat.page) ? { default: customTemplateFooter(exportFormat.page) } : undefined
-          : wordOptimizationEnabled ? { default: centeredPageNumberFooter() } : undefined,
+          : wordOptimizationEnabled || patentDisclosureEnabled ? { default: centeredPageNumberFooter() } : undefined,
         children,
       }];
 
   const doc = new Document({
     ...(numbering ? { numbering } : {}),
-    ...(wordOptimizationEnabled || structuredDocumentEnabled ? { features: { updateFields: true } } : {}),
-    ...(wordOptimizationEnabled || structuredDocumentEnabled ? { defaultTabStop: 0 } : {}),
+    ...(wordOptimizationEnabled || structuredDocumentEnabled || patentDisclosureEnabled ? { features: { updateFields: true } } : {}),
+    ...(wordOptimizationEnabled || structuredDocumentEnabled || patentDisclosureEnabled ? { defaultTabStop: 0 } : {}),
     styles: {
       default: {
         document: {
           run: projectManagementDocumentEnabled
             ? { font: '仿宋_GB2312', size: 32, color: '000000' }
             : presalesProposalDocumentEnabled
+            ? { font: '宋体', size: 24, color: '000000' }
+            : patentDisclosureEnabled
             ? { font: '宋体', size: 24, color: '000000' }
             : officialDocumentEnabled
             ? { font: '仿宋_GB2312', size: 32, color: '000000' }
@@ -3529,7 +3587,7 @@ async function buildDocxResult(payload, options = {}) {
         } : {}),
       },
       paragraphStyles: [
-        ...(wordOptimizationEnabled || structuredDocumentEnabled || customTemplateEnabled ? [
+        ...(wordOptimizationEnabled || structuredDocumentEnabled || patentDisclosureEnabled || customTemplateEnabled ? [
           ...(customTemplateEnabled ? [7, 8, 9] : Array.from({ length: 9 }, (_item, index) => index + 1)).map((level) => ({
             id: `Heading${level}`,
             name: `Heading ${level}`,
@@ -3683,8 +3741,11 @@ function createExportService({ configStore, getTemplateStore } = {}) {
       const stats = countOutlineStats(payload.outline || []);
       const progressContext = { onProgress, warnings: [], stats };
       const feasibilityReport = payload.document_profile === 'feasibility-report' || payload.documentProfile === 'feasibility-report';
+      const patentDisclosure = payload.document_profile === 'patent-disclosure' || payload.documentProfile === 'patent-disclosure';
       const defaultFilename = feasibilityReport
         ? `${sanitizeFilename(payload.project_name || '建设项目')}-可行性研究报告.docx`
+        : patentDisclosure
+        ? `${sanitizeFilename(payload.project_name || '专利')}-技术交底书.docx`
         : `${sanitizeFilename(payload.project_name || '标书文档')}-技术方案.docx`;
       const defaultDir = app?.getPath ? app.getPath('documents') : process.env.USERPROFILE || process.cwd();
       const result = await dialog.showSaveDialog({

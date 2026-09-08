@@ -2,13 +2,14 @@ import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import type { Components } from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
-import type { ReactNode } from 'react';
+import { Children, isValidElement, useEffect, useRef, useState, type ReactNode } from 'react';
 
 interface MarkdownRendererProps {
   children: string;
   components?: Components;
   allowRawHtml?: boolean;
   enableGfm?: boolean;
+  enableMermaid?: boolean;
 }
 
 function markdownUrlTransform(value: string) {
@@ -86,11 +87,72 @@ const defaultMarkdownComponents: Components = {
   },
 };
 
-function mergeMarkdownComponents(components?: Components): Components {
-  return { ...defaultMarkdownComponents, ...(components || {}) };
+function MermaidBlock({ code }: { code: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const container = containerRef.current;
+    const source = code.trim();
+    if (!source) {
+      setStatus('error');
+      setErrorMessage('Mermaid 图代码为空');
+      return undefined;
+    }
+    setStatus('loading');
+    setErrorMessage('');
+    if (container) container.innerHTML = '';
+    import('mermaid')
+      .then((module) => {
+        const mermaid = module.default;
+        const dark = document.documentElement.dataset.uiTheme === 'dark';
+        mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default', securityLevel: 'strict' });
+        return mermaid.render(`markdown-mermaid-${Date.now()}-${Math.random().toString(36).slice(2)}`, source);
+      })
+      .then(({ svg }) => {
+        if (cancelled || !containerRef.current) return;
+        containerRef.current.innerHTML = svg;
+        setStatus('success');
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setStatus('error');
+        setErrorMessage(error instanceof Error ? error.message : 'Mermaid 图渲染失败');
+      });
+    return () => {
+      cancelled = true;
+      if (container) container.innerHTML = '';
+    };
+  }, [code]);
+
+  return (
+    <figure className={`mermaid-preview-card is-${status}`}>
+      {status === 'loading' && <span>正在渲染 Mermaid 图...</span>}
+      {status === 'error' && <div className="mermaid-preview-error"><strong>Mermaid 图渲染失败</strong><small>{errorMessage}</small><pre>{code}</pre></div>}
+      <div ref={containerRef} className="mermaid-preview-canvas" aria-hidden={status !== 'success'} />
+    </figure>
+  );
 }
 
-function MarkdownRenderer({ children, components, allowRawHtml = false, enableGfm = true }: MarkdownRendererProps) {
+function mergeMarkdownComponents(components?: Components, enableMermaid = false): Components {
+  const mermaidComponents: Components = enableMermaid ? {
+    pre({ children, ...props }) {
+      const child = Children.count(children) === 1 ? Children.only(children) : null;
+      if (isValidElement(child)) {
+        const childProps = child.props as { className?: string; children?: ReactNode };
+        if (/\blanguage-mermaid\b/i.test(childProps.className || '')) {
+          return <MermaidBlock code={String(childProps.children || '').replace(/\n$/, '')} />;
+        }
+      }
+      return <pre {...props}>{children}</pre>;
+    },
+  } : {};
+  return { ...defaultMarkdownComponents, ...mermaidComponents, ...(components || {}) };
+}
+
+function MarkdownRenderer({ children, components, allowRawHtml = false, enableGfm = true, enableMermaid = false }: MarkdownRendererProps) {
   const normalizedChildren = allowRawHtml ? children : normalizeLegacyHtmlTables(children);
 
   return (
@@ -98,7 +160,7 @@ function MarkdownRenderer({ children, components, allowRawHtml = false, enableGf
       remarkPlugins={enableGfm ? [remarkGfm] : []}
       rehypePlugins={allowRawHtml ? [rehypeRaw] : []}
       urlTransform={markdownUrlTransform}
-      components={mergeMarkdownComponents(components)}
+      components={mergeMarkdownComponents(components, enableMermaid)}
     >
       {normalizedChildren}
     </ReactMarkdown>

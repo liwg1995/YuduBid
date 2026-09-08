@@ -1,5 +1,6 @@
 import * as Toast from '@radix-ui/react-toast';
 import { createContext, useCallback, useContext, useMemo, useReducer, type ReactNode } from 'react';
+import { toChineseErrorMessage } from '../utils/userFacingError';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -80,7 +81,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       item: {
         id,
         title: options.title,
-        message,
+        message: type === 'error' ? toChineseErrorMessage(message) : message,
         type,
         duration: options.persistent ? persistentToastDuration : options.duration || getToastDuration(type),
         actions: options.actions,

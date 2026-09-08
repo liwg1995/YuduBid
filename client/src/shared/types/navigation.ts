@@ -31,6 +31,7 @@ export type SectionId =
   | 'thesis-format'
   | 'code-generation'
   | 'software-copyright'
+  | 'patent-projects'
   | 'patent-mining'
   | 'patent-disclosure'
   | 'patent-prior-art'

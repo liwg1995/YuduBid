@@ -142,8 +142,14 @@ function createAbortError() {
   return error;
 }
 
-function createOperationTimeout(timeoutMs) {
+function createOperationTimeout(timeoutMs, externalSignal) {
   const controller = new AbortController();
+  const abortFromExternal = () => controller.abort();
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    externalSignal?.addEventListener('abort', abortFromExternal, { once: true });
+  }
   const timeoutPromise = new Promise((_resolve, reject) => {
     const timer = setTimeout(() => {
       controller.abort();
@@ -158,6 +164,7 @@ function createOperationTimeout(timeoutMs) {
       return Promise.race([promise, timeoutPromise]);
     },
     clear() {
+      externalSignal?.removeEventListener('abort', abortFromExternal);
       controller.abort();
     },
   };
@@ -570,7 +577,7 @@ function normalizeJsonPayload(request, parsed) {
   return normalized;
 }
 
-async function repairJsonResponse(app, config, invalidContent, issues, temperature, responseFormat, progressCallback, progressLabel, repairMessagesBuilder, logTitle, usageStatsStore) {
+async function repairJsonResponse(app, config, invalidContent, issues, temperature, responseFormat, progressCallback, progressLabel, repairMessagesBuilder, logTitle, usageStatsStore, signal, abortMessage) {
   await emitProgress(progressCallback, `${progressLabel}格式校验失败，正在基于当前结果进行修复。`);
   return chatWithConfig(app, config, {
     messages: repairMessagesBuilder
@@ -579,6 +586,8 @@ async function repairJsonResponse(app, config, invalidContent, issues, temperatu
     temperature,
     response_format: responseFormat,
     logTitle: logTitle ? `${logTitle}修复` : `${progressLabel}修复`,
+    signal,
+    abort_message: abortMessage,
   }, usageStatsStore);
 }
 
@@ -606,6 +615,8 @@ async function parseOrRepairJsonResponseWithConfig(app, config, request, content
         request.repairMessagesBuilder,
         logTitle,
         usageStatsStore,
+        request.signal,
+        request.abort_message,
       );
       return normalizeJsonPayload(request, parseJsonContent(repairedContent));
     } catch {
@@ -632,6 +643,8 @@ async function collectJsonResponseWithConfig(app, config, request, usageStatsSto
       timeout_ms: request.timeout_ms,
       timeout_message: request.timeout_message,
       logTitle,
+      signal: request.signal,
+      abort_message: request.abort_message,
     }, usageStatsStore);
 
     try {
@@ -654,6 +667,8 @@ async function collectJsonResponseWithConfig(app, config, request, usageStatsSto
           request.repairMessagesBuilder,
           logTitle,
           usageStatsStore,
+          request.signal,
+          request.abort_message,
         );
         const repairedParsed = parseJsonContent(repairedContent);
         return normalizeJsonPayload(request, repairedParsed);
@@ -757,7 +772,7 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
       created_at: new Date().toISOString(),
     });
     const result = await runWithAiRetry(async () => {
-      const timeout = createOperationTimeout(timeoutMs);
+      const timeout = createOperationTimeout(timeoutMs, request.signal);
       try {
         let response = await timeout.run(fetchChatCompletion(app, config, requestBody, { signal: timeout.signal }));
         if (!response.ok && request.response_format) {
@@ -776,6 +791,11 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
         await timeout.run(ensureOk(response, 'AI 请求失败'));
         const data = await timeout.run(response.json());
         return { data, content: data.choices?.[0]?.message?.content || '' };
+      } catch (error) {
+        if (request.signal?.aborted) {
+          throw markAiRequestError(error, { retryable: false });
+        }
+        throw error;
       } finally {
         timeout.clear();
       }
@@ -807,7 +827,9 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
     });
     return content;
   } catch (error) {
-    errorMessage = error.name === 'AbortError'
+    errorMessage = request.signal?.aborted
+      ? request.abort_message || 'AI 请求已取消'
+      : error.name === 'AbortError'
       ? request.timeout_message || `AI 请求超时（${timeoutMs / 1000} 秒）`
       : error.message;
     writeAiLog(app, config, {

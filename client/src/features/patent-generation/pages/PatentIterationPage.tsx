@@ -1,11 +1,12 @@
 import PatentComingPage from '../components/PatentComingPage';
+import type { SectionId } from '../../../shared/types/navigation';
 
-function PatentIterationPage() {
+function PatentIterationPage({ onNavigate }: { onNavigate?: (section: SectionId) => void }) {
   return (
     <PatentComingPage
       kicker="修订迭代"
-      title="在已有交底书上补材料、纠错并保留每一版记录"
-      description="计划支持针对已生成交底书追加实施例、修正事实参数、强化保护点，并输出新的时间戳版本。"
+      title="补充材料并生成新版本"
+      description="在现有交底书上补充实施例、修正事实参数或强化保护点，旧版本保持不变。"
       actionLabel="开始修订"
       metrics={[
         { label: '修订类型', value: '2类', detail: '补充合并与事实纠正' },
@@ -27,6 +28,7 @@ function PatentIterationPage() {
       outputItems={['案件名_时间戳.docx', '案件名_时间戳.md', '交底书修订记录.md', '本轮修订摘要']}
       outputDescription="迭代模块会优先保证版本可追踪，适合和代理人多轮沟通时使用。"
       enableRevision
+      onNavigate={onNavigate}
     />
   );
 }

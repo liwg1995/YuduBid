@@ -1588,6 +1588,17 @@ button {
   -webkit-app-region: drag;
 }
 
+.app-shell.is-mac .main-area::before {
+  position: absolute;
+  top: 0;
+  right: 330px;
+  left: 0;
+  z-index: 40;
+  height: 44px;
+  content: '';
+  -webkit-app-region: drag;
+}
+
 .app-shell.is-mac button,
 .app-shell.is-mac input,
 .app-shell.is-mac select,

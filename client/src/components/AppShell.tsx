@@ -18,7 +18,9 @@ interface AppShellProps {
 }
 
 function AppShell({ activeSection, children, developerMode, featureModuleSettings, assistantPluginEnabled = false, onSectionChange }: AppShellProps) {
-  const isMac = window.yibiao?.platform === 'darwin' || window.yibiaoClient?.platform === 'darwin';
+  const isMac = window.yibiao?.platform === 'darwin'
+    || window.yibiaoClient?.platform === 'darwin'
+    || /Mac/i.test(navigator.platform || navigator.userAgent);
   const assistantSection = getSectionDescriptor(activeSection, developerMode, featureModuleSettings);
   const assistantNavigationGroups = useMemo(() => [
     ...getAppMenuGroups(developerMode, featureModuleSettings)

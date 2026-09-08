@@ -1,11 +1,12 @@
 import PatentComingPage from '../components/PatentComingPage';
+import type { SectionId } from '../../../shared/types/navigation';
 
-function PatentPriorArtPage() {
+function PatentPriorArtPage({ onNavigate }: { onNavigate?: (section: SectionId) => void }) {
   return (
     <PatentComingPage
       kicker="查新分析"
-      title="把现有技术、公开专利和本案区别点整理清楚"
-      description="计划先支持手动导入检索资料并由 AI 辅助归纳，后续再评估国知局公布公告站自动查新能力。"
+      title="整理现有技术与本案区别点"
+      description="粘贴可核验的专利、论文或公开资料，由 AI 归纳现有方案、局限性和本案区别点。"
       actionLabel="整理查新资料"
       metrics={[
         { label: '资料录入', value: '手动', detail: '第一版降低联网抓取风险' },
@@ -27,6 +28,7 @@ function PatentPriorArtPage() {
       outputItems={['查新分析.md', '现有技术对比表', '本案区别点摘要', '交底书 1.1 回写内容']}
       outputDescription="国知局自动检索会作为增强版单独评估，避免第一版被 Playwright 打包和站点稳定性拖住。"
       enablePriorArtAnalysis
+      onNavigate={onNavigate}
     />
   );
 }

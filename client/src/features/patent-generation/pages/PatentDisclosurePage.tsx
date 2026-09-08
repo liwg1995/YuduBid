@@ -1,11 +1,12 @@
 import PatentComingPage from '../components/PatentComingPage';
+import type { SectionId } from '../../../shared/types/navigation';
 
-function PatentDisclosurePage() {
+function PatentDisclosurePage({ onNavigate }: { onNavigate?: (section: SectionId) => void }) {
   return (
     <PatentComingPage
       kicker="交底书生成"
-      title="把选定专利点组织成代理人可继续修改的技术交底书"
-      description="计划基于案件信息、技术联系人、专利类型和选定专利点，生成 Markdown 草稿并导出 Word 材料。"
+      title="生成并检查技术交底书"
+      description="基于主专利点和查新结果生成草稿，检查证据与事实缺口后导出 Word。"
       actionLabel="生成交底书"
       metrics={[
         { label: '章节结构', value: '6章', detail: '背景、方案、效果、保护点' },
@@ -28,6 +29,7 @@ function PatentDisclosurePage() {
       outputDescription="首版会优先复用现有 Markdown 预览和 Word 导出能力，后续再增强版式模板。"
       showSelectedPatentPoint
       enableDisclosureDraft
+      onNavigate={onNavigate}
     />
   );
 }
