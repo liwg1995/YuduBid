@@ -425,10 +425,10 @@ export interface YuDuBidBridge {
     loadState: () => Promise<RejectionCheckWorkspaceState>;
     importDocument: (role: RejectionDocumentRole) => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
     importBidDocuments: () => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
-    importTenderFromTechnicalPlan: (payload?: { projectId?: string; project_id?: string }) => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
+    importTenderFromTechnicalPlan: (payload?: { projectId?: string; project_id?: string; projectName?: string; workflowKind?: 'technical-plan' | 'existing-plan-expansion' }) => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
     importBidFromTechnicalPlan: () => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;
     removeDocument: (role: RejectionDocumentRole) => Promise<RejectionCheckWorkspaceState>;
-    saveUiState: (payload: Partial<Pick<RejectionCheckWorkspaceState, 'step' | 'activeDocumentTab' | 'activeResultTab' | 'activeCheckResultTab' | 'customCheckItems' | 'checkOptions'>>) => Promise<RejectionCheckWorkspaceState>;
+    saveUiState: (payload: Partial<Pick<RejectionCheckWorkspaceState, 'step' | 'activeDocumentTab' | 'activeResultTab' | 'activeCheckResultTab' | 'customCheckItems' | 'checkOptions' | 'submissionChecklist'>>) => Promise<RejectionCheckWorkspaceState>;
     updateState: (partial: Partial<RejectionCheckWorkspaceState>) => Promise<RejectionCheckWorkspaceState>;
     exportExcel: () => Promise<{ success: boolean; canceled?: boolean; message?: string; path?: string }>;
     clear: () => Promise<{ success: boolean; message?: string; state: RejectionCheckWorkspaceState }>;

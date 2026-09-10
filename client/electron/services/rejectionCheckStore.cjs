@@ -17,6 +17,7 @@ const initialState = {
   rejectionCheckResult: { status: 'idle', findings: [] },
   typoCheckResult: { status: 'idle', findings: [] },
   logicCheckResult: { status: 'idle', findings: [] },
+  submissionChecklist: [],
   extractionTask: undefined,
   checkTask: undefined,
 };
@@ -83,7 +84,20 @@ function normalizeResultTab(value) {
 }
 
 function normalizeCheckResultTab(value) {
-  return ['rejection', 'typo', 'logic'].includes(value) ? value : 'rejection';
+  return ['rejection', 'qualification', 'scoring', 'facts', 'typo', 'logic', 'submission'].includes(value) ? value : 'rejection';
+}
+
+function normalizeSubmissionChecklist(items) {
+  if (!Array.isArray(items)) return [];
+  const statuses = new Set(['pending', 'passed', 'risk', 'notApplicable']);
+  return items.filter((item) => item && item.id && item.label).map((item) => ({
+    id: String(item.id),
+    category: String(item.category || '其他'),
+    label: String(item.label),
+    status: statuses.has(item.status) ? item.status : 'pending',
+    note: String(item.note || ''),
+    updatedAt: item.updatedAt ? String(item.updatedAt) : undefined,
+  }));
 }
 
 function normalizeCheckOptions(options) {
@@ -107,6 +121,8 @@ function createDocumentSignature(document) {
   const content = String(document.content || '').trim();
   return [
     document.source,
+    document.sourceWorkflowKind || '',
+    document.sourceProjectId || '',
     document.fileName,
     content.length,
     content.slice(0, 800),
@@ -226,9 +242,9 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     const timestamp = now();
     db.prepare(`
       INSERT INTO rejection_check_documents (
-        role, source, file_name, markdown_path, content_hash, content_chars, parser_label, source_project_id, imported_at, updated_at
+        role, source, file_name, markdown_path, content_hash, content_chars, parser_label, source_project_id, source_project_name, source_workflow_kind, imported_at, updated_at
       ) VALUES (
-        @role, @source, @file_name, @markdown_path, @content_hash, @content_chars, @parser_label, @source_project_id, @imported_at, @updated_at
+        @role, @source, @file_name, @markdown_path, @content_hash, @content_chars, @parser_label, @source_project_id, @source_project_name, @source_workflow_kind, @imported_at, @updated_at
       ) ON CONFLICT(role) DO UPDATE SET
         source = excluded.source,
         file_name = excluded.file_name,
@@ -237,6 +253,8 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
         content_chars = excluded.content_chars,
         parser_label = excluded.parser_label,
         source_project_id = excluded.source_project_id,
+        source_project_name = excluded.source_project_name,
+        source_workflow_kind = excluded.source_workflow_kind,
         imported_at = excluded.imported_at,
         updated_at = excluded.updated_at
     `).run({
@@ -248,6 +266,8 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       content_chars: markdown.length,
       parser_label: document.parserLabel ? String(document.parserLabel) : null,
       source_project_id: document.sourceProjectId ? String(document.sourceProjectId) : null,
+      source_project_name: document.sourceProjectName ? String(document.sourceProjectName) : null,
+      source_workflow_kind: document.sourceWorkflowKind === 'existing-plan-expansion' ? 'existing-plan-expansion' : document.sourceWorkflowKind === 'technical-plan' ? 'technical-plan' : null,
       imported_at: document.importedAt || timestamp,
       updated_at: timestamp,
     });
@@ -264,6 +284,8 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       source: row.source === 'technical-plan' ? 'technical-plan' : 'upload',
       parserLabel: row.parser_label || undefined,
       sourceProjectId: row.source_project_id || undefined,
+      sourceProjectName: row.source_project_name || undefined,
+      sourceWorkflowKind: row.source_workflow_kind || undefined,
       importedAt: row.imported_at,
     };
   }
@@ -395,14 +417,19 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       return;
     }
     db.prepare(`
-      INSERT INTO rejection_check_results (result_type, status, input_signature, active_finding_id, progress_message, compliance_matrix_json, error, updated_at)
-      VALUES (@result_type, @status, @input_signature, @active_finding_id, @progress_message, @compliance_matrix_json, @error, @updated_at)
+      INSERT INTO rejection_check_results (result_type, status, input_signature, active_finding_id, progress_message, compliance_matrix_json, scoring_matrix_json, resolution_map_json, pricing_checks_json, qualification_checks_json, fact_consistency_checks_json, error, updated_at)
+      VALUES (@result_type, @status, @input_signature, @active_finding_id, @progress_message, @compliance_matrix_json, @scoring_matrix_json, @resolution_map_json, @pricing_checks_json, @qualification_checks_json, @fact_consistency_checks_json, @error, @updated_at)
       ON CONFLICT(result_type) DO UPDATE SET
         status = excluded.status,
         input_signature = excluded.input_signature,
         active_finding_id = excluded.active_finding_id,
         progress_message = excluded.progress_message,
         compliance_matrix_json = excluded.compliance_matrix_json,
+        scoring_matrix_json = excluded.scoring_matrix_json,
+        resolution_map_json = excluded.resolution_map_json,
+        pricing_checks_json = excluded.pricing_checks_json,
+        qualification_checks_json = excluded.qualification_checks_json,
+        fact_consistency_checks_json = excluded.fact_consistency_checks_json,
         error = excluded.error,
         updated_at = excluded.updated_at
     `).run({
@@ -412,6 +439,11 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       active_finding_id: result.activeFindingId ? String(result.activeFindingId) : null,
       progress_message: result.progressMessage ? String(result.progressMessage) : null,
       compliance_matrix_json: resultType === 'rejection' ? jsonOrNull(result.complianceMatrix || []) : null,
+      scoring_matrix_json: resultType === 'rejection' ? jsonOrNull(result.scoringMatrix || []) : null,
+      resolution_map_json: resultType === 'rejection' ? jsonOrNull(result.resolutions || {}) : null,
+      pricing_checks_json: null,
+      qualification_checks_json: resultType === 'rejection' ? jsonOrNull(result.qualificationChecks || []) : null,
+      fact_consistency_checks_json: resultType === 'rejection' ? jsonOrNull(result.factConsistencyChecks || []) : null,
       error: result.error ? String(result.error) : null,
       updated_at: result.updatedAt || now(),
     });
@@ -505,6 +537,10 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       activeFindingId: row.active_finding_id || undefined,
       progressMessage: row.progress_message || undefined,
       complianceMatrix: resultType === 'rejection' ? safeJsonParse(row.compliance_matrix_json, []) : undefined,
+      scoringMatrix: resultType === 'rejection' ? safeJsonParse(row.scoring_matrix_json, []) : undefined,
+      resolutions: resultType === 'rejection' ? safeJsonParse(row.resolution_map_json, {}) : undefined,
+      qualificationChecks: resultType === 'rejection' ? safeJsonParse(row.qualification_checks_json, []) : undefined,
+      factConsistencyChecks: resultType === 'rejection' ? safeJsonParse(row.fact_consistency_checks_json, []) : undefined,
       error: row.error || undefined,
       updatedAt: row.updated_at || undefined,
     };
@@ -567,6 +603,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     if (hasOwn(partial, 'activeCheckResultTab')) metaUpdates.active_check_result_tab = normalizeCheckResultTab(partial.activeCheckResultTab);
     if (hasOwn(partial, 'customCheckItems')) metaUpdates.custom_check_items = String(partial.customCheckItems || '');
     if (hasOwn(partial, 'checkOptions')) metaUpdates.check_options_json = JSON.stringify(normalizeCheckOptions(partial.checkOptions));
+    if (hasOwn(partial, 'submissionChecklist')) metaUpdates.submission_checklist_json = JSON.stringify(normalizeSubmissionChecklist(partial.submissionChecklist));
     if (Object.keys(metaUpdates).length) updateMeta(metaUpdates);
 
     if (hasOwn(partial, 'tenderDocument')) {
@@ -604,6 +641,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       rejectionCheckResult: loadResult('rejection'),
       typoCheckResult: loadResult('typo'),
       logicCheckResult: loadResult('logic'),
+      submissionChecklist: normalizeSubmissionChecklist(safeJsonParse(meta.submission_checklist_json, [])),
       ...tasks,
     };
   }
@@ -688,7 +726,8 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       throw new Error('技术方案缓存接口尚未初始化');
     }
     const sourceProjectId = String(payload?.projectId || payload?.project_id || '').trim();
-    const projectPayload = { workflowKind: 'technical-plan', projectId: sourceProjectId };
+    const workflowKind = payload?.workflowKind === 'existing-plan-expansion' ? 'existing-plan-expansion' : 'technical-plan';
+    const projectPayload = { workflowKind, projectId: sourceProjectId };
     const markdown = technicalPlanStore.readTenderMarkdown(projectPayload);
     if (!markdown.trim()) {
       return { success: false, message: '技术方案中暂无可读取的招标文件正文', state: loadRejectionCheck() };
@@ -700,6 +739,8 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       content: markdown,
       source: 'technical-plan',
       sourceProjectId,
+      sourceProjectName: technicalPlan?.projectName || String(payload?.projectName || ''),
+      sourceWorkflowKind: workflowKind,
       importedAt: now(),
     };
     const discardedBids = getTechnicalPlanDiscardedBids(technicalPlan);
@@ -719,7 +760,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       updateMeta({ active_document_tab: 'tender' });
     });
     transaction();
-    return { success: true, message: '已从技术方案读取招标文件', state: loadRejectionCheck() };
+    return { success: true, message: `已从${workflowKind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案'}项目读取招标文件`, state: loadRejectionCheck() };
   }
 
   async function importBidFromTechnicalPlan() {
@@ -731,7 +772,8 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
     if (!sourceProjectId) {
       return { success: false, message: '当前招标文件未关联技术方案项目，请先从技术方案读取招标文件', state: loadRejectionCheck() };
     }
-    const projectPayload = { workflowKind: 'technical-plan', projectId: sourceProjectId };
+    const workflowKind = tenderDocument?.sourceWorkflowKind === 'existing-plan-expansion' ? 'existing-plan-expansion' : 'technical-plan';
+    const projectPayload = { workflowKind, projectId: sourceProjectId };
     const technicalPlan = technicalPlanStore.loadTechnicalPlan(projectPayload);
     const markdown = collectGeneratedTechnicalPlanMarkdown(technicalPlan?.outlineData?.outline);
     if (!markdown.trim()) {
@@ -743,6 +785,8 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
       content: markdown,
       source: 'technical-plan',
       sourceProjectId,
+      sourceProjectName: technicalPlan?.projectName || tenderDocument?.sourceProjectName,
+      sourceWorkflowKind: workflowKind,
       parserLabel: '技术方案生成正文',
       importedAt: now(),
     };
@@ -766,7 +810,7 @@ function createRejectionCheckStore({ app, db, fileService, technicalPlanStore })
 
   function saveUiState(partial = {}) {
     const uiState = {};
-    for (const field of ['step', 'activeDocumentTab', 'activeResultTab', 'activeCheckResultTab', 'customCheckItems', 'checkOptions']) {
+    for (const field of ['step', 'activeDocumentTab', 'activeResultTab', 'activeCheckResultTab', 'customCheckItems', 'checkOptions', 'submissionChecklist']) {
       if (hasOwn(partial, field)) {
         uiState[field] = partial[field];
       }

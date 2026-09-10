@@ -388,6 +388,7 @@ CREATE TABLE IF NOT EXISTS rejection_check_meta (
   active_check_result_tab TEXT NOT NULL DEFAULT 'rejection',
   custom_check_items TEXT NOT NULL DEFAULT '',
   check_options_json TEXT,
+  submission_checklist_json TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -403,6 +404,8 @@ CREATE TABLE IF NOT EXISTS rejection_check_documents (
   content_chars INTEGER NOT NULL DEFAULT 0,
   parser_label TEXT,
   source_project_id TEXT,
+  source_project_name TEXT,
+  source_workflow_kind TEXT,
   imported_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -439,6 +442,12 @@ CREATE TABLE IF NOT EXISTS rejection_check_results (
   input_signature TEXT,
   active_finding_id TEXT,
   progress_message TEXT,
+  compliance_matrix_json TEXT,
+  scoring_matrix_json TEXT,
+  resolution_map_json TEXT,
+  pricing_checks_json TEXT,
+  qualification_checks_json TEXT,
+  fact_consistency_checks_json TEXT,
   error TEXT,
   updated_at TEXT
 );

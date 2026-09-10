@@ -6,7 +6,18 @@ export type RejectionCheckStep = 'documents' | 'items' | 'results';
 
 export type RejectionResultTab = 'analysis' | 'custom';
 
-export type RejectionCheckResultTab = 'rejection' | 'typo' | 'logic';
+export type RejectionCheckResultTab = 'rejection' | 'qualification' | 'scoring' | 'facts' | 'typo' | 'logic' | 'submission';
+
+export type RejectionSubmissionCheckStatus = 'pending' | 'passed' | 'risk' | 'notApplicable';
+
+export interface RejectionSubmissionCheckItem {
+  id: string;
+  category: string;
+  label: string;
+  status: RejectionSubmissionCheckStatus;
+  note: string;
+  updatedAt?: string;
+}
 
 export type RejectionExtractionStatus = 'idle' | 'running' | 'success' | 'error';
 
@@ -17,6 +28,13 @@ export type RejectionCheckRunStatus = 'idle' | 'running' | 'success' | 'error';
 export type RejectionFindingType = 'invalidBid' | 'rejectionItem';
 
 export type RejectionFindingSeverity = 'high' | 'medium' | 'low';
+export type RejectionResolutionStatus = 'pending' | 'processing' | 'resolved' | 'accepted';
+
+export interface RejectionResolutionState {
+  status: RejectionResolutionStatus;
+  note?: string;
+  updatedAt?: string;
+}
 
 export type RejectionBackgroundTaskType = 'rejection-items-extraction' | 'rejection-check-run';
 
@@ -40,6 +58,8 @@ export interface RejectionDocumentContent {
   source: RejectionDocumentSource;
   parserLabel?: string;
   sourceProjectId?: string;
+  sourceProjectName?: string;
+  sourceWorkflowKind?: 'technical-plan' | 'existing-plan-expansion';
   importedAt: string;
 }
 
@@ -59,6 +79,50 @@ export interface RejectionComplianceItem {
   sourceFile?: string;
 }
 
+export type RejectionScoringCoverageStatus = 'covered' | 'partial' | 'missing' | 'unclear';
+
+export interface RejectionScoringMatrixItem {
+  id: string;
+  category: string;
+  scoringItem: string;
+  maxScore?: number;
+  scoringRule: string;
+  response: string;
+  evidence: string;
+  status: RejectionScoringCoverageStatus;
+  estimatedScore?: number;
+  gap: string;
+  suggestion: string;
+}
+
+
+export type RejectionQualificationStatus = 'met' | 'partial' | 'missing' | 'manual';
+
+export interface RejectionQualificationCheckItem {
+  id: string;
+  category: string;
+  requirement: string;
+  status: RejectionQualificationStatus;
+  subject: string;
+  certificate: string;
+  validity: string;
+  evidence: string;
+  risk: string;
+  suggestion: string;
+}
+
+export interface RejectionFactOccurrence { value: string; location: string; sourceFile?: string }
+export interface RejectionFactConsistencyItem {
+  id: string;
+  category: string;
+  label: string;
+  status: 'consistent' | 'conflict' | 'unclear';
+  canonicalValue: string;
+  occurrences: RejectionFactOccurrence[];
+  risk: string;
+  suggestion: string;
+}
+
 export interface RejectionCheckWorkspaceState {
   tenderDocument: RejectionDocumentContent | null;
   bidDocument: RejectionDocumentContent | null;
@@ -73,6 +137,7 @@ export interface RejectionCheckWorkspaceState {
   rejectionCheckResult?: RejectionCheckResultState;
   typoCheckResult?: TypoCheckResultState;
   logicCheckResult?: LogicCheckResultState;
+  submissionChecklist?: RejectionSubmissionCheckItem[];
   extractionTask?: RejectionBackgroundTaskState;
   checkTask?: RejectionBackgroundTaskState;
 }
@@ -108,6 +173,10 @@ export interface RejectionCheckResultState {
   status: RejectionCheckRunStatus;
   findings: RejectionCheckFinding[];
   complianceMatrix?: RejectionComplianceItem[];
+  scoringMatrix?: RejectionScoringMatrixItem[];
+  qualificationChecks?: RejectionQualificationCheckItem[];
+  factConsistencyChecks?: RejectionFactConsistencyItem[];
+  resolutions?: Record<string, RejectionResolutionState>;
   inputSignature?: string;
   activeFindingId?: string;
   progressMessage?: string;

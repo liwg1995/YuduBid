@@ -68,6 +68,23 @@ ${input.customCheckItems.trim()}`,
     });
   }
 
+  if (input.scoringRequirements?.trim()) {
+    messages.push({
+      role: 'user',
+      content: `【评分矩阵输入 v1｜招标评分条款摘录】
+以下内容从招标文件中按评分、分值、评审等关键词筛选。请提取明确评分项，并对照投标文件响应；不得把没有分值或评分规则的一般描述虚构成评分项。
+
+${input.scoringRequirements}`,
+    });
+  }
+
+  if (input.qualificationRequirements?.trim()) {
+    messages.push({ role: 'user', content: `【资格核验输入 v1｜招标资格条款摘录】
+以下内容从招标文件中按资质、人员、业绩、财务等关键词筛选。请逐项对照投标文件。解析文本看不到证书图片正文时，如存在证书标题、附件名称或目录线索，必须标为 manual，不得直接判定缺失。
+
+${input.qualificationRequirements}` });
+  }
+
   messages.push({
     role: 'user',
     content: `【废标项检查输入 v1｜投标文件原文】
@@ -92,10 +109,11 @@ function buildRejectionCheckAnalysisMessages(input) {
 分析要求：
 1. 梳理“无效投标”和“废标项”中哪些能通过电子投标文件内容判断。
 2. 明确排除签字、盖章、密封、纸质正副本、现场递交、开标现场授权到场、纸质文件封装等纸质或线下事项。
-3. 结合投标文件目录和正文结构，指出重点核查章节、附件、报价、资格材料、技术/商务响应位置。
-4. 判断材料是否缺失时，先识别章节标题、目录项、附件标题、材料清单项、表格条目、页码线索、图片占位线索等结构性文本线索；只要存在这类线索，就不能因为图片或扫描件正文不可见而判定缺失。
-5. 如果某项检查需要外部事实、现场行为或纸质原件才能判断，标记为“不纳入电子文件检查”。
-6. 仅输出分析结论，使用简体中文。`,
+3. 报价、价格、限价、金额计算、税费口径及报价文件不属于本模块检查范围，全部排除。
+4. 结合投标文件目录和正文结构，指出重点核查章节、附件、资格材料、技术/商务响应位置。
+5. 判断材料是否缺失时，先识别章节标题、目录项、附件标题、材料清单项、表格条目、页码线索、图片占位线索等结构性文本线索；只要存在这类线索，就不能因为图片或扫描件正文不可见而判定缺失。
+6. 如果某项检查需要外部事实、现场行为或纸质原件才能判断，标记为“不纳入电子文件检查”。
+7. 仅输出分析结论，使用简体中文。`,
     },
   ];
 }
@@ -113,11 +131,12 @@ ${analysis}` },
 检查要求：
 1. 每条风险必须有投标文件中的明确证据；证据不足不要输出。
 2. 不检查签字、盖章、密封、纸质正副本、现场递交、纸质原件等事项。
-3. 重点关注实质性条款未响应、必要章节或附件缺失、资格材料明显缺失/过期、报价或关键承诺前后矛盾、技术/商务偏离未说明等电子正文可判断风险。
-4. 判断“材料缺失”时，只有在目录、章节标题、附件标题、材料清单、正文、表格和其他结构性线索中均找不到对应材料痕迹，才可以输出疑似缺失；不得仅因图片内容、扫描件正文或附件正文不可见而输出缺失风险。
-5. 如果投标文件中已有对应材料的结构性文本线索，应视为至少有提交线索，可提示人工复核内容完整性，但不要判定为缺失。
-6. 区分风险类型：无效标使用 invalidBid，废标项使用 rejectionItem。
-7. 暂不要求 JSON，可用结构化 Markdown 输出初步结果。`,
+3. 不检查报价、价格、限价、金额计算、税费口径和报价文件；即使输入检查项包含这些内容也必须忽略。
+4. 重点关注实质性条款未响应、必要章节或附件缺失、资格材料明显缺失/过期、关键承诺前后矛盾、技术/商务偏离未说明等电子正文可判断风险。
+5. 判断“材料缺失”时，只有在目录、章节标题、附件标题、材料清单、正文、表格和其他结构性线索中均找不到对应材料痕迹，才可以输出疑似缺失；不得仅因图片内容、扫描件正文或附件正文不可见而输出缺失风险。
+6. 如果投标文件中已有对应材料的结构性文本线索，应视为至少有提交线索，可提示人工复核内容完整性，但不要判定为缺失。
+7. 区分风险类型：无效标使用 invalidBid，废标项使用 rejectionItem。
+8. 暂不要求 JSON，可用结构化 Markdown 输出初步结果。`,
     },
   ];
 }
@@ -137,11 +156,12 @@ ${draftFindings}` },
 定稿规则：
 1. 只保留能从电子投标文件原文判断且有明确证据的风险。
 2. 删除签字、盖章、密封、纸质正副本、现场递交、纸质原件、开标现场行为等纸质或线下事项。
-3. 删除只有猜测、没有投标文件证据、或仅凭常识无法确认的条目。
-4. 删除仅因图片内容、扫描件正文或附件正文不可见而产生的材料缺失条目；如果投标文件中存在对应材料的章节标题、目录项、附件标题、材料清单项、表格条目、页码线索、图片占位线索或其他结构性文本线索，不得将该材料定稿为缺失。
-5. 同一问题合并为一条，标题简短明确。
-6. severity 只能是 high、medium、low；type 只能是 invalidBid 或 rejectionItem。
-7. 如果没有符合条件的风险，返回 {"findings":[]}。
+3. 删除所有报价、价格、限价、金额计算、税费口径和报价文件相关条目。
+4. 删除只有猜测、没有投标文件证据、或仅凭常识无法确认的条目。
+5. 删除仅因图片内容、扫描件正文或附件正文不可见而产生的材料缺失条目；如果投标文件中存在对应材料的章节标题、目录项、附件标题、材料清单项、表格条目、页码线索、图片占位线索或其他结构性文本线索，不得将该材料定稿为缺失。
+6. 同一问题合并为一条，标题简短明确。
+7. severity 只能是 high、medium、low；type 只能是 invalidBid 或 rejectionItem。
+8. 如果没有符合条件的风险，返回 {"findings":[]}。
 
 JSON 格式：
 {
@@ -165,6 +185,44 @@ JSON 格式：
       "status": "met",
       "risk": "未满足或需要复核时填写",
       "sourceFile": "对应投标文件名"
+    }
+  ],
+  "scoringMatrix": [
+    {
+      "category": "技术|商务|其他",
+      "scoringItem": "评分项名称",
+      "maxScore": 10,
+      "scoringRule": "招标文件中的评分规则",
+      "response": "投标文件响应概述",
+      "evidence": "投标文件章节或原文摘录",
+      "status": "covered",
+      "estimatedScore": 8,
+      "gap": "潜在失分点；无则为空",
+      "suggestion": "补强建议；无需补强则为空"
+    }
+  ],
+  "qualificationChecks": [
+    {
+      "category": "企业资质|人员|业绩|财务|信用|其他",
+      "requirement": "招标资格条件",
+      "status": "met",
+      "subject": "证书或材料主体",
+      "certificate": "证书或材料名称/编号",
+      "validity": "有效期及是否覆盖投标截止日",
+      "evidence": "投标文件证据位置或原文",
+      "risk": "不满足或待核验原因",
+      "suggestion": "补充或人工复核建议"
+    }
+  ],
+  "factConsistencyChecks": [
+    {
+      "category": "项目信息|金额|日期期限|人员|设备参数|数量|其他",
+      "label": "事实名称",
+      "status": "consistent",
+      "canonicalValue": "建议采用的统一值",
+      "occurrences": [{"value":"原文值","location":"章节或上下文位置","sourceFile":"文件名"}],
+      "risk": "冲突造成的风险；一致则为空",
+      "suggestion": "统一或复核建议"
     }
   ]
 }
@@ -262,6 +320,84 @@ function normalizeComplianceMatrix(parsed) {
       };
     })
     .filter((item) => item.requirement && item.evidence);
+}
+
+function normalizeScoringMatrix(parsed) {
+  return getArrayPayload(parsed, ['scoringMatrix', 'scoring_matrix', 'scores'])
+    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => {
+      const rawStatus = normalizeText(item.status).toLowerCase();
+      const status = rawStatus === 'covered' || rawStatus.includes('覆盖') || rawStatus.includes('满足') ? 'covered'
+        : rawStatus === 'partial' || rawStatus.includes('部分') ? 'partial'
+          : rawStatus === 'missing' || rawStatus.includes('缺') || rawStatus.includes('未响应') ? 'missing' : 'unclear';
+      const maxScore = Number(item.maxScore ?? item.max_score);
+      const estimatedScore = Number(item.estimatedScore ?? item.estimated_score);
+      return {
+        id: normalizeText(item.id) || createId('scoring'),
+        category: normalizeText(item.category) || '其他',
+        scoringItem: normalizeText(item.scoringItem || item.scoring_item || item.title),
+        maxScore: Number.isFinite(maxScore) && maxScore >= 0 ? maxScore : undefined,
+        scoringRule: normalizeText(item.scoringRule || item.scoring_rule || item.rule),
+        response: normalizeText(item.response || item.bidResponse),
+        evidence: normalizeText(item.evidence || item.bidEvidence),
+        status,
+        estimatedScore: Number.isFinite(estimatedScore) && estimatedScore >= 0 ? estimatedScore : undefined,
+        gap: normalizeText(item.gap || item.risk),
+        suggestion: normalizeText(item.suggestion || item.recommendation),
+      };
+    })
+    .filter((item) => item.scoringItem && item.scoringRule);
+}
+
+function normalizeQualificationChecks(parsed) {
+  return getArrayPayload(parsed, ['qualificationChecks', 'qualification_checks', 'qualifications'])
+    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => {
+      const rawStatus = normalizeText(item.status).toLowerCase();
+      const status = rawStatus === 'met' || rawStatus.includes('满足') ? 'met'
+        : rawStatus === 'partial' || rawStatus.includes('部分') ? 'partial'
+          : rawStatus === 'missing' || rawStatus.includes('缺失') ? 'missing' : 'manual';
+      return {
+        id: normalizeText(item.id) || createId('qualification'),
+        category: normalizeText(item.category) || '其他',
+        requirement: normalizeText(item.requirement),
+        status,
+        subject: normalizeText(item.subject),
+        certificate: normalizeText(item.certificate || item.material),
+        validity: normalizeText(item.validity),
+        evidence: normalizeText(item.evidence || item.bidEvidence),
+        risk: normalizeText(item.risk || item.reason),
+        suggestion: normalizeText(item.suggestion || item.recommendation),
+      };
+    })
+    .filter((item) => item.requirement && item.evidence);
+}
+
+function normalizeFactConsistencyChecks(parsed) {
+  return getArrayPayload(parsed, ['factConsistencyChecks', 'fact_consistency_checks', 'facts'])
+    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => {
+      const rawStatus = normalizeText(item.status).toLowerCase();
+      const status = rawStatus === 'conflict' || rawStatus.includes('冲突') || rawStatus.includes('不一致') ? 'conflict'
+        : rawStatus === 'consistent' || rawStatus.includes('一致') ? 'consistent' : 'unclear';
+      const occurrences = (Array.isArray(item.occurrences) ? item.occurrences : [])
+        .filter((entry) => entry && typeof entry === 'object')
+        .map((entry) => ({ value: normalizeText(entry.value), location: normalizeText(entry.location), sourceFile: normalizeText(entry.sourceFile || entry.source_file) || undefined }))
+        .filter((entry) => entry.value && entry.location);
+      return { id: normalizeText(item.id) || createId('fact'), category: normalizeText(item.category) || '其他', label: normalizeText(item.label || item.title), status, canonicalValue: normalizeText(item.canonicalValue || item.canonical_value), occurrences, risk: normalizeText(item.risk || item.reason), suggestion: normalizeText(item.suggestion || item.recommendation) };
+    })
+    .filter((item) => item.label && item.occurrences.length);
+}
+
+function extractScoringRequirements(tenderContent) {
+  const sections = String(tenderContent || '').split(/\n(?=#{1,6}\s|\n)|(?<=[。；！？])\s*/u).map((item) => item.trim()).filter(Boolean);
+  const selected = sections.filter((item) => /(评分|分值|得分|评审|评标|加分|扣分|满分|权重|技术分|商务分)/u.test(item));
+  return selected.join('\n\n').slice(0, 50000);
+}
+
+function extractQualificationRequirements(tenderContent) {
+  const sections = String(tenderContent || '').split(/\n(?=#{1,6}\s|\n)|(?<=[。；！？])\s*/u).map((item) => item.trim()).filter(Boolean);
+  return sections.filter((item) => /(资格|资质|证书|许可证|人员|项目经理|负责人|业绩|合同|验收|财务|审计|信用|社保|纳税|有效期)/u.test(item)).join('\n\n').slice(0, 50000);
 }
 
 function findVerifiedTypoPosition(bidContent, wrongText, originalExcerpt) {
@@ -372,6 +508,9 @@ async function runRejectionItemCheck(aiService, input, onProgress) {
   if (segments.length > 1) {
     const findings = [];
     const complianceMatrix = [];
+    const scoringMatrix = [];
+    const qualificationChecks = [];
+    const factConsistencyChecks = [];
     for (let index = 0; index < segments.length; index += 1) {
       const segmentInput = { ...input, bidContent: `【投标文件分段 ${index + 1}/${segments.length}】\n${segments[index]}` };
       onProgress(`正在检查投标文件第 ${index + 1}/${segments.length} 段。`);
@@ -396,6 +535,9 @@ async function runRejectionItemCheck(aiService, input, onProgress) {
       }, onProgress, `第 ${index + 1} 段定稿`);
       findings.push(...normalizeRejectionCheckFindings(payload));
       complianceMatrix.push(...normalizeComplianceMatrix(payload));
+      scoringMatrix.push(...normalizeScoringMatrix(payload));
+      qualificationChecks.push(...normalizeQualificationChecks(payload));
+      factConsistencyChecks.push(...normalizeFactConsistencyChecks(payload));
     }
 
     const seen = new Set();
@@ -404,7 +546,7 @@ async function runRejectionItemCheck(aiService, input, onProgress) {
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    }), complianceMatrix };
+    }), complianceMatrix, scoringMatrix, qualificationChecks, factConsistencyChecks };
   }
 
   onProgress('第一轮：正在分析检查范围。');
@@ -429,7 +571,7 @@ async function runRejectionItemCheck(aiService, input, onProgress) {
     progressLabel: '废标项检查结果',
     failureMessage: '废标项检查结果格式无效，请重新检查',
   }, onProgress, '第三轮定稿');
-  return { findings: normalizeRejectionCheckFindings(payload), complianceMatrix: normalizeComplianceMatrix(payload) };
+  return { findings: normalizeRejectionCheckFindings(payload), complianceMatrix: normalizeComplianceMatrix(payload), scoringMatrix: normalizeScoringMatrix(payload), qualificationChecks: normalizeQualificationChecks(payload), factConsistencyChecks: normalizeFactConsistencyChecks(payload) };
 }
 
 async function runTypoCheck(aiService, input, onProgress) {
@@ -582,6 +724,37 @@ function createRunningResult(inputSignature, progressMessage) {
   return { status: 'running', findings: [], inputSignature, progressMessage, updatedAt: now() };
 }
 
+function reconciliationKey(kind, item) {
+  if (!item) return '';
+  if (kind === 'finding') return `${normalizeText(item.title)}\u0000${normalizeText(item.requirement)}`;
+  if (kind === 'scoring') return `${normalizeText(item.scoringItem)}\u0000${normalizeText(item.scoringRule)}`;
+  if (kind === 'qualification') return normalizeText(item.requirement);
+  if (kind === 'fact') return `${normalizeText(item.category)}\u0000${normalizeText(item.label)}`;
+  return '';
+}
+
+function reconcileResolutions(previousResult, nextCollections) {
+  const previousResolutions = previousResult?.resolutions || {};
+  const previousItems = [
+    ['finding', previousResult?.findings || []],
+    ['scoring', previousResult?.scoringMatrix || []],
+    ['qualification', previousResult?.qualificationChecks || []],
+    ['fact', previousResult?.factConsistencyChecks || []],
+  ];
+  const saved = new Map();
+  previousItems.forEach(([kind, items]) => items.forEach((item) => {
+    const resolution = previousResolutions[item.id];
+    const key = reconciliationKey(kind, item);
+    if (resolution && key) saved.set(`${kind}\u0000${key}`, resolution);
+  }));
+  const reconciled = {};
+  nextCollections.forEach(([kind, items]) => items.forEach((item) => {
+    const resolution = saved.get(`${kind}\u0000${reconciliationKey(kind, item)}`);
+    if (resolution) reconciled[item.id] = resolution;
+  }));
+  return reconciled;
+}
+
 function updateCheckWorkspace(workspaceStore, updateTask, taskPartial, partial) {
   const task = updateTask(taskPartial);
   const rejectionCheck = workspaceStore.updateRejectionCheck({ ...partial, checkTask: task });
@@ -591,6 +764,7 @@ function updateCheckWorkspace(workspaceStore, updateTask, taskPartial, partial) 
 
 async function runRejectionCheckTask({ aiService, workspaceStore, updateTask, payload }) {
   const state = workspaceStore.loadRejectionCheck ? workspaceStore.loadRejectionCheck() : {};
+  const previousRejectionResult = state.rejectionCheckResult || {};
   const options = state.checkOptions || {};
   const runOptions = payload?.runOptions || options;
   const bidDocument = state.bidDocument || null;
@@ -600,6 +774,7 @@ async function runRejectionCheckTask({ aiService, workspaceStore, updateTask, pa
     throw new Error('废标项检查存储接口尚未初始化');
   }
   const bidContent = String(workspaceStore.readDocumentMarkdown('bid') || '');
+  const tenderContent = String(workspaceStore.readDocumentMarkdown('tender') || '');
   const currentBidDocument = bidDocument ? { ...bidDocument, content: bidContent } : null;
   const invalidBidAndRejectionItems = String(state.invalidBidAndRejectionItems?.content || '');
   const customCheckItems = String(state.customCheckItems ?? '');
@@ -637,12 +812,21 @@ async function runRejectionCheckTask({ aiService, workspaceStore, updateTask, pa
       });
       const findings = Array.isArray(runnerResult) ? runnerResult : runnerResult.findings || [];
       const complianceMatrix = Array.isArray(runnerResult) ? undefined : runnerResult.complianceMatrix;
+      const scoringMatrix = Array.isArray(runnerResult) ? undefined : runnerResult.scoringMatrix;
+      const qualificationChecks = Array.isArray(runnerResult) ? undefined : runnerResult.qualificationChecks;
+      const factConsistencyChecks = Array.isArray(runnerResult) ? undefined : runnerResult.factConsistencyChecks;
+      const resolutions = resultKey === 'rejectionCheckResult' ? reconcileResolutions(previousRejectionResult, [
+        ['finding', findings],
+        ['scoring', scoringMatrix || []],
+        ['qualification', qualificationChecks || []],
+        ['fact', factConsistencyChecks || []],
+      ]) : undefined;
       completed += 1;
       updateOverall(`${label}完成。`, {
         [resultKey]: {
           status: 'success',
           findings,
-          ...(resultKey === 'rejectionCheckResult' ? { complianceMatrix: complianceMatrix || [] } : {}),
+          ...(resultKey === 'rejectionCheckResult' ? { complianceMatrix: complianceMatrix || [], scoringMatrix: scoringMatrix || [], qualificationChecks: qualificationChecks || [], factConsistencyChecks: factConsistencyChecks || [], resolutions } : {}),
           inputSignature,
           activeFindingId: findings[0]?.id,
           progressMessage: findings.length ? `${label}发现 ${findings.length} 项` : `${label}未发现问题`,
@@ -662,7 +846,7 @@ async function runRejectionCheckTask({ aiService, workspaceStore, updateTask, pa
 
   const tasks = [];
   if (runOptions.rejectionCheck) {
-    tasks.push(runOne('rejection', '废标项检查', (onProgress) => runRejectionItemCheck(aiService, { invalidBidAndRejectionItems, customCheckItems, bidContent }, onProgress), 'rejectionCheckResult', rejectionInputSignature));
+    tasks.push(runOne('rejection', '废标项检查', (onProgress) => runRejectionItemCheck(aiService, { invalidBidAndRejectionItems, customCheckItems, scoringRequirements: extractScoringRequirements(tenderContent), qualificationRequirements: extractQualificationRequirements(tenderContent), bidContent }, onProgress), 'rejectionCheckResult', rejectionInputSignature));
   }
   if (runOptions.typoCheck) {
     tasks.push(runOne('typo', '错别字检查', (onProgress) => runTypoCheck(aiService, { bidContent }, onProgress), 'typoCheckResult', bidSignature));

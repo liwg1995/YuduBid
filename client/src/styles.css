@@ -2064,6 +2064,10 @@ button {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
+:root[data-ui-theme="dark"] .app-shell {
+  text-shadow: none;
+}
+
 .app-shell.is-mac .theme-switcher {
   top: 8px;
 }
@@ -8627,7 +8631,7 @@ button {
 
 .settings-row input:focus,
 .settings-row select:focus {
-  background-color: #ffffff;
+  background-color: var(--yb-control-bg);
   border-color: rgba(33, 116, 253, 0.58);
   box-shadow: 0 0 0 4px rgba(33, 116, 253, 0.12);
 }
@@ -10205,7 +10209,6 @@ button {
   .duplicate-upload-label span,
   .rejection-upload-label span,
   .knowledge-folder-main > span,
-  .section-kicker,
   .markdown-viewer code,
   .knowledge-analysis-debug-log code
 ) {
@@ -12292,6 +12295,33 @@ button {
    scoped to the application shell cannot style these surfaces. */
 :root[data-ui-theme="dark"] {
   color-scheme: dark;
+}
+
+/* Keep native form controls dark during focus/open/repaint transitions.
+   This final override prevents component-level light focus styles from
+   flashing after a select is populated dynamically. */
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea),
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea):focus,
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea):focus-visible,
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea):active {
+  color: var(--yb-text);
+  color-scheme: dark;
+  background-color: var(--yb-control-bg) !important;
+  border-color: var(--yb-control-border);
+}
+
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) select option,
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) select optgroup {
+  color: var(--yb-text);
+  background-color: var(--yb-surface);
+}
+
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, textarea):-webkit-autofill,
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, textarea):-webkit-autofill:hover,
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, textarea):-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--yb-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--yb-control-bg) inset;
+  caret-color: var(--yb-text);
 }
 
 :root[data-ui-theme="dark"] body [role="dialog"] :where(

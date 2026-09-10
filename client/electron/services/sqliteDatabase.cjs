@@ -3,7 +3,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const { getWorkspaceDatabasePath } = require('../utils/paths.cjs');
 
-const schemaVersion = 20;
+const schemaVersion = 27;
 
 function createInitialSchema(db) {
   db.exec(`
@@ -359,6 +359,7 @@ function createRejectionCheckSchema(db) {
       active_check_result_tab TEXT NOT NULL DEFAULT 'rejection',
       custom_check_items TEXT NOT NULL DEFAULT '',
       check_options_json TEXT,
+      submission_checklist_json TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -371,6 +372,9 @@ function createRejectionCheckSchema(db) {
       content_hash TEXT NOT NULL,
       content_chars INTEGER NOT NULL DEFAULT 0,
       parser_label TEXT,
+      source_project_id TEXT,
+      source_project_name TEXT,
+      source_workflow_kind TEXT,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -404,6 +408,11 @@ function createRejectionCheckSchema(db) {
       active_finding_id TEXT,
       progress_message TEXT,
       compliance_matrix_json TEXT,
+      scoring_matrix_json TEXT,
+      resolution_map_json TEXT,
+      pricing_checks_json TEXT,
+      qualification_checks_json TEXT,
+      fact_consistency_checks_json TEXT,
       error TEXT,
       updated_at TEXT
     );
@@ -667,6 +676,35 @@ function createRejectionCheckTechnicalPlanSourceSchema(db) {
 
 function createRejectionCheckComplianceSchema(db) {
   addColumnIfMissing(db, 'rejection_check_results', 'compliance_matrix_json', 'TEXT');
+}
+
+function createRejectionSubmissionChecklistSchema(db) {
+  addColumnIfMissing(db, 'rejection_check_meta', 'submission_checklist_json', 'TEXT');
+}
+
+function createRejectionCheckProjectSourceSchema(db) {
+  addColumnIfMissing(db, 'rejection_check_documents', 'source_project_name', 'TEXT');
+  addColumnIfMissing(db, 'rejection_check_documents', 'source_workflow_kind', 'TEXT');
+}
+
+function createRejectionScoringMatrixSchema(db) {
+  addColumnIfMissing(db, 'rejection_check_results', 'scoring_matrix_json', 'TEXT');
+}
+
+function createRejectionResolutionSchema(db) {
+  addColumnIfMissing(db, 'rejection_check_results', 'resolution_map_json', 'TEXT');
+}
+
+function createRejectionPricingCheckSchema(db) {
+  addColumnIfMissing(db, 'rejection_check_results', 'pricing_checks_json', 'TEXT');
+}
+
+function createRejectionQualificationCheckSchema(db) {
+  addColumnIfMissing(db, 'rejection_check_results', 'qualification_checks_json', 'TEXT');
+}
+
+function createRejectionFactConsistencySchema(db) {
+  addColumnIfMissing(db, 'rejection_check_results', 'fact_consistency_checks_json', 'TEXT');
 }
 
 function createBidOpportunitySchema(db) {
@@ -1139,6 +1177,41 @@ const migrations = [
     up(db) {
       addColumnIfMissing(db, 'technical_plan_meta', 'technical_volume_json', 'TEXT');
     },
+  },
+  {
+    version: 21,
+    description: '新增投标提交前人工自查清单',
+    up: createRejectionSubmissionChecklistSchema,
+  },
+  {
+    version: 22,
+    description: '记录废标检查来源项目名称和业务类型',
+    up: createRejectionCheckProjectSourceSchema,
+  },
+  {
+    version: 23,
+    description: '新增评分项覆盖矩阵',
+    up: createRejectionScoringMatrixSchema,
+  },
+  {
+    version: 24,
+    description: '新增检查问题处理闭环状态',
+    up: createRejectionResolutionSchema,
+  },
+  {
+    version: 25,
+    description: '新增报价合理性检查结果',
+    up: createRejectionPricingCheckSchema,
+  },
+  {
+    version: 26,
+    description: '新增资格条件专项核验结果',
+    up: createRejectionQualificationCheckSchema,
+  },
+  {
+    version: 27,
+    description: '新增全文关键事实一致性检查结果',
+    up: createRejectionFactConsistencySchema,
   },
 ];
 

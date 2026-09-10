@@ -12,6 +12,11 @@ import type {
   RejectionCheckFinding,
   RejectionComplianceItem,
   RejectionComplianceStatus,
+  RejectionScoringMatrixItem,
+  RejectionQualificationCheckItem,
+  RejectionFactConsistencyItem,
+  RejectionResolutionState,
+  RejectionResolutionStatus,
   RejectionCheckStep,
   RejectionCheckOptions,
   RejectionCheckResultState,
@@ -23,6 +28,8 @@ import type {
   RejectionDocumentSource,
   RejectionExtractionState,
   RejectionResultTab,
+  RejectionSubmissionCheckItem,
+  RejectionSubmissionCheckStatus,
   TypoCheckFinding,
   TypoCheckResultState,
 } from '../types';
@@ -30,6 +37,7 @@ import type {
 interface TechnicalPlanProjectOption {
   id: string;
   name: string;
+  workflowKind: 'technical-plan' | 'existing-plan-expansion';
   updated_at?: string;
   isActive?: boolean;
 }
@@ -51,9 +59,41 @@ const resultTabs: Array<{ id: RejectionResultTab; label: string }> = [
 
 const checkResultTabs: Array<{ id: RejectionCheckResultTab; label: string; description: string }> = [
   { id: 'rejection', label: '废标项检查', description: '根据无效与废标项检查投标文件响应风险' },
+  { id: 'qualification', label: '资格条件', description: '核验企业资质、人员、业绩、财务和证书有效期' },
+  { id: 'scoring', label: '评分项覆盖', description: '对照招标评分规则检查投标响应和潜在失分点' },
+  { id: 'facts', label: '关键事实', description: '核对项目、金额、期限、人员和设备参数的一致性' },
   { id: 'typo', label: '错别字检查', description: '检查投标文件中的错别字和明显文字错误' },
   { id: 'logic', label: '逻辑谬误检查', description: '检查前后矛盾、逻辑不一致和表达漏洞' },
+  { id: 'submission', label: '提交前自查', description: '人工确认签章、保证金、CA 和最终递交事项' },
 ];
+
+const submissionChecklistTemplate: Array<Pick<RejectionSubmissionCheckItem, 'id' | 'category' | 'label'>> = [
+  { id: 'qualification-validity', category: '资格材料', label: '所有资质证书有效期覆盖投标截止日' },
+  { id: 'qualification-scan', category: '资格材料', label: '证书扫描件清晰、完整且名称与招标要求一致' },
+  { id: 'performance-proof', category: '资格材料', label: '业绩合同、验收证明等佐证材料已完整装入' },
+  { id: 'deposit-amount', category: '投标保证金', label: '保证金金额、缴纳形式和收款账户符合要求' },
+  { id: 'deposit-arrival', category: '投标保证金', label: '保证金已在截止时间前到账，凭证已留存' },
+  { id: 'guarantee-validity', category: '投标保证金', label: '保函有效期覆盖招标文件要求的期限' },
+  { id: 'signature-pages', category: '签字盖章', label: '要求签字或盖章的页面均已完成签章' },
+  { id: 'seal-consistency', category: '签字盖章', label: '签章主体、法定代表人或授权代表信息一致' },
+  { id: 'copy-count', category: '文件完整性', label: '正本、副本和电子文件份数符合要求' },
+  { id: 'attachments', category: '文件完整性', label: '目录、附件和技术商务响应表齐全' },
+  { id: 'validity-final', category: '关键期限', label: '工期、服务期、质保期和投标有效期最终复核一致' },
+  { id: 'ca-validity', category: '电子投标', label: 'CA 证书有效，签章和加密环境已测试' },
+  { id: 'platform-upload', category: '电子投标', label: '最终文件已上传并完成平台回执或解密测试' },
+  { id: 'deadline', category: '电子投标', label: '投标截止时间和开标时间已设置内部提醒' },
+  { id: 'packaging', category: '线下递交', label: '密封、封套标识、骑缝章和递交地点已人工复核' },
+];
+
+function createSubmissionChecklist(items?: RejectionSubmissionCheckItem[]): RejectionSubmissionCheckItem[] {
+  const saved = new Map((items || []).map((item) => [item.id, item]));
+  return submissionChecklistTemplate.map((template) => ({
+    ...template,
+    status: saved.get(template.id)?.status || 'pending',
+    note: saved.get(template.id)?.note || '',
+    updatedAt: saved.get(template.id)?.updatedAt,
+  }));
+}
 
 const defaultCheckOptions: RejectionCheckOptions = {
   rejectionCheck: true,
@@ -146,7 +186,8 @@ function normalizeCheckOptions(options?: Partial<RejectionCheckOptions> | null):
 }
 
 function isCheckResultTabEnabled(tabId: RejectionCheckResultTab, options: RejectionCheckOptions) {
-  if (tabId === 'rejection') return options.rejectionCheck;
+  if (tabId === 'submission') return true;
+  if (tabId === 'rejection' || tabId === 'qualification' || tabId === 'scoring' || tabId === 'facts') return options.rejectionCheck;
   if (tabId === 'typo') return options.typoCheck;
   return options.logicCheck;
 }
@@ -221,12 +262,48 @@ function normalizeRejectionCheckResultState(state?: Partial<RejectionCheckResult
     };
     return row;
   }).filter((item) => item.requirement && item.evidence) : [];
+  const scoringMatrix: RejectionScoringMatrixItem[] = Array.isArray(state.scoringMatrix) ? state.scoringMatrix.map((item, index) => ({
+    id: typeof item.id === 'string' && item.id.trim() ? item.id : `scoring-${index + 1}`,
+    category: String(item.category || '其他').trim(),
+    scoringItem: String(item.scoringItem || '').trim(),
+    maxScore: Number.isFinite(Number(item.maxScore)) ? Number(item.maxScore) : undefined,
+    scoringRule: String(item.scoringRule || '').trim(),
+    response: String(item.response || '').trim(),
+    evidence: String(item.evidence || '').trim(),
+    status: (item.status === 'covered' || item.status === 'partial' || item.status === 'missing' ? item.status : 'unclear') as RejectionScoringMatrixItem['status'],
+    estimatedScore: Number.isFinite(Number(item.estimatedScore)) ? Number(item.estimatedScore) : undefined,
+    gap: String(item.gap || '').trim(),
+    suggestion: String(item.suggestion || '').trim(),
+  })).filter((item) => item.scoringItem && item.scoringRule) : [];
+  const qualificationChecks: RejectionQualificationCheckItem[] = Array.isArray(state.qualificationChecks) ? state.qualificationChecks.map((item, index) => ({
+    id: typeof item.id === 'string' && item.id.trim() ? item.id : `qualification-${index + 1}`,
+    category: String(item.category || '其他').trim(), requirement: String(item.requirement || '').trim(),
+    status: (item.status === 'met' || item.status === 'partial' || item.status === 'missing' ? item.status : 'manual') as RejectionQualificationCheckItem['status'],
+    subject: String(item.subject || '').trim(), certificate: String(item.certificate || '').trim(), validity: String(item.validity || '').trim(),
+    evidence: String(item.evidence || '').trim(), risk: String(item.risk || '').trim(), suggestion: String(item.suggestion || '').trim(),
+  })).filter((item) => item.requirement && item.evidence) : [];
+  const factConsistencyChecks: RejectionFactConsistencyItem[] = Array.isArray(state.factConsistencyChecks) ? state.factConsistencyChecks.map((item, index) => ({
+    id: typeof item.id === 'string' && item.id.trim() ? item.id : `fact-${index + 1}`,
+    category: String(item.category || '其他').trim(), label: String(item.label || '').trim(),
+    status: (item.status === 'consistent' || item.status === 'conflict' ? item.status : 'unclear') as RejectionFactConsistencyItem['status'],
+    canonicalValue: String(item.canonicalValue || '').trim(),
+    occurrences: Array.isArray(item.occurrences) ? item.occurrences.map((entry) => ({ value: String(entry.value || '').trim(), location: String(entry.location || '').trim(), sourceFile: String(entry.sourceFile || '').trim() || undefined })).filter((entry) => entry.value && entry.location) : [],
+    risk: String(item.risk || '').trim(), suggestion: String(item.suggestion || '').trim(),
+  })).filter((item) => item.label && item.occurrences.length) : [];
+  const resolutions = Object.fromEntries(Object.entries(state.resolutions || {}).map(([id, value]) => {
+    const status: RejectionResolutionStatus = value?.status === 'processing' || value?.status === 'resolved' || value?.status === 'accepted' ? value.status : 'pending';
+    return [id, { status, note: String(value?.note || ''), updatedAt: value?.updatedAt }];
+  }));
 
   return {
     ...state,
     status: status as RejectionCheckRunStatus,
     findings,
     complianceMatrix,
+    scoringMatrix,
+    qualificationChecks,
+    factConsistencyChecks,
+    resolutions,
     activeFindingId,
   };
 }
@@ -331,6 +408,8 @@ function createDocumentSignature(document: RejectionDocumentContent | null) {
   const content = document.content.trim();
   return [
     document.source,
+    document.sourceWorkflowKind || '',
+    document.sourceProjectId || '',
     document.fileName,
     content.length,
     content.slice(0, 800),
@@ -370,12 +449,16 @@ function stripTripleQuoteWrapper(content: string) {
 }
 
 function DocumentFilePill({ document, onRemove }: { document: RejectionDocumentContent; onRemove: () => void }) {
+  const workflowLabel = document.sourceWorkflowKind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案';
+  const sourceDetail = document.source === 'technical-plan' && document.sourceProjectName
+    ? `${workflowLabel} · ${document.sourceProjectName}`
+    : sourceLabels[document.source];
   return (
     <article className="rejection-file-pill">
       <div className="rejection-file-icon">{getFileBadge(document)}</div>
       <div className="rejection-file-info">
         <strong title={document.fileName}>{document.fileName}</strong>
-        <span>{sourceLabels[document.source]} · {formatContentLength(document.content)} · {formatImportedAt(document.importedAt)}</span>
+        <span>{sourceDetail} · {formatContentLength(document.content)} · {formatImportedAt(document.importedAt)}</span>
       </div>
       <button type="button" onClick={onRemove} aria-label={`移除${documentLabels[document.role]}`}>
         移除
@@ -436,7 +519,15 @@ function TypoOriginalBlock({ excerpt, wrongText }: { excerpt: string; wrongText:
   );
 }
 
-function RejectionFindingItem({ finding, expanded, onToggle, onDelete }: { finding: RejectionCheckFinding; expanded: boolean; onToggle: () => void; onDelete: () => void }) {
+function ResolutionTaskEditor({ value, onChange }: { value: RejectionResolutionState; onChange: (patch: Partial<RejectionResolutionState>) => void }) {
+  return (
+    <div className="rejection-remediation-editor">
+      <label className="is-note"><span>处理备注（可选）</span><textarea value={value.note || ''} onChange={(event) => onChange({ note: event.target.value })} placeholder="简单记录处理情况" rows={2} /></label>
+    </div>
+  );
+}
+
+function RejectionFindingItem({ finding, expanded, resolution, onResolutionChange, onToggle, onDelete }: { finding: RejectionCheckFinding; expanded: boolean; resolution: NonNullable<RejectionCheckResultState['resolutions']>[string]; onResolutionChange: (patch: Partial<NonNullable<RejectionCheckResultState['resolutions']>[string]>) => void; onToggle: () => void; onDelete: () => void }) {
   return (
     <article className={`rejection-finding-item is-${finding.type} is-${finding.severity}${expanded ? ' is-expanded' : ''}`}>
       <div className="rejection-finding-row">
@@ -459,6 +550,9 @@ function RejectionFindingItem({ finding, expanded, onToggle, onDelete }: { findi
         <button type="button" className="rejection-finding-delete" onClick={onDelete} aria-label={`删除${finding.title}`}>
           删除
         </button>
+        <select className={`rejection-resolution-select is-${resolution.status}`} value={resolution.status} onChange={(event) => onResolutionChange({ status: event.target.value as RejectionResolutionStatus })} aria-label={`${finding.title}处理状态`}>
+          <option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已解决</option><option value="accepted">接受风险</option>
+        </select>
       </div>
 
       {expanded && (
@@ -467,6 +561,7 @@ function RejectionFindingItem({ finding, expanded, onToggle, onDelete }: { findi
           <FindingDetailBlock label="投标文件证据" content={finding.bidEvidence} />
           <FindingDetailBlock label="风险原因" content={finding.riskReason} />
           <FindingDetailBlock label="处理建议" content={finding.suggestion} />
+          <ResolutionTaskEditor value={resolution} onChange={onResolutionChange} />
         </div>
       )}
     </article>
@@ -566,6 +661,7 @@ function RejectionCheckPage() {
   const [rejectionCheckResult, setRejectionCheckResult] = useState<RejectionCheckResultState>(() => createEmptyRejectionCheckResultState());
   const [typoCheckResult, setTypoCheckResult] = useState<TypoCheckResultState>(() => createEmptyTypoCheckResultState());
   const [logicCheckResult, setLogicCheckResult] = useState<LogicCheckResultState>(() => createEmptyLogicCheckResultState());
+  const [submissionChecklist, setSubmissionChecklist] = useState<RejectionSubmissionCheckItem[]>(() => createSubmissionChecklist());
   const [extractionTask, setExtractionTask] = useState<RejectionBackgroundTaskState | undefined>();
   const [checkTask, setCheckTask] = useState<RejectionBackgroundTaskState | undefined>();
   const [customCheckItems, setCustomCheckItems] = useState('');
@@ -599,6 +695,7 @@ function RejectionCheckPage() {
     || typoCheckResult.findings.length
     || logicCheckResult.status !== 'idle'
     || logicCheckResult.findings.length
+    || submissionChecklist.some((item) => item.status !== 'pending' || item.note.trim())
     || extractionTask
     || checkTask
     || customCheckItems.trim()
@@ -640,6 +737,15 @@ function RejectionCheckPage() {
   const visibleRejectionCheckStatus: RejectionCheckRunStatus = rejectionCheckMatchesInput ? rejectionCheckResult.status : 'idle';
   const visibleRejectionFindings = rejectionCheckMatchesInput ? rejectionCheckResult.findings : [];
   const visibleComplianceMatrix = rejectionCheckMatchesInput ? (rejectionCheckResult.complianceMatrix || []) : [];
+  const visibleScoringMatrix = rejectionCheckMatchesInput ? (rejectionCheckResult.scoringMatrix || []) : [];
+  const visibleQualificationChecks = rejectionCheckMatchesInput ? (rejectionCheckResult.qualificationChecks || []) : [];
+  const visibleFactConsistencyChecks = rejectionCheckMatchesInput ? (rejectionCheckResult.factConsistencyChecks || []) : [];
+  const visibleResolutions = rejectionCheckMatchesInput ? (rejectionCheckResult.resolutions || {}) : {};
+  const resolutionFilter: string = 'all';
+  const filteredRejectionFindings = visibleRejectionFindings;
+  const filteredScoringMatrix = visibleScoringMatrix;
+  const filteredQualificationChecks = visibleQualificationChecks;
+  const filteredFactConsistencyChecks = visibleFactConsistencyChecks;
   const visibleTypoCheckStatus: RejectionCheckRunStatus = typoCheckMatchesInput ? typoCheckResult.status : 'idle';
   const visibleTypoFindings = typoCheckMatchesInput ? typoCheckResult.findings : [];
   const visibleLogicCheckStatus: RejectionCheckRunStatus = logicCheckMatchesInput ? logicCheckResult.status : 'idle';
@@ -649,6 +755,28 @@ function RejectionCheckPage() {
   const logicCheckRunning = logicCheckResult.status === 'running';
   const backgroundCheckRunning = checkTask?.status === 'running';
   const checkRunning = rejectionCheckRunning || typoCheckRunning || logicCheckRunning || backgroundCheckRunning;
+  const submissionPassed = submissionChecklist.filter((item) => item.status === 'passed').length;
+  const submissionRisks = submissionChecklist.filter((item) => item.status === 'risk').length;
+  const submissionPending = submissionChecklist.filter((item) => item.status === 'pending').length;
+  const highRiskCount = visibleRejectionFindings.filter((item) => item.severity === 'high').length;
+  const mediumRiskCount = visibleRejectionFindings.filter((item) => item.severity === 'medium').length;
+  const unresolvedHighRisks = visibleRejectionFindings.filter((item) => item.severity === 'high' && !['resolved', 'accepted'].includes(visibleResolutions[item.id]?.status || 'pending'));
+  const unresolvedScoringGaps = visibleScoringMatrix.filter((item) => (item.status === 'missing' || item.status === 'partial') && !['resolved', 'accepted'].includes(visibleResolutions[item.id]?.status || 'pending'));
+  const unresolvedQualificationRisks = visibleQualificationChecks.filter((item) => (item.status === 'missing' || item.status === 'partial') && !['resolved', 'accepted'].includes(visibleResolutions[item.id]?.status || 'pending'));
+  const unresolvedFactConflicts = visibleFactConsistencyChecks.filter((item) => item.status === 'conflict' && !['resolved', 'accepted'].includes(visibleResolutions[item.id]?.status || 'pending'));
+  const automatedChecksComplete = [visibleRejectionCheckStatus, ...(checkOptions.typoCheck ? [visibleTypoCheckStatus] : []), ...(checkOptions.logicCheck ? [visibleLogicCheckStatus] : [])]
+    .every((status) => status === 'success');
+  const gateBlockers = [
+    ...(!automatedChecksComplete ? ['自动检查尚未全部完成或结果已失效'] : []),
+    ...(unresolvedHighRisks.length ? [`${unresolvedHighRisks.length} 个高风险废标项未处理`] : []),
+    ...(unresolvedScoringGaps.length ? [`${unresolvedScoringGaps.length} 个评分项缺口未处理`] : []),
+    ...(unresolvedQualificationRisks.length ? [`${unresolvedQualificationRisks.length} 个资格条件风险未处理`] : []),
+    ...(unresolvedFactConflicts.length ? [`${unresolvedFactConflicts.length} 个关键事实冲突未处理`] : []),
+    ...(submissionRisks ? [`${submissionRisks} 项人工自查存在风险`] : []),
+    ...(submissionPending ? [`${submissionPending} 项人工自查尚未确认`] : []),
+  ];
+  const canSubmit = gateBlockers.length === 0;
+  const primaryBlockerTab: RejectionCheckResultTab = unresolvedHighRisks.length ? 'rejection' : unresolvedQualificationRisks.length ? 'qualification' : unresolvedFactConflicts.length ? 'facts' : unresolvedScoringGaps.length ? 'scoring' : 'submission';
   const customCheckItemsDisabled = extractionRunning || checkRunning;
   const hasStaleRejectionCheckResult = Boolean(
     currentRejectionCheckInputSignature
@@ -687,6 +815,7 @@ function RejectionCheckPage() {
     setRejectionCheckResult(normalizeRejectionCheckResultState(state.rejectionCheckResult));
     setTypoCheckResult(normalizeTypoCheckResultState(state.typoCheckResult));
     setLogicCheckResult(normalizeLogicCheckResultState(state.logicCheckResult));
+    setSubmissionChecklist(createSubmissionChecklist(state.submissionChecklist));
     setExtractionTask(normalizeBackgroundTaskState(state.extractionTask));
     setCheckTask(normalizeBackgroundTaskState(state.checkTask));
     setCustomCheckItems(typeof state.customCheckItems === 'string' ? state.customCheckItems : '');
@@ -737,11 +866,12 @@ function RejectionCheckPage() {
       activeCheckResultTab,
       customCheckItems,
       checkOptions,
+      submissionChecklist,
     })
       .catch((error) => {
         showToast(error instanceof Error ? error.message : '保存废标项检查页面状态失败', 'error');
       });
-  }, [activeCheckResultTab, activeDocumentTab, activeResultTab, checkOptions, customCheckItems, showToast, step]);
+  }, [activeCheckResultTab, activeDocumentTab, activeResultTab, checkOptions, customCheckItems, showToast, step, submissionChecklist]);
 
   useEffect(() => {
     if (!window.yibiao?.tasks) {
@@ -849,10 +979,17 @@ function RejectionCheckPage() {
       setSelectedTechnicalPlanProjectId('');
       setTechnicalPlanDialogOpen(true);
       setTechnicalPlanProjectsLoading(true);
-      const result = await window.yibiao.technicalPlan.listProjects('technical-plan');
-      const projects = (result?.projects || []) as TechnicalPlanProjectOption[];
+      const [technicalResult, expansionResult] = await Promise.all([
+        window.yibiao.technicalPlan.listProjects('technical-plan'),
+        window.yibiao.technicalPlan.listProjects('existing-plan-expansion'),
+      ]);
+      const projects: TechnicalPlanProjectOption[] = [
+        ...(technicalResult?.projects || []).map((project) => ({ ...project, workflowKind: 'technical-plan' as const })),
+        ...(expansionResult?.projects || []).map((project) => ({ ...project, workflowKind: 'existing-plan-expansion' as const })),
+      ];
       setTechnicalPlanProjects(projects);
-      setSelectedTechnicalPlanProjectId(projects.find((project) => project.isActive)?.id || projects[0]?.id || '');
+      const selected = projects.find((project) => project.isActive) || projects[0];
+      setSelectedTechnicalPlanProjectId(selected ? `${selected.workflowKind}:${selected.id}` : '');
     } catch (error) {
       console.error('读取技术方案项目失败', error);
       showToast(error instanceof Error ? error.message : '读取技术方案项目失败', 'error');
@@ -873,7 +1010,13 @@ function RejectionCheckPage() {
 
     try {
       setBusy('technical-plan');
-      const result = await window.yibiao.rejectionCheck.importTenderFromTechnicalPlan({ projectId: selectedTechnicalPlanProjectId });
+      const selectedProject = technicalPlanProjects.find((project) => `${project.workflowKind}:${project.id}` === selectedTechnicalPlanProjectId);
+      if (!selectedProject) throw new Error('选择的来源项目不存在，请重新选择');
+      const result = await window.yibiao.rejectionCheck.importTenderFromTechnicalPlan({
+        projectId: selectedProject.id,
+        projectName: selectedProject.name,
+        workflowKind: selectedProject.workflowKind,
+      });
       if (!result?.success) {
         showToast(result?.message || '技术方案中暂无可读取内容', 'info');
         return;
@@ -1184,6 +1327,25 @@ function RejectionCheckPage() {
     };
     setRejectionCheckResult(next);
     persistRejectionState({ rejectionCheckResult: next }, '保存废标项结果状态失败');
+  }
+
+  function updateResolution(itemId: string, patch: Partial<RejectionResolutionState>) {
+    const resolution: RejectionResolutionState = {
+      status: 'pending',
+      ...(rejectionCheckResult.resolutions?.[itemId] || {}),
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+    const next = {
+      ...rejectionCheckResult,
+      resolutions: {
+        ...(rejectionCheckResult.resolutions || {}),
+        [itemId]: resolution,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    setRejectionCheckResult(next);
+    persistRejectionState({ rejectionCheckResult: next }, '保存问题处理状态失败');
   }
 
   function deleteFinding(findingId: string) {
@@ -1498,6 +1660,70 @@ function RejectionCheckPage() {
     );
   }
 
+  function updateSubmissionItem(itemId: string, patch: Partial<Pick<RejectionSubmissionCheckItem, 'status' | 'note'>>) {
+    setSubmissionChecklist((current) => current.map((item) => item.id === itemId ? {
+      ...item,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    } : item));
+  }
+
+  function renderSubmissionChecklist() {
+    const grouped = submissionChecklist.reduce<Record<string, RejectionSubmissionCheckItem[]>>((result, item) => {
+      (result[item.category] ||= []).push(item);
+      return result;
+    }, {});
+    const statusOptions: Array<{ value: RejectionSubmissionCheckStatus; label: string }> = [
+      { value: 'pending', label: '待确认' },
+      { value: 'passed', label: '已通过' },
+      { value: 'risk', label: '有风险' },
+      { value: 'notApplicable', label: '不适用' },
+    ];
+    return (
+      <>
+        <div className="rejection-finding-summary">
+          <div>
+            <span className="section-kicker">提交前人工确认</span>
+            <h3>{submissionPending ? `还有 ${submissionPending} 项待确认` : submissionRisks ? `存在 ${submissionRisks} 项风险` : '提交前自查已完成'}</h3>
+            <p>这些事项无法仅凭解析后的电子正文可靠判断，请由投标负责人根据原件、平台和现场要求逐项确认。</p>
+          </div>
+          <div className={`rejection-result-status ${submissionPending || submissionRisks ? 'is-idle' : 'is-success'}`}>
+            <span>{submissionPassed}/{submissionChecklist.length} 已通过</span>
+            <small>{submissionRisks ? `${submissionRisks} 项有风险` : submissionPending ? `${submissionPending} 项待确认` : '无待处理事项'}</small>
+          </div>
+        </div>
+        <div className="rejection-submission-groups">
+          {Object.entries(grouped).map(([category, items]) => (
+            <section className="rejection-submission-group" key={category}>
+              <h4>{category}</h4>
+              {items.map((item) => (
+                <div className={`rejection-submission-item is-${item.status}`} key={item.id}>
+                  <div className="rejection-submission-copy">
+                    <strong>{item.label}</strong>
+                    <input
+                      type="text"
+                      value={item.note}
+                      onChange={(event) => updateSubmissionItem(item.id, { note: event.target.value })}
+                      placeholder="补充凭证、处理人或复核说明（可选）"
+                      aria-label={`${item.label}备注`}
+                    />
+                  </div>
+                  <div className="rejection-submission-statuses" role="group" aria-label={`${item.label}状态`}>
+                    {statusOptions.map((option) => (
+                      <button type="button" className={item.status === option.value ? 'is-active' : ''} key={option.value} onClick={() => updateSubmissionItem(item.id, { status: option.value })}>
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      </>
+    );
+  }
+
   const exportExcel = async () => {
     try {
       const result = await window.yibiao?.rejectionCheck.exportExcel();
@@ -1749,7 +1975,7 @@ function RejectionCheckPage() {
                 value={customCheckItems}
                 onChange={setCustomCheckItems}
                 disabled={customCheckItemsDisabled}
-                placeholder="输入自定义检查项，例如：\n- 关注报价文件是否存在多处不一致\n- 关注资格证明材料有效期是否覆盖投标截止时间\n- 关注技术偏离表是否遗漏关键参数响应"
+                placeholder="输入自定义检查项，例如：\n- 关注资格证明材料有效期是否覆盖投标截止时间\n- 关注技术偏离表是否遗漏关键参数响应\n- 关注关键承诺在不同章节是否一致"
               />
             )}
           </section>
@@ -1786,18 +2012,51 @@ function RejectionCheckPage() {
               </div>
             </div>
 
+            <div className="rejection-check-context" aria-label="当前检查对象">
+              <span>当前检查对象</span>
+              <strong>{bidDocument?.sourceProjectName || bidDocument?.fileName || '尚未选择投标文件'}</strong>
+              <small>
+                {bidDocument?.source === 'technical-plan'
+                  ? `${bidDocument.sourceWorkflowKind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案'}项目 · ${bidDocument.fileName}`
+                  : bidDocument ? `手动上传 · ${bidDocument.fileName}` : '请在第一步选择或导入投标文件'}
+              </small>
+              {tenderDocument && <small>检查依据：{tenderDocument.sourceProjectName ? `${tenderDocument.sourceWorkflowKind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案'}项目“${tenderDocument.sourceProjectName}”` : tenderDocument.fileName}</small>}
+              <button type="button" className="secondary-action rejection-check-context-action" onClick={() => switchStep('documents')} disabled={checkRunning || extractionRunning}>
+                更换检查对象
+              </button>
+            </div>
+
+            <div className={`rejection-check-overview ${canSubmit ? 'is-ready' : gateBlockers.length ? 'is-blocked' : 'is-pending'}`}>
+              <div>
+                <span className="section-kicker">投标检查结论</span>
+                <strong>{canSubmit ? '检查已完成，可以进入提交准备' : '存在提交阻断项，请先处理'}</strong>
+                {!canSubmit && <ul className="rejection-gate-blockers">{gateBlockers.map((item) => <li key={item}>{item}</li>)}</ul>}
+              </div>
+              <dl>
+                <div><dt>高风险</dt><dd>{highRiskCount}</dd></div>
+                <div><dt>中风险</dt><dd>{mediumRiskCount}</dd></div>
+                <div><dt>人工风险</dt><dd>{submissionRisks}</dd></div>
+                <div><dt>待人工确认</dt><dd>{submissionPending}</dd></div>
+              </dl>
+              <button type="button" className="secondary-action" onClick={() => setActiveCheckResultTab(primaryBlockerTab)}>
+                {canSubmit ? '查看提交前自查' : '查看首要阻断项'}
+              </button>
+            </div>
+
             <div className="rejection-check-result-tabs" role="tablist" aria-label="废标项检查结果类型">
               {checkResultTabs.map((tab) => {
                 const isActive = tab.id === activeCheckResultTab;
                 const enabled = isCheckResultTabEnabled(tab.id, checkOptions);
                 const status: RejectionCheckTabStatus = !enabled
                   ? 'disabled'
-                  : tab.id === 'rejection'
+                  : tab.id === 'submission'
+                    ? submissionRisks ? 'error' : submissionPending ? 'idle' : 'success'
+                  : tab.id === 'rejection' || tab.id === 'qualification' || tab.id === 'scoring' || tab.id === 'facts'
                     ? visibleRejectionCheckStatus
                     : tab.id === 'typo'
                       ? visibleTypoCheckStatus
                       : visibleLogicCheckStatus;
-                const progressMessage = tab.id === 'rejection'
+                const progressMessage = tab.id === 'rejection' || tab.id === 'qualification' || tab.id === 'scoring' || tab.id === 'facts'
                   ? rejectionCheckResult.progressMessage
                   : tab.id === 'typo'
                     ? typoCheckResult.progressMessage
@@ -1832,7 +2091,52 @@ function RejectionCheckPage() {
               id={`rejection-check-result-panel-${activeCheckResult.id}`}
               aria-labelledby={`rejection-check-result-tab-${activeCheckResult.id}`}
             >
-              {activeCheckResult.id === 'rejection' ? (
+              {activeCheckResult.id === 'facts' ? (
+                <>
+                  <div className="rejection-finding-summary"><div><span className="section-kicker">全文一致性</span><h3>关键事实检查</h3><p>列出同一事实的不同取值和出现位置，便于统一修改。</p></div><div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}><span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span><small>{visibleFactConsistencyChecks.filter((item) => item.status === 'conflict').length} 个事实冲突</small></div></div>
+                  {visibleRejectionCheckStatus === 'running' ? <div className="markdown-empty-state rejection-finding-empty"><strong>正在核对关键事实</strong><p>{rejectionCheckResult.progressMessage || '正在比对项目、金额、日期、人员和设备参数。'}</p></div> : filteredFactConsistencyChecks.length ? <div className="rejection-fact-list">{filteredFactConsistencyChecks.map((item) => <article className={`rejection-fact-item is-${item.status}`} key={item.id}><header><div><span>{item.category}</span><strong>{item.label}</strong></div><em>{item.status === 'consistent' ? '一致' : item.status === 'conflict' ? '存在冲突' : '待复核'}</em></header>{item.canonicalValue && <p className="rejection-fact-canonical">建议统一值：<strong>{item.canonicalValue}</strong></p>}<div className="rejection-fact-occurrences">{item.occurrences.map((entry, index) => <div key={`${entry.location}-${index}`}><strong>{entry.value}</strong><small>{entry.sourceFile ? `${entry.sourceFile} · ` : ''}{entry.location}</small></div>)}</div>{(item.risk || item.suggestion) && <p className="rejection-fact-advice">{item.risk}{item.suggestion ? `；${item.suggestion}` : ''}</p>}<select className={`rejection-resolution-select is-${visibleResolutions[item.id]?.status || 'pending'}`} value={visibleResolutions[item.id]?.status || 'pending'} onChange={(event) => updateResolution(item.id, { status: event.target.value as RejectionResolutionStatus })} aria-label={`${item.label}处理状态`}><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已解决</option><option value="accepted">接受风险</option></select><details className="rejection-remediation-details"><summary>整改任务详情</summary><ResolutionTaskEditor value={visibleResolutions[item.id] || { status: 'pending' }} onChange={(patch) => updateResolution(item.id, patch)} /></details></article>)}</div> : <div className="markdown-empty-state rejection-finding-empty"><strong>{visibleRejectionCheckStatus === 'success' && resolutionFilter === 'all' ? '未识别到可比较的关键事实' : resolutionFilter !== 'all' ? '当前筛选条件下没有任务' : '等待关键事实检查'}</strong><p>运行废标项检查后，将同步生成全文事实一致性结果。</p></div>}
+                </>
+              ) : activeCheckResult.id === 'qualification' ? (
+                <>
+                  <div className="rejection-finding-summary"><div><span className="section-kicker">资格专项核验</span><h3>资格条件检查</h3><p>证书图片或扫描件正文不可读时保留为人工核验，不直接判定缺失。</p></div><div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}><span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span><small>{visibleQualificationChecks.filter((item) => item.status === 'missing' || item.status === 'partial').length} 个资格风险</small></div></div>
+                  {visibleRejectionCheckStatus === 'running' ? <div className="markdown-empty-state rejection-finding-empty"><strong>正在核验资格条件</strong><p>{rejectionCheckResult.progressMessage || '正在对照资质、人员、业绩与财务材料。'}</p></div> : filteredQualificationChecks.length ? <div className="rejection-qualification-list">{filteredQualificationChecks.map((item) => <article className={`rejection-qualification-item is-${item.status}`} key={item.id}><header><div><span>{item.category}</span><strong>{item.requirement}</strong></div><em>{({ met: '满足', partial: '部分满足', missing: '缺失', manual: '人工核验' } as const)[item.status]}</em></header><dl><div><dt>主体 / 材料</dt><dd>{[item.subject, item.certificate].filter(Boolean).join(' · ') || '未明确'}</dd></div><div><dt>有效期</dt><dd>{item.validity || '未从解析文本确认'}</dd></div><div><dt>投标证据</dt><dd>{item.evidence}</dd></div><div><dt>风险与建议</dt><dd>{item.risk || '—'}{item.suggestion && <small>{item.suggestion}</small>}</dd></div></dl><select className={`rejection-resolution-select is-${visibleResolutions[item.id]?.status || 'pending'}`} value={visibleResolutions[item.id]?.status || 'pending'} onChange={(event) => updateResolution(item.id, { status: event.target.value as RejectionResolutionStatus })} aria-label={`${item.requirement}处理状态`}><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已解决</option><option value="accepted">接受风险</option></select><details className="rejection-remediation-details"><summary>整改任务详情</summary><ResolutionTaskEditor value={visibleResolutions[item.id] || { status: 'pending' }} onChange={(patch) => updateResolution(item.id, patch)} /></details></article>)}</div> : <div className="markdown-empty-state rejection-finding-empty"><strong>{visibleRejectionCheckStatus === 'success' && resolutionFilter === 'all' ? '未识别到明确资格条件' : resolutionFilter !== 'all' ? '当前筛选条件下没有任务' : '等待资格条件检查'}</strong><p>运行废标项检查后，将同步生成资格专项核验结果。</p></div>}
+                </>
+              ) : activeCheckResult.id === 'scoring' ? (
+                <>
+                  <div className="rejection-finding-summary">
+                    <div>
+                      <span className="section-kicker">评分矩阵</span>
+                      <h3>得分点覆盖检查</h3>
+                      <p>预计得分仅用于内部编标复核，不代表真实评标结果。</p>
+                    </div>
+                    <div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}>
+                      <span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span>
+                      <small>{visibleScoringMatrix.length} 个评分项</small>
+                    </div>
+                  </div>
+                  {visibleRejectionCheckStatus === 'running' ? (
+                    <div className="markdown-empty-state rejection-finding-empty"><strong>正在提取并核对评分项</strong><p>{rejectionCheckResult.progressMessage || '正在对照招标评分规则和投标响应。'}</p></div>
+                  ) : filteredScoringMatrix.length ? (
+                    <div className="rejection-scoring-table-wrap">
+                      <table className="rejection-scoring-table">
+                        <thead><tr><th>类别 / 评分项</th><th>分值</th><th>评分规则</th><th>投标响应与证据</th><th>覆盖</th><th>潜在失分与补强建议</th></tr></thead>
+                        <tbody>{filteredScoringMatrix.map((item) => (
+                          <tr key={item.id}>
+                            <td><small>{item.category}</small><strong>{item.scoringItem}</strong></td>
+                            <td>{item.estimatedScore !== undefined ? `${item.estimatedScore} / ` : ''}{item.maxScore ?? '—'}</td>
+                            <td>{item.scoringRule}</td>
+                            <td><strong>{item.response || '未识别到明确响应'}</strong><small>{item.evidence || '暂无证据位置'}</small></td>
+                            <td><span className={`rejection-scoring-status is-${item.status}`}>{({ covered: '已覆盖', partial: '部分覆盖', missing: '未覆盖', unclear: '待复核' } as const)[item.status]}</span></td>
+                            <td>{item.gap || '—'}{item.suggestion && <small>{item.suggestion}</small>}<select className={`rejection-resolution-select is-${visibleResolutions[item.id]?.status || 'pending'}`} value={visibleResolutions[item.id]?.status || 'pending'} onChange={(event) => updateResolution(item.id, { status: event.target.value as RejectionResolutionStatus })} aria-label={`${item.scoringItem}处理状态`}><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已解决</option><option value="accepted">接受风险</option></select><details className="rejection-remediation-details"><summary>整改任务详情</summary><ResolutionTaskEditor value={visibleResolutions[item.id] || { status: 'pending' }} onChange={(patch) => updateResolution(item.id, patch)} /></details></td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="markdown-empty-state rejection-finding-empty"><strong>{visibleRejectionCheckStatus === 'success' && resolutionFilter === 'all' ? '未从招标文件识别到明确评分规则' : resolutionFilter !== 'all' ? '当前筛选条件下没有任务' : '等待评分项覆盖检查'}</strong><p>运行废标项检查后，将同步生成评分矩阵。</p></div>
+                  )}
+                </>
+              ) : activeCheckResult.id === 'rejection' ? (
                 <>
                   <div className="rejection-finding-summary">
                     <div>
@@ -1878,17 +2182,20 @@ function RejectionCheckPage() {
                           </div>
                         </div>
                       )}
-                      {visibleRejectionFindings.length > 0 && <div className="rejection-finding-list">
-                        {visibleRejectionFindings.map((finding) => (
+                      {filteredRejectionFindings.length > 0 && <div className="rejection-finding-list">
+                        {filteredRejectionFindings.map((finding) => (
                           <RejectionFindingItem
                             key={finding.id}
                             finding={finding}
                             expanded={rejectionCheckResult.activeFindingId === finding.id}
+                            resolution={visibleResolutions[finding.id] || { status: 'pending' }}
+                            onResolutionChange={(patch) => updateResolution(finding.id, patch)}
                             onToggle={() => toggleFinding(finding.id)}
                             onDelete={() => deleteFinding(finding.id)}
                           />
                         ))}
                       </div>}
+                      {visibleRejectionFindings.length > 0 && filteredRejectionFindings.length === 0 && resolutionFilter !== 'all' && <div className="markdown-empty-state rejection-finding-empty"><strong>当前筛选条件下没有任务</strong><p>可切换为“全部”或“仅看未处理”查看其他整改项。</p></div>}
                     </>
                   ) : (
                     <div className="markdown-empty-state rejection-finding-empty">
@@ -1897,7 +2204,7 @@ function RejectionCheckPage() {
                     </div>
                   )}
                 </>
-              ) : activeCheckResult.id === 'typo' ? renderTypoCheckContent() : renderLogicCheckContent()}
+              ) : activeCheckResult.id === 'typo' ? renderTypoCheckContent() : activeCheckResult.id === 'logic' ? renderLogicCheckContent() : renderSubmissionChecklist()}
             </div>
           </section>
 
@@ -1908,6 +2215,15 @@ function RejectionCheckPage() {
                 <div className="content-regenerate-card-head">
                   <span className="section-kicker">检查配置</span>
                   <Dialog.Title>检查结果配置</Dialog.Title>
+                </div>
+
+                <div className="rejection-check-presets" aria-label="检查套餐">
+                  <button type="button" className={!draftCheckOptions.typoCheck && !draftCheckOptions.logicCheck ? 'is-active' : ''} onClick={() => setDraftCheckOptions({ rejectionCheck: true, typoCheck: false, logicCheck: false })}>
+                    <strong>核心检查</strong><small>仅废标与实质性响应</small>
+                  </button>
+                  <button type="button" className={draftCheckOptions.typoCheck && draftCheckOptions.logicCheck ? 'is-active' : ''} onClick={() => setDraftCheckOptions({ rejectionCheck: true, typoCheck: true, logicCheck: true })}>
+                    <strong>完整检查</strong><small>废标、错别字与逻辑问题</small>
+                  </button>
                 </div>
 
                 <div className="content-generation-config-list">
@@ -1971,26 +2287,26 @@ function RejectionCheckPage() {
           <Dialog.Overlay className="content-regenerate-modal" />
           <Dialog.Content className="content-generation-config-card rejection-check-config-card">
             <div className="content-regenerate-card-head">
-              <span className="section-kicker">技术方案项目</span>
+              <span className="section-kicker">招投标项目来源</span>
               <Dialog.Title>选择读取来源</Dialog.Title>
               <Dialog.Description>
                 先选择具体项目，再读取招标文件中的技术要求或该项目生成的技术方案正文。
               </Dialog.Description>
             </div>
             <div className="content-generation-config-list">
-              {technicalPlanProjectsLoading ? <p>正在读取技术方案项目...</p> : null}
-              {!technicalPlanProjectsLoading && technicalPlanProjects.length === 0 ? <p>暂无技术方案项目。</p> : null}
+              {technicalPlanProjectsLoading ? <p>正在读取技术方案和已有方案扩写项目...</p> : null}
+              {!technicalPlanProjectsLoading && technicalPlanProjects.length === 0 ? <p>暂无可读取的招投标项目。</p> : null}
               {technicalPlanProjects.map((project) => (
-                <label className="content-generation-config-row" key={project.id}>
+                <label className="content-generation-config-row" key={`${project.workflowKind}:${project.id}`}>
                   <span>
                     <strong>{project.name || '未命名项目'}</strong>
-                    <small>{project.isActive ? '当前活动项目' : '技术方案项目'}</small>
+                    <small>{project.workflowKind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案'}{project.isActive ? ' · 当前活动项目' : ''}</small>
                   </span>
                   <input
                     type="radio"
                     name="technical-plan-project"
-                    checked={selectedTechnicalPlanProjectId === project.id}
-                    onChange={() => setSelectedTechnicalPlanProjectId(project.id)}
+                    checked={selectedTechnicalPlanProjectId === `${project.workflowKind}:${project.id}`}
+                    onChange={() => setSelectedTechnicalPlanProjectId(`${project.workflowKind}:${project.id}`)}
                   />
                 </label>
               ))}

@@ -1390,7 +1390,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           })(),
         }));
       }
-      showToast(result?.message || `获取到 ${result?.models.length || 0} 个文本模型`, result?.success ? 'success' : 'info');
+      showToast(result?.message || `获取到 ${result?.models.length || 0} 个文本模型`, result?.success ? 'success' : 'error');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '获取文本模型失败', 'error');
     } finally {
@@ -1461,7 +1461,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
             })(),
           }));
         }
-        showToast(result?.message || `获取到 ${models.length} 个${providerLabel}模型`, result?.success ? 'success' : 'info');
+        showToast(result?.message || `获取到 ${models.length} 个${providerLabel}模型`, result?.success ? 'success' : 'error');
         return;
       }
 

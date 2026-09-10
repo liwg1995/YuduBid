@@ -59,11 +59,26 @@ function rejectionSheets(state) {
   const rejection = state?.rejectionCheckResult || {};
   const typo = state?.typoCheckResult || {};
   const logic = state?.logicCheckResult || {};
+  const submission = state?.submissionChecklist || [];
+  const submissionStatus = { pending: '待确认', passed: '已通过', risk: '有风险', notApplicable: '不适用' };
+  const scoringStatus = { covered: '已覆盖', partial: '部分覆盖', missing: '未覆盖', unclear: '待复核' };
+  const resolutionStatus = { pending: '待处理', processing: '处理中', resolved: '已解决', accepted: '接受风险' };
+  const qualificationStatus = { met: '满足', partial: '部分满足', missing: '缺失', manual: '人工核验' };
+  const factStatus = { consistent: '一致', conflict: '存在冲突', unclear: '待复核' };
+  const resolutions = rejection.resolutions || {};
+  const resolutionTask = (id) => {
+    const item = resolutions[id] || {};
+    return [resolutionStatus[item.status] || '待处理', item.note || ''];
+  };
   return [
-    { name: '检查概览', widths: [20, 18, 14], rows: [['检查类型', '状态', '问题数量'], ['废标项', statusText(rejection), rejection.findings?.length || 0], ['错别字', statusText(typo), typo.findings?.length || 0], ['逻辑问题', statusText(logic), logic.findings?.length || 0]] },
-    { name: '废标项', widths: [8, 12, 12, 28, 42, 42, 42, 42, 42], rows: [['序号', '类型', '风险等级', '标题', '摘要', '招标要求', '投标证据', '风险原因', '修改建议'], ...(rejection.findings || []).map((item, index) => [index + 1, item.type === 'invalidBid' ? '无效标' : '废标项', ({ high: '高', medium: '中', low: '低' })[item.severity] || '', item.title, item.summary, item.requirement, item.bidEvidence, item.riskReason, item.suggestion])] },
+    { name: '检查概览', widths: [20, 18, 14], rows: [['检查类型', '状态', '问题数量'], ['废标项', statusText(rejection), rejection.findings?.length || 0], ['错别字', statusText(typo), typo.findings?.length || 0], ['逻辑问题', statusText(logic), logic.findings?.length || 0], ['提交前自查', submission.length && submission.every((item) => ['passed', 'notApplicable'].includes(item.status)) ? '已完成' : '待确认', submission.filter((item) => item.status === 'risk').length]] },
+    { name: '废标项', widths: [8, 12, 12, 28, 42, 42, 42, 42, 42, 16, 40], rows: [['序号', '类型', '风险等级', '标题', '摘要', '招标要求', '投标证据', '风险原因', '修改建议', '处理状态', '处理备注'], ...(rejection.findings || []).map((item, index) => [index + 1, item.type === 'invalidBid' ? '无效标' : '废标项', ({ high: '高', medium: '中', low: '低' })[item.severity] || '', item.title, item.summary, item.requirement, item.bidEvidence, item.riskReason, item.suggestion, ...resolutionTask(item.id)])] },
+    { name: '评分项覆盖', widths: [8, 14, 30, 12, 12, 48, 42, 48, 16, 40, 40, 16, 40], rows: [['序号', '类别', '评分项', '预计得分', '最高分', '评分规则', '投标响应', '证据位置', '覆盖状态', '潜在失分', '补强建议', '处理状态', '处理备注'], ...(rejection.scoringMatrix || []).map((item, index) => [index + 1, item.category, item.scoringItem, item.estimatedScore ?? '', item.maxScore ?? '', item.scoringRule, item.response, item.evidence, scoringStatus[item.status] || '待复核', item.gap, item.suggestion, ...resolutionTask(item.id)])] },
+    { name: '资格条件', widths: [8, 16, 48, 16, 28, 28, 28, 48, 40, 40, 16, 40], rows: [['序号', '类别', '招标资格条件', '核验状态', '主体', '证书或材料', '有效期', '投标证据', '风险', '处理建议', '处理状态', '处理备注'], ...(rejection.qualificationChecks || []).map((item, index) => [index + 1, item.category, item.requirement, qualificationStatus[item.status] || '人工核验', item.subject, item.certificate, item.validity, item.evidence, item.risk, item.suggestion, ...resolutionTask(item.id)])] },
+    { name: '关键事实一致性', widths: [8, 16, 30, 16, 30, 72, 40, 40, 16, 40], rows: [['序号', '类别', '事实名称', '状态', '建议统一值', '全部取值及位置', '风险', '处理建议', '处理状态', '处理备注'], ...(rejection.factConsistencyChecks || []).map((item, index) => [index + 1, item.category, item.label, factStatus[item.status] || '待复核', item.canonicalValue, (item.occurrences || []).map((entry) => `${entry.value}（${entry.sourceFile ? `${entry.sourceFile} · ` : ''}${entry.location}）`).join('\n'), item.risk, item.suggestion, ...resolutionTask(item.id)])] },
     { name: '错别字', widths: [8, 20, 20, 30, 54, 42], rows: [['序号', '错误文本', '建议改正', '位置', '原文摘录', '判断原因'], ...(typo.findings || []).map((item, index) => [index + 1, item.wrongText, item.correctText, item.locationHint, item.originalExcerpt, item.reason])] },
     { name: '逻辑问题', widths: [8, 28, 30, 54, 42, 42], rows: [['序号', '标题', '位置', '原文', '问题原因', '修改建议'], ...(logic.findings || []).map((item, index) => [index + 1, item.title, item.locationHint, item.originalText, item.fallacyReason, item.suggestion])] },
+    { name: '提交前自查', widths: [8, 22, 52, 16, 52, 24], rows: [['序号', '类别', '确认事项', '状态', '备注', '最后更新'], ...submission.map((item, index) => [index + 1, item.category, item.label, submissionStatus[item.status] || '待确认', item.note, item.updatedAt || ''])] },
   ];
 }
 

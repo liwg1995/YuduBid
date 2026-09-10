@@ -1384,19 +1384,32 @@ function createAiService({ app, configStore, usageStatsStore }) {
         return { success: false, message: '请先填写文本模型 Base URL', models: [] };
       }
 
-      const response = await fetch(`${trimBaseUrl(config.base_url)}/models`, {
-        method: 'GET',
-        headers: createHeaders(config.api_key),
-      });
+      try {
+        const response = await fetch(`${trimBaseUrl(config.base_url)}/models`, {
+          method: 'GET',
+          headers: createHeaders(config.api_key),
+        });
 
-      await ensureOk(response, '获取模型列表失败');
-      const data = await response.json();
+        await ensureOk(response, '获取模型列表失败');
+        const data = await response.json();
 
-      return {
-        success: true,
-        message: '模型列表已更新',
-        models: Array.isArray(data.data) ? data.data.map((item) => item.id).filter(Boolean) : [],
-      };
+        return {
+          success: true,
+          message: '模型列表已更新',
+          models: Array.isArray(data.data) ? data.data.map((item) => item.id).filter(Boolean) : [],
+        };
+      } catch (error) {
+        if (error?.status === 401) {
+          return { success: false, message: 'API Key 无效或已失效，请重新填写后再获取模型', models: [] };
+        }
+        if (error?.status === 403) {
+          return { success: false, message: '当前 API Key 没有获取模型列表的权限', models: [] };
+        }
+        if (error?.status === 404) {
+          return { success: false, message: '当前 Base URL 不支持模型列表接口，请检查服务地址', models: [] };
+        }
+        throw error;
+      }
     },
 
     async getModelCapabilities(configOverride) {
