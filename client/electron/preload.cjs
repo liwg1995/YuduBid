@@ -63,6 +63,7 @@ const bridge = {
     load: () => invoke('config:load'),
     save: (config) => invoke('config:save', config),
     listModels: (config) => invoke('config:list-models', config),
+    listOrcaModels: (payload) => invoke('config:list-orca-models', payload),
     getModelCapabilities: (config) => invoke('config:get-model-capabilities', config),
     openConfigFolder: () => invoke('config:open-config-folder'),
   },
@@ -70,6 +71,22 @@ const bridge = {
     chat: (request) => invoke('ai:chat', request),
     requestJson: (request) => invoke('ai:request-json', request),
     testImageModel: (config) => invoke('ai:test-image-model', config),
+  },
+  // OrcaRouter credential bridge. `saveApiKey` sends the pasted key to Main;
+  // nothing here ever reads a key back out, so the renderer never holds one.
+  orca: {
+    getStatus: () => invoke('orca:status'),
+    saveApiKey: (payload) => invoke('orca:save-api-key', payload),
+    clearCredential: () => invoke('orca:clear-credential'),
+    startLogin: (payload) => invoke('orca:start-login', payload),
+    submitCode: (payload) => invoke('orca:submit-code', payload),
+    cancelLogin: (attemptId) => invoke('orca:cancel-login', attemptId),
+    openExternal: (url) => invoke('orca:open-external', url),
+    onLoginResult: (callback) => {
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('orca:login-result', listener);
+      return () => ipcRenderer.removeListener('orca:login-result', listener);
+    },
   },
   usageStats: {
     getSummary: (range) => invoke('usage-stats:get-summary', range),

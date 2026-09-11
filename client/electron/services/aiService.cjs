@@ -21,6 +21,9 @@ const {
   fetchWithTimeout,
   readResponseBuffer,
 } = require('../utils/secureHttp.cjs');
+const { DEFAULT_API_BASE_URL: DEFAULT_ORCA_API_BASE_URL } = require('../utils/orcaConfig.cjs');
+const { ORCA_PROVIDER_IDS } = require('./orcaAuthService.cjs');
+const { discoverCatalog, seedModels } = require('./orcaModelCatalog.cjs');
 
 const AI_REQUEST_TIMEOUT_MS = 300000;
 const GENERATED_IMAGE_MAX_BYTES = 32 * 1024 * 1024;
@@ -1315,17 +1318,148 @@ async function generateImageWithConfig(app, config, request) {
   throw new Error('当前生图服务商暂不支持正文配图');
 }
 
-function createAiService({ app, configStore, usageStatsStore }) {
+const ORCA_TEXT_CAPABILITY = 'chat';
+
+function isOrcaRouterProvider(provider) {
+  return ORCA_PROVIDER_IDS.has(provider);
+}
+
+// The model dropdown for every text entry point. Live discovery on the
+// configured OrcaRouter origin is authoritative; only when it fails does the
+// verified seed stand in, and it is always reported as degraded so the UI can
+// label it instead of passing it off as the live catalog.
+async function listOrcaModels(config) {
+  const baseUrl = trimBaseUrl(config.base_url) || DEFAULT_ORCA_API_BASE_URL;
+  const capability = ORCA_TEXT_CAPABILITY;
+
+  try {
+    const catalog = await discoverCatalog({
+      apiBaseUrl: baseUrl,
+      apiKey: config.api_key,
+      capability,
+    });
+    return {
+      success: true,
+      message: `已从 OrcaRouter 获取 ${catalog.count} 个可用模型`,
+      models: catalog.models.map((model) => model.id),
+      catalog: catalog.models,
+      source: 'remote',
+      degraded: false,
+      capability,
+    };
+  } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      return {
+        success: false,
+        message: 'OrcaRouter 凭据无效或已失效，请重新登录或填写新的 API Key',
+        models: [],
+        source: 'remote',
+        degraded: false,
+        capability,
+      };
+    }
+    const fallback = seedModels({ capability });
+    return {
+      success: true,
+      message: `OrcaRouter 模型目录暂时不可用（${error.message}），已使用内置校验模型列表`,
+      models: fallback.map((model) => model.id),
+      catalog: fallback,
+      source: 'seed',
+      degraded: true,
+      capability,
+    };
+  }
+}
+
+// Capability metadata for an OrcaRouter model comes from the same catalog
+// record, so the settings panel does not need a per-model probe endpoint the
+// gateway does not document.
+async function getOrcaModelCapabilities(config) {
+  const model = String(config.model_name || '').trim();
+  if (!model) return { success: false, message: '请先选择 OrcaRouter 模型', source: 'default' };
+
+  const listing = await listOrcaModels(config);
+  const record = (listing.catalog || []).find((item) => item.id === model);
+  if (!record) {
+    return {
+      success: false,
+      message: listing.success
+        ? '当前模型不在 OrcaRouter 目录中，请重新选择模型'
+        : listing.message,
+      source: listing.source === 'remote' ? 'remote' : 'default',
+      provider: config.text_model_provider,
+      model,
+    };
+  }
+
+  return {
+    success: true,
+    message: listing.degraded ? listing.message : '已使用 OrcaRouter 目录中的模型能力信息',
+    source: listing.degraded ? 'cache' : 'remote',
+    provider: config.text_model_provider,
+    model,
+    contextLength: record.contextLength,
+    maxOutputTokens: record.maxOutputTokens,
+    supportsThinking: Boolean(record.reasoning),
+    supportsVision: (record.inputModalities || []).includes('image'),
+    modalities: record.inputModalities || [],
+    reasoningEfforts: record.reasoningEfforts || [],
+  };
+}
+
+function createAiService({ app, configStore, usageStatsStore, orcaAuthService }) {
+  // OrcaRouter keeps its credential in a Main-owned record instead of the
+  // per-provider profile, so both the pasted API key and the PKCE login reach
+  // every request path through this one hop. A credential marked
+  // `needsReauth` resolves to empty and surfaces the reauthentication message
+  // below rather than silently retrying a dead key.
+  function resolveApiKey(config) {
+    const provider = config.text_model_provider;
+    if (orcaAuthService?.ORCA_PROVIDER_IDS?.has?.(provider)) {
+      return orcaAuthService.getApiKeyForProvider(provider);
+    }
+    return config.api_key;
+  }
+
+  function resolveConfig() {
+    const config = configStore.load();
+    return { ...config, api_key: resolveApiKey(config) };
+  }
+
+  // A relay 401 on an OrcaRouter request is terminal reauthentication for the
+  // exact account generation that made it — never a retry loop, and never a
+  // fabricated refresh grant.
+  function classifyRequestError(config, error) {
+    if (error?.status !== 401) return error;
+    if (!orcaAuthService?.ORCA_PROVIDER_IDS?.has?.(config.text_model_provider)) return error;
+    const credential = configStore.loadOrcaCredential?.();
+    if (credential) {
+      orcaAuthService.markNeedsReauth({
+        accountId: credential.account_id,
+        generation: credential.generation,
+      });
+    }
+    return new Error('OrcaRouter 凭据已失效或被撤销，请在设置中重新登录或填写新的 API Key');
+  }
+
   return {
     async chat(request) {
-      const config = configStore.load();
-      const content = await chatWithConfig(app, config, request, usageStatsStore);
-      return content;
+      const config = resolveConfig();
+      try {
+        const content = await chatWithConfig(app, config, request, usageStatsStore);
+        return content;
+      } catch (error) {
+        throw classifyRequestError(config, error);
+      }
     },
 
     async requestJson(request) {
-      const config = configStore.load();
-      return collectJsonResponseWithConfig(app, config, request, usageStatsStore);
+      const config = resolveConfig();
+      try {
+        return await collectJsonResponseWithConfig(app, config, request, usageStatsStore);
+      } catch (error) {
+        throw classifyRequestError(config, error);
+      }
     },
 
     async collectJsonResponse(request) {
@@ -1374,7 +1508,11 @@ function createAiService({ app, configStore, usageStatsStore }) {
     },
 
     async listModels(configOverride) {
-      const config = configOverride || configStore.load();
+      const config = configOverride ? { ...configOverride, api_key: resolveApiKey(configOverride) } : resolveConfig();
+
+      if (isOrcaRouterProvider(config.text_model_provider)) {
+        return listOrcaModels(config);
+      }
 
       if (config.text_model_provider !== 'ollama' && !config.api_key) {
         return { success: false, message: '请先填写文本模型 API Key', models: [] };
@@ -1412,8 +1550,65 @@ function createAiService({ app, configStore, usageStatsStore }) {
       }
     },
 
+    // Catalog metadata for the renderer's model dropdown. The credential stays
+    // in Main; only model metadata (never a key) crosses this boundary.
+    async listOrcaCatalog(payload) {
+      const capability = String(payload?.capability || ORCA_TEXT_CAPABILITY);
+      const modality = String(payload?.modality || '');
+      const config = resolveConfig();
+      if (!isOrcaRouterProvider(config.text_model_provider)) {
+        return {
+          success: false,
+          message: '当前文本模型服务商不是 OrcaRouter',
+          models: [],
+          catalog: [],
+          source: 'seed',
+          degraded: false,
+          capability,
+        };
+      }
+      const baseUrl = trimBaseUrl(config.base_url) || DEFAULT_ORCA_API_BASE_URL;
+      try {
+        const catalog = await discoverCatalog({ apiBaseUrl: baseUrl, apiKey: config.api_key, capability, modality });
+        return {
+          success: true,
+          message: `已从 OrcaRouter 获取 ${catalog.count} 个可用模型`,
+          models: catalog.models.map((model) => model.id),
+          catalog: catalog.models,
+          source: 'remote',
+          degraded: false,
+          capability,
+        };
+      } catch (error) {
+        if (error?.status === 401 || error?.status === 403) {
+          return {
+            success: false,
+            message: 'OrcaRouter 凭据无效或已失效，请重新登录或填写新的 API Key',
+            models: [],
+            catalog: [],
+            source: 'remote',
+            degraded: false,
+            capability,
+          };
+        }
+        const fallback = seedModels({ capability, modality });
+        return {
+          success: true,
+          message: `OrcaRouter 模型目录暂时不可用，已使用内置校验模型列表`,
+          models: fallback.map((model) => model.id),
+          catalog: fallback,
+          source: 'seed',
+          degraded: true,
+          capability,
+        };
+      }
+    },
+
     async getModelCapabilities(configOverride) {
-      const config = configOverride || configStore.load();
+      const config = configOverride ? { ...configOverride, api_key: resolveApiKey(configOverride) } : resolveConfig();
+      if (isOrcaRouterProvider(config.text_model_provider)) {
+        return getOrcaModelCapabilities(config);
+      }
       const baseUrl = trimBaseUrl(config.base_url);
       const model = String(config.model_name || '').trim();
       if (config.text_model_provider !== 'ollama' && !config.api_key) return { success: false, message: '请先填写文本模型 API Key', source: 'default' };

@@ -19,7 +19,7 @@
     "dev": "concurrently -k -n vite,electron -c blue,magenta \"vite --host 127.0.0.1 --port 5173 --strictPort\" \"wait-on http://127.0.0.1:5173 && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5173 electron .\"",
     "build": "tsc --noEmit && vite build",
     "verify:model-capabilities": "node scripts/verify-model-capabilities.cjs",
-    "verify:offline": "npm run verify:ipc-contract && npm run verify:task-recovery && npm run verify:thesis-tutor && npm run verify:project-management && npm run verify:model-capabilities && npm run verify:mermaid-packaging && npm run verify:renderer-packaging && npm run verify:asset-packaging && npm run verify:document-security && npm run verify:code-generation && npm run verify:patent-generation && npm run verify:software-copyright",
+    "verify:offline": "npm run verify:ipc-contract && npm run verify:task-recovery && npm run verify:thesis-tutor && npm run verify:project-management && npm run verify:model-capabilities && npm run verify:orca-auth && npm run verify:orca-catalog && npm run verify:mermaid-packaging && npm run verify:renderer-packaging && npm run verify:asset-packaging && npm run verify:document-security && npm run verify:code-generation && npm run verify:patent-generation && npm run verify:software-copyright",
     "verify:document-security": "node scripts/verify-document-security.cjs",
     "verify:mermaid-export": "electron scripts/verify-mermaid-export.cjs",
     "verify:bid-template-export": "electron scripts/verify-bid-template-export.cjs",
@@ -48,7 +48,9 @@
     "verify:patent-generation": "node scripts/verify-patent-generation.cjs",
     "verify:patent-generation:live": "node scripts/verify-patent-generation-live.cjs",
     "verify:plugin-host": "electron scripts/verify-plugin-host.cjs",
-    "start": "electron ."
+    "start": "electron .",
+    "verify:orca-auth": "node scripts/verify-orca-auth.cjs",
+    "verify:orca-catalog": "node scripts/verify-orca-catalog.cjs"
   },
   "build": {
     "appId": "me.olei.bidkit",

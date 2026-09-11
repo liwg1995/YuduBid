@@ -13056,3 +13056,91 @@ button {
 :root[data-ui-theme="dark"] .app-shell .usage-trend-label {
   fill: #91a2bc;
 }
+
+/* OrcaRouter provider panel and model picker.
+   Mirrors the existing font-picker listbox so the dropdown has an opaque
+   surface and a visible border in both themes. */
+.settings-orca-panel {
+  align-items: flex-start;
+}
+
+.settings-orca-logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.settings-orca-warning {
+  color: #c2410c;
+}
+
+:root[data-ui-theme="dark"] .app-shell .settings-orca-warning {
+  color: #fb923c;
+}
+
+.settings-control-with-action .orca-model-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.orca-model-picker-input {
+  width: 100%;
+}
+
+.orca-model-picker-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Anchor to the trigger's right edge so the panel stays flush with the
+     control it belongs to, whatever width the settings grid gives it, while
+     still being wide enough to read a vendor/model id on one line. */
+  right: 0;
+  width: max-content;
+  min-width: 360px;
+  max-width: min(560px, calc(100vw - 48px));
+  max-height: 300px;
+  padding: 8px;
+  overflow-y: auto;
+  background: var(--yb-surface);
+  border: 1px solid var(--yb-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(23, 32, 51, 0.16);
+}
+
+.orca-model-picker-summary {
+  padding: 4px 6px 6px;
+  color: var(--yb-text-muted, #64748b);
+  font-size: 12px;
+}
+
+.orca-model-picker-option {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.orca-model-picker-option:hover,
+.orca-model-picker-option.is-selected {
+  background: var(--yb-surface-muted, rgba(37, 99, 235, 0.08));
+}
+
+.orca-model-picker-empty {
+  padding: 8px 6px;
+  color: var(--yb-text-muted, #64748b);
+  font-size: 12px;
+}
+
+:root[data-ui-theme="dark"] .app-shell .orca-model-picker-menu {
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}

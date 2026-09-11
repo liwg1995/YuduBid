@@ -18,6 +18,7 @@ import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationP
 import type { ThesisTutorGeneratePayload, ThesisTutorHistoryItem, ThesisTutorImportSourceResult, ThesisTutorProfile, ThesisTutorState, ThesisTutorWorkspaceTransferResult } from './contracts/thesisTutor';
 import type { OutlineData, OutlineMode } from './outline';
 import type { InstalledPluginRecord, PluginEvent, PluginMutationResult } from './plugin';
+import type { OrcaCredentialSummary, OrcaLoginFlow, OrcaLoginResultEvent, OrcaLoginStart, OrcaModelCapability, OrcaModelCatalogResult, OrcaStatus, OrcaSubmitCodeResult } from './orca';
 
 export interface TaskEvent<TState = unknown, TRejectionCheckState = unknown, TDuplicateCheckState = unknown> {
   task: unknown;
@@ -132,6 +133,7 @@ export interface YuDuBidBridge {
     load: () => Promise<ClientConfig>;
     save: (config: ClientConfig) => Promise<ConfigSaveResult>;
     listModels: (config?: ClientConfig) => Promise<ModelListResult>;
+    listOrcaModels: (payload?: { capability?: OrcaModelCapability; modality?: string }) => Promise<OrcaModelCatalogResult>;
     getModelCapabilities: (config?: ClientConfig) => Promise<ModelCapabilityInfo>;
     openConfigFolder: () => Promise<{ success: boolean; path: string }>;
   };
@@ -139,6 +141,16 @@ export interface YuDuBidBridge {
     chat: (request: ChatCompletionRequest) => Promise<string>;
     requestJson: <TResult = unknown>(request: JsonCompletionRequest) => Promise<TResult>;
     testImageModel: (config: ClientConfig) => Promise<ImageModelTestResult>;
+  };
+  orca: {
+    getStatus: () => Promise<OrcaStatus>;
+    saveApiKey: (payload: { apiKey: string }) => Promise<OrcaCredentialSummary>;
+    clearCredential: () => Promise<{ success: boolean }>;
+    startLogin: (payload?: { appName?: string; flow?: OrcaLoginFlow }) => Promise<OrcaLoginStart>;
+    submitCode: (payload: { attemptId: string; code: string }) => Promise<OrcaSubmitCodeResult>;
+    cancelLogin: (attemptId?: string) => Promise<{ success: boolean; canceled: boolean }>;
+    openExternal: (url: string) => Promise<{ success: boolean }>;
+    onLoginResult: (callback: (event: OrcaLoginResultEvent) => void) => () => void;
   };
   usageStats: {
     getSummary: (range?: UsageTrendRange) => Promise<UsageStatsSummary>;
