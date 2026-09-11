@@ -59,6 +59,19 @@ export type {
   TextModelProfiles,
 } from './config';
 export type { AppMenuGroup, AppMenuItem, SectionId } from './navigation';
+export type {
+  OrcaCatalogModel,
+  OrcaCredentialStatus,
+  OrcaCredentialSummary,
+  OrcaLoginFlow,
+  OrcaLoginResultEvent,
+  OrcaLoginStart,
+  OrcaModelCapability,
+  OrcaModelCatalogResult,
+  OrcaOrigins,
+  OrcaStatus,
+  OrcaSubmitCodeResult,
+} from './orca';
 export type { AssistantActionPresentation, AssistantActionResult, AssistantChatMessage, AssistantChatResult, AssistantHistoryResult, AssistantKnowledgeTargetConfirmationPresentation, AssistantKnowledgeUploadConfigurationPresentation, AssistantMessagePresentation, AssistantNavigationContext, AssistantOpportunityActionConfirmationPresentation, AssistantOpportunityBulkConfigurationPresentation, AssistantOpportunityDecisionConfigurationPresentation, AssistantOpportunityDecisionOutcome, AssistantOpportunityOption, AssistantOpportunitySelectionPresentation, AssistantOpportunitySelectionResult, AssistantOpportunityWorkflowStage, AssistantOutlineConfigurationPresentation, AssistantOutlineKnowledgeDocument, AssistantOutlineMode, AssistantProgressItem, AssistantProgressPresentation, AssistantProjectDeleteConfirmationPresentation, AssistantProjectDeleteResult, AssistantProjectOption, AssistantProjectSelectionPresentation, AssistantProjectSelectionResult, AssistantRejectionCheckConfigurationPresentation, InstalledPluginRecord, PluginEvent, PluginMutationResult, PluginRuntimeStatus } from './plugin';
 export type {
   BidBodyStyleConfig,

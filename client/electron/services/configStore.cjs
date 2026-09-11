@@ -2,12 +2,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { getConfigFilePath } = require('../utils/paths.cjs');
 
-const textModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'sensenova', 'ollama', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
+const textModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'sensenova', 'ollama', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'orcarouter', 'orcarouter-oauth', 'custom'];
 const imageModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'sensenova', 'ollama', 'comfyui', 'volcengine', 'google-ai-studio', 'custom'];
 const featureModuleIds = ['presales', 'bid', 'official-document', 'project-management', 'thesis-tutor', 'copyright', 'patent'];
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
 const agnesAiCnBaseUrl = 'https://api.agnes-ai.cn/v1';
 const agnesAiGlobalBaseUrl = 'https://apihub.agnes-ai.com/v1';
+// Inference lives on api.orcarouter.ai; authentication lives on
+// www.orcarouter.ai. Never derive one from the other.
+const orcaApiBaseUrl = 'https://api.orcarouter.ai/v1';
+
+// Both OrcaRouter entries share the inference adapter, base URL, model
+// namespace and catalog; only credential acquisition differs.
+const orcaTextProviders = ['orcarouter', 'orcarouter-oauth'];
 
 const textProviderBaseUrls = {
   'agnes-ai-cn': agnesAiCnBaseUrl,
@@ -18,6 +25,8 @@ const textProviderBaseUrls = {
   xiaomi: 'https://token-plan-cn.xiaomimimo.com/v1',
   deepseek: 'https://api.deepseek.com',
   longcat: 'https://api.longcat.chat/openai/v1',
+  orcarouter: orcaApiBaseUrl,
+  'orcarouter-oauth': orcaApiBaseUrl,
   custom: '',
 };
 
@@ -61,6 +70,19 @@ const defaultTextModelProfiles = {
     api_key: '',
     base_url: textProviderBaseUrls.longcat,
     model_name: 'LongCat-2.0',
+  },
+  // `orcarouter` holds a user-pasted API key; `orcarouter-oauth` is filled by
+  // the PKCE browser login. Both end at the same credential record, so the
+  // empty seed here means "not yet authenticated", not "no configuration".
+  orcarouter: {
+    api_key: '',
+    base_url: textProviderBaseUrls.orcarouter,
+    model_name: '',
+  },
+  'orcarouter-oauth': {
+    api_key: '',
+    base_url: textProviderBaseUrls['orcarouter-oauth'],
+    model_name: '',
   },
   custom: {
     api_key: '',
@@ -213,6 +235,8 @@ function normalizeTextModelProfile(provider, profile) {
     base_url: provider === 'xiaomi' && sourceBaseUrl === oldXiaomiBaseUrl ? defaults.base_url : sourceBaseUrl,
     model_name: (provider.startsWith('agnes-ai-') || provider === 'sensenova' || provider === 'deepseek' || provider === 'longcat') && !source.model_name
       ? defaults.model_name
+      // OrcaRouter model names come from the live catalog, so an empty value
+      // must stay empty until the user (or a login) picks one.
       : source.model_name !== undefined ? source.model_name : defaults.model_name,
   };
 }
@@ -302,6 +326,25 @@ function normalizeSkillSettings(sourceSettings) {
   };
 }
 
+// One credential record for both OrcaRouter entry points. `generation` is
+// incremented on every successful acquisition so a late 401 from a request
+// made with an older credential cannot mark a newer one as broken.
+function normalizeOrcaCredential(source) {
+  if (!source || typeof source !== 'object') return null;
+  const key = String(source.key || '').trim();
+  if (!key) return null;
+  return {
+    provider: 'orcarouter',
+    key,
+    account_id: String(source.account_id || ''),
+    scope: String(source.scope || ''),
+    source: source.source === 'pkce' ? 'pkce' : 'api-key',
+    generation: Number.isFinite(Number(source.generation)) ? Number(source.generation) : 0,
+    issued_at: String(source.issued_at || ''),
+    status: source.status === 'needsReauth' ? 'needsReauth' : 'active',
+  };
+}
+
 function normalizeFeatureModuleSettings(sourceSettings) {
   const sourceModules = sourceSettings && typeof sourceSettings === 'object' && sourceSettings.modules && typeof sourceSettings.modules === 'object'
     ? sourceSettings.modules
@@ -368,6 +411,11 @@ function normalizeConfig(config) {
     feature_module_settings: normalizeFeatureModuleSettings(source.feature_module_settings),
     developer_mode: source.developer_mode === undefined ? defaultConfig.developer_mode : Boolean(source.developer_mode),
     model_capabilities_cache: Object.fromEntries(Object.entries(sourceCapabilityCache).slice(-50)),
+    // OrcaRouter credential issued either by the pasted API key adapter or by
+    // the OAuth 2.0 + PKCE login. Both produce this one record; the key lives
+    // beside the other provider secrets in user_config.json (mode 0600) rather
+    // than in a second secret store.
+    orca_credential: normalizeOrcaCredential(source.orca_credential),
   };
 }
 
@@ -420,6 +468,22 @@ function createConfigStore(app) {
       }
     },
 
+    // The OrcaRouter credential is Main-owned. The renderer config payload
+    // carries only provider/model choices, so a renderer save can never
+    // overwrite or clear a key it never held.
+    loadOrcaCredential() {
+      return normalizeOrcaCredential(this.load().orca_credential);
+    },
+
+    // The only write path for the credential; both the API-key adapter and the
+    // PKCE login go through it.
+    saveOrcaCredential(credential) {
+      const currentConfig = this.load();
+      const nextConfig = { ...currentConfig, orca_credential: normalizeOrcaCredential(credential) };
+      persist(nextConfig);
+      return nextConfig.orca_credential;
+    },
+
     save(config) {
       try {
         const currentConfig = fs.existsSync(configFile)
@@ -428,6 +492,8 @@ function createConfigStore(app) {
         const nextConfig = normalizeConfig({
           ...currentConfig,
           ...config,
+          // Never let a renderer payload clobber the Main-owned credential.
+          orca_credential: currentConfig.orca_credential,
           text_model_profiles: {
             ...currentConfig.text_model_profiles,
             ...(config && config.text_model_profiles ? config.text_model_profiles : {}),
@@ -447,5 +513,7 @@ function createConfigStore(app) {
 }
 
 module.exports = {
+  ORCA_TEXT_PROVIDERS: orcaTextProviders,
   createConfigStore,
+  textModelProviders,
 };

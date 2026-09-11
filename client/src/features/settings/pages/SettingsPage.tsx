@@ -1,10 +1,10 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import brandProducerLogo from '../../../assets/brand-producer-logo.svg';
 import { configurableFeatureModules } from '../../../app/menuConfig';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelCapabilityInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
+import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelCapabilityInfo, OrcaCredentialSummary, OrcaLoginStart, OrcaModelCapability, OrcaModelCatalogResult, OrcaStatus, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 import PluginManagementPanel from '../plugin-management/PluginManagementPanel';
 
@@ -97,8 +97,17 @@ const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
   { value: 'xiaomi', label: '小米 token plan' },
   { value: 'deepseek', label: 'DeepSeek' },
   { value: 'longcat', label: '龙猫' },
+  { value: 'orcarouter', label: 'OrcaRouter - API' },
+  { value: 'orcarouter-oauth', label: 'OrcaRouter - Auth' },
   { value: 'custom', label: '自定义' },
 ];
+
+// OrcaRouter is one provider with two authentication choices: a pasted API key
+// (`orcarouter`) and the OAuth 2.0 + PKCE browser login (`orcarouter-oauth`).
+// They share the inference base URL, model namespace and catalog.
+const ORCA_API_BASE_URL = 'https://api.orcarouter.ai/v1';
+const ORCA_KEY_CONSOLE_URL = 'https://www.orcarouter.ai/console';
+const ORCA_LOGO_URL = 'https://www.orcarouter.ai/orca-logo-classic.png';
 
 const oldXiaomiBaseUrl = 'https://api.xiaomimimo.com/v1';
 const agnesAiCnRegisterUrl = 'https://platform.agnes-ai.cn';
@@ -153,6 +162,8 @@ const textProviderDefaults: TextModelProfiles = {
   xiaomi: { api_key: '', base_url: 'https://token-plan-cn.xiaomimimo.com/v1', model_name: '' },
   deepseek: { api_key: '', base_url: 'https://api.deepseek.com', model_name: 'deepseek-v4-flash' },
   longcat: { api_key: '', base_url: 'https://api.longcat.chat/openai/v1', model_name: 'LongCat-2.0' },
+  orcarouter: { api_key: '', base_url: ORCA_API_BASE_URL, model_name: '' },
+  'orcarouter-oauth': { api_key: '', base_url: ORCA_API_BASE_URL, model_name: '' },
   custom: { api_key: '', base_url: '', model_name: '' },
 };
 
@@ -193,6 +204,127 @@ function getBuiltInTextModels(provider: TextModelProvider): string[] {
 
 function supportsThinkingSettings(provider: TextModelProvider): boolean {
   return provider === 'agnes-ai-cn' || provider === 'agnes-ai-global' || provider === 'deepseek' || provider === 'longcat';
+}
+
+function isOrcaRouterProvider(provider: TextModelProvider): boolean {
+  return provider === 'orcarouter' || provider === 'orcarouter-oauth';
+}
+
+// The catalog comes from Main, which holds the credential. The renderer only
+// ever receives model metadata, so no key reaches this layer. `capability`
+// filters server-side and `modality` narrows to models that declare the input
+// modality actually attached to the request.
+async function loadOrcaCatalog(
+  provider: TextModelProvider,
+  capability: OrcaModelCapability = 'chat',
+  modality = '',
+): Promise<OrcaModelCatalogResult | null> {
+  if (!isOrcaRouterProvider(provider)) return null;
+  try {
+    const result = await window.yibiao?.config.listOrcaModels({ capability, modality });
+    return result ?? null;
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'OrcaRouter 模型目录获取失败',
+      models: [],
+      catalog: [],
+      source: 'seed',
+      degraded: true,
+      capability,
+    };
+  }
+}
+
+// Model picker for OrcaRouter. The list is always the filtered catalog from
+// Main — there is no free-text entry, so a model the current capability or
+// attachment cannot use never becomes selectable. The panel mirrors the
+// existing font-picker listbox (opaque surface, visible border) so it holds up
+// in both themes.
+function OrcaModelPicker({
+  value,
+  options,
+  degraded,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  degraded: boolean;
+  onChange: (model: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const filtered = query.trim()
+    ? options.filter((option) => option.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
+
+  return (
+    <div
+      className="orca-model-picker"
+      ref={containerRef}
+      onBlur={(event) => {
+        if (!(event.relatedTarget instanceof Node) || !containerRef.current?.contains(event.relatedTarget)) {
+          setOpen(false);
+          setQuery('');
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          setOpen(false);
+          setQuery('');
+        }
+      }}
+    >
+      <input
+        className="orca-model-picker-input"
+        type="text"
+        data-testid="orca-model-picker-input"
+        value={open ? query : value}
+        placeholder={options.length > 0 ? '搜索或选择 OrcaRouter 模型' : 'OrcaRouter 模型列表加载中…'}
+        spellCheck={false}
+        readOnly={!open}
+        role="combobox"
+        aria-expanded={open}
+        aria-controls="orca-model-listbox"
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setOpen(true);
+        }}
+      />
+      {open && (
+        <div className="orca-model-picker-menu" id="orca-model-listbox" role="listbox" data-testid="orca-model-listbox">
+          <div className="orca-model-picker-summary" data-testid="orca-model-summary">
+            {degraded
+              ? `OrcaRouter 目录暂时不可用，以下为内置校验模型（${filtered.length}）`
+              : query.trim()
+                ? `匹配 ${filtered.length} 个模型`
+                : `共 ${options.length} 个可用模型`}
+          </div>
+          {filtered.length > 0 ? filtered.map((model) => (
+            <button
+              key={model}
+              type="button"
+              className={`orca-model-picker-option${model === value ? ' is-selected' : ''}`}
+              role="option"
+              aria-selected={model === value}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onChange(model);
+                setOpen(false);
+                setQuery('');
+              }}
+            >
+              {model}
+            </button>
+          )) : <div className="orca-model-picker-empty">没有匹配的模型</div>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function getAgnesImageModels(provider: ImageModelProvider): string[] {
@@ -752,6 +884,16 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const [releaseDownloadState, setReleaseDownloadState] = useState<ReleaseDownloadState>(() => createInitialReleaseDownloadState());
   const [usageStats, setUsageStats] = useState<UsageStatsSummary | null>(null);
   const [usageRange, setUsageRange] = useState<UsageTrendRange>('14d');
+  // OrcaRouter credential state. The key itself lives in Main only.
+  const [orcaStatus, setOrcaStatus] = useState<OrcaStatus | null>(null);
+  const [orcaApiKey, setOrcaApiKey] = useState('');
+  const [orcaBusy, setOrcaBusy] = useState(false);
+  const [orcaHint, setOrcaHint] = useState('');
+  const [orcaAttempt, setOrcaAttempt] = useState<OrcaLoginStart | null>(null);
+  const [orcaCode, setOrcaCode] = useState('');
+  const [orcaCatalogState, setOrcaCatalogState] = useState<{ source: 'remote' | 'seed'; degraded: boolean; message: string; modality: string }>({ source: 'seed', degraded: false, message: '', modality: '' });
+  const [orcaModality, setOrcaModality] = useState('');
+  const orcaModalityRef = useRef('');
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -838,15 +980,217 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
         },
       }));
       setSavedConfig(config);
-      setTextModels(getBuiltInTextModels(config.text_model_provider));
+      // OrcaRouter's model list comes from the live catalog, never from a
+      // built-in name list, so an OrcaRouter provider starts empty and is
+      // filled by discovery once the credential is known.
+      setTextModels(isOrcaRouterProvider(config.text_model_provider) ? [] : getBuiltInTextModels(config.text_model_provider));
       setImageModels(getAgnesImageModels(activeImageProfile.provider));
       onDeveloperModeChange?.(Boolean(config.developer_mode));
       onFeatureModuleSettingsChange?.(featureModuleSettings);
+      // A selected OrcaRouter model must still be in the compatible catalog
+      // with the credential that is actually stored; otherwise it is cleared
+      // rather than silently kept as an unusable value.
+      if (isOrcaRouterProvider(config.text_model_provider)) {
+        void refreshOrcaModels(config.text_model_provider, activeTextProfile.model_name);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '加载客户端配置失败';
       showToast(errorMessage, 'error');
     }
   };
+
+  // ---- OrcaRouter credential, login and live catalog ----------------------
+  //
+  // The API key never reaches this component: `orca.*` returns account state
+  // and a redacted hint only. Every async step is guarded by an incrementing
+  // generation so a late response from an earlier login can never overwrite a
+  // newer one, and every terminal path releases the busy state.
+
+  const orcaGenerationRef = useRef(0);
+  const orcaAttemptRef = useRef({ attemptId: '', generation: 0 });
+
+  const applyOrcaStatus = useCallback((status: OrcaStatus | null) => {
+    if (!status) return;
+    setOrcaStatus(status);
+  }, []);
+
+  const refreshOrcaStatus = useCallback(async () => {
+    try {
+      applyOrcaStatus(await window.yibiao?.orca.getStatus() ?? null);
+    } catch {
+      // A status read failing must not clear the panel; the previous state
+      // stays until a successful read replaces it.
+    }
+  }, [applyOrcaStatus]);
+
+  // Loads the catalog that matches the credential actually stored, and drops a
+  // remembered model that is no longer compatible. `modality` is the input the
+  // current workflow will attach; the picker only ever offers models whose
+  // catalog record declares it.
+  const refreshOrcaModels = useCallback(async (provider: TextModelProvider, currentModel = '', modality = orcaModalityRef.current) => {
+    if (!isOrcaRouterProvider(provider)) return;
+    setTextModels([]);
+    const result = await loadOrcaCatalog(provider, 'chat', modality);
+    const selectable = result?.success ? result.models : [];
+    setTextModels(selectable);
+    setOrcaCatalogState({
+      source: result?.source || 'seed',
+      degraded: Boolean(result?.degraded),
+      message: result?.message || '',
+      modality,
+    });
+    if (currentModel && !selectable.includes(currentModel)) {
+      setState((prev) => ({ ...prev, textModel: { ...prev.textModel, model_name: '' } }));
+      showToast('原 OrcaRouter 模型已不在当前附件类型可用列表中，请重新选择', 'error');
+    }
+  }, [showToast]);
+
+  // Changing the attachment modality recomputes the options from the catalog,
+  // so a model that cannot accept the new input is cleared rather than kept.
+  const updateOrcaModality = useCallback((modality: string) => {
+    orcaModalityRef.current = modality;
+    setOrcaModality(modality);
+    setTextModelCapabilities(null);
+    void refreshOrcaModels(state.textModel.provider, state.textModel.model_name, modality);
+  }, [refreshOrcaModels, state.textModel.provider, state.textModel.model_name]);
+
+  const connectOrca = useCallback(async () => {
+    orcaGenerationRef.current += 1;
+    const generation = orcaGenerationRef.current;
+    setOrcaBusy(true);
+    setOrcaHint('');
+    try {
+      const start = await window.yibiao?.orca.startLogin({ appName: 'YuduBid' });
+      if (!start) throw new Error('无法发起 OrcaRouter 登录');
+      if (generation !== orcaGenerationRef.current) return;
+      orcaAttemptRef.current = { attemptId: start.attemptId, generation };
+      setOrcaAttempt(start);
+      setOrcaHint(start.mode === 'oob' ? '请在浏览器中授权，然后输入授权码' : '已打开浏览器，请在页面中完成授权');
+      // The authorization URL carries only the S256 challenge and state.
+      await window.yibiao?.orca.openExternal(start.authorizeUrl);
+    } catch (error) {
+      if (generation !== orcaGenerationRef.current) return;
+      setOrcaBusy(false);
+      setOrcaAttempt(null);
+      setOrcaHint(error instanceof Error ? error.message : '无法发起 OrcaRouter 登录');
+      showToast(error instanceof Error ? error.message : '无法发起 OrcaRouter 登录', 'error');
+    }
+  }, [showToast]);
+
+  const cancelOrcaLogin = useCallback(async () => {
+    orcaGenerationRef.current += 1;
+    const { attemptId } = orcaAttemptRef.current;
+    orcaAttemptRef.current = { attemptId: '', generation: 0 };
+    setOrcaBusy(false);
+    setOrcaHint('');
+    setOrcaAttempt(null);
+    setOrcaCode('');
+    // Cancelling must release the Main-side listener too, not just the UI.
+    await window.yibiao?.orca.cancelLogin(attemptId || undefined);
+  }, []);
+
+  const finishOrcaLogin = useCallback(async (scopeDowngraded: boolean) => {
+    await refreshOrcaStatus();
+    orcaAttemptRef.current = { attemptId: '', generation: 0 };
+    setOrcaBusy(false);
+    setOrcaAttempt(null);
+    setOrcaHint('');
+    setOrcaCode('');
+    if (scopeDowngraded) {
+      showToast('OrcaRouter 授权范围小于请求范围，已按实际授权范围保存', 'error');
+    } else {
+      showToast('已连接 OrcaRouter 账号', 'success');
+    }
+    await refreshOrcaModels(state.textModel.provider, state.textModel.model_name);
+  }, [refreshOrcaStatus, refreshOrcaModels, showToast, state.textModel.provider, state.textModel.model_name]);
+
+  const submitOrcaCode = useCallback(async () => {
+    const { attemptId } = orcaAttemptRef.current;
+    if (!attemptId || !orcaCode.trim()) return;
+    setOrcaBusy(true);
+    try {
+      const result = await window.yibiao?.orca.submitCode({ attemptId, code: orcaCode.trim() });
+      if (!result?.success) {
+        setOrcaBusy(false);
+        setOrcaHint(result?.message || '授权码无效，请重新获取');
+        return;
+      }
+      await finishOrcaLogin(false);
+    } catch (error) {
+      setOrcaBusy(false);
+      setOrcaHint(error instanceof Error ? error.message : '授权码交换失败');
+    }
+  }, [orcaCode, finishOrcaLogin]);
+
+  const saveOrcaApiKey = useCallback(async () => {
+    const key = orcaApiKey.trim();
+    if (!key) return;
+    try {
+      await window.yibiao?.orca.saveApiKey({ apiKey: key });
+      setOrcaApiKey('');
+      showToast('OrcaRouter API Key 已保存', 'success');
+      await refreshOrcaStatus();
+      await refreshOrcaModels(state.textModel.provider, state.textModel.model_name);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'OrcaRouter API Key 保存失败', 'error');
+    }
+  }, [orcaApiKey, refreshOrcaStatus, refreshOrcaModels, showToast, state.textModel.provider, state.textModel.model_name]);
+
+  const clearOrcaCredential = useCallback(async () => {
+    await cancelOrcaLogin();
+    await window.yibiao?.orca.clearCredential();
+    setOrcaApiKey('');
+    setTextModels([]);
+    await refreshOrcaStatus();
+    showToast('已清除本机保存的 OrcaRouter 凭据', 'success');
+  }, [cancelOrcaLogin, refreshOrcaStatus, showToast]);
+
+  // Server-side results arrive out of band. Applying one is gated on the
+  // attempt generation it belongs to.
+  useEffect(() => {
+    const unsubscribe = window.yibiao?.orca.onLoginResult((event) => {
+      if (orcaAttemptRef.current.attemptId !== event.attemptId) return;
+      if (event.result) {
+        void finishOrcaLogin(Boolean(event.result.scopeDowngraded));
+        return;
+      }
+      orcaAttemptRef.current = { attemptId: '', generation: 0 };
+      setOrcaBusy(false);
+      setOrcaAttempt(null);
+      setOrcaHint(event.error?.message || 'OrcaRouter 登录失败');
+    });
+    return () => unsubscribe?.();
+  }, [finishOrcaLogin]);
+
+  // A back-forward-cache restore keeps this component mounted, so the guarded
+  // `finally` of an in-flight request would refuse to clear the busy flag and
+  // leave the panel permanently busy. Clear the local state synchronously here
+  // and tell Main to release the listener.
+  useEffect(() => {
+    const handlePageHide = () => {
+      if (!orcaAttemptRef.current.attemptId) return;
+      orcaGenerationRef.current += 1;
+      const { attemptId } = orcaAttemptRef.current;
+      orcaAttemptRef.current = { attemptId: '', generation: 0 };
+      setOrcaBusy(false);
+      setOrcaAttempt(null);
+      setOrcaHint('');
+      setOrcaCode('');
+      void window.yibiao?.orca.cancelLogin(attemptId);
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      // Real unmount: release the Main-side work without writing UI state.
+      const { attemptId } = orcaAttemptRef.current;
+      if (attemptId) orcaAttemptRef.current = { attemptId: '', generation: 0 };
+      if (attemptId) void window.yibiao?.orca.cancelLogin(attemptId);
+    };
+  }, []);
+
+  useEffect(() => {
+    void refreshOrcaStatus();
+  }, [refreshOrcaStatus]);
 
   const getCurrentTextModelProfiles = (): TextModelProfiles => ({
     ...state.textModelProfiles,
@@ -1121,19 +1465,34 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   };
 
   const updateTextModelProvider = (provider: TextModelProvider) => {
-    setTextModels(getBuiltInTextModels(provider));
+    const switchingWithinOrca = isOrcaRouterProvider(provider) && isOrcaRouterProvider(state.textModel.provider);
     setTextModelCapabilities(null);
-    setState((prev) => ({
-      ...prev,
-      textModelProfiles: {
-        ...prev.textModelProfiles,
-        [prev.textModel.provider]: textProfileFromState(prev.textModel),
-      },
-      textModel: {
-        provider,
-        ...normalizeTextModelProfile(provider, prev.textModelProfiles[provider]),
-      },
-    }));
+    setState((prev) => {
+      const nextProfile = normalizeTextModelProfile(provider, prev.textModelProfiles[provider]);
+      // Moving between the two OrcaRouter entries keeps the selected model,
+      // because they share one catalog. Any other change, and a model that no
+      // longer belongs to the new provider, is dropped rather than kept as a
+      // value the new provider cannot serve.
+      if (!switchingWithinOrca && nextProfile.model_name) {
+        nextProfile.model_name = '';
+      }
+      return {
+        ...prev,
+        textModelProfiles: {
+          ...prev.textModelProfiles,
+          [prev.textModel.provider]: textProfileFromState(prev.textModel),
+        },
+        textModel: { provider, ...nextProfile },
+      };
+    });
+    if (isOrcaRouterProvider(provider)) {
+      // The OrcaRouter dropdown is always the live filtered catalog, never a
+      // built-in name list.
+      setTextModels([]);
+      void refreshOrcaModels(provider, '');
+    } else {
+      setTextModels(getBuiltInTextModels(provider));
+    }
   };
 
   const updateTextModelConfig = (partial: Partial<TextModelConfig>, options: { clearModels?: boolean } = {}) => {
@@ -1365,6 +1724,45 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const fetchTextModels = async () => {
     try {
       setLoadingModels('text');
+      // OrcaRouter never falls back to a built-in name list here: when live
+      // discovery fails it uses the small verified seed, clearly marked as
+      // degraded, and every selected model is re-validated against the result.
+      if (isOrcaRouterProvider(state.textModel.provider)) {
+        const modality = orcaModalityRef.current;
+        const result = await loadOrcaCatalog(state.textModel.provider, 'chat', modality);
+        const orcaModels = result?.success ? result.models : [];
+        setTextModels(orcaModels);
+        setOrcaCatalogState({
+          source: result?.source || 'seed',
+          degraded: Boolean(result?.degraded),
+          message: result?.message || '',
+          modality,
+        });
+        setState((prev) => ({
+          ...prev,
+          ...(() => {
+            const textModel = orcaModels.includes(prev.textModel.model_name)
+              ? prev.textModel
+              : { ...prev.textModel, model_name: orcaModels[0] || '' };
+            return {
+              textModel,
+              textModelProfiles: {
+                ...prev.textModelProfiles,
+                [prev.textModel.provider]: textProfileFromState(textModel),
+              },
+            };
+          })(),
+        }));
+        if (!result?.success) {
+          showToast(result?.message || 'OrcaRouter 模型目录获取失败', 'error');
+        } else if (result.degraded) {
+          showToast(result.message, 'error');
+        } else {
+          showToast(`已获取 ${orcaModels.length} 个 OrcaRouter 模型`, 'success');
+        }
+        return;
+      }
+
       const result = await window.yibiao?.config.listModels(createClientConfig());
       const builtInModels = getBuiltInTextModels(state.textModel.provider);
       const remoteModels = result?.models || [];
@@ -1741,6 +2139,160 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
             <strong>文本模型配置</strong>
           </div>
           <div className="settings-list">
+            {isOrcaRouterProvider(state.textModel.provider) && (
+              <div className="settings-row settings-orca-panel" data-testid="orca-config">
+                <div className="settings-row-copy">
+                  <div className="settings-provider-title">
+                    <img
+                      className="settings-orca-logo"
+                      src={ORCA_LOGO_URL}
+                      alt="OrcaRouter"
+                      width={18}
+                      height={18}
+                      onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                    />
+                    <strong>OrcaRouter 账号</strong>
+                  </div>
+                  <span>
+                    两种接入方式任选其一：填写已有的 OrcaRouter API Key，或使用 OrcaRouter 账号登录授权。
+                    两种方式最终都只产生同一个归属于你的 OrcaRouter API Key。
+                  </span>
+                  {orcaStatus?.configured && (
+                    <span data-testid="orca-credential-state">
+                      当前凭据：{orcaStatus.source === 'pkce' ? 'OrcaRouter - Auth（账号登录）' : 'OrcaRouter - API（API Key）'}
+                      {orcaStatus.redactedKey ? ` · ${orcaStatus.redactedKey}` : ''}
+                    </span>
+                  )}
+                  {orcaStatus?.status === 'needsReauth' && (
+                    <span className="settings-orca-warning">该凭据已被撤销或失效，请重新登录或填写新的 API Key。</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isOrcaRouterProvider(state.textModel.provider) && (
+              <div className="settings-row settings-orca-panel">
+                <div className="settings-row-copy">
+                  <strong>方式一：API Key</strong>
+                  <span>
+                    直接粘贴已有的 <code>sk-orca-…</code> API Key。密钥仅保存在本机主进程配置中，
+                    不会返回给界面层。
+                  </span>
+                  <span>
+                    管理密钥：
+                    <button
+                      type="button"
+                      className="settings-inline-link"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void window.yibiao?.orca.openExternal(orcaStatus?.origins.keyConsoleUrl || ORCA_KEY_CONSOLE_URL);
+                      }}
+                    >
+                      {orcaStatus?.origins.keyConsoleUrl || ORCA_KEY_CONSOLE_URL}
+                    </button>
+                  </span>
+                </div>
+                <div className="settings-control-with-action">
+                  <InputWithAction
+                    type="password"
+                    data-testid="orca-api-key-input"
+                    value={orcaApiKey}
+                    placeholder="sk-orca-…"
+                    onChange={(event) => setOrcaApiKey(event.target.value)}
+                    actionLabel="保存"
+                    actionTitle="保存 OrcaRouter API Key 到本机"
+                    onAction={() => { void saveOrcaApiKey(); }}
+                  />
+                  <button
+                    type="button"
+                    className="inline-action"
+                    data-testid="orca-clear"
+                    disabled={!orcaStatus?.configured}
+                    onClick={() => { void clearOrcaCredential(); }}
+                  >
+                    清除凭据
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {isOrcaRouterProvider(state.textModel.provider) && (
+              <div className="settings-row settings-orca-panel">
+                <div className="settings-row-copy">
+                  <strong>方式二：Connect with OrcaRouter</strong>
+                  <span>
+                    使用 OAuth 2.0 + PKCE 打开浏览器完成授权，无需 client secret，也无需预先登记回调地址。
+                    授权后本机保存的是属于你的长效 OrcaRouter API Key，重启后继续复用，不会重复申请。
+                  </span>
+                  {orcaHint && <span data-testid="orca-login-hint">{orcaHint}</span>}
+                  {orcaAttempt?.mode === 'oob' && (
+                    <span>授权页会显示一段验证码，请复制后填入下方。</span>
+                  )}
+                </div>
+                <div className="settings-control-with-action">
+                  {orcaAttempt?.mode === 'oob' && (
+                    <input
+                      type="text"
+                      data-testid="orca-oob-code"
+                      value={orcaCode}
+                      placeholder="在此粘贴授权码"
+                      onChange={(event) => setOrcaCode(event.target.value)}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    className="inline-action primary"
+                    data-testid="orca-connect"
+                    disabled={orcaBusy}
+                    onClick={() => { void connectOrca(); }}
+                  >
+                    {orcaBusy ? '等待授权…' : 'Connect with OrcaRouter'}
+                  </button>
+                  {orcaBusy && (
+                    <button
+                      type="button"
+                      className="inline-action"
+                      data-testid="orca-cancel"
+                      onClick={() => { void cancelOrcaLogin(); }}
+                    >
+                      取消
+                    </button>
+                  )}
+                  {orcaAttempt?.mode === 'oob' && (
+                    <button
+                      type="button"
+                      className="inline-action"
+                      data-testid="orca-submit-code"
+                      disabled={!orcaCode.trim()}
+                      onClick={() => { void submitOrcaCode(); }}
+                    >
+                      提交授权码
+                    </button>
+                  )}
+                  {orcaAttempt && (
+                    <button
+                      type="button"
+                      className="inline-action"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void window.yibiao?.orca.openExternal(orcaAttempt.authorizeUrl);
+                      }}
+                    >
+                      重新打开授权页面
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="inline-action"
+                    data-testid="orca-clear"
+                    disabled={!orcaStatus?.configured}
+                    onClick={() => { void clearOrcaCredential(); }}
+                  >
+                    {orcaStatus?.source === 'pkce' ? '退出登录' : '清除凭据'}
+                  </button>
+                </div>
+              </div>
+            )}
             <label className="settings-row">
               <div className="settings-row-copy">
                 <div className="settings-provider-title">
@@ -1795,13 +2347,20 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
             <label className="settings-row">
               <div className="settings-row-copy">
                 <strong>API Key</strong>
-                <span>仅保存在本机配置文件中，不暴露给 Renderer 以外的原始能力</span>
+                <span>
+                  {isOrcaRouterProvider(state.textModel.provider)
+                    // The OrcaRouter key goes through the dedicated credential
+                    // path below, not the per-provider profile, so both the
+                    // pasted key and the PKCE login share one stored record.
+                    ? 'OrcaRouter 凭据请在上方「OrcaRouter 账号」区域配置'
+                    : '仅保存在本机配置文件中，不暴露给 Renderer 以外的原始能力'}
+                </span>
               </div>
               <InputWithAction
                 type="password"
-                value={state.textModel.api_key}
+                value={isOrcaRouterProvider(state.textModel.provider) ? '' : state.textModel.api_key}
                 placeholder={state.textModel.provider === 'ollama' ? '本地 Ollama 无需填写' : '请输入文本模型 API Key'}
-                disabled={state.textModel.provider === 'ollama'}
+                disabled={state.textModel.provider === 'ollama' || isOrcaRouterProvider(state.textModel.provider)}
                 onChange={(event) => updateTextModelConfig({ api_key: event.target.value }, { clearModels: true })}
                 actionLabel="获取"
                 actionTitle="打开当前服务商的 API Key 获取页面"
@@ -1815,16 +2374,28 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 <span>可手动录入，也可从当前 Base URL 拉取可用模型</span>
               </div>
               <div className="settings-control-with-action">
-                {textModels.length > 0 ? (
+                {isOrcaRouterProvider(state.textModel.provider) ? (
+                  <OrcaModelPicker
+                    value={state.textModel.model_name}
+                    options={textModels}
+                    degraded={orcaCatalogState.source === 'seed'}
+                    onChange={(model) => updateTextModelConfig({ model_name: model })}
+                  />
+                ) : textModels.length > 0 ? (
                   <select
+                    data-testid="text-model-select"
                     value={state.textModel.model_name}
                     onChange={(event) => updateTextModelConfig({ model_name: event.target.value })}
                   >
+                    {state.textModel.model_name && !textModels.includes(state.textModel.model_name) && (
+                      <option value="" disabled>请重新选择模型</option>
+                    )}
                     {textModels.map((model) => <option value={model} key={model}>{model}</option>)}
                   </select>
                 ) : (
                   <input
                     type="text"
+                    data-testid="text-model-input"
                     value={state.textModel.model_name}
                     placeholder="例如 deepseek-chat"
                     onChange={(event) => updateTextModelConfig({ model_name: event.target.value })}
@@ -1859,6 +2430,27 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 </div>
               )}
             </label>
+            {isOrcaRouterProvider(state.textModel.provider) && (
+              <label className="settings-row">
+                <div className="settings-row-copy">
+                  <strong>附件类型</strong>
+                  <span>
+                    选择本次任务会使用的输入模态。模型下拉会按该模态重新过滤，
+                    只保留在 OrcaRouter 目录中明确声明支持该模态的模型。
+                  </span>
+                </div>
+                <select
+                  data-testid="orca-modality"
+                  value={orcaModality}
+                  onChange={(event) => updateOrcaModality(event.target.value)}
+                >
+                  <option value="">纯文本</option>
+                  <option value="image">包含图片</option>
+                  <option value="audio">包含音频</option>
+                  <option value="video">包含视频</option>
+                </select>
+              </label>
+            )}
             {supportsThinkingSettings(state.textModel.provider) && (
               <label className="settings-row">
                 <div className="settings-row-copy">

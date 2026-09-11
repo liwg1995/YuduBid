@@ -1,4 +1,19 @@
-export type TextModelProvider = 'agnes-ai-cn' | 'agnes-ai-global' | 'sensenova' | 'ollama' | 'volcengine' | 'xiaomi' | 'deepseek' | 'longcat' | 'custom';
+// `orcarouter` and `orcarouter-oauth` are one provider with two explicit
+// authentication choices: a pasted API key, or the OAuth 2.0 + PKCE browser
+// login. They share the inference adapter, base URL, model namespace and
+// catalog, and differ only in how the credential is acquired.
+export type TextModelProvider =
+  | 'agnes-ai-cn'
+  | 'agnes-ai-global'
+  | 'sensenova'
+  | 'ollama'
+  | 'volcengine'
+  | 'xiaomi'
+  | 'deepseek'
+  | 'longcat'
+  | 'orcarouter'
+  | 'orcarouter-oauth'
+  | 'custom';
 
 export interface TextModelConfig {
   api_key: string;

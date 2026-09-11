@@ -13,6 +13,7 @@ const { registerFileIpc } = require('./fileIpc.cjs');
 const { registerGrantApplicationIpc } = require('./grantApplicationIpc.cjs');
 const { registerKnowledgeBaseIpc } = require('./knowledgeBaseIpc.cjs');
 const { registerOfficialDocumentIpc } = require('./officialDocumentIpc.cjs');
+const { registerOrcaIpc } = require('./orcaIpc.cjs');
 const { registerPatentGenerationIpc } = require('./patentGenerationIpc.cjs');
 const { registerPluginIpc } = require('./pluginIpc.cjs');
 const { registerPresalesWorkbenchIpc } = require('./presalesWorkbenchIpc.cjs');
@@ -40,6 +41,7 @@ const { createKnowledgeBaseService } = require('../services/knowledgeBaseService
 const { createKnowledgeBaseStore } = require('../services/knowledgeBaseStore.cjs');
 const { createKnowledgeImageService } = require('../services/knowledgeImageService.cjs');
 const { createOfficialDocumentService } = require('../services/officialDocumentService.cjs');
+const { createOrcaAuthService } = require('../services/orcaAuthService.cjs');
 const { createPatentGenerationService } = require('../services/patentGenerationService.cjs');
 const { createPluginManager } = require('../plugins/pluginManager.cjs');
 const { registerBidReviewCapabilities } = require('../plugins/bidReviewCapabilities.cjs');
@@ -729,7 +731,28 @@ function registerUnavailableTechnicalPlanIpc(error) {
 function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall }) {
   const configStore = createConfigStore(app);
   const usageStatsStore = createUsageStatsStore(app);
-  const aiService = createAiService({ app, configStore, usageStatsStore });
+  const orcaAuthService = createOrcaAuthService({
+    configStore,
+    openExternal: (url) => shell.openExternal(url),
+    // A PKCE result arrives asynchronously, after the renderer has already
+    // received its authorization URL. Forward it to the window so the settings
+    // panel can finish the login instead of polling.
+    onResult: ({ attemptId, result, error }) => {
+      if (!mainWindow || mainWindow.isDestroyed?.()) return;
+      mainWindow.webContents.send('orca:login-result', {
+        attemptId,
+        result: result
+          ? {
+            accountId: result.credential?.accountId || '',
+            scope: result.scope || '',
+            scopeDowngraded: Boolean(result.scopeDowngraded),
+          }
+          : null,
+        error: error ? { code: error.code || '', message: error.message } : null,
+      });
+    },
+  });
+  const aiService = createAiService({ app, configStore, usageStatsStore, orcaAuthService });
   const pluginManager = createPluginManager({ app, aiService });
   const fileService = createFileService({ app, configStore });
   let templateStore = null;
@@ -744,6 +767,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const systemFontService = createSystemFontService();
 
   registerConfigIpc({ configStore, aiService });
+  registerOrcaIpc({ orcaAuthService });
   registerUsageStatsIpc({ usageStatsStore });
   registerAiIpc({ aiService });
   registerFileIpc({ fileService });
