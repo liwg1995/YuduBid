@@ -74,7 +74,7 @@ const defaultImageModelProfiles = {
     provider: 'agnes-ai-cn',
     base_url: agnesAiCnBaseUrl,
     api_key: '',
-    model_name: 'agnes-image-2.1-flash',
+    model_name: 'agnes-image-2.5-flash',
     status: 'untested',
     tested_at: '',
     last_error: '',
@@ -102,7 +102,7 @@ const defaultImageModelProfiles = {
     provider: 'agnes-ai-global',
     base_url: agnesAiGlobalBaseUrl,
     api_key: '',
-    model_name: 'agnes-image-2.1-flash',
+    model_name: 'agnes-image-2.5-flash',
     status: 'untested',
     tested_at: '',
     last_error: '',
@@ -184,7 +184,24 @@ const defaultConfig = {
   },
   developer_mode: false,
   model_capabilities_cache: {},
+  model_list_cache: { text: {}, image: {} },
 };
+
+function normalizeModelListCache(sourceCache) {
+  const source = sourceCache && typeof sourceCache === 'object' ? sourceCache : {};
+  const normalizeGroup = (group, providers) => Object.fromEntries(
+    providers.flatMap((provider) => {
+      const models = Array.isArray(group?.[provider])
+        ? [...new Set(group[provider].map((model) => String(model || '').trim()).filter(Boolean))].slice(0, 500)
+        : [];
+      return models.length > 0 ? [[provider, models]] : [];
+    }),
+  );
+  return {
+    text: normalizeGroup(source.text, textModelProviders),
+    image: normalizeGroup(source.image, imageModelProviders),
+  };
+}
 
 function isTextModelProvider(value) {
   return textModelProviders.includes(value);
@@ -368,6 +385,7 @@ function normalizeConfig(config) {
     feature_module_settings: normalizeFeatureModuleSettings(source.feature_module_settings),
     developer_mode: source.developer_mode === undefined ? defaultConfig.developer_mode : Boolean(source.developer_mode),
     model_capabilities_cache: Object.fromEntries(Object.entries(sourceCapabilityCache).slice(-50)),
+    model_list_cache: normalizeModelListCache(source.model_list_cache),
   };
 }
 

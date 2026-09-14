@@ -62,6 +62,10 @@ const OPENAI_IMAGE_PROVIDER_META = {
 const AGNES_IMAGE_PROVIDERS = new Set(['agnes-ai-cn', 'agnes-ai-global']);
 const SENSENOVA_IMAGE_PROVIDER = 'sensenova';
 
+function supportsAgnesImageSizeAndRatio(modelName) {
+  return modelName === 'agnes-image-2.1-flash' || modelName === 'agnes-image-2.5-flash';
+}
+
 function trimBaseUrl(baseUrl) {
   return String(baseUrl || '').trim().replace(/\/+$/, '');
 }
@@ -863,12 +867,13 @@ async function testOpenAICompatibleImageModel(app, config, provider) {
   const timeout = createOperationTimeout(AI_REQUEST_TIMEOUT_MS);
 
   try {
+    const supportsSizeAndRatio = supportsAgnesImageSizeAndRatio(imageConfig.model_name);
     const requestBody = AGNES_IMAGE_PROVIDERS.has(provider)
       ? {
         model: imageConfig.model_name,
         prompt: 'a simple blue dot on a white background',
-        size: imageConfig.model_name === 'agnes-image-2.1-flash' ? '1K' : '2048x2048',
-        ...(imageConfig.model_name === 'agnes-image-2.1-flash' ? { ratio: '1:1' } : {}),
+        size: supportsSizeAndRatio ? '1K' : '2048x2048',
+        ...(supportsSizeAndRatio ? { ratio: '1:1' } : {}),
         extra_body: { response_format: 'url' },
       }
       : provider === SENSENOVA_IMAGE_PROVIDER
@@ -985,12 +990,13 @@ async function generateOpenAICompatibleImage(app, config, request, provider) {
   const meta = OPENAI_IMAGE_PROVIDER_META[provider] || OPENAI_IMAGE_PROVIDER_META.volcengine;
   const requestId = createRequestId();
   const logTitle = resolveAiLogTitle(request, request.title ? `AI生图-${request.title}` : 'AI生图');
+  const supportsSizeAndRatio = supportsAgnesImageSizeAndRatio(imageConfig.model_name);
   const requestBody = AGNES_IMAGE_PROVIDERS.has(provider)
     ? {
       model: imageConfig.model_name,
       prompt: normalizeImagePrompt(request),
-      size: request.size || imageConfig.size || (imageConfig.model_name === 'agnes-image-2.1-flash' ? '2K' : '2048x2048'),
-      ...(imageConfig.model_name === 'agnes-image-2.1-flash' ? { ratio: request.ratio || imageConfig.ratio || '1:1' } : {}),
+      size: request.size || imageConfig.size || (supportsSizeAndRatio ? '2K' : '2048x2048'),
+      ...(supportsSizeAndRatio ? { ratio: request.ratio || imageConfig.ratio || '1:1' } : {}),
       extra_body: { response_format: 'url' },
     }
     : provider === SENSENOVA_IMAGE_PROVIDER

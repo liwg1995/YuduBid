@@ -4,7 +4,7 @@ import brandProducerLogo from '../../../assets/brand-producer-logo.svg';
 import { configurableFeatureModules } from '../../../app/menuConfig';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelCapabilityInfo, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
+import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelCapabilityInfo, ModelListCache, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 import PluginManagementPanel from '../plugin-management/PluginManagementPanel';
 
@@ -156,10 +156,7 @@ const textProviderDefaults: TextModelProfiles = {
   custom: { api_key: '', base_url: '', model_name: '' },
 };
 
-const agnesTextModelNames = ['agnes-2.5-flash', 'agnes-2.0-flash', 'agnes-2.5-pro', 'agnes-2.5-pro-alpha'];
-const agnesImageModelNames = ['agnes-image-2.1-flash', 'agnes-image-2.0-flash'];
-const deepseekTextModelNames = ['deepseek-v4-flash', 'deepseek-v4-pro'];
-const longcatTextModelNames = ['LongCat-2.0'];
+const agnesPaidTextModelNames = new Set(['agnes-2.5-pro', 'agnes-2.5-pro-beta', 'agnes-2.5-pro-alpha']);
 const senseNovaTextModelNames = ['sensenova-6.8-flash-lite', 'deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2', 'kimi-k3'];
 const senseNovaImageModelNames = ['sensenova-u1.5-lite', 'sensenova-u1-fast'];
 
@@ -180,24 +177,37 @@ function createDefaultTextModelProfiles(): TextModelProfiles {
   }), {} as TextModelProfiles);
 }
 
-function getAgnesTextModels(provider: TextModelProvider): string[] {
-  return provider === 'agnes-ai-cn' || provider === 'agnes-ai-global' ? [...agnesTextModelNames] : [];
-}
-
 function getBuiltInTextModels(provider: TextModelProvider): string[] {
   if (provider === 'sensenova') return [...senseNovaTextModelNames];
-  if (provider === 'deepseek') return [...deepseekTextModelNames];
-  if (provider === 'longcat') return [...longcatTextModelNames];
-  return getAgnesTextModels(provider);
+  return [];
 }
 
 function supportsThinkingSettings(provider: TextModelProvider): boolean {
   return provider === 'agnes-ai-cn' || provider === 'agnes-ai-global' || provider === 'deepseek' || provider === 'longcat';
 }
 
+function isAgnesPaidTextModel(provider: TextModelProvider, modelName: string): boolean {
+  return (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global')
+    && agnesPaidTextModelNames.has(modelName.trim().toLowerCase());
+}
+
 function getAgnesImageModels(provider: ImageModelProvider): string[] {
   if (provider === 'sensenova') return [...senseNovaImageModelNames];
-  return provider === 'agnes-ai-cn' || provider === 'agnes-ai-global' ? [...agnesImageModelNames] : [];
+  return [];
+}
+
+function normalizeModelListCache(cache?: Partial<ModelListCache>): ModelListCache {
+  return { text: cache?.text || {}, image: cache?.image || {} };
+}
+
+function filterRemoteTextModels(provider: TextModelProvider, models: string[]): string[] {
+  if (provider !== 'agnes-ai-cn' && provider !== 'agnes-ai-global') return models;
+  return models.filter((model) => !model.startsWith('agnes-image-') && !model.startsWith('agnes-video-'));
+}
+
+function filterRemoteImageModels(provider: ImageModelProvider, models: string[]): string[] {
+  if (provider !== 'agnes-ai-cn' && provider !== 'agnes-ai-global') return models;
+  return models.filter((model) => model.startsWith('agnes-image-'));
 }
 
 function normalizeTextModelProfile(provider: TextModelProvider, profile?: Partial<TextModelConfig>): TextModelConfig {
@@ -283,7 +293,7 @@ const imageProviderDefaults: ImageModelProfiles = {
     provider: 'agnes-ai-cn',
     base_url: agnesAiCnBaseUrl,
     api_key: '',
-    model_name: 'agnes-image-2.1-flash',
+    model_name: 'agnes-image-2.5-flash',
     size: '2K',
     ratio: '1:1',
     status: 'untested',
@@ -294,7 +304,7 @@ const imageProviderDefaults: ImageModelProfiles = {
     provider: 'agnes-ai-global',
     base_url: agnesAiGlobalBaseUrl,
     api_key: '',
-    model_name: 'agnes-image-2.1-flash',
+    model_name: 'agnes-image-2.5-flash',
     size: '2K',
     ratio: '1:1',
     status: 'untested',
@@ -739,6 +749,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const [textModels, setTextModels] = useState<string[]>([]);
   const [textModelCapabilities, setTextModelCapabilities] = useState<ModelCapabilityInfo | null>(null);
   const [imageModels, setImageModels] = useState<string[]>([]);
+  const [modelListCache, setModelListCache] = useState<ModelListCache>({ text: {}, image: {} });
   const [loadingModels, setLoadingModels] = useState<'text' | 'image' | null>(null);
   const [testingTextModel, setTestingTextModel] = useState(false);
   const [testingImageModel, setTestingImageModel] = useState(false);
@@ -812,6 +823,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       imageModelProfiles[activeImageProfile.provider] = activeImageProfile;
 
       const featureModuleSettings = normalizeFeatureModuleSettings(config.feature_module_settings);
+      const nextModelListCache = normalizeModelListCache(config.model_list_cache);
 
       setState((prev) => ({
         ...prev,
@@ -838,8 +850,9 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
         },
       }));
       setSavedConfig(config);
-      setTextModels(getBuiltInTextModels(config.text_model_provider));
-      setImageModels(getAgnesImageModels(activeImageProfile.provider));
+      setModelListCache(nextModelListCache);
+      setTextModels(nextModelListCache.text[config.text_model_provider] || []);
+      setImageModels(nextModelListCache.image[activeImageProfile.provider] || []);
       onDeveloperModeChange?.(Boolean(config.developer_mode));
       onFeatureModuleSettingsChange?.(featureModuleSettings);
     } catch (error) {
@@ -880,6 +893,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       skill_settings: normalizeSkillSettings(state.skillSettings),
       feature_module_settings: normalizeFeatureModuleSettings(state.featureModuleSettings),
       developer_mode: state.general.developer_mode,
+      model_list_cache: modelListCache,
     };
   };
 
@@ -1061,6 +1075,10 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const updateImageModelConfig = (partial: Partial<Omit<ImageModelConfig, 'provider'>>, options: { clearModels?: boolean } = {}) => {
     if (options.clearModels) {
       setImageModels([]);
+      setModelListCache((prev) => ({
+        ...prev,
+        image: { ...prev.image, [state.imageModel.provider]: [] },
+      }));
     }
 
     setState((prev) => ({
@@ -1079,7 +1097,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   };
 
   const updateImageModelProvider = (provider: ImageModelProvider) => {
-    setImageModels(getAgnesImageModels(provider));
+    setImageModels(modelListCache.image[provider] || []);
     setImageTestPreview(null);
     setState((prev) => ({
       ...prev,
@@ -1121,7 +1139,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   };
 
   const updateTextModelProvider = (provider: TextModelProvider) => {
-    setTextModels(getBuiltInTextModels(provider));
+    setTextModels(modelListCache.text[provider] || []);
     setTextModelCapabilities(null);
     setState((prev) => ({
       ...prev,
@@ -1139,6 +1157,10 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const updateTextModelConfig = (partial: Partial<TextModelConfig>, options: { clearModels?: boolean } = {}) => {
     if (options.clearModels) {
       setTextModels([]);
+      setModelListCache((prev) => ({
+        ...prev,
+        text: { ...prev.text, [state.textModel.provider]: [] },
+      }));
     }
     if (partial.base_url !== undefined || partial.api_key !== undefined || partial.model_name !== undefined) {
       setTextModelCapabilities(null);
@@ -1367,12 +1389,18 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       setLoadingModels('text');
       const result = await window.yibiao?.config.listModels(createClientConfig());
       const builtInModels = getBuiltInTextModels(state.textModel.provider);
-      const remoteModels = result?.models || [];
+      const remoteModels = filterRemoteTextModels(state.textModel.provider, result?.models || []);
       const availableSenseNovaModels = remoteModels.filter((model) => builtInModels.includes(model));
       const models = state.textModel.provider === 'sensenova'
         ? availableSenseNovaModels.length > 0 ? availableSenseNovaModels : builtInModels
-        : remoteModels.length > 0 ? remoteModels : builtInModels;
+        : remoteModels;
       setTextModels(models);
+      if (result?.success) {
+        setModelListCache((prev) => ({
+          ...prev,
+          text: { ...prev.text, [state.textModel.provider]: models },
+        }));
+      }
       if (result?.success && models.length > 0) {
         setState((prev) => ({
           ...prev,
@@ -1437,13 +1465,23 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           base_url: baseUrl,
           model_name: state.imageModel.model_name,
         });
+        if (!result?.success) {
+          setImageModels([]);
+          showToast(result?.message || `获取${providerLabel}模型失败`, 'error');
+          return;
+        }
+
         const builtInModels = getAgnesImageModels(state.imageModel.provider);
-        const remoteModels = result?.models || [];
+        const remoteModels = filterRemoteImageModels(state.imageModel.provider, result.models || []);
         const availableSenseNovaModels = remoteModels.filter((model) => builtInModels.includes(model));
         const models = state.imageModel.provider === 'sensenova'
           ? availableSenseNovaModels.length > 0 ? availableSenseNovaModels : builtInModels
-          : remoteModels.length > 0 ? remoteModels : builtInModels;
+          : remoteModels;
         setImageModels(models);
+        setModelListCache((prev) => ({
+          ...prev,
+          image: { ...prev.image, [state.imageModel.provider]: models },
+        }));
         if (result?.success && models.length > 0) {
           setState((prev) => ({
             ...prev,
@@ -1461,7 +1499,10 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
             })(),
           }));
         }
-        showToast(result?.message || `获取到 ${models.length} 个${providerLabel}模型`, result?.success ? 'success' : 'error');
+        const message = remoteModels.length > 0
+          ? `获取到 ${models.length} 个${providerLabel}生图模型`
+          : `${providerLabel}接口未返回生图模型`;
+        showToast(message, remoteModels.length > 0 ? 'success' : 'info');
         return;
       }
 
@@ -1478,6 +1519,10 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           'gemini-2.5-flash-image',
         ];
         setImageModels(models);
+        setModelListCache((prev) => ({
+          ...prev,
+          image: { ...prev.image, [state.imageModel.provider]: models },
+        }));
         setState((prev) => ({
           ...prev,
           ...(() => {
@@ -1513,9 +1558,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       return JSON.stringify({
         provider: state.textModel.provider,
         profiles: getCurrentTextModelProfiles(),
+        modelListCache: modelListCache.text,
       }) !== JSON.stringify({
         provider: savedConfig.text_model_provider,
         profiles: normalizeTextModelProfiles(savedConfig.text_model_profiles),
+        modelListCache: normalizeModelListCache(savedConfig.model_list_cache).text,
       });
     }
 
@@ -1527,9 +1574,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       return JSON.stringify({
         provider: state.imageModel.provider,
         profiles: getCurrentImageModelProfiles(),
+        modelListCache: modelListCache.image,
       }) !== JSON.stringify({
         provider: savedConfig.image_model.provider,
         profiles: normalizeImageModelProfiles(savedConfig.image_model_profiles),
+        modelListCache: normalizeModelListCache(savedConfig.model_list_cache).image,
       });
     }
 
@@ -1815,21 +1864,30 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 <span>可手动录入，也可从当前 Base URL 拉取可用模型</span>
               </div>
               <div className="settings-control-with-action">
-                {textModels.length > 0 ? (
-                  <select
-                    value={state.textModel.model_name}
-                    onChange={(event) => updateTextModelConfig({ model_name: event.target.value })}
-                  >
-                    {textModels.map((model) => <option value={model} key={model}>{model}</option>)}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={state.textModel.model_name}
-                    placeholder="例如 deepseek-chat"
-                    onChange={(event) => updateTextModelConfig({ model_name: event.target.value })}
-                  />
-                )}
+                <div className="model-select-with-badge">
+                  {textModels.length > 0 ? (
+                    <select
+                      value={state.textModel.model_name}
+                      onChange={(event) => updateTextModelConfig({ model_name: event.target.value })}
+                    >
+                      {textModels.map((model) => (
+                        <option value={model} key={model}>
+                          {model}{isAgnesPaidTextModel(state.textModel.provider, model) ? '（付费）' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={state.textModel.model_name}
+                      placeholder="例如 deepseek-chat"
+                      onChange={(event) => updateTextModelConfig({ model_name: event.target.value })}
+                    />
+                  )}
+                  {isAgnesPaidTextModel(state.textModel.provider, state.textModel.model_name) && (
+                    <span className="paid-model-badge" title="该模型为计费模型">付费</span>
+                  )}
+                </div>
                 <button
                   type="button"
                   className="inline-action"

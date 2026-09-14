@@ -49,6 +49,7 @@ export type {
   ImageModelProfiles,
   ImageModelStatus,
   ModelCapabilityInfo,
+  ModelListCache,
   ModelListResult,
   SkillConfig,
   SkillId,

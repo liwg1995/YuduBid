@@ -8737,6 +8737,39 @@ button {
   gap: 10px;
 }
 
+.model-select-with-badge {
+  position: relative;
+  min-width: 0;
+}
+
+.model-select-with-badge select,
+.model-select-with-badge input {
+  width: 100%;
+}
+
+.paid-model-badge {
+  position: absolute;
+  z-index: 1;
+  top: -9px;
+  right: -5px;
+  padding: 2px 7px;
+  color: #9a4d00;
+  background: #fff1d6;
+  border: 1px solid rgba(210, 126, 24, 0.35);
+  border-radius: 999px;
+  box-shadow: 0 2px 7px rgba(128, 73, 5, 0.12);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+:root[data-ui-theme="dark"] .paid-model-badge {
+  color: #ffd18a;
+  background: #5a350d;
+  border-color: rgba(255, 190, 92, 0.38);
+}
+
 .model-capability-summary {
   display: flex;
   flex-wrap: wrap;

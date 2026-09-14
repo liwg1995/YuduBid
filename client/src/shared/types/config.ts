@@ -75,6 +75,11 @@ export interface ImageModelConfig {
 
 export type ImageModelProfiles = Record<ImageModelProvider, ImageModelConfig>;
 
+export interface ModelListCache {
+  text: Partial<Record<TextModelProvider, string[]>>;
+  image: Partial<Record<ImageModelProvider, string[]>>;
+}
+
 export type FileParserProvider = 'local' | 'mineru-accurate-api' | 'mineru-agent-api';
 
 export interface FileParserConfig {
@@ -120,4 +125,5 @@ export interface ClientConfig extends AiConfig {
   feature_module_settings?: FeatureModuleSettings;
   developer_mode?: boolean;
   model_capabilities_cache?: Record<string, Omit<ModelCapabilityInfo, 'success' | 'message' | 'source'>>;
+  model_list_cache?: ModelListCache;
 }
