@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { dialog, ipcMain, shell } = require('electron');
 const { registerAiIpc } = require('./aiIpc.cjs');
+const { registerAgentIpc } = require('./agentIpc.cjs');
 const { registerBidOpportunityIpc } = require('./bidOpportunityIpc.cjs');
 const { registerCodeGenerationIpc } = require('./codeGenerationIpc.cjs');
 const { registerConfigIpc } = require('./configIpc.cjs');
@@ -59,6 +60,7 @@ const { createTechnicalPlanStore } = require('../services/technicalPlanStore.cjs
 const { createTechnicalDiagramService } = require('../services/technicalDiagramService.cjs');
 const { createThesisTutorService } = require('../services/thesisTutorService.cjs');
 const { createUsageStatsStore } = require('../services/usageStatsStore.cjs');
+const { createAgentHost } = require('../agents/agentHost.cjs');
 const { registerUsageStatsIpc } = require('./usageStatsIpc.cjs');
 
 const latestReleaseApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases/latest';
@@ -728,6 +730,25 @@ function registerUnavailableTechnicalPlanIpc(error) {
 
 function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall }) {
   const configStore = createConfigStore(app);
+  let agentEnabled = false;
+  try {
+    const startupConfig = configStore.load();
+    agentEnabled = startupConfig.developer_mode === true && startupConfig.agent_settings?.enabled === true;
+  } catch (error) {
+    console.warn('[agents] Agent 启动配置读取失败，已保持关闭', error?.message || String(error));
+  }
+  let agentHost = createAgentHost({ app, enabled: false, experimentalWritesEnabled: false });
+  let agentServices = null;
+  const refreshAgentHost = (config) => {
+    agentEnabled = config?.developer_mode === true && config?.agent_settings?.enabled === true;
+    if (agentEnabled && !agentServices) return;
+    agentHost = createAgentHost({
+      app,
+      enabled: agentEnabled,
+      experimentalWritesEnabled: false,
+      services: agentServices || {},
+    });
+  };
   const usageStatsStore = createUsageStatsStore(app);
   const aiService = createAiService({ app, configStore, usageStatsStore });
   const pluginManager = createPluginManager({ app, aiService });
@@ -741,9 +762,10 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const presalesWorkbenchService = createPresalesWorkbenchService({ app, fileService, aiService });
   const projectManagementService = createProjectManagementService({ app, aiService, configStore });
   const thesisTutorService = createThesisTutorService({ app, aiService, configStore });
+  const softwareCopyrightService = createSoftwareCopyrightService({ app, aiService, configStore, codeGenerationService });
   const systemFontService = createSystemFontService();
 
-  registerConfigIpc({ configStore, aiService });
+  registerConfigIpc({ configStore, aiService, onConfigSaved: refreshAgentHost });
   registerUsageStatsIpc({ usageStatsStore });
   registerAiIpc({ aiService });
   registerFileIpc({ fileService });
@@ -754,7 +776,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   registerPresalesWorkbenchIpc({ presalesWorkbenchService });
   registerProjectManagementIpc({ projectManagementService });
   registerThesisTutorIpc({ thesisTutorService });
-  registerSoftwareCopyrightIpc({ softwareCopyrightService: createSoftwareCopyrightService({ app, aiService, configStore, codeGenerationService }) });
+  registerSoftwareCopyrightIpc({ softwareCopyrightService });
   registerPatentGenerationIpc({ patentGenerationService });
   registerPluginIpc({ pluginManager });
   registerSystemFontIpc({ systemFontService });
@@ -796,6 +818,8 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     });
     const duplicateCheckService = createDuplicateCheckService({ app, configStore, workspaceStore: duplicateCheckStore });
     const taskService = createTaskService({ aiService, technicalDiagramService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService });
+    agentServices = { technicalPlanStore: technicalPlanStoreRouter, taskService, knowledgeBaseService, presalesWorkbenchService, officialDocumentService, grantApplicationService, projectManagementService, thesisTutorService, softwareCopyrightService, patentGenerationService };
+    refreshAgentHost(configStore.load());
     registerBidReviewCapabilities(pluginManager.capabilityRegistry, {
       duplicateCheckStore,
       rejectionCheckStore,
@@ -819,6 +843,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   } catch (error) {
     registerUnavailableTechnicalPlanIpc(error);
   }
+  registerAgentIpc({ getAgentHost: () => agentHost });
 
   void pluginManager.initialize().catch((error) => {
     console.warn('[plugins] 插件宿主初始化失败，现有业务功能不受影响', error);

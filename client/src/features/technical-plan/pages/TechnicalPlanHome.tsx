@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import DocumentAnalysisPage from './DocumentAnalysisPage';
 import BidAnalysisPage from './BidAnalysisPage';
 import OutlineEditPage from './OutlineEditPage';
@@ -8,10 +8,11 @@ import ContentEditPage from './ContentEditPage';
 import BidWordExportDialog from '../../export-format/components/BidWordExportDialog';
 import { useTechnicalPlanWorkflow } from '../hooks/useTechnicalPlanWorkflow';
 import { getBidAnalysisTasks } from '../services/bidAnalysisWorkflow';
-import { FloatingToolbar, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useAppDialog, useToast } from '../../../shared/ui';
+import { AgentFloatingPanel, FloatingToolbar, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useAppDialog, useToast } from '../../../shared/ui';
 import { countReadableWords } from '../../../shared/utils/wordCount';
 import type { BackgroundTaskState, BidAnalysisTasks, ContentGenerationOptions, ContentTableRequirement, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
 import type { BidExportTemplateRecord, BidWordExportMode, OutlineData, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
+import type { AgentHostStatus, AgentRunResult } from '../../../shared/types/ipc';
 import type { SectionId } from '../../../shared/types/navigation';
 import type { PluginNavigationTarget } from '../../../shared/types/plugin';
 
@@ -234,6 +235,13 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const [expandMaxAiImages, setExpandMaxAiImages] = useState(2);
   const [expandImageModelAvailable, setExpandImageModelAvailable] = useState(false);
   const [expandTechnicalDiagramAvailable, setExpandTechnicalDiagramAvailable] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
+  const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
+  const [agentPlanning, setAgentPlanning] = useState(false);
+  const [agentContinuousStatus, setAgentContinuousStatus] = useState<'idle' | 'running' | 'paused' | 'blocked' | 'completed'>('idle');
+  const [agentContinuousMessage, setAgentContinuousMessage] = useState('一次确认后，自动衔接解析、目录、全局事实和正文生成。');
+  const agentContinuousLaunchingRef = useRef(false);
+  const agentContinuousPersistenceReadyRef = useRef(false);
   const activeIndex = steps.indexOf(state.step);
   const bidAnalysisReady = areRequiredBidAnalysisTasksReady(state.bidAnalysisTasks);
   const globalFactsReady = state.globalFacts.length > 0 && state.globalFactsTask?.status === 'success';
@@ -337,6 +345,52 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
             : `进入${stepLabels[steps[activeIndex + 1]]}`;
 
   useEffect(() => {
+    let mounted = true;
+    window.yibiao?.agent.getStatus().then((status) => {
+      if (mounted) setAgentStatus(status);
+    }).catch(() => {
+      if (mounted) setAgentStatus(null);
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    setAgentRun(null);
+  }, [state.tenderFile, state.bidAnalysisProgress, state.outlineData, state.globalFacts.length, state.contentGenerationSections]);
+
+  useEffect(() => {
+    agentContinuousPersistenceReadyRef.current = false;
+    agentContinuousLaunchingRef.current = false;
+    setAgentContinuousStatus('idle');
+    setAgentContinuousMessage('一次确认后，自动衔接解析、目录、全局事实和正文生成。');
+    const agentBridge = window.yibiao?.agent;
+    if (!projectId || !agentStatus?.enabled || !agentBridge) return;
+    let mounted = true;
+    agentBridge.getContinuousRun({ workflowKind, projectId }).then((run) => {
+      if (!mounted) return;
+      if (run) {
+        setAgentContinuousStatus(run.status);
+        setAgentContinuousMessage(run.status === 'running' ? '正在恢复上次连续执行并检查项目进度…' : run.message);
+      }
+      agentContinuousPersistenceReadyRef.current = true;
+    }).catch(() => {
+      if (mounted) agentContinuousPersistenceReadyRef.current = true;
+    });
+    return () => { mounted = false; };
+  }, [agentStatus?.enabled, projectId, workflowKind]);
+
+  useEffect(() => {
+    const agentBridge = window.yibiao?.agent;
+    if (!projectId || !agentBridge || agentContinuousStatus === 'idle' || !agentContinuousPersistenceReadyRef.current) return;
+    agentBridge.saveContinuousRun({
+      workflowKind,
+      projectId,
+      status: agentContinuousStatus,
+      message: agentContinuousMessage,
+    }).catch(() => undefined);
+  }, [agentContinuousMessage, agentContinuousStatus, projectId, workflowKind]);
+
+  useEffect(() => {
     if (state.step !== 'expand') {
       return;
     }
@@ -413,6 +467,198 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       switchStep(nextStep);
     }
   };
+
+  const bidAgentActionLabels: Record<string, string> = {
+    'document-analysis': '上传招标文件',
+    'bid-analysis': '解析招标文件',
+    'outline-generation': '生成技术方案目录',
+    'global-facts': '生成全局事实',
+    'content-generation': '配置并生成正文',
+    'review-and-export': '复核并导出',
+    'wait-active-task': '等待当前任务完成',
+  };
+
+  async function planBidNextStep() {
+    if (!projectId || !window.yibiao?.agent) return;
+    setAgentPlanning(true);
+    setAgentRun(null);
+    try {
+      const result = await window.yibiao.agent.runShadow({
+        goal: '检查当前招投标技术方案进度并推荐一个安全的下一步',
+        context: { workflowKind, projectId },
+      });
+      setAgentRun(result);
+      showToast('招投标 Agent 已完成下一步规划', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '招投标 Agent 规划失败', 'error');
+    } finally {
+      setAgentPlanning(false);
+    }
+  }
+
+  async function executeBidAgentRecommendation() {
+    const action = agentRun?.shadowEvaluation?.agentAction;
+    if (!action || !projectId) return;
+    if (action === 'wait-active-task') {
+      showToast('当前已有技术方案任务运行，请等待完成', 'info');
+      return;
+    }
+    const stepByAction: Partial<Record<string, TechnicalPlanStep>> = {
+      'document-analysis': 'document-analysis',
+      'content-generation': 'content-edit',
+      'review-and-export': 'expand',
+    };
+    if (stepByAction[action]) {
+      switchStep(stepByAction[action]!);
+      showToast(action === 'content-generation' ? '请确认正文生成配置后启动任务' : action === 'review-and-export' ? '请复核正文后按需导出' : '请先上传招标文件', 'info');
+      setAgentRun(null);
+      return;
+    }
+    const confirmed = await confirm({
+      title: '确认执行 Agent 建议',
+      description: `将为“${projectName || state.projectName || '技术方案项目'}”执行“${bidAgentActionLabels[action] || action}”。该操作调用原有后台任务，可能产生模型费用并更新当前项目。`,
+      confirmLabel: '确认执行',
+      cancelLabel: '取消',
+    });
+    if (!confirmed) return;
+    try {
+      if (action === 'bid-analysis') {
+        const taskIds = getBidAnalysisTasks(state.bidAnalysisMode).map((task) => task.id);
+        await window.yibiao?.tasks.startBidAnalysis({ workflowKind, projectId, mode: state.bidAnalysisMode, task_ids: taskIds, force_rerun: false });
+        switchStep('bid-analysis');
+      } else if (action === 'outline-generation') {
+        await window.yibiao?.tasks.startOutlineGeneration({
+          workflowKind,
+          projectId,
+          mode: state.outlineMode,
+          responseFileRequirements: state.responseFileRequirements,
+          reference_knowledge_document_ids: state.referenceKnowledgeDocumentIds,
+        });
+        switchStep('outline-generation');
+      } else if (action === 'global-facts') {
+        await window.yibiao?.tasks.startGlobalFactsGeneration({ workflowKind, projectId });
+        switchStep('global-facts');
+      }
+      setAgentRun(null);
+      showToast(`${bidAgentActionLabels[action] || '任务'}已在后台启动`, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '执行 Agent 建议失败', 'error');
+    }
+  }
+
+  const startBidAgentContinuousRun = async () => {
+    if (!projectId) return;
+    if (!state.tenderFile || (requiresOriginalPlan && !state.originalPlanFile)) {
+      switchStep('document-analysis');
+      showToast(requiresOriginalPlan ? '请先上传招标文件和原方案' : '请先上传招标文件', 'info');
+      return;
+    }
+    const confirmed = await confirm({
+      title: '确认连续执行',
+      description: `Agent 将为“${projectName || state.projectName || '技术方案项目'}”依次启动尚未完成的招标解析、目录、全局事实和正文生成。每一步都复用当前后台任务与配置，可能产生模型费用；失败或需要人工处理时会自动停下，最终导出仍由你确认。`,
+      confirmLabel: '开始连续执行',
+      cancelLabel: '取消',
+    });
+    if (!confirmed) return;
+    setAgentRun(null);
+    setAgentContinuousStatus('running');
+    setAgentContinuousMessage('正在检查已有成果并安排下一项任务…');
+  };
+
+  const pauseBidAgentContinuousRun = () => {
+    setAgentContinuousStatus('paused');
+    setAgentContinuousMessage('连续执行已暂停；当前后台任务不受影响，完成后不会自动启动下一步。');
+  };
+
+  useEffect(() => {
+    if (agentContinuousStatus !== 'running' || !projectId || agentContinuousLaunchingRef.current) return;
+
+    const taskStates = [state.bidAnalysisTask, state.outlineGenerationTask, state.globalFactsTask, state.contentGenerationTask];
+    const activeTask = taskStates.find((task) => task && ['running', 'pausing', 'stopping'].includes(task.status));
+    if (activeTask) {
+      setAgentContinuousMessage(`正在执行：${bidAgentActionLabels[
+        activeTask === state.bidAnalysisTask ? 'bid-analysis'
+          : activeTask === state.outlineGenerationTask ? 'outline-generation'
+            : activeTask === state.globalFactsTask ? 'global-facts'
+              : 'content-generation'
+      ]}`);
+      return;
+    }
+
+    let nextAction: 'bid-analysis' | 'outline-generation' | 'global-facts' | 'content-generation' | 'completed';
+    if (!bidAnalysisReady) nextAction = 'bid-analysis';
+    else if (!state.outlineData?.outline?.length) nextAction = 'outline-generation';
+    else if (!globalFactsReady) nextAction = 'global-facts';
+    else if (!outlineLeaves.length || generatedLeaves.length < outlineLeaves.length || state.contentGenerationTask?.status !== 'success') nextAction = 'content-generation';
+    else nextAction = 'completed';
+
+    const nextTask = nextAction === 'bid-analysis' ? state.bidAnalysisTask
+      : nextAction === 'outline-generation' ? state.outlineGenerationTask
+        : nextAction === 'global-facts' ? state.globalFactsTask
+          : nextAction === 'content-generation' ? state.contentGenerationTask
+            : undefined;
+    if (nextTask && ['error', 'paused', 'stopped'].includes(nextTask.status)) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage(nextTask.error || `${bidAgentActionLabels[nextAction]}未正常完成。请在对应步骤处理或重置任务，再继续连续执行。`);
+      return;
+    }
+
+    if (nextAction === 'completed') {
+      setAgentContinuousStatus('completed');
+      setAgentContinuousMessage(`连续执行已完成：${generatedLeaves.length}/${outlineLeaves.length} 个正文小节已生成。请复核内容后手动导出。`);
+      switchStep('content-edit');
+      showToast('技术方案连续执行已完成，请复核正文', 'success');
+      return;
+    }
+
+    agentContinuousLaunchingRef.current = true;
+    setAgentContinuousMessage(`正在启动：${bidAgentActionLabels[nextAction]}`);
+    void (async () => {
+      try {
+        if (nextAction === 'bid-analysis') {
+          const taskIds = getBidAnalysisTasks(state.bidAnalysisMode).map((task) => task.id);
+          await window.yibiao?.tasks.startBidAnalysis({ workflowKind, projectId, mode: state.bidAnalysisMode, task_ids: taskIds, force_rerun: false });
+          switchStep('bid-analysis');
+        } else if (nextAction === 'outline-generation') {
+          await window.yibiao?.tasks.startOutlineGeneration({
+            workflowKind,
+            projectId,
+            mode: state.outlineMode,
+            responseFileRequirements: state.responseFileRequirements,
+            reference_knowledge_document_ids: state.referenceKnowledgeDocumentIds,
+          });
+          switchStep('outline-generation');
+        } else if (nextAction === 'global-facts') {
+          await window.yibiao?.tasks.startGlobalFactsGeneration({ workflowKind, projectId });
+          switchStep('global-facts');
+        } else {
+          const config = await window.yibiao?.config.load();
+          const savedOptions = state.contentGenerationOptions;
+          const imageAvailable = config?.image_model?.status === 'available';
+          const diagramAvailable = Boolean(config?.skill_settings?.skills?.['technical-diagram']?.enabled);
+          const generationOptions: ContentGenerationOptions = {
+            useAiImages: imageAvailable && Boolean(savedOptions?.useAiImages),
+            maxAiImages: Math.max(0, Math.min(savedOptions?.maxAiImages ?? 0, outlineLeaves.length)),
+            useMermaidImages: savedOptions?.useMermaidImages ?? true,
+            useTechnicalDiagrams: diagramAvailable && (savedOptions?.useTechnicalDiagrams ?? true),
+            tableRequirement: savedOptions?.tableRequirement ?? 'heavy',
+            minimumWords: Math.max(0, savedOptions?.minimumWords ?? 0),
+            contentConcurrency: Math.max(1, savedOptions?.contentConcurrency ?? 5),
+            enableConsistencyAudit: savedOptions?.enableConsistencyAudit ?? true,
+            enableOriginalPlanCoverageAudit: requiresOriginalPlan && Boolean(savedOptions?.enableOriginalPlanCoverageAudit),
+          };
+          await window.yibiao?.tasks.startContentGeneration({ workflowKind, projectId, generationOptions });
+          switchStep('content-edit');
+        }
+      } catch (error) {
+        setAgentContinuousStatus('blocked');
+        setAgentContinuousMessage(error instanceof Error ? error.message : `启动${bidAgentActionLabels[nextAction]}失败`);
+        showToast(error instanceof Error ? error.message : '连续执行启动任务失败', 'error');
+      } finally {
+        agentContinuousLaunchingRef.current = false;
+      }
+    })();
+  }, [agentContinuousStatus, bidAnalysisReady, generatedLeaves.length, globalFactsReady, outlineLeaves.length, projectId, requiresOriginalPlan, state.bidAnalysisMode, state.bidAnalysisTask, state.contentGenerationOptions, state.contentGenerationTask, state.globalFactsTask, state.outlineData, state.outlineGenerationTask, state.outlineMode, state.referenceKnowledgeDocumentIds, state.responseFileRequirements, workflowKind]);
 
   const startExpandOnly = async () => {
     if (!state.outlineData?.outline?.length) {
@@ -1117,6 +1363,34 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
             </button>
           )}
         </section>
+      )}
+      {projectId && agentStatus?.enabled && agentStatus.agents.some((agent) => agent.id === 'bid-agent') && (
+        <AgentFloatingPanel label="招投标 Agent" className="technical-agent-panel">
+          <div>
+            <span className="section-kicker">招投标 Agent</span>
+            <strong>{agentContinuousStatus !== 'idle'
+              ? `连续执行：${agentContinuousStatus === 'running' ? '进行中' : agentContinuousStatus === 'paused' ? '已暂停' : agentContinuousStatus === 'blocked' ? '需要处理' : '已完成'}`
+              : agentRun?.shadowEvaluation?.agentAction
+              ? `建议：${bidAgentActionLabels[agentRun.shadowEvaluation.agentAction] || agentRun.shadowEvaluation.agentAction}`
+              : '检查当前项目并安排下一步'}</strong>
+            <p>{agentContinuousStatus !== 'idle' ? agentContinuousMessage : agentRun?.recommendation || 'Agent 读取项目摘要进行规划，也可以一次确认后连续推进已有任务。'}</p>
+          </div>
+          <div className="technical-agent-actions">
+            {agentContinuousStatus === 'running' ? (
+              <button type="button" className="secondary-action" onClick={pauseBidAgentContinuousRun}>暂停连续执行</button>
+            ) : (
+              <button type="button" className="primary-action" onClick={() => void startBidAgentContinuousRun()}>
+                {agentContinuousStatus === 'paused' || agentContinuousStatus === 'blocked' ? '继续连续执行' : agentContinuousStatus === 'completed' ? '检查未完成项' : '连续执行'}
+              </button>
+            )}
+            <button type="button" className="secondary-action" onClick={() => void planBidNextStep()} disabled={agentPlanning}>
+              {agentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}
+            </button>
+            {agentRun?.shadowEvaluation?.agentAction && (
+              <button type="button" className="primary-action" onClick={() => void executeBidAgentRecommendation()}>执行建议</button>
+            )}
+          </div>
+        </AgentFloatingPanel>
       )}
       {state.step === 'document-analysis' && (
         <DocumentAnalysisPage

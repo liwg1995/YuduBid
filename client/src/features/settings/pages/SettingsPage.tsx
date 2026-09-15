@@ -6,6 +6,7 @@ import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '..
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelCapabilityInfo, ModelListCache, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
+import { getStoredUiThemePreference, setStoredUiThemePreference, UI_THEME_CHANGE_EVENT, type UiThemePreference } from '../../../shared/uiTheme';
 import PluginManagementPanel from '../plugin-management/PluginManagementPanel';
 
 type SettingsTab = 'general' | 'features' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'plugins' | 'usage' | 'about';
@@ -78,6 +79,7 @@ function validateComfyUiWorkflowJson(value: string) {
 }
 
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'general', label: '通用' },
   { id: 'text-model', label: '文本模型' },
   { id: 'image-model', label: '生图模型' },
   { id: 'file-parser', label: '文件解析' },
@@ -632,6 +634,7 @@ const initialState: SettingsPageState = {
   featureModuleSettings: createDefaultFeatureModuleSettings(),
   general: {
     developer_mode: false,
+    agent_settings: { schema_version: 1, enabled: false, experimental_writes_enabled: false },
   },
 };
 
@@ -744,6 +747,13 @@ function getInitialSettingsTab(): SettingsTab {
 
 function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: SettingsPageProps) {
   const [state, setState] = useState<SettingsPageState>(initialState);
+  const [uiThemePreference, setUiThemePreference] = useState<UiThemePreference>(getStoredUiThemePreference);
+
+  useEffect(() => {
+    const syncThemePreference = (event: Event) => setUiThemePreference((event as CustomEvent<UiThemePreference>).detail);
+    window.addEventListener(UI_THEME_CHANGE_EVENT, syncThemePreference);
+    return () => window.removeEventListener(UI_THEME_CHANGE_EVENT, syncThemePreference);
+  }, []);
   const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialSettingsTab);
   const [savedConfig, setSavedConfig] = useState<ClientConfig | null>(null);
   const [textModels, setTextModels] = useState<string[]>([]);
@@ -847,6 +857,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
         featureModuleSettings,
         general: {
           developer_mode: Boolean(config.developer_mode),
+          agent_settings: {
+            schema_version: 1,
+            enabled: config.agent_settings?.enabled === true,
+            experimental_writes_enabled: false,
+          },
         },
       }));
       setSavedConfig(config);
@@ -893,6 +908,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       skill_settings: normalizeSkillSettings(state.skillSettings),
       feature_module_settings: normalizeFeatureModuleSettings(state.featureModuleSettings),
       developer_mode: state.general.developer_mode,
+      agent_settings: { ...state.general.agent_settings, schema_version: 1, experimental_writes_enabled: false },
       model_list_cache: modelListCache,
     };
   };
@@ -1136,6 +1152,13 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       general: { ...prev.general, developer_mode: developerMode },
     }));
     onDeveloperModeChange?.(developerMode);
+  };
+
+  const updateAgentEnabled = (enabled: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      general: { ...prev.general, agent_settings: { schema_version: 1, enabled, experimental_writes_enabled: false } },
+    }));
   };
 
   const updateTextModelProvider = (provider: TextModelProvider) => {
@@ -1567,7 +1590,8 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     }
 
     if (activeTab === 'general') {
-      return Boolean(state.general.developer_mode) !== Boolean(savedConfig.developer_mode);
+      return Boolean(state.general.developer_mode) !== Boolean(savedConfig.developer_mode)
+        || state.general.agent_settings.enabled !== Boolean(savedConfig.agent_settings?.enabled);
     }
 
     if (activeTab === 'image-model') {
@@ -1725,29 +1749,14 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           <div className="settings-list">
             <div className="settings-row">
               <div className="settings-row-copy">
-                <strong>显示语言</strong>
-                <span>选择界面的显示语言</span>
-              </div>
-              <select value="zh-CN" disabled>
-                <option value="zh-CN">简体中文</option>
-              </select>
-            </div>
-            <div className="settings-row">
-              <div className="settings-row-copy">
                 <strong>应用主题</strong>
-                <span>切换深色或浅色模式</span>
+                <span>选择界面风格；跟随系统会随本机深色模式自动切换</span>
               </div>
-              <select value="system" disabled>
+              <select value={uiThemePreference} onChange={(event) => { const preference = event.target.value as UiThemePreference; setUiThemePreference(preference); setStoredUiThemePreference(preference); }}>
+                <option value="classic">经典</option>
+                <option value="aurora">柔光</option>
+                <option value="dark">暗黑</option>
                 <option value="system">跟随系统</option>
-              </select>
-            </div>
-            <div className="settings-row">
-              <div className="settings-row-copy">
-                <strong>侧边栏布局</strong>
-                <span>保持当前经典布局，后续可扩展为紧凑布局</span>
-              </div>
-              <select value="classic" disabled>
-                <option value="classic">经典布局</option>
               </select>
             </div>
             <label className="settings-row">
@@ -1766,6 +1775,18 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 </span>
               </span>
             </label>
+            {state.general.developer_mode && (
+              <label className="settings-row">
+                <div className="settings-row-copy">
+                  <strong>Agent 工作台（内测）</strong>
+                  <span>在 8 个业务工作台显示 Agent 规划入口；保存后立即生效，原功能入口保持不变</span>
+                </div>
+                <span className="settings-switch-control">
+                  <input type="checkbox" checked={state.general.agent_settings.enabled} onChange={(event) => updateAgentEnabled(event.target.checked)} />
+                  <span className="settings-switch-track" aria-hidden="true"><span className="settings-switch-thumb" /></span>
+                </span>
+              </label>
+            )}
             {state.general.developer_mode && (
               <div className="settings-row">
                 <div className="settings-row-copy">

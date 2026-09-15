@@ -1,6 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { AgentHostStatus, AgentRunResult } from '../../../shared/types/ipc';
 import { useToast } from '../../../shared/ui/ToastProvider';
+import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import '../projectManagement.css';
 
 import {
@@ -38,6 +40,16 @@ import { useProjectManagementWorkspaceState } from '../hooks/useProjectManagemen
 function ProjectManagementPage() {
   const { showToast } = useToast();
   const [activeModuleId, setActiveModuleId] = useState(modules[0].id);
+  const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
+  const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
+  const [agentPlanning, setAgentPlanning] = useState(false);
+  const [agentConfirmOpen, setAgentConfirmOpen] = useState(false);
+  const [agentContinuousConfirmOpen, setAgentContinuousConfirmOpen] = useState(false);
+  const [agentContinuousStatus, setAgentContinuousStatus] = useState<'idle' | 'running' | 'paused' | 'blocked' | 'completed'>('idle');
+  const [agentContinuousMessage, setAgentContinuousMessage] = useState('一次确认后，按现有输入连续推进十个项目模块。');
+  const [agentContinuousCycle, setAgentContinuousCycle] = useState(0);
+  const agentContinuousLaunchingRef = useRef(false);
+  const agentContinuousPersistenceReadyRef = useRef(false);
   const {
     state,
     profile,
@@ -170,6 +182,109 @@ function ProjectManagementPage() {
     showResultEditor,
     showToast,
   });
+  const moduleOperationsRef = useRef(moduleOperations);
+  useEffect(() => {
+    moduleOperationsRef.current = moduleOperations;
+  }, [moduleOperations]);
+
+  useEffect(() => {
+    let mounted = true;
+    window.yibiao?.agent.getStatus().then((status) => mounted && setAgentStatus(status)).catch(() => mounted && setAgentStatus(null));
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    setAgentRun(null);
+    setAgentConfirmOpen(false);
+  }, [state?.updated_at, state?.projectId]);
+
+  useEffect(() => {
+    agentContinuousPersistenceReadyRef.current = false;
+    agentContinuousLaunchingRef.current = false;
+    setAgentContinuousStatus('idle');
+    setAgentContinuousMessage('一次确认后，按项目模块顺序连续生成工作成果。');
+    const agentBridge = window.yibiao?.agent;
+    const projectId = state?.projectId;
+    if (!agentBridge || !agentStatus?.enabled || !projectId) return;
+    let mounted = true;
+    agentBridge.getContinuousRun({ workflowKind: 'project-management', projectId }).then((run) => {
+      if (!mounted) return;
+      if (run) {
+        setAgentContinuousStatus(run.status);
+        setAgentContinuousMessage(run.status === 'running' ? '正在恢复上次连续执行并检查项目模块…' : run.message);
+      }
+      agentContinuousPersistenceReadyRef.current = true;
+    }).catch(() => { if (mounted) agentContinuousPersistenceReadyRef.current = true; });
+    return () => { mounted = false; };
+  }, [agentStatus?.enabled, state?.projectId]);
+
+  useEffect(() => {
+    const agentBridge = window.yibiao?.agent;
+    const projectId = state?.projectId;
+    if (!agentBridge || !projectId || agentContinuousStatus === 'idle' || !agentContinuousPersistenceReadyRef.current) return;
+    agentBridge.saveContinuousRun({ workflowKind: 'project-management', projectId, status: agentContinuousStatus, message: agentContinuousMessage }).catch(() => undefined);
+  }, [agentContinuousMessage, agentContinuousStatus, state?.projectId]);
+
+  const projectAgentLabels: Record<string, string> = {
+    'select-project': '选择或创建项目', 'wait-active-task': '等待当前任务完成', 'complete-profile': '完善项目档案', 'review-and-export': '人工复核并导出',
+    ...Object.fromEntries(modules.flatMap((module) => [[`complete-${module.id}-input`, `补充${module.label}材料`], [`generate-${module.id}`, `生成${module.label}方案`]])),
+  };
+
+  async function planProjectNextStep() {
+    if (!state?.projectId) return;
+    setAgentPlanning(true);
+    setAgentRun(null);
+    try {
+      const result = await window.yibiao?.agent.runShadow({ goal: '检查当前项目协作状态并推荐一个安全的下一步', context: { workflowKind: 'project-management', projectId: state.projectId } });
+      if (result) setAgentRun(result);
+      showToast('项目协作 Agent 已完成下一步规划', 'success');
+    } catch (error) { showToast(error instanceof Error ? error.message : '项目协作 Agent 规划失败', 'error'); }
+    finally { setAgentPlanning(false); }
+  }
+
+  function requestProjectAgentExecution() {
+    const action = agentRun?.shadowEvaluation?.agentAction || '';
+    if (action === 'wait-active-task') { showToast('当前已有项目协作任务运行', 'info'); return; }
+    if (action === 'select-project') { setViewMode('list'); return; }
+    if (action === 'complete-profile') { setActiveModuleId('planning'); showToast('请完善并保存项目档案', 'info'); return; }
+    if (action === 'review-and-export') { showToast('请人工复核各模块后使用整套导出', 'info'); return; }
+    const moduleId = modules.find((module) => action.includes(module.id))?.id;
+    if (!moduleId) return;
+    setActiveModuleId(moduleId);
+    if (action.startsWith('complete-')) { showToast(`请补充${projectAgentLabels[action] || '当前模块材料'}`, 'info'); return; }
+    setAgentConfirmOpen(true);
+  }
+
+  async function executeProjectAgentRecommendation() {
+    const action = agentRun?.shadowEvaluation?.agentAction || '';
+    const moduleId = modules.find((module) => action === `generate-${module.id}`)?.id as keyof typeof moduleOperations | undefined;
+    setAgentConfirmOpen(false);
+    if (!moduleId) return;
+    setActiveModuleId(moduleId);
+    await moduleOperations[moduleId].generate();
+    setAgentRun(null);
+  }
+
+  function requestProjectContinuousRun() {
+    if (!profile.projectName.trim() || (!profile.clientName.trim() && !profile.keyConstraints.trim())) {
+      setActiveModuleId('planning');
+      showToast('请先完善项目名称，并填写客户名称或关键约束', 'info');
+      return;
+    }
+    setAgentContinuousConfirmOpen(true);
+  }
+
+  function confirmProjectContinuousRun() {
+    setAgentContinuousConfirmOpen(false);
+    setAgentRun(null);
+    setAgentContinuousStatus('running');
+    setAgentContinuousMessage('正在检查十个模块的已有成果与输入…');
+  }
+
+  function pauseProjectContinuousRun() {
+    setAgentContinuousStatus('paused');
+    setAgentContinuousMessage('连续执行已暂停；当前项目任务完成后，不会自动启动下一模块。');
+  }
 
   const completedModuleIds = useMemo(() => new Set(
     modules.filter((module) => moduleResults[module.id]?.trim()).map((module) => module.id),
@@ -179,6 +294,45 @@ function ProjectManagementPage() {
   const activeIndex = modules.findIndex((module) => module.id === activeModule.id);
   const nextModule = modules[activeIndex + 1];
   const isRunning = state?.task?.status === 'running';
+  useEffect(() => {
+    if (agentContinuousStatus !== 'running' || loading || !state?.projectId || agentContinuousLaunchingRef.current) return;
+    if (isRunning) {
+      setAgentContinuousMessage('正在等待当前项目模块生成完成…');
+      return;
+    }
+    const moduleInputs: Record<string, object> = {
+      planning: planningInput, discovery: discoveryInput, execution: executionInput, risk: riskInput,
+      stakeholder: stakeholderInput, delivery: deliveryInput, reporting: reportingInput, commercial: commercialInput,
+      retrospective: retrospectiveInput, compliance: complianceInput,
+    };
+    const nextModule = modules.find((module) => !moduleResults[module.id]?.trim());
+    if (!nextModule) {
+      setAgentContinuousStatus('completed');
+      setAgentContinuousMessage('十个项目协作模块已全部生成，请人工复核后导出整套成果。');
+      showToast('项目协作 Agent 连续执行已完成，请复核成果', 'success');
+      return;
+    }
+    const hasInput = Object.values(moduleInputs[nextModule.id] || {}).some((value) => String(value || '').trim());
+    if (!hasInput) {
+      setActiveModuleId(nextModule.id);
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage(`请先补充“${nextModule.label}”模块材料，然后继续执行。`);
+      return;
+    }
+    const moduleId = nextModule.id as keyof typeof moduleOperations;
+    agentContinuousLaunchingRef.current = true;
+    setActiveModuleId(nextModule.id);
+    setAgentContinuousMessage(`正在执行：生成${nextModule.label}方案`);
+    void moduleOperationsRef.current[moduleId].generate().then((success) => {
+      if (!success) {
+        setAgentContinuousStatus('blocked');
+        setAgentContinuousMessage(`生成${nextModule.label}方案失败，已停止连续执行。`);
+      }
+    }).finally(() => {
+      agentContinuousLaunchingRef.current = false;
+      setAgentContinuousCycle((cycle) => cycle + 1);
+    });
+  }, [agentContinuousCycle, agentContinuousStatus, commercialInput, complianceInput, deliveryInput, discoveryInput, executionInput, isRunning, loading, moduleResults, planningInput, reportingInput, retrospectiveInput, riskInput, stakeholderInput, state?.projectId]);
   const isPlanningModule = activeModule.id === 'planning';
   const isDiscoveryModule = activeModule.id === 'discovery';
   const isExecutionModule = activeModule.id === 'execution';
@@ -259,6 +413,12 @@ function ProjectManagementPage() {
         onBack={() => setViewMode('list')}
         onDelete={() => setDeleteProjectOpen(true)}
       />
+      {agentStatus?.enabled && state?.projectId && (
+        <AgentFloatingPanel label="项目协作 Agent" className="project-management-agent-panel">
+          <div><span className="section-kicker">项目协作 Agent</span><strong>{agentContinuousStatus !== 'idle' ? `连续执行：${agentContinuousStatus === 'running' ? '进行中' : agentContinuousStatus === 'paused' ? '已暂停' : agentContinuousStatus === 'blocked' ? '需要补充' : '已完成'}` : agentRun?.shadowEvaluation?.agentAction ? `建议：${projectAgentLabels[agentRun.shadowEvaluation.agentAction] || agentRun.shadowEvaluation.agentAction}` : '检查十个项目模块并安排下一步'}</strong><p>{agentContinuousStatus !== 'idle' ? agentContinuousMessage : agentRun?.recommendation || 'Agent 可以规划单步，也可以按已有输入连续推进十个项目模块。'}</p></div>
+          <div className="project-management-agent-actions">{agentContinuousStatus === 'running' ? <button type="button" className="secondary-action" onClick={pauseProjectContinuousRun}>暂停连续执行</button> : <button type="button" className="primary-action" onClick={requestProjectContinuousRun} disabled={loading || Boolean(isRunning)}>{agentContinuousStatus === 'paused' || agentContinuousStatus === 'blocked' ? '继续连续执行' : agentContinuousStatus === 'completed' ? '检查未完成项' : '连续执行'}</button>}<button type="button" className="secondary-action" onClick={() => void planProjectNextStep()} disabled={agentPlanning || Boolean(isRunning)}>{agentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}</button>{agentRun?.shadowEvaluation?.agentAction && <button type="button" className="primary-action" onClick={requestProjectAgentExecution} disabled={Boolean(isRunning)}>执行建议</button>}</div>
+        </AgentFloatingPanel>
+      )}
       <section className="project-management-workspace">
         <ProjectManagementFlowNavigation
           modules={modules}
@@ -620,6 +780,28 @@ function ProjectManagementPage() {
               <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
               <button type="button" className="primary-action" onClick={() => void createProject()}>创建并进入</button>
             </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={agentConfirmOpen} onOpenChange={setAgentConfirmOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="project-management-agent-dialog">
+            <Dialog.Title>确认执行 Agent 建议</Dialog.Title>
+            <Dialog.Description>将执行“{projectAgentLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一步'}”，可能产生模型费用并更新当前项目。</Dialog.Description>
+            <div className="project-management-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={() => void executeProjectAgentRecommendation()}>确认执行</button></div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={agentContinuousConfirmOpen} onOpenChange={setAgentContinuousConfirmOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="project-management-agent-dialog">
+            <Dialog.Title>确认项目协作连续执行</Dialog.Title>
+            <Dialog.Description>Agent 将按既有顺序生成尚未完成且已经具备输入的项目模块，可能产生多次模型费用。遇到缺少材料或生成失败会停止，整套导出仍由你确认。</Dialog.Description>
+            <div className="project-management-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={confirmProjectContinuousRun}>开始连续执行</button></div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

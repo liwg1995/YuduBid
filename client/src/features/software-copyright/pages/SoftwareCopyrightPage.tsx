@@ -2,7 +2,9 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
+import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import { useToast } from '../../../shared/ui/ToastProvider';
+import type { AgentHostStatus, AgentRunResult } from '../../../shared/types/ipc';
 import type { SoftwareCopyrightCodeManifest, SoftwareCopyrightCodeMaterialReviewChecks, SoftwareCopyrightConsistencyCheck, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftValidationIssue, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightFields, SoftwareCopyrightManualAssetReviewChecks, SoftwareCopyrightOptions, SoftwareCopyrightState } from '../types';
 import { CodeMaterialReview } from '../components/CodeMaterialReview';
 import { AiIllustrationManager } from '../components/AiIllustrationManager';
@@ -172,6 +174,16 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
   const [fields, setFields] = useState<SoftwareCopyrightFields>(emptyFields);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
+  const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
+  const [agentPlanning, setAgentPlanning] = useState(false);
+  const [agentConfirmOpen, setAgentConfirmOpen] = useState(false);
+  const [agentContinuousConfirmOpen, setAgentContinuousConfirmOpen] = useState(false);
+  const [agentContinuousStatus, setAgentContinuousStatus] = useState<'idle' | 'running' | 'paused' | 'blocked' | 'completed'>('idle');
+  const [agentContinuousMessage, setAgentContinuousMessage] = useState('自动准备软著草稿，并在每个人工核对关口停下。');
+  const [agentContinuousCycle, setAgentContinuousCycle] = useState(0);
+  const agentContinuousLaunchingRef = useRef(false);
+  const agentContinuousPersistenceReadyRef = useRef(false);
   const [generatingTechnicalFeatures, setGeneratingTechnicalFeatures] = useState(false);
   const [activeDraftKey, setActiveDraftKey] = useState<string>('');
   const [draftFile, setDraftFile] = useState<SoftwareCopyrightDraftFile | null>(null);
@@ -424,6 +436,39 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
       unsubscribe?.();
     };
   }, [showToast]);
+
+  useEffect(() => {
+    let mounted = true;
+    window.yibiao?.agent.getStatus().then((status) => mounted && setAgentStatus(status)).catch(() => mounted && setAgentStatus(null));
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    setAgentRun(null);
+    setAgentConfirmOpen(false);
+  }, [state?.updated_at]);
+
+  useEffect(() => {
+    agentContinuousPersistenceReadyRef.current = false;
+    const agentBridge = window.yibiao?.agent;
+    if (!agentBridge || !agentStatus?.enabled) return;
+    let mounted = true;
+    agentBridge.getContinuousRun({ workflowKind: 'software-copyright', projectId: 'workspace' }).then((run) => {
+      if (!mounted) return;
+      if (run) {
+        setAgentContinuousStatus(run.status);
+        setAgentContinuousMessage(run.status === 'running' ? '正在恢复上次软著 Agent 执行状态…' : run.message);
+      }
+      agentContinuousPersistenceReadyRef.current = true;
+    }).catch(() => { if (mounted) agentContinuousPersistenceReadyRef.current = true; });
+    return () => { mounted = false; };
+  }, [agentStatus?.enabled]);
+
+  useEffect(() => {
+    const agentBridge = window.yibiao?.agent;
+    if (!agentBridge || agentContinuousStatus === 'idle' || !agentContinuousPersistenceReadyRef.current) return;
+    agentBridge.saveContinuousRun({ workflowKind: 'software-copyright', projectId: 'workspace', status: agentContinuousStatus, message: agentContinuousMessage }).catch(() => undefined);
+  }, [agentContinuousMessage, agentContinuousStatus]);
 
   useEffect(() => {
     const review = state?.codeMaterialReview;
@@ -754,6 +799,135 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
       showToast(error instanceof Error ? error.message : '启动草稿生成失败', 'error');
     }
   }
+
+  const softwareCopyrightAgentLabels: Record<string, string> = {
+    'load-workspace': '打开软件著作工作区', 'wait-active-task': '等待当前任务完成', 'select-source': '选择项目源码', 'complete-fields': '补齐登记字段', 'generate-drafts': '生成软著草稿', 'review-code-material': '核对代码鉴别材料', 'confirm-draft': '完整检查并确认草稿', 'review-manual-assets': '核对操作手册图片', 'complete-submission-review': '完成申报人工复核', 'review-and-export': '提交前总检并导出', 'inspect-delivery': '核验交付批次',
+  };
+
+  async function planSoftwareCopyrightNextStep() {
+    setAgentPlanning(true); setAgentRun(null);
+    try {
+      const nextRun = await window.yibiao?.agent.runShadow({ goal: '检查当前软件著作工作区并推荐一个安全的下一步', context: { workflowKind: 'software-copyright' } });
+      if (nextRun) setAgentRun(nextRun);
+      showToast('软件著作 Agent 已完成下一步规划', 'success');
+    } catch (error) { showToast(error instanceof Error ? error.message : '软件著作 Agent 规划失败', 'error'); }
+    finally { setAgentPlanning(false); }
+  }
+
+  function requestSoftwareCopyrightAgentExecution() {
+    const action = agentRun?.shadowEvaluation?.agentAction || '';
+    if (action === 'wait-active-task') { showToast('当前已有软著任务运行', 'info'); return; }
+    if (action === 'select-source') { handleWorkflowNavigate('source', sourceSectionRef.current); showToast('请选择源码目录或确认代码素材', 'info'); return; }
+    if (action === 'complete-fields') { handleWorkflowNavigate('fields', fieldsSectionRef.current); showToast('请补齐并保存登记必填字段', 'info'); return; }
+    if (action === 'review-code-material') { scrollToElement(codeSectionRef.current); showToast('请完成人工代码材料核对', 'info'); return; }
+    if (action === 'review-manual-assets') { scrollToElement(manualSectionRef.current); showToast('请人工核对图片内容、图注和放置位置', 'info'); return; }
+    if (action === 'complete-submission-review') { scrollToElement(submissionSectionRef.current); showToast('请完成申报辅助人工复核', 'info'); return; }
+    if (action === 'review-and-export') { scrollToElement(finalExportSectionRef.current); showToast('请执行提交前总检并确认导出范围', 'info'); return; }
+    if (action === 'inspect-delivery') { scrollToElement(resultSectionRef.current); return; }
+    if (action === 'generate-drafts' || action === 'confirm-draft') setAgentConfirmOpen(true);
+  }
+
+  async function executeSoftwareCopyrightAgentRecommendation() {
+    const action = agentRun?.shadowEvaluation?.agentAction || '';
+    setAgentConfirmOpen(false);
+    if (action === 'generate-drafts') await handleGenerateDraft();
+    else if (action === 'confirm-draft') await handleConfirmDraft();
+    setAgentRun(null);
+  }
+
+  function requestSoftwareCopyrightContinuousRun() {
+    if (!hasSource) {
+      handleWorkflowNavigate('source', sourceSectionRef.current);
+      showToast('请先选择源码目录或确认代码生成素材', 'info');
+      return;
+    }
+    if (missingFields.length) {
+      handleWorkflowNavigate('fields', fieldsSectionRef.current);
+      showToast(`请先补齐 ${missingFields.length} 个登记必填字段`, 'info');
+      return;
+    }
+    setAgentContinuousConfirmOpen(true);
+  }
+
+  function confirmSoftwareCopyrightContinuousRun() {
+    setAgentContinuousConfirmOpen(false);
+    setAgentRun(null);
+    setAgentContinuousStatus('running');
+    setAgentContinuousMessage('正在检查软著草稿和人工核对状态…');
+    setAgentContinuousCycle((cycle) => cycle + 1);
+  }
+
+  function pauseSoftwareCopyrightContinuousRun() {
+    setAgentContinuousStatus('paused');
+    setAgentContinuousMessage('自动准备已暂停；当前草稿生成任务不受影响。');
+  }
+
+  useEffect(() => {
+    if (agentContinuousStatus !== 'running' || loading || !state || agentContinuousLaunchingRef.current) return;
+    if (isRunning) {
+      setAgentContinuousMessage('正在等待软著草稿生成完成…');
+      return;
+    }
+    if (!hasSource) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage('请先选择项目源码或确认代码生成素材。');
+      handleWorkflowNavigate('source', sourceSectionRef.current);
+      return;
+    }
+    if (missingFields.length) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage(`仍有 ${missingFields.length} 个登记必填字段未填写，请补齐后继续。`);
+      handleWorkflowNavigate('fields', fieldsSectionRef.current);
+      return;
+    }
+    if (!hasDrafts) {
+      agentContinuousLaunchingRef.current = true;
+      setAgentContinuousMessage('正在启动：生成软著草稿与代码鉴别材料');
+      void (async () => {
+        try {
+          const savedState = await window.yibiao?.softwareCopyright.saveFields(fields);
+          if (savedState) setState(savedState);
+          await window.yibiao?.softwareCopyright.startGeneration({ fields, useAiImages: Boolean(state.options.useAiImages), sourceMode, codeExcludedPaths, codeIncludedPaths, codeClean: state.options.codeClean || defaultOptions.codeClean });
+          showToast('软著草稿生成已开始', 'success');
+        } catch (error) {
+          setAgentContinuousStatus('blocked');
+          setAgentContinuousMessage(error instanceof Error ? error.message : '启动软著草稿生成失败');
+        } finally {
+          agentContinuousLaunchingRef.current = false;
+          setAgentContinuousCycle((cycle) => cycle + 1);
+        }
+      })();
+      return;
+    }
+    if (!codeMaterialReviewed) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage('草稿已生成。请人工核对代码页码范围、源码范围和可读性，确认后再继续。');
+      scrollToElement(codeSectionRef.current);
+      return;
+    }
+    if (!state.draftConfirmed) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage('代码材料已核对。请运行完整检查并确认草稿快照。');
+      handleWorkflowNavigate('drafts', draftsSectionRef.current);
+      return;
+    }
+    if (!manualAssetReady) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage('请人工核对操作手册图片、图注和放置位置。');
+      scrollToElement(manualSectionRef.current);
+      return;
+    }
+    if (!manualReviewCurrent || !submissionPrecheckReady) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage('请完成权属、主体、日期、源码证据和受理要求的人工复核。');
+      scrollToElement(submissionSectionRef.current);
+      return;
+    }
+    setAgentContinuousStatus('completed');
+    setAgentContinuousMessage('软著材料已通过各人工核对关口，请执行提交前总检并确认导出范围。');
+    scrollToElement(finalExportSectionRef.current);
+    showToast('软件著作 Agent 准备工作已完成，请确认导出', 'success');
+  }, [agentContinuousCycle, agentContinuousStatus, codeExcludedPaths, codeIncludedPaths, codeMaterialReviewed, fields, hasDrafts, hasSource, isRunning, loading, manualAssetReady, manualReviewCurrent, missingFields.length, sourceMode, state, submissionPrecheckReady]);
 
   async function handleConfirmDraft() {
     if (draftDirty) {
@@ -1092,6 +1266,13 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
           <button type="button" className="danger-action" onClick={handleClear} disabled={isRunning}>清空</button>
         </div>
       </section>
+
+      {agentStatus?.enabled && (
+        <AgentFloatingPanel label="软件著作 Agent" className="software-copyright-agent-panel">
+          <div><span className="section-kicker">软件著作 Agent</span><strong>{agentContinuousStatus !== 'idle' ? `自动准备：${agentContinuousStatus === 'running' ? '进行中' : agentContinuousStatus === 'paused' ? '已暂停' : agentContinuousStatus === 'blocked' ? '等待人工核对' : '已完成'}` : agentRun?.shadowEvaluation?.agentAction ? `建议：${softwareCopyrightAgentLabels[agentRun.shadowEvaluation.agentAction] || agentRun.shadowEvaluation.agentAction}` : '检查软著六阶段并安排下一步'}</strong><p>{agentContinuousStatus !== 'idle' ? agentContinuousMessage : agentRun?.recommendation || 'Agent 可自动准备草稿，并在代码、权属和提交核对关口停下。'}</p></div>
+          <div className="software-copyright-agent-actions">{agentContinuousStatus === 'running' ? <button type="button" className="secondary-action" onClick={pauseSoftwareCopyrightContinuousRun}>暂停自动准备</button> : <button type="button" className="primary-action" onClick={requestSoftwareCopyrightContinuousRun} disabled={loading || Boolean(isRunning)}>{agentContinuousStatus === 'blocked' || agentContinuousStatus === 'paused' ? '核对后继续' : agentContinuousStatus === 'completed' ? '重新检查' : '自动准备材料'}</button>}<button type="button" className="secondary-action" onClick={() => void planSoftwareCopyrightNextStep()} disabled={agentPlanning || Boolean(isRunning)}>{agentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}</button>{agentRun?.shadowEvaluation?.agentAction && <button type="button" className="primary-action" onClick={requestSoftwareCopyrightAgentExecution} disabled={Boolean(isRunning)}>执行建议</button>}</div>
+        </AgentFloatingPanel>
+      )}
 
       <nav className="software-copyright-workflow-nav" aria-label="软著材料工作阶段">
         <button
@@ -1878,6 +2059,9 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+      <Dialog.Root open={agentConfirmOpen} onOpenChange={setAgentConfirmOpen}><Dialog.Portal><Dialog.Overlay className="content-regenerate-modal" /><Dialog.Content className="software-copyright-agent-dialog"><Dialog.Title>确认执行 Agent 建议</Dialog.Title><Dialog.Description>将执行“{softwareCopyrightAgentLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一步'}”。生成草稿可能产生模型费用；确认草稿会创建与当前材料绑定的正式快照。</Dialog.Description><div className="software-copyright-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={() => void executeSoftwareCopyrightAgentRecommendation()}>确认执行</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+
+      <Dialog.Root open={agentContinuousConfirmOpen} onOpenChange={setAgentContinuousConfirmOpen}><Dialog.Portal><Dialog.Overlay className="content-regenerate-modal" /><Dialog.Content className="software-copyright-agent-dialog"><Dialog.Title>确认自动准备软著材料</Dialog.Title><Dialog.Description>Agent 将保存已填写字段并生成尚未生成的软著草稿与代码鉴别材料，可能产生模型费用。代码范围、操作手册图片、权属信息、正式快照和最终导出仍需逐项人工确认。</Dialog.Description><div className="software-copyright-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={confirmSoftwareCopyrightContinuousRun}>开始自动准备</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
       <Dialog.Root open={exportConfirmOpen} onOpenChange={setExportConfirmOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />

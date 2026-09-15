@@ -1,13 +1,11 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useEffect, useState, type ComponentType, type SVGProps } from 'react';
+import { applyUiThemePreference, getStoredUiThemePreference, setStoredUiThemePreference, UI_THEME_CHANGE_EVENT, type UiThemePreference } from '../shared/uiTheme';
 
-type UiTheme = 'classic' | 'aurora' | 'dark';
 type ThemeIconProps = { 'aria-hidden'?: boolean | 'true' | 'false' };
 
-const THEME_STORAGE_KEY = 'yudubid-ui-theme';
-
 const themeOptions: Array<{
-  id: UiTheme;
+  id: UiThemePreference;
   label: string;
   shortLabel: string;
   Icon: ComponentType<ThemeIconProps>;
@@ -15,30 +13,27 @@ const themeOptions: Array<{
   { id: 'classic', label: '经典风格', shortLabel: '经典', Icon: ClassicThemeIcon },
   { id: 'aurora', label: '柔光风格', shortLabel: '柔光', Icon: AuroraThemeIcon },
   { id: 'dark', label: '暗黑风格', shortLabel: '暗黑', Icon: DarkThemeIcon },
+  { id: 'system', label: '跟随系统', shortLabel: '系统', Icon: SystemThemeIcon },
 ];
 
-function applyTheme(theme: UiTheme) {
-  document.documentElement.dataset.uiTheme = theme;
-  document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
-}
-
-function normalizeTheme(value: string | null): UiTheme {
-  return themeOptions.some((option) => option.id === value) ? value as UiTheme : 'classic';
-}
-
-function loadInitialTheme(): UiTheme {
-  if (typeof window === 'undefined') return 'classic';
-  const theme = normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
-  applyTheme(theme);
-  return theme;
-}
-
 function ThemeSwitcher() {
-  const [theme, setTheme] = useState<UiTheme>(loadInitialTheme);
+  const [theme, setTheme] = useState<UiThemePreference>(() => {
+    const preference = getStoredUiThemePreference();
+    applyUiThemePreference(preference);
+    return preference;
+  });
 
   useEffect(() => {
-    applyTheme(theme);
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    applyUiThemePreference(theme);
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemChange = () => { if (theme === 'system') applyUiThemePreference('system'); };
+    const handlePreferenceChange = (event: Event) => setTheme((event as CustomEvent<UiThemePreference>).detail);
+    media.addEventListener('change', handleSystemChange);
+    window.addEventListener(UI_THEME_CHANGE_EVENT, handlePreferenceChange);
+    return () => {
+      media.removeEventListener('change', handleSystemChange);
+      window.removeEventListener(UI_THEME_CHANGE_EVENT, handlePreferenceChange);
+    };
   }, [theme]);
 
   return (
@@ -49,7 +44,7 @@ function ThemeSwitcher() {
             <button
               type="button"
               className={`theme-switcher-button${theme === id ? ' is-active' : ''}`}
-              onClick={() => setTheme(id)}
+              onClick={() => { setTheme(id); setStoredUiThemePreference(id); }}
               role="radio"
               aria-checked={theme === id}
               aria-label={label}
@@ -96,6 +91,10 @@ function AuroraThemeIcon(props: SVGProps<SVGSVGElement>) {
 
 function DarkThemeIcon(props: ThemeIconProps) {
   return <span className="theme-switcher-dark-icon" {...props} />;
+}
+
+function SystemThemeIcon(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" {...props}><rect x="3.5" y="4.5" width="17" height="12" rx="2" /><path d="M8 20h8M12 16.5V20" /></svg>;
 }
 
 export default ThemeSwitcher;

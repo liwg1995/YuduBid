@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import '../patentGeneration.css';
 import { useToast } from '../../../shared/ui/ToastProvider';
-import type { WordExportProgressEvent } from '../../../shared/types/ipc';
+import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
+import type { AgentHostStatus, AgentRunResult, WordExportProgressEvent } from '../../../shared/types/ipc';
 import type { SectionId } from '../../../shared/types/navigation';
 import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationState, PatentPoint } from '../types';
 import { getConfirmedFactSupplements, getUnresolvedMissingFacts } from '../factSupplements';
@@ -129,6 +131,16 @@ function PatentComingPage({
   const [generatingRevision, setGeneratingRevision] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
+  const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
+  const [agentPlanning, setAgentPlanning] = useState(false);
+  const [agentConfirmOpen, setAgentConfirmOpen] = useState(false);
+  const [agentContinuousConfirmOpen, setAgentContinuousConfirmOpen] = useState(false);
+  const [agentContinuousStatus, setAgentContinuousStatus] = useState<'idle' | 'running' | 'paused' | 'blocked' | 'completed'>('idle');
+  const [agentContinuousMessage, setAgentContinuousMessage] = useState('自动推进专利材料，并在主专利点和事实确认关口停下。');
+  const [agentContinuousCycle, setAgentContinuousCycle] = useState(0);
+  const agentContinuousLaunchingRef = useRef(false);
+  const agentContinuousPersistenceReadyRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -163,6 +175,42 @@ function PatentComingPage({
       unsubscribe?.();
     };
   }, [showToast]);
+
+  useEffect(() => {
+    let mounted = true;
+    window.yibiao?.agent.getStatus().then((status) => mounted && setAgentStatus(status)).catch(() => mounted && setAgentStatus(null));
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    setAgentRun(null);
+    setAgentConfirmOpen(false);
+  }, [state?.updated_at, state?.caseId]);
+
+  useEffect(() => {
+    agentContinuousPersistenceReadyRef.current = false;
+    agentContinuousLaunchingRef.current = false;
+    setAgentContinuousStatus('idle');
+    setAgentContinuousMessage('一次确认后，连续推进专利挖掘、事实补强与交底书准备。');
+    const agentBridge = window.yibiao?.agent;
+    if (!agentBridge || !agentStatus?.enabled || !state?.caseId) return;
+    let mounted = true;
+    agentBridge.getContinuousRun({ workflowKind: 'patent-generation', projectId: state.caseId }).then((run) => {
+      if (!mounted) return;
+      if (run) {
+        setAgentContinuousStatus(run.status);
+        setAgentContinuousMessage(run.status === 'running' ? '正在恢复上次专利 Agent 执行状态…' : run.message);
+      }
+      agentContinuousPersistenceReadyRef.current = true;
+    }).catch(() => { if (mounted) agentContinuousPersistenceReadyRef.current = true; });
+    return () => { mounted = false; };
+  }, [agentStatus?.enabled, state?.caseId]);
+
+  useEffect(() => {
+    const agentBridge = window.yibiao?.agent;
+    if (!agentBridge || !state?.caseId || agentContinuousStatus === 'idle' || !agentContinuousPersistenceReadyRef.current) return;
+    agentBridge.saveContinuousRun({ workflowKind: 'patent-generation', projectId: state.caseId, status: agentContinuousStatus, message: agentContinuousMessage }).catch(() => undefined);
+  }, [agentContinuousMessage, agentContinuousStatus, state?.caseId]);
 
   useEffect(() => {
     let mounted = true;
@@ -327,7 +375,7 @@ function PatentComingPage({
   async function handleStartMining(options: { resume?: boolean } = {}) {
     if (!state?.project) {
       await handleSelectProject();
-      return;
+      return false;
     }
     setMining(true);
     try {
@@ -358,8 +406,10 @@ function PatentComingPage({
           }
         }
       }
+      return true;
     } catch (error) {
       showToast(error instanceof Error ? error.message : '专利点挖掘失败', 'error');
+      return false;
     } finally {
       setMining(false);
     }
@@ -411,8 +461,10 @@ function PatentComingPage({
       const nextState = await window.yibiao?.patentGeneration.generateFactSupplements(pointId);
       if (nextState) setState(nextState);
       showToast('AI 已生成建议，请核对并修改后保存', 'success');
+      return true;
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'AI 生成待补事实建议失败', 'error');
+      return false;
     } finally {
       setGeneratingFactPointId('');
     }
@@ -440,8 +492,10 @@ function PatentComingPage({
         setCaseInfo(hydrateCaseInfo(nextState));
       }
       showToast('技术交底书草稿已生成', 'success');
+      return true;
     } catch (error) {
       showToast(error instanceof Error ? error.message : '生成交底书草稿失败', 'error');
+      return false;
     } finally {
       setGeneratingDraft(false);
     }
@@ -610,6 +664,150 @@ function PatentComingPage({
     }
   }
 
+  const patentAgentLabels: Record<string, string> = {
+    'select-case': '创建或进入专利项目', 'wait-active-task': '等待当前任务完成', 'complete-case-info': '完善案件信息', 'select-project': '导入项目目录', 'start-mining': '开始专利点挖掘', 'select-patent-point': '人工选择主专利点', 'generate-fact-supplements': '生成待补事实建议', 'confirm-fact-supplements': '人工确认事实补充', 'generate-disclosure': '生成技术交底书', 'complete-prior-art': '补充查新资料', 'consider-revision': '复核并考虑修订', 'review-and-export': '人工复核并导出',
+  };
+
+  async function planPatentNextStep() {
+    if (!state?.caseId) return;
+    setAgentPlanning(true); setAgentRun(null);
+    try {
+      const nextRun = await window.yibiao?.agent.runShadow({ goal: '检查当前专利案件并推荐一个安全的下一步', context: { workflowKind: 'patent-generation', projectId: state.caseId } });
+      if (nextRun) setAgentRun(nextRun);
+      showToast('专利生成 Agent 已完成下一步规划', 'success');
+    } catch (error) { showToast(error instanceof Error ? error.message : '专利生成 Agent 规划失败', 'error'); }
+    finally { setAgentPlanning(false); }
+  }
+
+  function requestPatentAgentExecution() {
+    const action = agentRun?.shadowEvaluation?.agentAction || '';
+    if (action === 'wait-active-task') { showToast('当前已有专利任务运行', 'info'); return; }
+    if (action === 'complete-case-info') { onNavigate?.('patent-mining'); showToast('请完善并保存案件信息', 'info'); return; }
+    if (action === 'select-project') { onNavigate?.('patent-mining'); showToast('请导入真实项目目录', 'info'); return; }
+    if (action === 'select-patent-point') { onNavigate?.('patent-mining'); showToast('请人工比较候选点并选择主专利点', 'info'); return; }
+    if (action === 'confirm-fact-supplements') { onNavigate?.('patent-mining'); showToast('请修改并保存事实补充，不能直接确认 AI 建议', 'info'); return; }
+    if (action === 'complete-prior-art') { onNavigate?.('patent-prior-art'); showToast('请补充公开资料后生成查新分析', 'info'); return; }
+    if (action === 'consider-revision') { onNavigate?.('patent-iteration'); showToast('请复核交底书，需要时填写修订要求', 'info'); return; }
+    if (action === 'review-and-export') { onNavigate?.('patent-disclosure'); showToast('请人工复核交底书后导出 Word', 'info'); return; }
+    if (['start-mining', 'generate-fact-supplements', 'generate-disclosure'].includes(action)) setAgentConfirmOpen(true);
+  }
+
+  async function executePatentAgentRecommendation() {
+    const action = agentRun?.shadowEvaluation?.agentAction || '';
+    setAgentConfirmOpen(false);
+    if (action === 'start-mining') await handleStartMining();
+    else if (action === 'generate-fact-supplements' && selectedPatentPoint?.id) await handleGenerateFactSupplements(selectedPatentPoint.id);
+    else if (action === 'generate-disclosure') await handleGenerateDisclosureDraft();
+    setAgentRun(null);
+  }
+
+  function requestPatentContinuousRun() {
+    if (!caseInfo.caseName.trim() && !caseInfo.topic.trim()) {
+      onNavigate?.('patent-mining');
+      showToast('请先完善案件名称或技术主题', 'info');
+      return;
+    }
+    if (!state?.project) {
+      onNavigate?.('patent-mining');
+      showToast('请先导入真实项目目录', 'info');
+      return;
+    }
+    setAgentContinuousConfirmOpen(true);
+  }
+
+  function confirmPatentContinuousRun() {
+    setAgentContinuousConfirmOpen(false);
+    setAgentRun(null);
+    setAgentContinuousStatus('running');
+    setAgentContinuousMessage('正在检查专利候选点、事实和交底书状态…');
+    setAgentContinuousCycle((cycle) => cycle + 1);
+  }
+
+  function pausePatentContinuousRun() {
+    setAgentContinuousStatus('paused');
+    setAgentContinuousMessage('自动推进已暂停；当前专利任务不受影响。');
+  }
+
+  useEffect(() => {
+    if (agentContinuousStatus !== 'running' || loading || !state || agentContinuousLaunchingRef.current) return;
+    if (isRunning || mining || generatingFactPointId || generatingDraft) {
+      setAgentContinuousMessage('正在等待当前专利任务完成…');
+      return;
+    }
+    if (!state.project) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage('请先导入真实项目目录，建立技术证据来源。');
+      onNavigate?.('patent-mining');
+      return;
+    }
+    if (!state.miningResult?.length) {
+      agentContinuousLaunchingRef.current = true;
+      setAgentContinuousMessage('正在执行：专利点挖掘');
+      void handleStartMining().then((success) => {
+        if (!success) {
+          setAgentContinuousStatus('blocked');
+          setAgentContinuousMessage('专利点挖掘失败，已停止自动推进。');
+        }
+      }).finally(() => {
+        agentContinuousLaunchingRef.current = false;
+        setAgentContinuousCycle((cycle) => cycle + 1);
+      });
+      return;
+    }
+    if (!selectedPatentPoint) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage('候选专利点已生成。请人工比较创新性、证据和保护价值，并选择主专利点。');
+      onNavigate?.('patent-mining');
+      return;
+    }
+    const unresolvedFacts = getUnresolvedMissingFacts(selectedPatentPoint);
+    const hasSuggestions = selectedPatentPoint.factSupplements?.some((item) => item.source === 'ai' && item.content.trim());
+    if (unresolvedFacts.length && !hasSuggestions) {
+      agentContinuousLaunchingRef.current = true;
+      setAgentContinuousMessage('正在执行：生成待补事实建议');
+      void handleGenerateFactSupplements(selectedPatentPoint.id).then((success) => {
+        if (!success) {
+          setAgentContinuousStatus('blocked');
+          setAgentContinuousMessage('生成事实补充建议失败，已停止自动推进。');
+        }
+      }).finally(() => {
+        agentContinuousLaunchingRef.current = false;
+        setAgentContinuousCycle((cycle) => cycle + 1);
+      });
+      return;
+    }
+    if (unresolvedFacts.length) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage('AI 已给出待补事实建议。请逐项核验、修改并保存为人工事实后继续。');
+      onNavigate?.('patent-mining');
+      return;
+    }
+    if (!state.activeDraftId) {
+      agentContinuousLaunchingRef.current = true;
+      setAgentContinuousMessage('正在执行：生成技术交底书草稿');
+      void handleGenerateDisclosureDraft().then((success) => {
+        if (!success) {
+          setAgentContinuousStatus('blocked');
+          setAgentContinuousMessage('技术交底书生成失败，已停止自动推进。');
+        }
+      }).finally(() => {
+        agentContinuousLaunchingRef.current = false;
+        setAgentContinuousCycle((cycle) => cycle + 1);
+      });
+      return;
+    }
+    if (!state.priorArtMarkdown?.trim()) {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage('交底书草稿已生成。查新增强为可选步骤：可补充公开资料生成分析，或直接人工复核交底书。');
+      onNavigate?.('patent-prior-art');
+      return;
+    }
+    setAgentContinuousStatus('completed');
+    setAgentContinuousMessage('专利点、事实补充、交底书和查新分析已齐备。请人工审查权利要求范围，按需修订后导出。');
+    onNavigate?.('patent-disclosure');
+    showToast('专利生成 Agent 自动推进已完成，请进行专业复核', 'success');
+  }, [agentContinuousCycle, agentContinuousStatus, generatingDraft, generatingFactPointId, isRunning, loading, mining, selectedPatentPoint, state]);
+
   async function handleResetCase() {
     setResetting(true);
     try {
@@ -757,6 +955,13 @@ function PatentComingPage({
         onStopMining={() => void handleStopMining()}
       />
 
+      {agentStatus?.enabled && state?.caseId && (
+        <AgentFloatingPanel label="专利生成 Agent" className="patent-agent-panel">
+          <div><span className="section-kicker">专利生成 Agent</span><strong>{agentContinuousStatus !== 'idle' ? `自动推进：${agentContinuousStatus === 'running' ? '进行中' : agentContinuousStatus === 'paused' ? '已暂停' : agentContinuousStatus === 'blocked' ? '等待人工确认' : '已完成'}` : agentRun?.shadowEvaluation?.agentAction ? `建议：${patentAgentLabels[agentRun.shadowEvaluation.agentAction] || agentRun.shadowEvaluation.agentAction}` : '检查专利案件并安排下一步'}</strong><p>{agentContinuousStatus !== 'idle' ? agentContinuousMessage : agentRun?.recommendation || 'Agent 可自动推进技术材料，并在专利点与事实确认关口停下。'}</p></div>
+          <div className="patent-agent-actions">{agentContinuousStatus === 'running' ? <button type="button" className="secondary-action" onClick={pausePatentContinuousRun}>暂停自动推进</button> : <button type="button" className="primary-action" onClick={requestPatentContinuousRun} disabled={loading || Boolean(isRunning)}>{agentContinuousStatus === 'blocked' || agentContinuousStatus === 'paused' ? '确认后继续' : agentContinuousStatus === 'completed' ? '重新检查' : '自动推进材料'}</button>}<button type="button" className="secondary-action" onClick={() => void planPatentNextStep()} disabled={agentPlanning || Boolean(isRunning)}>{agentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}</button>{agentRun?.shadowEvaluation?.agentAction && <button type="button" className="primary-action" onClick={requestPatentAgentExecution} disabled={Boolean(isRunning)}>执行建议</button>}</div>
+        </AgentFloatingPanel>
+      )}
+
       <nav className="patent-workflow-strip" aria-label="专利生成步骤">
         {([
           { section: 'patent-mining', label: '挖掘并选择专利点', ready: Boolean(state?.selectedPatentPointId), optional: false },
@@ -823,6 +1028,9 @@ function PatentComingPage({
         onOpenChange={setResetConfirmOpen}
         onConfirm={handleResetCase}
       />
+      <Dialog.Root open={agentConfirmOpen} onOpenChange={setAgentConfirmOpen}><Dialog.Portal><Dialog.Overlay className="content-regenerate-modal" /><Dialog.Content className="patent-agent-dialog"><Dialog.Title>确认执行 Agent 建议</Dialog.Title><Dialog.Description>将执行“{patentAgentLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一步'}”，可能产生模型费用并更新当前专利案件。AI 生成的专利点和事实建议仍需人工核验。</Dialog.Description><div className="patent-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={() => void executePatentAgentRecommendation()}>确认执行</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+
+      <Dialog.Root open={agentContinuousConfirmOpen} onOpenChange={setAgentContinuousConfirmOpen}><Dialog.Portal><Dialog.Overlay className="content-regenerate-modal" /><Dialog.Content className="patent-agent-dialog"><Dialog.Title>确认自动推进专利材料</Dialog.Title><Dialog.Description>Agent 将自动执行尚未完成的专利点挖掘、事实建议和技术交底书生成，可能产生多次模型费用。主专利点选择、事实真实性、查新资料、权利要求范围、修订和最终导出仍需人工确认。</Dialog.Description><div className="patent-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={confirmPatentContinuousRun}>开始自动推进</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
     </div>
   );
 }

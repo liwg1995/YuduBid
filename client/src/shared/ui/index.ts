@@ -1,6 +1,8 @@
 export { default as FloatingToolbar } from './FloatingToolbar';
 export { default as AppSwitch } from './AppSwitch';
 export type { AppSwitchProps } from './AppSwitch';
+export { default as AgentFloatingPanel } from './AgentFloatingPanel';
+export type { AgentFloatingPanelProps } from './AgentFloatingPanel';
 export { default as ProgressBar } from './ProgressBar';
 export type { ProgressBarProps, ProgressBarTone } from './ProgressBar';
 export { default as DetailHelpLink } from './DetailHelpLink';

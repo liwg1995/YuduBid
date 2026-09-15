@@ -977,7 +977,7 @@ function ContentEditPage({
         </div>
       </section>
 
-      {developerMode && imageStats && (
+      {developerMode && imageStats && taskInFlight && (
         <aside className="content-dev-stats-panel" aria-label="开发者生成统计">
           <strong>配图统计</strong>
           <span>AI 生图 计划 {aiImageStats.planned} / 尝试 {aiImageStats.attempted} / 成功 {aiImageStats.success} / 失败 {aiImageStats.failed} / 跳过 {aiImageStats.skipped}</span>

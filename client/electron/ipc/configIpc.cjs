@@ -2,9 +2,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { ipcMain, shell } = require('electron');
 
-function registerConfigIpc({ configStore, aiService }) {
+function registerConfigIpc({ configStore, aiService, onConfigSaved }) {
   ipcMain.handle('config:load', () => configStore.load());
-  ipcMain.handle('config:save', (_event, config) => configStore.save(config));
+  ipcMain.handle('config:save', (_event, config) => {
+    const result = configStore.save(config);
+    if (result?.success) onConfigSaved?.(config);
+    return result;
+  });
   ipcMain.handle('config:list-models', (_event, config) => aiService.listModels(config));
   ipcMain.handle('config:get-model-capabilities', (_event, config) => aiService.getModelCapabilities(config));
   ipcMain.handle('config:open-config-folder', async () => {

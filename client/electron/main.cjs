@@ -204,7 +204,7 @@ function createMainWindow() {
 
 if (gotSingleInstanceLock) {
   app.whenReady().then(() => {
-    nativeTheme.themeSource = 'light';
+    nativeTheme.themeSource = 'system';
     migrateLegacyUserData();
     registerAssetProtocol();
     mainWindow = createMainWindow();

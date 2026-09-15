@@ -21,9 +21,9 @@ type WorkspaceData = Pick<ProjectManagementState,
 type ShowToast = (message: string, type?: ToastType) => void;
 
 interface ModuleOperation {
-  saveInput: () => Promise<void>;
-  generate: () => Promise<void>;
-  saveResult: () => Promise<void>;
+  saveInput: () => Promise<boolean>;
+  generate: () => Promise<boolean>;
+  saveResult: () => Promise<boolean>;
 }
 
 interface ModuleActionConfig {
@@ -71,8 +71,10 @@ export function useProjectManagementModuleOperations({
       if (nextState) applyState(nextState);
       if (generatedModuleId) showResultEditor(generatedModuleId);
       showToast(successMessage, 'success');
+      return true;
     } catch (error) {
       showToast(error instanceof Error ? error.message : failureMessage, 'error');
+      return false;
     }
   }
 

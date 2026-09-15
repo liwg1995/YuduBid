@@ -16,6 +16,10 @@ function getWorkspaceDatabasePath(app) {
   return path.join(getWorkspaceDir(app), 'yibiao.sqlite');
 }
 
+function getAgentRunsDir(app) {
+  return path.join(getWorkspaceDir(app), 'agent-runs');
+}
+
 function getTechnicalPlanDir(app) {
   return path.join(getWorkspaceDir(app), 'technical-plan');
 }
@@ -118,6 +122,7 @@ function getAiLogsDir(app) {
 }
 
 module.exports = {
+  getAgentRunsDir,
   getAiLogsDir,
   getDuplicateCheckContentDir,
   getDuplicateCheckDir,

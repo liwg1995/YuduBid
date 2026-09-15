@@ -112,6 +112,193 @@ export interface UsageStatsSummary {
   by_model: Array<{ provider: string; model: string; requests: number; total_tokens: number }>;
 }
 
+export interface AgentHostStatus {
+  enabled: boolean;
+  experimentalWritesEnabled: boolean;
+  pilot: { id: string; phase: 'frozen-read-only'; businessExecutionEnabled: false; approvalEnabled: false };
+  agents: Array<{ id: string; name: string; version: string; description?: string; enabledByDefault?: boolean; allowedTools?: string[] }>;
+  tools: Array<{ id: string; name: string; version: string; description?: string; permission: string; risk: 'read' | 'low' | 'medium' | 'high'; approval: 'never' | 'policy' | 'always' }>;
+}
+
+export interface AgentDryRunInput {
+  goal: string;
+  context?: { workflowKind?: 'technical-plan' | 'existing-plan-expansion' | 'presales' | 'official-document' | 'grant-application' | 'project-management' | 'thesis-tutor' | 'software-copyright' | 'patent-generation'; projectId?: string };
+}
+
+export interface AgentRunResult {
+  runId: string;
+  mode: 'dry-run' | 'shadow';
+  agentId: string;
+  agentVersion: string;
+  goal: string;
+  status: 'success';
+  plan?: string;
+  recommendation?: string;
+  shadowEvaluation?: {
+    currentStep: string;
+    legacyAction: string;
+    agentAction: string;
+    aligned: boolean;
+    reasonCode: 'ALIGNED' | 'ACTIVE_TASK_CONFLICT' | 'WORKBENCH_STEP_BEHIND' | 'WORKBENCH_STEP_AHEAD' | 'STATE_INCONSISTENT';
+    reasonLabel: string;
+    activeTaskCount: number;
+    executed: false;
+    note: string;
+  };
+  startedAt: string;
+  finishedAt?: string;
+  steps: Array<{ id: string; toolId: string; status: string; startedAt?: string; finishedAt?: string; result?: unknown }>;
+}
+
+export interface AgentShadowReport {
+  total: number;
+  evaluated: number;
+  aligned: number;
+  mismatched: number;
+  failed: number;
+  alignmentRate: number | null;
+  mismatchReasons: Array<{ code: string; label: string; count: number }>;
+  admission: {
+    status: 'eligible' | 'blocked' | 'insufficient-data';
+    eligibleForHumanApprovalPilot: boolean;
+    alignmentRate: number | null;
+    failureRate: number;
+    highRiskMismatches: number;
+    policy: { minEvaluatedRuns: number; minAlignmentRate: number; maxFailureRate: number; maxHighRiskMismatches: number };
+    checks: Array<{ id: string; label: string; passed: boolean; actual: number | null; required: string; unit?: string }>;
+    note: string;
+  };
+  recent: Array<{
+    runId: string;
+    status: 'success' | 'error';
+    startedAt: string;
+    workflowKind: string;
+    projectId: string;
+    currentStep: string;
+    legacyAction: string;
+    agentAction: string;
+    aligned: boolean | null;
+    reasonCode: string;
+    reasonLabel: string;
+    activeTaskCount: number;
+    note: string;
+  }>;
+}
+
+export interface AgentActionPreview {
+  previewOnly: true;
+  approvalCreated: false;
+  executionStarted: false;
+  readyForHumanApprovalPilot: boolean;
+  tool: { id: string; name: string; version: string; risk: 'high'; approval: 'always' };
+  summary: string;
+  parameters: { workflowKind: string; projectId: string; mode: string; referenceKnowledgeDocumentCount: number };
+  impact: { startsBackgroundTask: boolean; replacesOutline: boolean; clearsGlobalFacts: boolean; clearsGeneratedContent: boolean; authoritativeStore: string };
+  blockers: Array<{ code: string; message: string }>;
+  admission: AgentShadowReport['admission'];
+  draftDrift?: { staleCount: number; contextFingerprint: string };
+}
+
+export interface AgentApprovalDraft {
+  draftId: string;
+  status: 'active' | 'blocked' | 'expired' | 'revoked' | 'stale';
+  executable: false;
+  approvable: false;
+  tool: AgentActionPreview['tool'];
+  summary: string;
+  parameters: AgentActionPreview['parameters'];
+  impact: AgentActionPreview['impact'];
+  blockers: AgentActionPreview['blockers'];
+  argsHash: string;
+  policySnapshot?: {
+    version: string;
+    capturedAt: string;
+    status: AgentShadowReport['admission']['status'];
+    eligibleForHumanApprovalPilot: boolean;
+    policy: AgentShadowReport['admission']['policy'];
+    checks: AgentShadowReport['admission']['checks'];
+    toolContract: { id: string; version: string; risk: string; approval: string };
+    snapshotHash: string;
+  };
+  createdAt: string;
+  expiresAt: string;
+  revokedAt?: string;
+  integrityVersion: number;
+  integrityHash: string;
+  contextFingerprint?: string;
+  staleAt?: string;
+  staleReason?: 'CONTEXT_DRIFT' | 'MISSING_CONTEXT_FINGERPRINT';
+}
+
+export interface AgentApprovalDraftIntegrity {
+  integrityVersion: number;
+  quarantinedCount: number;
+  recent: Array<{ draftId: string; detectedAt: string; reason: 'INTEGRITY_CHECK_FAILED' }>;
+}
+
+export interface AgentApprovalDraftAuditLog {
+  chainValid: boolean;
+  total: number;
+  recent: Array<{ eventId: string; draftId: string; type: string; fromStatus: string; toStatus: string; reason: string; occurredAt: string }>;
+}
+
+export interface AgentApprovalPackagePreview {
+  version: string;
+  generatedAt: string;
+  inMemoryOnly: true;
+  fileCreated: false;
+  submitted: false;
+  approvable: false;
+  executable: false;
+  draft: {
+    draftId: string;
+    status: AgentApprovalDraft['status'];
+    summary: string;
+    tool: AgentApprovalDraft['tool'];
+    parameters: AgentApprovalDraft['parameters'];
+    impact: AgentApprovalDraft['impact'];
+    blockers: AgentApprovalDraft['blockers'];
+    argsHash: string;
+    contextFingerprint: string;
+    staleReason: string;
+    createdAt: string;
+    expiresAt: string;
+  };
+  policySnapshot: AgentApprovalDraft['policySnapshot'] | null;
+  integrity: { version: number; verified: true; hash: string };
+  audit: { chainValid: boolean; totalEvents: number; latestEvent: AgentApprovalDraftAuditLog['recent'][number] | null };
+  packageHash: string;
+}
+
+export interface AgentApprovalPackageValidation {
+  valid: boolean;
+  checkedAt: string;
+  persisted: false;
+  submitted: false;
+  executed: false;
+  checks: {
+    packageHashValid: boolean;
+    policySnapshotValid: boolean;
+    draftAvailable: boolean;
+    draftIntegrityValid: boolean;
+    contextFingerprintValid: boolean;
+    auditChainValid: boolean;
+    auditSnapshotCurrent: boolean;
+    safeFlagsValid: boolean;
+  };
+  calculatedPackageHash: string;
+}
+
+export interface AgentContinuousRun {
+  workflowKind: 'technical-plan' | 'existing-plan-expansion' | 'presales' | 'official-document' | 'grant-application' | 'project-management' | 'thesis-tutor' | 'software-copyright' | 'patent-generation';
+  projectId: string;
+  status: 'running' | 'paused' | 'blocked' | 'completed';
+  message: string;
+  updatedAt: string;
+}
+
+export type AgentContinuousRunInput = Omit<AgentContinuousRun, 'updatedAt'>;
+
 export interface YuDuBidBridge {
   appName: string;
   platform: string;
@@ -134,6 +321,22 @@ export interface YuDuBidBridge {
     listModels: (config?: ClientConfig) => Promise<ModelListResult>;
     getModelCapabilities: (config?: ClientConfig) => Promise<ModelCapabilityInfo>;
     openConfigFolder: () => Promise<{ success: boolean; path: string }>;
+  };
+  agent: {
+    getStatus: () => Promise<AgentHostStatus>;
+    runDry: (input: AgentDryRunInput) => Promise<AgentRunResult>;
+    runShadow: (input: AgentDryRunInput) => Promise<AgentRunResult>;
+    getShadowReport: (options?: { limit?: number; workflowKind?: 'technical-plan' | 'existing-plan-expansion' | 'presales' | 'official-document' | 'grant-application' | 'project-management' | 'thesis-tutor' | 'software-copyright' | 'patent-generation' }) => Promise<AgentShadowReport>;
+    previewOutlineGeneration: (input: { workflowKind?: 'technical-plan' | 'existing-plan-expansion'; projectId: string; mode?: 'free' | 'aligned' | 'response-file'; referenceKnowledgeDocumentIds?: string[] }) => Promise<AgentActionPreview>;
+    createOutlineApprovalDraft: (input: { args: { workflowKind?: 'technical-plan' | 'existing-plan-expansion'; projectId: string; mode?: 'free' | 'aligned' | 'response-file'; referenceKnowledgeDocumentIds?: string[] }; ttlMs?: number }) => Promise<AgentApprovalDraft>;
+    listApprovalDrafts: (options?: { limit?: number }) => Promise<AgentApprovalDraft[]>;
+    revokeApprovalDraft: (draftId: string) => Promise<AgentApprovalDraft>;
+    getApprovalDraftIntegrity: (options?: { limit?: number }) => Promise<AgentApprovalDraftIntegrity>;
+    getApprovalDraftAuditLog: (options?: { limit?: number }) => Promise<AgentApprovalDraftAuditLog>;
+    previewApprovalPackage: (draftId: string) => Promise<AgentApprovalPackagePreview>;
+    validateApprovalPackage: (approvalPackage: AgentApprovalPackagePreview) => Promise<AgentApprovalPackageValidation>;
+    getContinuousRun: (input: { workflowKind: AgentContinuousRun['workflowKind']; projectId: string }) => Promise<AgentContinuousRun | null>;
+    saveContinuousRun: (input: AgentContinuousRunInput) => Promise<AgentContinuousRun>;
   };
   ai: {
     chat: (request: ChatCompletionRequest) => Promise<string>;

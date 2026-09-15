@@ -774,6 +774,9 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
       recoverInterruptedDuplicateCheckTask();
       return Array.from(activeTasks.values());
     },
+    peekActiveTasks() {
+      return Array.from(activeTasks.values());
+    },
   };
 }
 

@@ -1,8 +1,9 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { WordExportProgressEvent } from '../../../shared/types/ipc';
+import type { AgentHostStatus, AgentRunResult, WordExportProgressEvent } from '../../../shared/types/ipc';
 import type { SectionId } from '../../../shared/types/navigation';
 import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
+import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { GrantApplicationPanel, GrantApplicationPanelInput, GrantApplicationProfile, GrantApplicationProjectList, GrantApplicationTaskState, GrantFormFieldMapping, GrantProposalFinalReview, GrantProposalModuleKey, GrantProposalModuleQuality, GrantProposalTemplateMapping, GrantProposalVisualSettings, GrantTemplateFillReport } from '../types';
 import '../grantApplication.css';
@@ -225,6 +226,16 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   const [proposalModuleQualityChecks, setProposalModuleQualityChecks] = useState<Record<GrantProposalModuleKey, GrantProposalModuleQuality>>(createDefaultProposalModuleQualityChecks);
   const [proposalFinalReview, setProposalFinalReview] = useState<GrantProposalFinalReview>(defaultProposalFinalReview);
   const [reviewDefenseReport, setReviewDefenseReport] = useState('');
+  const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
+  const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
+  const [agentPlanning, setAgentPlanning] = useState(false);
+  const [agentConfirmOpen, setAgentConfirmOpen] = useState(false);
+  const [agentContinuousConfirmOpen, setAgentContinuousConfirmOpen] = useState(false);
+  const [agentContinuousStatus, setAgentContinuousStatus] = useState<'idle' | 'running' | 'paused' | 'blocked' | 'completed'>('idle');
+  const [agentContinuousMessage, setAgentContinuousMessage] = useState('一次确认后，按已有输入连续推进课题申报。');
+  const [agentContinuousCycle, setAgentContinuousCycle] = useState(0);
+  const agentContinuousLaunchingRef = useRef(false);
+  const agentContinuousPersistenceReadyRef = useRef(false);
   const [formFieldMapping, setFormFieldMapping] = useState<GrantFormFieldMapping>(defaultFormFieldMapping);
   const [proposalTemplateMapping, setProposalTemplateMapping] = useState<GrantProposalTemplateMapping>(defaultProposalTemplateMapping);
   const [proposalTemplateFillReport, setProposalTemplateFillReport] = useState<GrantTemplateFillReport>(defaultProposalTemplateFillReport);
@@ -331,6 +342,39 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     };
   }, [showToast]);
 
+  useEffect(() => {
+    let mounted = true;
+    window.yibiao?.agent.getStatus().then((status) => mounted && setAgentStatus(status)).catch(() => mounted && setAgentStatus(null));
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    agentContinuousPersistenceReadyRef.current = false;
+    agentContinuousLaunchingRef.current = false;
+    setAgentContinuousStatus('idle');
+    setAgentContinuousMessage('一次确认后，按课题申报流程连续生成工作稿。');
+    const agentBridge = window.yibiao?.agent;
+    const projectId = projectList.activeProjectId;
+    if (!agentBridge || !agentStatus?.enabled || !projectId) return;
+    let mounted = true;
+    agentBridge.getContinuousRun({ workflowKind: 'grant-application', projectId }).then((run) => {
+      if (!mounted) return;
+      if (run) {
+        setAgentContinuousStatus(run.status);
+        setAgentContinuousMessage(run.status === 'running' ? '正在恢复上次连续执行并检查课题申报进度…' : run.message);
+      }
+      agentContinuousPersistenceReadyRef.current = true;
+    }).catch(() => { if (mounted) agentContinuousPersistenceReadyRef.current = true; });
+    return () => { mounted = false; };
+  }, [agentStatus?.enabled, projectList.activeProjectId]);
+
+  useEffect(() => {
+    const agentBridge = window.yibiao?.agent;
+    const projectId = projectList.activeProjectId;
+    if (!agentBridge || !projectId || agentContinuousStatus === 'idle' || !agentContinuousPersistenceReadyRef.current) return;
+    agentBridge.saveContinuousRun({ workflowKind: 'grant-application', projectId, status: agentContinuousStatus, message: agentContinuousMessage }).catch(() => undefined);
+  }, [agentContinuousMessage, agentContinuousStatus, projectList.activeProjectId]);
+
   function applyState(state: {
     profile?: GrantApplicationProfile;
     inputs?: Record<GrantApplicationPanel, GrantApplicationPanelInput>;
@@ -345,6 +389,8 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     task?: GrantApplicationTaskState;
     projectId?: string;
   }) {
+    setAgentRun(null);
+    setAgentConfirmOpen(false);
     setProfile(state.profile || defaultProfile);
     setInputs({ ...createDefaultInputs(), ...(state.inputs || {}) });
     setOutputs({ ...createDefaultOutputs(), ...(state.outputs || {}) });
@@ -538,6 +584,138 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     }
   }
 
+  const grantAgentLabels: Record<string, string> = {
+    'complete-diagnosis-input': '完善启动诊断信息', 'generate-diagnosis': '生成申报路线诊断',
+    'complete-topic-input': '补充选题与政策材料', 'generate-topic': '生成选题与政策方案',
+    'complete-proposal-input': '补充申报书撰写依据', 'generate-proposal-modules': '补齐申报书模块',
+    'check-final-proposal': '执行整稿质量检查', 'complete-review-input': '补充评审答辩任务',
+    'generate-review-defense': '生成评审优化与答辩稿', 'review-and-export': '人工复核并导出',
+    'wait-active-task': '等待当前任务完成',
+  };
+
+  async function planGrantNextStep() {
+    setAgentPlanning(true); setAgentRun(null);
+    try {
+      const result = await window.yibiao?.agent.runShadow({ goal: '检查当前课题申报项目并推荐一个安全的下一步', context: { workflowKind: 'grant-application', projectId: projectList.activeProjectId } });
+      if (result) setAgentRun(result);
+      showToast('课题申报 Agent 已完成下一步规划', 'success');
+    } catch (error) { showToast(error instanceof Error ? error.message : '课题申报 Agent 规划失败', 'error'); }
+    finally { setAgentPlanning(false); }
+  }
+
+  function requestGrantAgentExecution() {
+    const action = agentRun?.shadowEvaluation?.agentAction || '';
+    if (action === 'wait-active-task') { showToast('当前已有课题申报任务运行', 'info'); return; }
+    const panelByAction: Record<string, GrantApplicationPanel> = {
+      'complete-diagnosis-input': 'diagnosis', 'complete-topic-input': 'topic-policy', 'complete-proposal-input': 'proposal',
+      'complete-review-input': 'review-defense', 'review-and-export': 'review-defense',
+    };
+    if (panelByAction[action]) { switchPanel(panelByAction[action]); showToast('请完善或复核当前阶段内容', 'info'); return; }
+    setAgentConfirmOpen(true);
+  }
+
+  async function executeGrantAgentRecommendation() {
+    const action = agentRun?.shadowEvaluation?.agentAction || '';
+    setAgentConfirmOpen(false);
+    try {
+      if (action === 'generate-proposal-modules') await generateMissingProposalModules();
+      else if (action === 'check-final-proposal') await checkProposalFinalReview();
+      else {
+        const panelByAction: Record<string, GrantApplicationPanel> = { 'generate-diagnosis': 'diagnosis', 'generate-topic': 'topic-policy', 'generate-review-defense': 'review-defense' };
+        const panel = panelByAction[action];
+        if (!panel) return;
+        const nextState = await window.yibiao?.grantApplication.generate({ panel, profile, input: inputs[panel] });
+        if (nextState) applyState(nextState);
+        switchPanel(panel);
+        showToast(`${grantAgentLabels[action]}已生成`, 'success');
+      }
+      setAgentRun(null);
+    } catch (error) { showToast(error instanceof Error ? error.message : '执行 Agent 建议失败', 'error'); }
+  }
+
+  function requestGrantContinuousRun() {
+    const profileReady = Boolean(profile.direction.trim() || profile.sourceNotes.trim());
+    if (!profileReady) {
+      setProfileEditOpen(true);
+      showToast('请先完善课题方向或来源依据', 'info');
+      return;
+    }
+    setAgentContinuousConfirmOpen(true);
+  }
+
+  function confirmGrantContinuousRun() {
+    setAgentContinuousConfirmOpen(false);
+    setAgentRun(null);
+    setAgentContinuousStatus('running');
+    setAgentContinuousMessage('正在检查现有成果和各阶段输入…');
+  }
+
+  function pauseGrantContinuousRun() {
+    setAgentContinuousStatus('paused');
+    setAgentContinuousMessage('连续执行已暂停；当前生成任务完成后，不会自动启动下一阶段。');
+  }
+
+  useEffect(() => {
+    if (agentContinuousStatus !== 'running' || loading || agentContinuousLaunchingRef.current) return;
+    const busy = task?.status === 'running' || generating || generatingMissingProposalModules || checkingProposalFinalReview;
+    if (busy) {
+      setAgentContinuousMessage('正在等待当前课题申报任务完成…');
+      return;
+    }
+    const inputReady = (panel: GrantApplicationPanel) => Boolean(inputs[panel]?.taskText.trim() || inputs[panel]?.materialText.trim());
+    let action: 'generate-diagnosis' | 'generate-topic' | 'generate-proposal-modules' | 'check-final-proposal' | 'generate-review-defense' | 'completed' | 'blocked';
+    let blockedPanel: GrantApplicationPanel | undefined;
+    if (!inputReady('diagnosis')) { action = 'blocked'; blockedPanel = 'diagnosis'; }
+    else if (!outputs.diagnosis.trim()) action = 'generate-diagnosis';
+    else if (!inputReady('topic-policy')) { action = 'blocked'; blockedPanel = 'topic-policy'; }
+    else if (!outputs['topic-policy'].trim()) action = 'generate-topic';
+    else if (!inputReady('proposal')) { action = 'blocked'; blockedPanel = 'proposal'; }
+    else if (completedProposalModuleCount < proposalModuleDefinitions.length) action = 'generate-proposal-modules';
+    else if (proposalFinalReview.status === 'unchecked') action = 'check-final-proposal';
+    else if (!inputReady('review-defense')) { action = 'blocked'; blockedPanel = 'review-defense'; }
+    else if (!outputs['review-defense'].trim()) action = 'generate-review-defense';
+    else action = 'completed';
+
+    if (action === 'blocked') {
+      setAgentContinuousStatus('blocked');
+      setAgentContinuousMessage(`请先补充“${panelCopy[blockedPanel!].label}”的任务说明或依据材料，然后继续执行。`);
+      switchPanel(blockedPanel!);
+      return;
+    }
+    if (action === 'completed') {
+      setAgentContinuousStatus('completed');
+      setAgentContinuousMessage('课题诊断、选题、申报书、整稿检查和评审答辩成果已完成，请人工复核后导出。');
+      switchPanel('review-defense');
+      showToast('课题申报 Agent 连续执行已完成，请复核成果', 'success');
+      return;
+    }
+
+    agentContinuousLaunchingRef.current = true;
+    setAgentContinuousMessage(`正在执行：${grantAgentLabels[action]}`);
+    void (async () => {
+      try {
+        if (action === 'generate-proposal-modules') {
+          if (!await generateMissingProposalModules()) throw new Error('补齐申报书模块失败');
+        } else if (action === 'check-final-proposal') {
+          if (!await checkProposalFinalReview()) throw new Error('整稿质量检查失败');
+        } else {
+          const panel: GrantApplicationPanel = action === 'generate-diagnosis' ? 'diagnosis' : action === 'generate-topic' ? 'topic-policy' : 'review-defense';
+          switchPanel(panel);
+          const nextState = await window.yibiao?.grantApplication.generate({ panel, profile, input: inputs[panel] });
+          if (!nextState) throw new Error(`${grantAgentLabels[action]}未返回结果`);
+          applyState(nextState);
+          showToast(`${grantAgentLabels[action]}已生成`, 'success');
+        }
+      } catch (error) {
+        setAgentContinuousStatus('blocked');
+        setAgentContinuousMessage(error instanceof Error ? error.message : `${grantAgentLabels[action]}失败，已停止连续执行。`);
+      } finally {
+        agentContinuousLaunchingRef.current = false;
+        setAgentContinuousCycle((cycle) => cycle + 1);
+      }
+    })();
+  }, [agentContinuousCycle, agentContinuousStatus, checkingProposalFinalReview, completedProposalModuleCount, generating, generatingMissingProposalModules, inputs, loading, outputs, profile, proposalFinalReview.status, task?.status]);
+
   function updateProposalModule(moduleKey: GrantProposalModuleKey, value: string) {
     setProposalModules((prev) => ({ ...prev, [moduleKey]: value }));
   }
@@ -596,7 +774,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     const missingModules = proposalModuleDefinitions.filter((module) => !proposalModules[module.key]?.trim());
     if (!missingModules.length) {
       showToast('申报书模块已经全部生成。', 'info');
-      return;
+      return true;
     }
 
     try {
@@ -613,7 +791,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         const state = await window.yibiao?.grantApplication.generateProposalModule({
           moduleKey: module.key,
           profile,
-          input: currentInput,
+          input: inputs.proposal,
         });
         if (state) applyState(state);
       }
@@ -621,9 +799,11 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       setOutputMode('preview');
       finishAiProgress('缺失模块已批量生成');
       showToast('缺失模块已补齐并合并', 'success');
+      return true;
     } catch (error) {
       setAiProgress((prev) => ({ ...prev, running: false, message: '批量生成失败，请检查已生成内容后重试。' }));
       showToast(error instanceof Error ? error.message : '补齐申报书模块失败', 'error');
+      return false;
     } finally {
       setGeneratingMissingProposalModules(false);
     }
@@ -775,9 +955,11 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       if (state) applyState(state);
       finishAiProgress('整稿质量检查已完成');
       showToast('整稿质量检查已完成', 'success');
+      return true;
     } catch (error) {
       setAiProgress((prev) => ({ ...prev, running: false, message: '整稿质量检查失败，请稍后重试。' }));
       showToast(error instanceof Error ? error.message : '整稿质量检查失败', 'error');
+      return false;
     } finally {
       setCheckingProposalFinalReview(false);
     }
@@ -1305,6 +1487,17 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
           </button>
         ))}
       </nav>
+
+      {agentStatus?.enabled && agentStatus.agents.some((agent) => agent.id === 'grant-application-agent') && (
+        <AgentFloatingPanel label="课题申报 Agent" className="grant-agent-panel">
+          <div><span className="section-kicker">课题申报 Agent</span><strong>{agentContinuousStatus !== 'idle' ? `连续执行：${agentContinuousStatus === 'running' ? '进行中' : agentContinuousStatus === 'paused' ? '已暂停' : agentContinuousStatus === 'blocked' ? '需要补充' : '已完成'}` : agentRun?.shadowEvaluation?.agentAction ? `建议：${grantAgentLabels[agentRun.shadowEvaluation.agentAction] || agentRun.shadowEvaluation.agentAction}` : '检查当前项目并安排下一步'}</strong><p>{agentContinuousStatus !== 'idle' ? agentContinuousMessage : agentRun?.recommendation || 'Agent 可以规划单步，也可以根据已填写的阶段输入连续推进。'}</p></div>
+          <div className="grant-agent-actions">{agentContinuousStatus === 'running' ? <button type="button" className="secondary-action" onClick={pauseGrantContinuousRun}>暂停连续执行</button> : <button type="button" className="primary-action" onClick={requestGrantContinuousRun} disabled={loading || task?.status === 'running'}>{agentContinuousStatus === 'paused' || agentContinuousStatus === 'blocked' ? '继续连续执行' : agentContinuousStatus === 'completed' ? '检查未完成项' : '连续执行'}</button>}<button type="button" className="secondary-action" onClick={() => void planGrantNextStep()} disabled={agentPlanning || task?.status === 'running'}>{agentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}</button>{agentRun?.shadowEvaluation?.agentAction && <button type="button" className="primary-action" onClick={requestGrantAgentExecution} disabled={task?.status === 'running'}>执行建议</button>}</div>
+        </AgentFloatingPanel>
+      )}
+
+      <Dialog.Root open={agentContinuousConfirmOpen} onOpenChange={setAgentContinuousConfirmOpen}><Dialog.Portal><Dialog.Overlay className="content-regenerate-modal" /><Dialog.Content className="grant-agent-dialog"><Dialog.Title>确认课题申报连续执行</Dialog.Title><Dialog.Description>Agent 将依据已经填写的阶段输入，依次生成申报路线诊断、选题政策方案、申报书缺失模块、整稿质量检查和评审答辩稿。可能产生多次模型费用；缺少阶段材料或任务失败时会停止，最终导出仍由你确认。</Dialog.Description><div className="grant-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={confirmGrantContinuousRun}>开始连续执行</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+
+      <Dialog.Root open={agentConfirmOpen} onOpenChange={setAgentConfirmOpen}><Dialog.Portal><Dialog.Overlay className="content-regenerate-modal" /><Dialog.Content className="grant-agent-dialog"><Dialog.Title>确认执行 Agent 建议</Dialog.Title><Dialog.Description>将执行“{grantAgentLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一步'}”，可能产生模型费用并更新当前课题项目。</Dialog.Description><div className="grant-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={() => void executeGrantAgentRecommendation()}>确认执行</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
 
       {initialPanel === 'diagnosis' && (
         <section className="grant-application-profile">

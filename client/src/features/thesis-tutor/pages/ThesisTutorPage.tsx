@@ -1,6 +1,9 @@
-import { useMemo, useRef, useState, type WheelEvent } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { useEffect, useMemo, useRef, useState, type WheelEvent } from 'react';
+import type { AgentHostStatus, AgentRunResult } from '../../../shared/types/ipc';
 import type { SectionId } from '../../../shared/types/navigation';
 import { useToast } from '../../../shared/ui/ToastProvider';
+import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import '../thesisTutor.css';
 import { ThesisTutorChapterWorkspace } from '../components/ThesisTutorChapterWorkspace';
 import { ThesisTutorCheckWorkspace } from '../components/ThesisTutorCheckWorkspace';
@@ -58,6 +61,16 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
   const [sourceText, setSourceText] = useState('');
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
+  const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
+  const [agentPlanning, setAgentPlanning] = useState(false);
+  const [agentConfirmOpen, setAgentConfirmOpen] = useState(false);
+  const [agentContinuousConfirmOpen, setAgentContinuousConfirmOpen] = useState(false);
+  const [agentContinuousStatus, setAgentContinuousStatus] = useState<'idle' | 'running' | 'paused' | 'blocked' | 'completed'>('idle');
+  const [agentContinuousMessage, setAgentContinuousMessage] = useState('一次确认后，按论文十阶段连续生成工作稿。');
+  const [agentContinuousCycle, setAgentContinuousCycle] = useState(0);
+  const agentContinuousLaunchingRef = useRef(false);
+  const agentContinuousPersistenceReadyRef = useRef(false);
   const {
     chapters,
     setChapters,
@@ -291,6 +304,136 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
     finishOperationProgress,
     showToast,
   });
+  const generateRef = useRef(generate);
+  useEffect(() => {
+    generateRef.current = generate;
+  }, [generate]);
+
+  useEffect(() => {
+    let mounted = true;
+    window.yibiao?.agent.getStatus().then((status) => mounted && setAgentStatus(status)).catch(() => mounted && setAgentStatus(null));
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    setAgentRun(null);
+    setAgentConfirmOpen(false);
+  }, [state?.updated_at]);
+
+  useEffect(() => {
+    agentContinuousPersistenceReadyRef.current = false;
+    const agentBridge = window.yibiao?.agent;
+    if (!agentBridge || !agentStatus?.enabled) return;
+    let mounted = true;
+    agentBridge.getContinuousRun({ workflowKind: 'thesis-tutor', projectId: 'workspace' }).then((run) => {
+      if (!mounted) return;
+      if (run) {
+        setAgentContinuousStatus(run.status);
+        setAgentContinuousMessage(run.status === 'running' ? '正在恢复上次连续执行并检查论文阶段…' : run.message);
+      }
+      agentContinuousPersistenceReadyRef.current = true;
+    }).catch(() => { if (mounted) agentContinuousPersistenceReadyRef.current = true; });
+    return () => { mounted = false; };
+  }, [agentStatus?.enabled]);
+
+  useEffect(() => {
+    const agentBridge = window.yibiao?.agent;
+    if (!agentBridge || agentContinuousStatus === 'idle' || !agentContinuousPersistenceReadyRef.current) return;
+    agentBridge.saveContinuousRun({ workflowKind: 'thesis-tutor', projectId: 'workspace', status: agentContinuousStatus, message: agentContinuousMessage }).catch(() => undefined);
+  }, [agentContinuousMessage, agentContinuousStatus]);
+
+  const thesisAgentLabels: Record<string, string> = {
+    'load-workspace': '打开论文导师工作区', 'wait-active-task': '等待当前任务完成', 'complete-profile': '完善论文档案', 'review-and-export': '人工复核并导出',
+    ...Object.fromEntries(panelOrder.map((item) => [`generate-${item}`, `生成${panelCopy[item].label}工作稿`])),
+  };
+
+  async function planThesisNextStep() {
+    setAgentPlanning(true); setAgentRun(null);
+    try {
+      const nextRun = await window.yibiao?.agent.runShadow({ goal: '检查当前论文工作区并推荐一个安全的下一步', context: { workflowKind: 'thesis-tutor' } });
+      if (nextRun) setAgentRun(nextRun);
+      showToast('论文导师 Agent 已完成下一步规划', 'success');
+    } catch (error) { showToast(error instanceof Error ? error.message : '论文导师 Agent 规划失败', 'error'); }
+    finally { setAgentPlanning(false); }
+  }
+
+  function requestThesisAgentExecution() {
+    const action = agentRun?.shadowEvaluation?.agentAction || '';
+    if (action === 'wait-active-task') { showToast('当前已有论文生成任务运行', 'info'); return; }
+    if (action === 'complete-profile') { setProfilePanelExpanded(true); showToast('请先完善并保存论文档案', 'info'); return; }
+    if (action === 'review-and-export') { switchPanel('format'); showToast('请核验文献、数据、反馈与检查项后导出', 'info'); return; }
+    const nextPanel = panelOrder.find((item) => action === `generate-${item}`);
+    if (!nextPanel) return;
+    if (nextPanel !== activePanel) switchPanel(nextPanel);
+    setAgentConfirmOpen(true);
+  }
+
+  async function executeThesisAgentRecommendation() {
+    setAgentConfirmOpen(false);
+    await generate();
+    setAgentRun(null);
+  }
+
+  function requestThesisContinuousRun() {
+    if (!profile.discipline.trim() || (!profile.direction.trim() && !profile.title.trim())) {
+      setProfilePanelExpanded(true);
+      showToast('请先填写专业，并补充研究方向或论文题目', 'info');
+      return;
+    }
+    if (!userInput.trim() && !sourceText.trim()) {
+      showToast('请先填写本次任务要求或导入论文材料', 'info');
+      return;
+    }
+    if (missingTextModelFields.length) {
+      showToast(`请先配置${missingTextModelFields.join('、')}`, 'info');
+      return;
+    }
+    setAgentContinuousConfirmOpen(true);
+  }
+
+  function confirmThesisContinuousRun() {
+    setAgentContinuousConfirmOpen(false);
+    setAgentRun(null);
+    setAgentContinuousStatus('running');
+    setAgentContinuousMessage('正在检查论文十阶段已有成果…');
+  }
+
+  function pauseThesisContinuousRun() {
+    setAgentContinuousStatus('paused');
+    setAgentContinuousMessage('连续执行已暂停；当前论文任务完成后，不会自动启动下一阶段。');
+  }
+
+  useEffect(() => {
+    if (agentContinuousStatus !== 'running' || loading || !state || agentContinuousLaunchingRef.current) return;
+    if (isRunning || saving) {
+      setAgentContinuousMessage('正在等待当前论文生成任务完成…');
+      return;
+    }
+    const nextPanel = panelOrder.find((item) => !panelResults[item]?.content?.trim());
+    if (!nextPanel) {
+      setAgentContinuousStatus('completed');
+      setAgentContinuousMessage('论文十阶段工作稿已完成，请核验文献、数据、引用和检查项后再导出。');
+      switchPanel('format');
+      showToast('论文导师 Agent 连续执行已完成，请进行学术核验', 'success');
+      return;
+    }
+    if (activePanel !== nextPanel) {
+      switchPanel(nextPanel);
+      setAgentContinuousCycle((cycle) => cycle + 1);
+      return;
+    }
+    agentContinuousLaunchingRef.current = true;
+    setAgentContinuousMessage(`正在执行：${thesisAgentLabels[`generate-${nextPanel}`]}`);
+    void generateRef.current().then((success) => {
+      if (!success) {
+        setAgentContinuousStatus('blocked');
+        setAgentContinuousMessage(`${panelCopy[nextPanel].label}生成失败，已停止连续执行。`);
+      }
+    }).finally(() => {
+      agentContinuousLaunchingRef.current = false;
+      setAgentContinuousCycle((cycle) => cycle + 1);
+    });
+  }, [activePanel, agentContinuousCycle, agentContinuousStatus, isRunning, loading, panelResults, saving, state]);
 
   const { exportWorkspace, exportProjectPackage, importWorkspace } = useThesisTutorProjectIO({
     setState,
@@ -524,6 +667,13 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
         clearAll={clearAll}
       />
 
+      {agentStatus?.enabled && (
+        <AgentFloatingPanel label="论文导师 Agent" className="thesis-tutor-agent-panel">
+          <div><span className="thesis-tutor-kicker">论文导师 Agent</span><strong>{agentContinuousStatus !== 'idle' ? `连续执行：${agentContinuousStatus === 'running' ? '进行中' : agentContinuousStatus === 'paused' ? '已暂停' : agentContinuousStatus === 'blocked' ? '需要处理' : '已完成'}` : agentRun?.shadowEvaluation?.agentAction ? `建议：${thesisAgentLabels[agentRun.shadowEvaluation.agentAction] || agentRun.shadowEvaluation.agentAction}` : '检查论文十阶段并安排下一步'}</strong><p>{agentContinuousStatus !== 'idle' ? agentContinuousMessage : agentRun?.recommendation || 'Agent 可以规划单步，也可以按现有论文档案和材料连续推进。'}</p></div>
+          <div className="thesis-tutor-agent-actions">{agentContinuousStatus === 'running' ? <button type="button" className="secondary-action" onClick={pauseThesisContinuousRun}>暂停连续执行</button> : <button type="button" className="primary-action" onClick={requestThesisContinuousRun} disabled={loading || isRunning}>{agentContinuousStatus === 'paused' || agentContinuousStatus === 'blocked' ? '继续连续执行' : agentContinuousStatus === 'completed' ? '检查未完成项' : '连续执行'}</button>}<button type="button" className="secondary-action" onClick={() => void planThesisNextStep()} disabled={agentPlanning || isRunning}>{agentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}</button>{agentRun?.shadowEvaluation?.agentAction && <button type="button" className="primary-action" onClick={requestThesisAgentExecution} disabled={isRunning}>执行建议</button>}</div>
+        </AgentFloatingPanel>
+      )}
+
       <ThesisTutorGuidance
         missingTextModelFields={missingTextModelFields}
         isFirstRun={isFirstRun}
@@ -735,6 +885,9 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
           removeHistoryItem={removeHistoryItem}
         />
       </main>
+      <Dialog.Root open={agentConfirmOpen} onOpenChange={setAgentConfirmOpen}><Dialog.Portal><Dialog.Overlay className="content-regenerate-modal" /><Dialog.Content className="thesis-tutor-agent-dialog"><Dialog.Title>确认执行 Agent 建议</Dialog.Title><Dialog.Description>将执行“{thesisAgentLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一步'}”，可能产生模型费用并更新论文工作区。请先确认当前阶段输入和材料符合预期。</Dialog.Description><div className="thesis-tutor-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={() => void executeThesisAgentRecommendation()}>确认执行</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+
+      <Dialog.Root open={agentContinuousConfirmOpen} onOpenChange={setAgentContinuousConfirmOpen}><Dialog.Portal><Dialog.Overlay className="content-regenerate-modal" /><Dialog.Content className="thesis-tutor-agent-dialog"><Dialog.Title>确认论文连续执行</Dialog.Title><Dialog.Description>Agent 将基于当前论文档案、任务要求和材料，依次生成尚未完成的十阶段工作稿，可能产生多次模型费用。生成内容仅作为研究辅助；文献、引用、数据和学术结论必须由你核验，最终导出仍需人工确认。</Dialog.Description><div className="thesis-tutor-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={confirmThesisContinuousRun}>开始连续执行</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
     </div>
   );
 }

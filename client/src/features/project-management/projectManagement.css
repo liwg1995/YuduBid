@@ -411,6 +411,15 @@
   padding: 16px 16px 22px;
 }
 
+.project-management-agent-panel { display:flex; align-items:center; justify-content:space-between; gap:18px; margin:0 16px; padding:18px 20px; border:1px solid color-mix(in srgb,var(--yb-primary) 24%,var(--yb-border)); border-radius:18px; background:color-mix(in srgb,var(--yb-primary) 7%,var(--yb-surface)); }
+.project-management-agent-panel>div:first-child { display:grid; gap:6px; min-width:0; }
+.project-management-agent-panel strong { color:var(--yb-text); font-size:15px; }
+.project-management-agent-panel p,.project-management-agent-dialog p { margin:0; color:var(--yb-text-soft); font-size:13px; line-height:1.65; }
+.project-management-agent-actions { display:flex; flex:0 0 auto; justify-content:flex-end; gap:8px; }
+.project-management-agent-dialog { position:fixed; z-index:120; top:50%; left:50%; display:grid; width:min(520px,calc(100vw - 32px)); gap:18px; padding:24px; border:1px solid var(--yb-border); border-radius:20px; background:var(--yb-surface); box-shadow:0 24px 80px rgba(15,23,42,.24); transform:translate(-50%,-50%); }
+.project-management-agent-dialog h2 { margin:0; color:var(--yb-text); font-size:19px; }
+@media(max-width:760px){.project-management-agent-panel{align-items:stretch;flex-direction:column}.project-management-agent-actions{flex-wrap:wrap}}
+
 .project-management-flow-head {
   display: flex;
   align-items: center;

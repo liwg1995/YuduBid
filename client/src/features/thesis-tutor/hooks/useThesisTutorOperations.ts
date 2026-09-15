@@ -129,7 +129,7 @@ export function useThesisTutorOperations({
   async function generate() {
     if (!window.yibiao?.thesisTutor) {
       showToast('当前环境未注入论文导师服务', 'error');
-      return;
+      return false;
     }
     if (activePanel === 'drafting' && draftingPreflight.tone !== 'ready') {
       showToast(`${draftingPreflight.mode}：生成结果会标注需补充或待核验内容`, 'info');
@@ -157,8 +157,10 @@ export function useThesisTutorOperations({
       setDraft(nextState.draft || nextState.latestResult || '');
       syncWorkspaces(nextState);
       showToast(`${panel.label}已生成`, 'success');
+      return true;
     } catch (error) {
       showToast(error instanceof Error ? error.message : '论文导师生成失败', 'error');
+      return false;
     } finally {
       setSaving(false);
     }

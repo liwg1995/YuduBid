@@ -265,19 +265,19 @@ function CodeGenerationPage({ onNavigate }: CodeGenerationPageProps) {
         <div className="software-copyright-header-actions">
           <button type="button" className="secondary-action" onClick={() => onNavigate('software-copyright')} disabled={savingSelection}>切换软著项目</button>
           <button type="button" className="secondary-action" onClick={handleSelectProject} disabled={savingSelection}>{state?.project ? '更换源码目录' : '选择源码目录'}</button>
-          <button type="button" className="secondary-action" onClick={() => setRescanOpen(true)} disabled={!state?.project || savingSelection}>{savingSelection ? '处理中' : '重新扫描'}</button>
-          <button type="button" className="primary-action" onClick={handleContinueToMaterials} disabled={!state?.confirmed || savingSelection}>进入材料生成</button>
-          <button type="button" className="danger-action" onClick={handleClear} disabled={savingSelection}>清空</button>
+          {state?.project && <button type="button" className="secondary-action" onClick={() => setRescanOpen(true)} disabled={savingSelection}>{savingSelection ? '处理中' : '重新扫描'}</button>}
+          {state?.confirmed && <button type="button" className="primary-action" onClick={handleContinueToMaterials} disabled={savingSelection}>进入材料生成</button>}
+          {state?.project && <button type="button" className="danger-action" onClick={handleClear} disabled={savingSelection}>清空</button>}
         </div>
       </section>
 
-      <div className="code-generation-layout">
+      <div className={`code-generation-layout${state?.analysis ? '' : ' is-empty'}`}>
         <main className="code-generation-main">
           <section className="software-copyright-panel">
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">源码来源</span>
-                <h3>{state?.project?.name || '尚未选择项目'}</h3>
+                <h3>{state?.project?.name || '尚未选择源码目录'}</h3>
               </div>
               {state?.confirmed && <span className="code-generation-confirmed">已确认</span>}
             </div>
@@ -289,11 +289,18 @@ function CodeGenerationPage({ onNavigate }: CodeGenerationPageProps) {
                 <article><span>预计页数</span><strong>{state.summary.estimatedPages}</strong></article>
               </div>
             ) : (
-              <div className="software-copyright-empty">请为“{activeProject?.name || '当前软著项目'}”选择源码目录。</div>
+              <div className="code-generation-empty-state">
+                <span className="section-kicker">开始准备</span>
+                <h3>选择这个软件的源码目录</h3>
+                <p>选择后会在本机扫描代码文件，并由你确认纳入鉴别材料的范围；不会上传源码。</p>
+                <button type="button" className="primary-action" onClick={handleSelectProject} disabled={savingSelection}>
+                  {savingSelection ? '正在处理…' : '选择源码目录'}
+                </button>
+              </div>
             )}
           </section>
 
-          <section className="software-copyright-panel code-generation-files-panel">
+          {state?.analysis && <section className="software-copyright-panel code-generation-files-panel">
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">源码素材</span>
@@ -301,21 +308,17 @@ function CodeGenerationPage({ onNavigate }: CodeGenerationPageProps) {
               </div>
               <button type="button" className="primary-action" onClick={handleConfirm} disabled={!canConfirm}>确认素材</button>
             </div>
-            {state?.analysis ? (
-              <SourceFileWorkspace
-                analysis={state.analysis}
-                selectedPaths={state.selectedPaths}
-                sortMode={state.sortMode || 'smart'}
-                disabled={savingSelection}
-                onChange={(paths, sortMode) => void saveSelection(paths, sortMode)}
-              />
-            ) : (
-              <div className="software-copyright-empty">暂无可选源码文件。</div>
-            )}
-          </section>
+            <SourceFileWorkspace
+              analysis={state.analysis}
+              selectedPaths={state.selectedPaths}
+              sortMode={state.sortMode || 'smart'}
+              disabled={savingSelection}
+              onChange={(paths, sortMode) => void saveSelection(paths, sortMode)}
+            />
+          </section>}
         </main>
 
-        <aside className="code-generation-side">
+        {state?.analysis && <aside className="code-generation-side">
           <section className="software-copyright-panel">
             <div className="software-copyright-panel-head">
               <div>
@@ -329,17 +332,15 @@ function CodeGenerationPage({ onNavigate }: CodeGenerationPageProps) {
               <span>材料生成选择源码准备结果</span>
               <span>导出代码鉴别材料</span>
             </div>
-            {state?.analysis && (
-              <div className="code-generation-selection-summary">
-                <span>当前排序</span><strong>{state.sortMode === 'path' ? '路径排序' : state.sortMode === 'manual' ? '手动排序' : '入口优先'}</strong>
-                <span>已选语言</span><strong>{selectedComposition || '未选择'}</strong>
-                <span>最后扫描</span><strong>{state.scannedAt ? new Date(state.scannedAt).toLocaleString() : '历史数据'}</strong>
-              </div>
-            )}
+            <div className="code-generation-selection-summary">
+              <span>当前排序</span><strong>{state.sortMode === 'path' ? '路径排序' : state.sortMode === 'manual' ? '手动排序' : '入口优先'}</strong>
+              <span>已选语言</span><strong>{selectedComposition || '未选择'}</strong>
+              <span>最后扫描</span><strong>{state.scannedAt ? new Date(state.scannedAt).toLocaleString() : '历史数据'}</strong>
+            </div>
             <p>确认后，进入当前项目的材料生成工作台，选择“使用源码准备结果”即可继续。</p>
             <button type="button" className="primary-action code-generation-next-action" onClick={handleContinueToMaterials} disabled={!state?.confirmed || savingSelection}>进入材料生成</button>
           </section>
-        </aside>
+        </aside>}
       </div>
 
       <Dialog.Root open={noticeOpen} onOpenChange={setNoticeOpen}>

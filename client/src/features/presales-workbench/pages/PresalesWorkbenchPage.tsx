@@ -1,8 +1,9 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import MarkdownRenderer from '../../../shared/ui/MarkdownRenderer';
+import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import { useToast } from '../../../shared/ui/ToastProvider';
-import type { WordExportProgressEvent } from '../../../shared/types/ipc';
+import type { AgentHostStatus, AgentRunResult, WordExportProgressEvent } from '../../../shared/types/ipc';
 import type { SectionId } from '../../../shared/types/navigation';
 import type {
   PresalesAnalysisInput,
@@ -466,6 +467,16 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   const [packagePreviewMarkdown, setPackagePreviewMarkdown] = useState('');
   const [pptStructurePreviewOpen, setPptStructurePreviewOpen] = useState(false);
   const [outlineDraftPages, setOutlineDraftPages] = useState<PresentationOutlinePageDraft[]>([]);
+  const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
+  const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
+  const [isAgentPlanning, setIsAgentPlanning] = useState(false);
+  const [agentConfirmOpen, setAgentConfirmOpen] = useState(false);
+  const [agentContinuousConfirmOpen, setAgentContinuousConfirmOpen] = useState(false);
+  const [agentContinuousStatus, setAgentContinuousStatus] = useState<'idle' | 'running' | 'paused' | 'blocked' | 'completed'>('idle');
+  const [agentContinuousMessage, setAgentContinuousMessage] = useState('一次确认后，自动衔接售前五阶段成果生成。');
+  const [agentContinuousCycle, setAgentContinuousCycle] = useState(0);
+  const agentContinuousLaunchingRef = useRef(false);
+  const agentContinuousPersistenceReadyRef = useRef(false);
 
   const activeProjectName = useMemo(() => {
     return state?.profile.projectName?.trim() || state?.profile.customerName?.trim() || '未命名售前项目';
@@ -535,6 +546,8 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
 
   function applyState(nextState: PresalesProjectState) {
     setState(nextState);
+    setAgentRun(null);
+    setAgentConfirmOpen(false);
     setProfileDraft(nextState.profile);
     setAnalysisDraft(nextState.analysisInput);
     setResearchDraft(nextState.researchInput);
@@ -571,6 +584,52 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
       mounted = false;
     };
   }, [showToast]);
+
+  useEffect(() => {
+    let mounted = true;
+    window.yibiao?.agent.getStatus()
+      .then((status) => {
+        if (mounted) setAgentStatus(status);
+      })
+      .catch(() => {
+        if (mounted) setAgentStatus(null);
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    agentContinuousPersistenceReadyRef.current = false;
+    agentContinuousLaunchingRef.current = false;
+    setAgentContinuousStatus('idle');
+    setAgentContinuousMessage('一次确认后，自动衔接售前五阶段成果生成。');
+    const agentBridge = window.yibiao?.agent;
+    const projectId = state?.projectId;
+    if (!agentBridge || !agentStatus?.enabled || !projectId) return;
+    let mounted = true;
+    agentBridge.getContinuousRun({ workflowKind: 'presales', projectId }).then((run) => {
+      if (!mounted) return;
+      if (run) {
+        setAgentContinuousStatus(run.status);
+        setAgentContinuousMessage(run.status === 'running' ? '正在恢复上次连续执行并检查售前项目进度…' : run.message);
+      }
+      agentContinuousPersistenceReadyRef.current = true;
+    }).catch(() => {
+      if (mounted) agentContinuousPersistenceReadyRef.current = true;
+    });
+    return () => { mounted = false; };
+  }, [agentStatus?.enabled, state?.projectId]);
+
+  useEffect(() => {
+    const agentBridge = window.yibiao?.agent;
+    const projectId = state?.projectId;
+    if (!agentBridge || !projectId || agentContinuousStatus === 'idle' || !agentContinuousPersistenceReadyRef.current) return;
+    agentBridge.saveContinuousRun({
+      workflowKind: 'presales',
+      projectId,
+      status: agentContinuousStatus,
+      message: agentContinuousMessage,
+    }).catch(() => undefined);
+  }, [agentContinuousMessage, agentContinuousStatus, state?.projectId]);
 
   useEffect(() => {
     setOutlineDraftPages(parsePresentationOutlineDraft(state?.presentationResult.markdown));
@@ -735,7 +794,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
     runner: () => Promise<PresalesProjectState>,
     setRunning: (value: boolean) => void,
     successMessage: string,
-  ) {
+  ): Promise<boolean> {
     setRunning(true);
     setLocalTaskProgress((current) => ({
       ...current,
@@ -773,6 +832,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
         },
       }));
       showToast(successMessage, 'success');
+      return true;
     } catch (error) {
       setLocalTaskProgress((current) => ({
         ...current,
@@ -788,6 +848,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
       } catch {
         // ignore refresh failure after generation error
       }
+      return false;
     } finally {
       window.clearInterval(timer);
       setRunning(false);
@@ -802,39 +863,178 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   async function generateAnalysis() {
-    await runGeneration('analysis', async () => {
+    return runGeneration('analysis', async () => {
       await getPresalesBridge().saveAnalysisInput(analysisDraft);
       return getPresalesBridge().generateAnalysis();
     }, setIsGeneratingAnalysis, '客户分析报告已生成');
   }
 
   async function generateResearch() {
-    await runGeneration('research', async () => {
+    return runGeneration('research', async () => {
       await getPresalesBridge().saveResearchInput(researchDraft);
       return getPresalesBridge().generateResearch();
     }, setIsGeneratingResearch, '调研准备包已生成');
   }
 
   async function generateArchitecture() {
-    await runGeneration('architecture', async () => {
+    return runGeneration('architecture', async () => {
       await getPresalesBridge().saveArchitectureInput(architectureDraft);
       return getPresalesBridge().generateArchitecture();
     }, setIsGeneratingArchitecture, '方案架构草案已生成');
   }
 
   async function generateDiagrams() {
-    await runGeneration('diagrams', async () => {
+    return runGeneration('diagrams', async () => {
       await getPresalesBridge().saveDiagramInput(diagramDraft);
       return getPresalesBridge().generateDiagrams();
     }, setIsGeneratingDiagrams, '图表草稿已生成');
   }
 
   async function generatePresentation() {
-    await runGeneration('presentation', async () => {
+    return runGeneration('presentation', async () => {
       await getPresalesBridge().savePresentationInput(presentationDraft);
       return getPresalesBridge().generatePresentation();
     }, setIsGeneratingPresentation, '汇报材料页纲已生成');
   }
+
+  const agentActionLabels: Record<string, string> = {
+    'select-project': '选择售前项目',
+    'complete-profile': '完善项目资料',
+    'add-materials': '补充客户材料',
+    analysis: '生成客户分析',
+    research: '生成调研准备包',
+    architecture: '生成方案架构',
+    diagrams: '生成图表草稿',
+    presentation: '生成汇报页纲',
+    'wait-active-task': '等待当前任务完成',
+    'review-and-export': '人工复核并导出',
+  };
+
+  async function planNextWithAgent() {
+    if (!state?.projectId || !window.yibiao?.agent) return;
+    setIsAgentPlanning(true);
+    setAgentRun(null);
+    try {
+      const result = await window.yibiao.agent.runShadow({
+        goal: '检查当前售前项目进度并推荐一个安全的下一步',
+        context: { workflowKind: 'presales', projectId: state.projectId },
+      });
+      setAgentRun(result);
+      showToast('售前 Agent 已完成下一步规划', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '售前 Agent 规划失败', 'error');
+    } finally {
+      setIsAgentPlanning(false);
+    }
+  }
+
+  function requestAgentExecution() {
+    const action = agentRun?.shadowEvaluation?.agentAction;
+    if (!action) return;
+    if (action === 'add-materials') {
+      setActiveStep('materials');
+      showToast('请先导入材料或手动录入客户线索', 'info');
+      return;
+    }
+    if (action === 'complete-profile' || action === 'select-project') {
+      setActiveStep('project');
+      showToast('请先完善当前售前项目资料', 'info');
+      return;
+    }
+    if (action === 'review-and-export') {
+      setActiveStep('presentation');
+      showToast('五阶段成果已完成，请人工复核后导出', 'info');
+      return;
+    }
+    if (action === 'wait-active-task') {
+      showToast('当前已有售前任务运行，请等待任务完成', 'info');
+      return;
+    }
+    if (['analysis', 'research', 'architecture', 'diagrams', 'presentation'].includes(action)) {
+      setAgentConfirmOpen(true);
+    }
+  }
+
+  async function executeAgentRecommendation() {
+    const action = agentRun?.shadowEvaluation?.agentAction as PresalesGenerationStepId | undefined;
+    setAgentConfirmOpen(false);
+    if (!action || !['analysis', 'research', 'architecture', 'diagrams', 'presentation'].includes(action)) return;
+    setActiveStep(action);
+    const runners: Record<PresalesGenerationStepId, () => Promise<boolean>> = {
+      analysis: generateAnalysis,
+      research: generateResearch,
+      architecture: generateArchitecture,
+      diagrams: generateDiagrams,
+      presentation: generatePresentation,
+    };
+    await runners[action]();
+    setAgentRun(null);
+  }
+
+  function requestPresalesContinuousRun() {
+    if (!state) return;
+    const profileReady = hasText(state.profile.customerName) || hasText(state.profile.industry) || hasText(state.profile.keyBackground);
+    if (!profileReady) {
+      setActiveStep('project');
+      showToast('请先完善客户名称、行业或项目背景', 'info');
+      return;
+    }
+    if (!state.materials.length) {
+      setActiveStep('materials');
+      showToast('请先导入材料或手动录入客户线索', 'info');
+      return;
+    }
+    setAgentContinuousConfirmOpen(true);
+  }
+
+  function confirmPresalesContinuousRun() {
+    setAgentContinuousConfirmOpen(false);
+    setAgentRun(null);
+    setAgentContinuousStatus('running');
+    setAgentContinuousMessage('正在检查已有成果并安排下一阶段…');
+  }
+
+  function pausePresalesContinuousRun() {
+    setAgentContinuousStatus('paused');
+    setAgentContinuousMessage('连续执行已暂停；当前生成请求完成后，不会自动启动下一阶段。');
+  }
+
+  useEffect(() => {
+    if (agentContinuousStatus !== 'running' || !state || isLoading || agentContinuousLaunchingRef.current) return;
+    if (state.task?.status === 'running' || isGeneratingAnalysis || isGeneratingResearch || isGeneratingArchitecture || isGeneratingDiagrams || isGeneratingPresentation) {
+      setAgentContinuousMessage('正在等待当前售前生成任务完成…');
+      return;
+    }
+
+    const stages: Array<{ id: PresalesGenerationStepId; ready: boolean; run: () => Promise<boolean> }> = [
+      { id: 'analysis', ready: hasText(state.analysisResult.markdown), run: generateAnalysis },
+      { id: 'research', ready: hasText(state.researchResult.markdown), run: generateResearch },
+      { id: 'architecture', ready: hasText(state.architectureResult.markdown), run: generateArchitecture },
+      { id: 'diagrams', ready: hasText(state.diagramResult.markdown), run: generateDiagrams },
+      { id: 'presentation', ready: hasText(state.presentationResult.markdown), run: generatePresentation },
+    ];
+    const nextStage = stages.find((stage) => !stage.ready);
+    if (!nextStage) {
+      setAgentContinuousStatus('completed');
+      setAgentContinuousMessage('售前五阶段成果已全部生成，请人工复核后导出项目包或汇报材料。');
+      setActiveStep('presentation');
+      showToast('售前 Agent 连续执行已完成，请复核成果', 'success');
+      return;
+    }
+
+    agentContinuousLaunchingRef.current = true;
+    setActiveStep(nextStage.id);
+    setAgentContinuousMessage(`正在执行：${agentActionLabels[nextStage.id]}`);
+    void nextStage.run().then((success) => {
+      if (!success) {
+        setAgentContinuousStatus('blocked');
+        setAgentContinuousMessage(`${agentActionLabels[nextStage.id]}失败，已停止连续执行。请检查错误后重试。`);
+      }
+    }).finally(() => {
+      agentContinuousLaunchingRef.current = false;
+      setAgentContinuousCycle((cycle) => cycle + 1);
+    });
+  }, [agentContinuousCycle, agentContinuousStatus, isGeneratingAnalysis, isGeneratingArchitecture, isGeneratingDiagrams, isGeneratingPresentation, isGeneratingResearch, isLoading, state]);
 
   async function exportPresentationOutline() {
     setIsExportingOutline(true);
@@ -1580,6 +1780,53 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
           <span>输出：{workflowSteps.filter((step) => step.id !== 'project' && step.id !== 'materials' && isStepDone(state, step.id)).length}/5</span>
         </section>
 
+        {agentStatus?.enabled && agentStatus.agents.some((agent) => agent.id === 'presales-agent') ? (
+          <AgentFloatingPanel label="售前 Agent" className="presales-agent-panel">
+            <div>
+              <span className="section-kicker">售前 Agent</span>
+              <strong>{agentContinuousStatus !== 'idle'
+                ? `连续执行：${agentContinuousStatus === 'running' ? '进行中' : agentContinuousStatus === 'paused' ? '已暂停' : agentContinuousStatus === 'blocked' ? '需要处理' : '已完成'}`
+                : agentRun?.shadowEvaluation?.agentAction
+                ? `建议：${agentActionLabels[agentRun.shadowEvaluation.agentAction] || agentRun.shadowEvaluation.agentAction}`
+                : '让 Agent 检查当前项目并安排下一步'}</strong>
+              <p>{agentContinuousStatus !== 'idle' ? agentContinuousMessage : agentRun?.recommendation || 'Agent 可以规划单步，也可以一次确认后连续生成五阶段成果。'}</p>
+            </div>
+            <div className="presales-agent-actions">
+              {agentContinuousStatus === 'running' ? (
+                <button type="button" className="secondary-action" onClick={pausePresalesContinuousRun}>暂停连续执行</button>
+              ) : (
+                <button type="button" className="primary-action" onClick={requestPresalesContinuousRun} disabled={isLoading || Boolean(state?.task?.status === 'running')}>
+                  {agentContinuousStatus === 'paused' || agentContinuousStatus === 'blocked' ? '继续连续执行' : agentContinuousStatus === 'completed' ? '检查未完成项' : '连续执行'}
+                </button>
+              )}
+              <button type="button" className="secondary-action" onClick={planNextWithAgent} disabled={isLoading || isAgentPlanning || Boolean(state?.task?.status === 'running')}>
+                {isAgentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}
+              </button>
+              {agentRun?.shadowEvaluation?.agentAction ? (
+                <button type="button" className="primary-action" onClick={requestAgentExecution} disabled={Boolean(state?.task?.status === 'running')}>
+                  执行建议
+                </button>
+              ) : null}
+            </div>
+          </AgentFloatingPanel>
+        ) : null}
+
+        <Dialog.Root open={agentContinuousConfirmOpen} onOpenChange={setAgentContinuousConfirmOpen}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="content-regenerate-modal" />
+            <Dialog.Content className="presales-agent-confirm-dialog">
+              <Dialog.Title>确认售前连续执行</Dialog.Title>
+              <Dialog.Description>
+                Agent 将为“{activeProjectName}”依次生成尚未完成的客户分析、调研准备、方案架构、图表草稿和汇报页纲。该过程复用当前输入与生成方法，可能产生多次模型费用；失败时会停止，导出仍需人工确认。
+              </Dialog.Description>
+              <div className="presales-section-actions">
+                <Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close>
+                <button type="button" className="primary-action" onClick={confirmPresalesContinuousRun}>开始连续执行</button>
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+
         <nav className="presales-workflow-tabs">
           {workflowSteps.map((step, index) => (
             <button
@@ -1595,6 +1842,22 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
             </button>
           ))}
         </nav>
+
+        <Dialog.Root open={agentConfirmOpen} onOpenChange={setAgentConfirmOpen}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="content-regenerate-modal" />
+            <Dialog.Content className="presales-agent-confirm-dialog">
+              <Dialog.Title>确认执行 Agent 建议</Dialog.Title>
+              <Dialog.Description>
+                将为“{activeProjectName}”执行“{agentActionLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一阶段'}”。该操作复用现有售前生成方法，可能产生模型费用并更新当前项目结果。
+              </Dialog.Description>
+              <div className="presales-section-actions">
+                <Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close>
+                <button type="button" className="primary-action" onClick={() => void executeAgentRecommendation()}>确认执行</button>
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
 
         {activeStep === 'project' ? (
           <section className="presales-section presales-step-panel">

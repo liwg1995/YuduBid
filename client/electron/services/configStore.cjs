@@ -182,6 +182,11 @@ const defaultConfig = {
       [id]: { id, enabled: true },
     }), {}),
   },
+  agent_settings: {
+    schema_version: 1,
+    enabled: false,
+    experimental_writes_enabled: false,
+  },
   developer_mode: false,
   model_capabilities_cache: {},
   model_list_cache: { text: {}, image: {} },
@@ -335,6 +340,18 @@ function normalizeFeatureModuleSettings(sourceSettings) {
   return { modules };
 }
 
+function normalizeAgentSettings(sourceSettings) {
+  const source = sourceSettings && typeof sourceSettings === 'object' && !Array.isArray(sourceSettings)
+    ? sourceSettings
+    : {};
+  const enabled = source.enabled === true;
+  return {
+    schema_version: 1,
+    enabled,
+    experimental_writes_enabled: enabled && source.experimental_writes_enabled === true,
+  };
+}
+
 function normalizeConfig(config) {
   const source = config || {};
   const fileParser = source.file_parser ? source.file_parser : {};
@@ -383,6 +400,7 @@ function normalizeConfig(config) {
     },
     skill_settings: normalizeSkillSettings(source.skill_settings),
     feature_module_settings: normalizeFeatureModuleSettings(source.feature_module_settings),
+    agent_settings: normalizeAgentSettings(source.agent_settings),
     developer_mode: source.developer_mode === undefined ? defaultConfig.developer_mode : Boolean(source.developer_mode),
     model_capabilities_cache: Object.fromEntries(Object.entries(sourceCapabilityCache).slice(-50)),
     model_list_cache: normalizeModelListCache(source.model_list_cache),

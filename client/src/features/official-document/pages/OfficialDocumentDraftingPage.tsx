@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import '../officialDocument.css';
 import {
   buildOfficialDocumentDraftPrompt,
@@ -10,7 +11,7 @@ import {
   type OfficialDocumentPromptInput,
   type OfficialDocumentType,
 } from '../../../shared/prompts/officialDocument';
-import type { WordExportProgressEvent } from '../../../shared/types/ipc';
+import type { AgentHostStatus, AgentRunResult, WordExportProgressEvent } from '../../../shared/types/ipc';
 import type { SectionId } from '../../../shared/types/navigation';
 import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
 import { useToast } from '../../../shared/ui/ToastProvider';
@@ -103,6 +104,16 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   const [reminderOpen, setReminderOpen] = useState(false);
   const [polishViewMode, setPolishViewMode] = useState<'edit' | 'preview'>('edit');
   const [previewTemplate, setPreviewTemplate] = useState<OfficialDocumentTemplate | null>(null);
+  const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
+  const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
+  const [agentPlanning, setAgentPlanning] = useState(false);
+  const [agentConfirmOpen, setAgentConfirmOpen] = useState(false);
+  const [agentContinuousConfirmOpen, setAgentContinuousConfirmOpen] = useState(false);
+  const [agentContinuousStatus, setAgentContinuousStatus] = useState<'idle' | 'running' | 'paused' | 'blocked' | 'completed'>('idle');
+  const [agentContinuousMessage, setAgentContinuousMessage] = useState('一次确认后，自动完成起草、检查和润色。');
+  const [agentContinuousCycle, setAgentContinuousCycle] = useState(0);
+  const agentContinuousLaunchingRef = useRef(false);
+  const agentContinuousPersistenceReadyRef = useRef(false);
 
   const promptPreview = useMemo(() => state?.prompt || buildOfficialDocumentDraftPrompt(input), [input, state?.prompt]);
   const selectedTypeNote = officialDocumentTypeNotes[input.documentType];
@@ -146,6 +157,50 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       unsubscribe?.();
     };
   }, [showToast]);
+
+  useEffect(() => {
+    let mounted = true;
+    window.yibiao?.agent.getStatus().then((status) => {
+      if (mounted) setAgentStatus(status);
+    }).catch(() => {
+      if (mounted) setAgentStatus(null);
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    setAgentRun(null);
+    setAgentConfirmOpen(false);
+  }, [state?.updated_at]);
+
+  useEffect(() => {
+    agentContinuousPersistenceReadyRef.current = false;
+    const agentBridge = window.yibiao?.agent;
+    if (!agentBridge || !agentStatus?.enabled) return;
+    let mounted = true;
+    agentBridge.getContinuousRun({ workflowKind: 'official-document', projectId: 'workspace' }).then((run) => {
+      if (!mounted) return;
+      if (run) {
+        setAgentContinuousStatus(run.status);
+        setAgentContinuousMessage(run.status === 'running' ? '正在恢复上次连续执行并检查公文进度…' : run.message);
+      }
+      agentContinuousPersistenceReadyRef.current = true;
+    }).catch(() => {
+      if (mounted) agentContinuousPersistenceReadyRef.current = true;
+    });
+    return () => { mounted = false; };
+  }, [agentStatus?.enabled]);
+
+  useEffect(() => {
+    const agentBridge = window.yibiao?.agent;
+    if (!agentBridge || agentContinuousStatus === 'idle' || !agentContinuousPersistenceReadyRef.current) return;
+    agentBridge.saveContinuousRun({
+      workflowKind: 'official-document',
+      projectId: 'workspace',
+      status: agentContinuousStatus,
+      message: agentContinuousMessage,
+    }).catch(() => undefined);
+  }, [agentContinuousMessage, agentContinuousStatus]);
 
   useEffect(() => {
     let mounted = true;
@@ -345,11 +400,11 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   async function generateDraft() {
     if (!window.yibiao?.officialDocument) {
       showToast('当前浏览器预览环境未连接客户端桥接层，请在 Electron 客户端中生成。', 'info');
-      return;
+      return false;
     }
     if (!input.facts.trim()) {
       showToast('请先补充材料要点，至少写清背景、事项或任务。', 'info');
-      return;
+      return false;
     }
     try {
       const nextState = await window.yibiao?.officialDocument.generateDraft({ input });
@@ -359,10 +414,138 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
         setReview(nextState.review || '');
       }
       showToast('公文草稿已生成', 'success');
+      return true;
     } catch (error) {
       showToast(error instanceof Error ? error.message : '生成失败', 'error');
+      return false;
     }
   }
+
+  const officialAgentActionLabels: Record<string, string> = {
+    'complete-input': '补充起草要素',
+    'generate-draft': '生成公文草稿',
+    'check-draft': '检查公文草稿',
+    'polish-draft': '降 AI 味润色',
+    'review-and-export': '人工复核并导出',
+    'wait-active-task': '等待当前任务完成',
+  };
+
+  async function planOfficialDocumentNextStep() {
+    if (!window.yibiao?.agent) return;
+    setAgentPlanning(true);
+    setAgentRun(null);
+    try {
+      const result = await window.yibiao.agent.runShadow({
+        goal: '检查当前公文写作进度并推荐一个安全的下一步',
+        context: { workflowKind: 'official-document' },
+      });
+      setAgentRun(result);
+      showToast('公文写作 Agent 已完成下一步规划', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '公文写作 Agent 规划失败', 'error');
+    } finally {
+      setAgentPlanning(false);
+    }
+  }
+
+  function requestOfficialAgentExecution() {
+    const action = agentRun?.shadowEvaluation?.agentAction;
+    if (!action) return;
+    if (action === 'complete-input') {
+      onNavigate?.('official-document-drafting');
+      showToast('请先补充公文材料要点', 'info');
+      return;
+    }
+    if (action === 'review-and-export') {
+      onNavigate?.('official-document-polish');
+      showToast('请人工复核草稿后导出 Word', 'info');
+      return;
+    }
+    if (action === 'wait-active-task') {
+      showToast('当前已有公文任务运行，请等待完成', 'info');
+      return;
+    }
+    setAgentConfirmOpen(true);
+  }
+
+  async function executeOfficialAgentRecommendation() {
+    const action = agentRun?.shadowEvaluation?.agentAction;
+    setAgentConfirmOpen(false);
+    if (action === 'generate-draft') await generateDraft();
+    else if (action === 'check-draft') await checkDraft();
+    else if (action === 'polish-draft') await polishDraft();
+    setAgentRun(null);
+  }
+
+  function requestOfficialDocumentContinuousRun() {
+    if (!draft.trim() && !input.facts.trim()) {
+      onNavigate?.('official-document-drafting');
+      showToast('请先补充材料要点，或导入一份已有公文草稿', 'info');
+      return;
+    }
+    if (missingTextModelFields.length) {
+      showToast(`请先配置${missingTextModelFields.join('、')}`, 'info');
+      return;
+    }
+    setAgentContinuousConfirmOpen(true);
+  }
+
+  function confirmOfficialDocumentContinuousRun() {
+    setAgentContinuousConfirmOpen(false);
+    setAgentRun(null);
+    setAgentContinuousStatus('running');
+    setAgentContinuousMessage('正在检查已有公文成果并安排下一步…');
+  }
+
+  function pauseOfficialDocumentContinuousRun() {
+    setAgentContinuousStatus('paused');
+    setAgentContinuousMessage('连续执行已暂停；当前公文任务完成后，不会自动启动下一步。');
+  }
+
+  useEffect(() => {
+    if (agentContinuousStatus !== 'running' || loading || !state || agentContinuousLaunchingRef.current) return;
+    if (isRunning) {
+      setAgentContinuousMessage(`正在等待${officialAgentActionLabels[
+        task?.type === 'draft' ? 'generate-draft' : task?.type === 'check' ? 'check-draft' : 'polish-draft'
+      ] || '当前公文任务'}完成…`);
+      return;
+    }
+
+    const hasPolishedRevision = revisions.some((revision) => ['polish', 'rewrite'].includes(revision.type));
+    let nextAction: 'generate-draft' | 'check-draft' | 'polish-draft' | 'completed';
+    if (!draft.trim()) nextAction = 'generate-draft';
+    else if (!review.trim()) nextAction = 'check-draft';
+    else if (!hasPolishedRevision) nextAction = 'polish-draft';
+    else nextAction = 'completed';
+
+    if (nextAction === 'completed') {
+      setAgentContinuousStatus('completed');
+      setAgentContinuousMessage('公文起草、检查和润色已完成，请人工核对事实、文号和落款后导出 Word。');
+      onNavigate?.('official-document-polish');
+      showToast('公文写作 Agent 连续执行已完成，请复核定稿', 'success');
+      return;
+    }
+
+    const runners: Record<Exclude<typeof nextAction, 'completed'>, () => Promise<boolean>> = {
+      'generate-draft': generateDraft,
+      'check-draft': checkDraft,
+      'polish-draft': polishDraft,
+    };
+    agentContinuousLaunchingRef.current = true;
+    setAgentContinuousMessage(`正在执行：${officialAgentActionLabels[nextAction]}`);
+    void runners[nextAction]().then((success) => {
+      if (!success) {
+        setAgentContinuousStatus('blocked');
+        setAgentContinuousMessage(`${officialAgentActionLabels[nextAction]}失败，已停止连续执行。请检查错误后重试。`);
+        return;
+      }
+      if (nextAction === 'generate-draft') onNavigate?.('official-document-check');
+      if (nextAction === 'check-draft') onNavigate?.('official-document-polish');
+    }).finally(() => {
+      agentContinuousLaunchingRef.current = false;
+      setAgentContinuousCycle((cycle) => cycle + 1);
+    });
+  }, [agentContinuousCycle, agentContinuousStatus, draft, isRunning, loading, review, revisions, state, task?.type]);
 
   async function resetForm() {
     if (!window.yibiao?.officialDocument) {
@@ -460,11 +643,11 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   async function checkDraft() {
     if (!draft.trim()) {
       showToast('请先生成或填写公文草稿。', 'info');
-      return;
+      return false;
     }
     if (!window.yibiao?.officialDocument) {
       showToast('当前浏览器预览环境未连接客户端桥接层，请在 Electron 客户端中检查。', 'info');
-      return;
+      return false;
     }
 
     try {
@@ -473,19 +656,21 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       setDraft(nextState.draft || '');
       setReview(nextState.review || '');
       showToast('格式检查已完成', 'success');
+      return true;
     } catch (error) {
       showToast(error instanceof Error ? error.message : '格式检查失败', 'error');
+      return false;
     }
   }
 
   async function polishDraft() {
     if (!draft.trim()) {
       showToast('请先生成或填写公文草稿。', 'info');
-      return;
+      return false;
     }
     if (!window.yibiao?.officialDocument) {
       showToast('当前浏览器预览环境未连接客户端桥接层，请在 Electron 客户端中润色。', 'info');
-      return;
+      return false;
     }
 
     try {
@@ -494,8 +679,10 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       setDraft(nextState.draft || '');
       setReview(nextState.review || '');
       showToast('降 AI 味润色已完成', 'success');
+      return true;
     } catch (error) {
       showToast(error instanceof Error ? error.message : '润色失败', 'error');
+      return false;
     }
   }
 
@@ -785,7 +972,66 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
         </div>
       )}
 
+      {agentStatus?.enabled && agentStatus.agents.some((agent) => agent.id === 'official-document-agent') && initialPanel !== 'templates' && (
+        <AgentFloatingPanel label="公文写作 Agent" className="official-document-agent-panel">
+          <div>
+            <span className="section-kicker">公文写作 Agent</span>
+            <strong>{agentContinuousStatus !== 'idle'
+              ? `连续执行：${agentContinuousStatus === 'running' ? '进行中' : agentContinuousStatus === 'paused' ? '已暂停' : agentContinuousStatus === 'blocked' ? '需要处理' : '已完成'}`
+              : agentRun?.shadowEvaluation?.agentAction
+              ? `建议：${officialAgentActionLabels[agentRun.shadowEvaluation.agentAction] || agentRun.shadowEvaluation.agentAction}`
+              : '检查公文工作区并安排下一步'}</strong>
+            <p>{agentContinuousStatus !== 'idle' ? agentContinuousMessage : agentRun?.recommendation || 'Agent 可以规划单步，也可以一次确认后连续完成起草、检查和润色。'}</p>
+          </div>
+          <div className="official-document-agent-actions">
+            {agentContinuousStatus === 'running' ? (
+              <button type="button" className="secondary-action" onClick={pauseOfficialDocumentContinuousRun}>暂停连续执行</button>
+            ) : (
+              <button type="button" className="primary-action" onClick={requestOfficialDocumentContinuousRun} disabled={loading || isRunning}>
+                {agentContinuousStatus === 'paused' || agentContinuousStatus === 'blocked' ? '继续连续执行' : agentContinuousStatus === 'completed' ? '检查未完成项' : '连续执行'}
+              </button>
+            )}
+            <button type="button" className="secondary-action" onClick={() => void planOfficialDocumentNextStep()} disabled={agentPlanning || isRunning}>
+              {agentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}
+            </button>
+            {agentRun?.shadowEvaluation?.agentAction && <button type="button" className="primary-action" onClick={requestOfficialAgentExecution} disabled={isRunning}>执行建议</button>}
+          </div>
+        </AgentFloatingPanel>
+      )}
+
       {renderNextStepGuide()}
+
+      <Dialog.Root open={agentConfirmOpen} onOpenChange={setAgentConfirmOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="official-document-agent-dialog">
+            <Dialog.Title>确认执行 Agent 建议</Dialog.Title>
+            <Dialog.Description>
+              将执行“{officialAgentActionLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一步'}”。该操作复用现有公文写作方法，可能产生模型费用并更新当前草稿。
+            </Dialog.Description>
+            <div className="official-document-agent-actions">
+              <Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close>
+              <button type="button" className="primary-action" onClick={() => void executeOfficialAgentRecommendation()}>确认执行</button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={agentContinuousConfirmOpen} onOpenChange={setAgentContinuousConfirmOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="official-document-agent-dialog">
+            <Dialog.Title>确认公文连续执行</Dialog.Title>
+            <Dialog.Description>
+              Agent 将依次完成尚未完成的公文起草、格式与内容检查、降 AI 味润色。该过程可能产生多次模型费用；失败时会停止，改写方向、事实核对和 Word 导出仍由你确认。
+            </Dialog.Description>
+            <div className="official-document-agent-actions">
+              <Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close>
+              <button type="button" className="primary-action" onClick={confirmOfficialDocumentContinuousRun}>开始连续执行</button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       <div className={`official-document-layout ${initialPanel === 'templates' ? 'is-templates' : ''} ${initialPanel === 'check' || initialPanel === 'polish' ? 'is-main-only' : ''}`}>
         <main className="official-document-main">

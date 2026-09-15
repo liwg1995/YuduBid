@@ -117,12 +117,19 @@ export interface FeatureModuleSettings {
   modules: Record<FeatureModuleId, FeatureModuleConfig>;
 }
 
+export interface AgentSettings {
+  schema_version: 1;
+  enabled: boolean;
+  experimental_writes_enabled: boolean;
+}
+
 export interface ClientConfig extends AiConfig {
   image_model: ImageModelConfig;
   image_model_profiles: ImageModelProfiles;
   file_parser: FileParserConfig;
   skill_settings?: SkillSettings;
   feature_module_settings?: FeatureModuleSettings;
+  agent_settings?: AgentSettings;
   developer_mode?: boolean;
   model_capabilities_cache?: Record<string, Omit<ModelCapabilityInfo, 'success' | 'message' | 'source'>>;
   model_list_cache?: ModelListCache;
