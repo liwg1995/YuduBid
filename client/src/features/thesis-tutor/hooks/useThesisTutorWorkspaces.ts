@@ -140,7 +140,16 @@ export function useThesisTutorWorkspaces({
     if (!activeReference) return;
     setReferences((current) => current.map((reference) => (
       reference.id === activeReference.id
-        ? { ...reference, ...patch, updated_at: new Date().toISOString() }
+        ? {
+          ...reference,
+          ...patch,
+          verificationStatus: patch.verificationStatus || (
+            ['title', 'authors', 'year', 'source', 'citation', 'doi', 'summary', 'keyPoints', 'evidenceLocator']
+              .some((key) => key in patch && patch[key as keyof ThesisTutorReference] !== reference[key as keyof ThesisTutorReference])
+              ? 'unverified' : reference.verificationStatus
+          ),
+          updated_at: new Date().toISOString(),
+        }
         : reference
     )));
   }

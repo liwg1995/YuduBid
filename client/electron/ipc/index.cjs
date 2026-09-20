@@ -62,6 +62,7 @@ const { createThesisTutorService } = require('../services/thesisTutorService.cjs
 const { createUsageStatsStore } = require('../services/usageStatsStore.cjs');
 const { createAgentHost } = require('../agents/agentHost.cjs');
 const { registerUsageStatsIpc } = require('./usageStatsIpc.cjs');
+const { isOfficialReleaseDownloadUrl } = require('../utils/updateIntegrity.cjs');
 
 const latestReleaseApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases/latest';
 const releasesApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases';
@@ -488,16 +489,12 @@ function normalizeVersion(value) {
   return String(value || '').trim().replace(/^v/i, '');
 }
 
-function isReleaseDownloadUrl(value) {
-  const url = String(value || '');
-  return /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\/[^/]+\/.+/i.test(url);
-}
-
 function normalizeReleaseAsset(asset) {
   return {
     name: String(asset?.name || ''),
     browser_download_url: String(asset?.browser_download_url || ''),
     size: Number(asset?.size || 0),
+    digest: String(asset?.digest || ''),
   };
 }
 
@@ -508,7 +505,7 @@ function pickReleaseDownloadAsset(assets = []) {
       const name = asset.name.toLowerCase();
       return (
         asset.name &&
-        isReleaseDownloadUrl(asset.browser_download_url) &&
+        isOfficialReleaseDownloadUrl(asset.browser_download_url) &&
         !name.endsWith('.blockmap') &&
         name !== 'latest.yml' &&
         name !== 'latest-mac.yml'
@@ -724,11 +721,12 @@ function registerUnavailableTechnicalPlanIpc(error) {
     'bid-templates:create',
     'bid-templates:update',
     'bid-templates:delete',
+    'bid-templates:import-word',
   ].forEach((channel) => ipcMain.handle(channel, throwUnavailable));
   ipcMain.on('tasks:subscribe', () => {});
 }
 
-function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall }) {
+function registerIpcHandlers({ app, mainWindow, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath }) {
   const configStore = createConfigStore(app);
   let agentEnabled = false;
   try {
@@ -867,53 +865,19 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   });
 
   ipcMain.handle('app:get-latest-version', () => fetchLatestReleaseInfo({ includePrerelease: shouldIncludePrerelease(app) }));
-  ipcMain.handle('app:quit-and-install', () => {
-    quitAndInstall();
-  });
-
-  ipcMain.handle('app:check-update', (event) => {
+  ipcMain.handle('app:download-release-installer', async (event) => {
     const webContents = event.sender;
-    return checkAndDownloadUpdate({
-      app,
-      mainWindow,
-      onProgress: (percent) => {
-        webContents.send('app:update-progress', { percent });
-      },
-      onDownloaded: (version) => {
-        webContents.send('app:update-downloaded', { version });
-      },
-      onError: (message) => {
-        webContents.send('app:update-error', { message });
-      },
-    });
-  });
-
-  ipcMain.handle('app:start-update', (event) => {
-    const webContents = event.sender;
-    return triggerUpdateDownload({
-      app,
-      mainWindow,
-      onProgress: (percent) => {
-        webContents.send('app:update-progress', { percent });
-      },
-      onDownloaded: (version) => {
-        webContents.send('app:update-downloaded', { version });
-      },
-      onError: (message) => {
-        webContents.send('app:update-error', { message });
-      },
-    });
-  });
-
-  ipcMain.handle('app:download-release-installer', (event, payload = {}) => {
-    const webContents = event.sender;
+    const release = await fetchLatestReleaseInfo({ includePrerelease: shouldIncludePrerelease(app) });
+    const asset = release.assets.find((item) => item.browser_download_url === release.download_url && item.name === release.download_name);
+    if (!asset) return { success: false, downloaded: false, message: '未找到当前系统的官方安装包' };
     return downloadReleaseInstaller({
       app,
       mainWindow,
-      url: payload.download_url,
-      fileName: payload.download_name,
-      version: payload.version,
-      size: payload.size,
+      url: asset.browser_download_url,
+      fileName: asset.name,
+      version: release.version,
+      size: asset.size,
+      digest: asset.digest,
       onProgress: (progress) => {
         webContents.send('app:update-progress', progress);
       },

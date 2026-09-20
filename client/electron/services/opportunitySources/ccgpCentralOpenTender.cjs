@@ -1,6 +1,6 @@
 const cheerio = require('cheerio');
 const crypto = require('node:crypto');
-const { assertRemoteHttpUrl, fetchWithTimeout, readResponseText } = require('../../utils/secureHttp.cjs');
+const { assertRemoteHttpUrl, fetchRemoteWithTimeout, readResponseText } = require('../../utils/secureHttp.cjs');
 
 const adapterType = 'ccgp-central-open-tender';
 const allowedHost = 'www.ccgp.gov.cn';
@@ -17,7 +17,7 @@ function assertCcgpUrl(value) {
 }
 
 async function fetchHtml(url) {
-  const response = await fetchWithTimeout(assertCcgpUrl(url), {
+  const response = await fetchRemoteWithTimeout(assertCcgpUrl(url), {
     timeoutMs: 20000,
     redirect: 'follow',
     headers: { 'User-Agent': userAgent, Accept: 'text/html,application/xhtml+xml' },

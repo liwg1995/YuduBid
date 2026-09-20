@@ -6,7 +6,7 @@ const path = require('node:path');
 const AdmZip = require('adm-zip');
 const { dialog, shell } = require('electron');
 const { createCapabilityRegistry } = require('./capabilityRegistry.cjs');
-const { validateManifest } = require('./pluginManifest.cjs');
+const { validateManifest, validatePluginHostCompatibility } = require('./pluginManifest.cjs');
 const { createPluginRegistry } = require('./pluginRegistry.cjs');
 const { createPluginRuntime } = require('./pluginRuntime.cjs');
 const { registerPluginStorageCapabilities } = require('./pluginStorageCapabilities.cjs');
@@ -259,6 +259,7 @@ function createPluginManager({ app, aiService }) {
 
   async function installFromPath(packagePath) {
     const { zip, manifest } = inspectPackage(packagePath);
+    validatePluginHostCompatibility(manifest, app);
     registry.ensureRoots();
     const targetDir = registry.getPluginDir(manifest.id, manifest.version);
     if (fs.existsSync(targetDir)) throw new Error(`插件 ${manifest.name} ${manifest.version} 已安装`);
@@ -306,6 +307,7 @@ function createPluginManager({ app, aiService }) {
     const record = snapshot.plugins[pluginId];
     if (!record) throw new Error('插件不存在或已卸载');
     try {
+      validatePluginHostCompatibility(record.manifest, app);
       await runtime.start(getRuntimePlugin(record));
       registry.update((next) => {
         next.plugins[pluginId] = { ...next.plugins[pluginId], enabled: true, status: 'running', lastError: '', updatedAt: new Date().toISOString() };
@@ -381,6 +383,7 @@ function createPluginManager({ app, aiService }) {
     const records = Object.values(registry.read().plugins).filter((record) => record.enabled);
     for (const record of records) {
       try {
+        validatePluginHostCompatibility(record.manifest, app);
         await runtime.start(getRuntimePlugin(record));
       } catch (error) {
         updateRuntimeStatus(record.manifest.id, { status: 'error', lastError: error.message || String(error), enabled: false });

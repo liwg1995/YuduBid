@@ -1,20 +1,45 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { Worker } = require('node:worker_threads');
 const { dialog } = require('electron');
 const { normalizeBidExportTemplate } = require('./bidTemplateFormat.cjs');
 
 const PORTABLE_TEMPLATE_KIND = 'yudubid-bid-template';
-const PORTABLE_TEMPLATE_VERSION = 1;
-const MAX_PORTABLE_TEMPLATE_BYTES = 20 * 1024 * 1024;
+const PORTABLE_TEMPLATE_VERSION = 2;
+const MAX_PORTABLE_TEMPLATE_BYTES = 44 * 1024 * 1024;
 const MAX_COVER_ASSET_BYTES = 10 * 1024 * 1024;
+const MAX_WORD_SOURCE_BYTES = 20 * 1024 * 1024;
+
+function extractWordTemplateInWorker(filePath) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, 'wordTemplateWorker.cjs'), {
+      workerData: { filePath, fileName: path.basename(filePath) },
+    });
+    const timeout = setTimeout(() => {
+      void worker.terminate();
+      reject(new Error('Word 模板提取超时'));
+    }, 60_000);
+    worker.once('message', (message) => {
+      clearTimeout(timeout);
+      if (message.error) reject(new Error(message.error));
+      else resolve(message.result);
+    });
+    worker.once('error', (error) => { clearTimeout(timeout); reject(error); });
+    worker.once('exit', (code) => { if (code !== 0) { clearTimeout(timeout); reject(new Error('Word 模板提取进程异常退出')); } });
+  });
+}
 
 function templateFromRow(row) {
   if (!row) return null;
+  const source = JSON.parse(row.config_json);
+  const sourceManifest = source.source_manifest ? { ...source.source_manifest } : null;
+  if (sourceManifest) delete sourceManifest.source_path;
   return {
     templateId: row.template_id,
     templateName: row.template_name,
-    config: normalizeBidExportTemplate(JSON.parse(row.config_json)),
+    config: normalizeBidExportTemplate(source),
+    source_manifest: sourceManifest,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     template_id: row.template_id,
@@ -59,6 +84,21 @@ function createTemplateStore({ app, db }) {
     };
   }
 
+  function portableWordSource(filePath) {
+    if (!isManagedAsset(filePath) || !fs.existsSync(filePath)) return null;
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile() || stat.size > MAX_WORD_SOURCE_BYTES || path.extname(filePath).toLowerCase() !== '.docx') return null;
+    const buffer = fs.readFileSync(filePath);
+    if (!buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) return null;
+    return {
+      file_name: path.basename(filePath),
+      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      size: buffer.length,
+      sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
+      data_base64: buffer.toString('base64'),
+    };
+  }
+
   function safeTemplateFileName(value) {
     const name = String(value || '招投标模板')
       .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
@@ -72,6 +112,9 @@ function createTemplateStore({ app, db }) {
     if (!template) throw new Error('模板不存在或已被删除');
     const config = normalizeBidExportTemplate(template.config);
     const coverLogo = portableCoverAsset(config.cover?.logo_path);
+    const stored = db.prepare('SELECT config_json FROM bid_export_templates WHERE template_id = ?').get(String(templateId));
+    const sourceManifest = JSON.parse(stored.config_json).source_manifest;
+    const wordSource = sourceManifest?.source_path ? portableWordSource(sourceManifest.source_path) : null;
     config.cover.logo_path = '';
     return {
       kind: PORTABLE_TEMPLATE_KIND,
@@ -81,8 +124,12 @@ function createTemplateStore({ app, db }) {
       template: {
         name: template.template_name,
         config,
+        source_manifest: sourceManifest ? { ...sourceManifest, source_path: undefined } : undefined,
       },
-      assets: coverLogo ? { cover_logo: coverLogo } : {},
+      assets: {
+        ...(coverLogo ? { cover_logo: coverLogo } : {}),
+        ...(wordSource ? { word_source: wordSource } : {}),
+      },
     };
   }
 
@@ -100,13 +147,19 @@ function createTemplateStore({ app, db }) {
     if (source.kind === PORTABLE_TEMPLATE_KIND) {
       if (Number(source.version) > PORTABLE_TEMPLATE_VERSION) throw new Error('模板文件版本过高，请升级 YuduBid 后再导入');
       if (!source.template?.config || typeof source.template.config !== 'object') throw new Error('模板文件缺少配置内容');
-      return { config: source.template.config, templateName: source.template.name, coverAsset: source.assets?.cover_logo || null };
+      return {
+        config: source.template.config,
+        templateName: source.template.name,
+        coverAsset: source.assets?.cover_logo || null,
+        sourceAsset: source.assets?.word_source || null,
+        sourceManifest: source.template.source_manifest || null,
+      };
     }
 
     // 兼容早期导出的记录对象和用户手动保存的纯配置 JSON。
     const config = source.config && typeof source.config === 'object' ? source.config : source;
     if (!config.page && !config.body_text && !config.template_name && !config.templateName) throw new Error('不是可识别的招投标模板文件');
-    return { config, templateName: source.template_name || source.templateName || config.template_name || config.templateName, coverAsset: null };
+    return { config, templateName: source.template_name || source.templateName || config.template_name || config.templateName, coverAsset: null, sourceAsset: null, sourceManifest: null };
   }
 
   function uniqueImportedName(value) {
@@ -140,13 +193,45 @@ function createTemplateStore({ app, db }) {
     return targetPath;
   }
 
+  function restorePortableWordSource(asset) {
+    if (!asset) return '';
+    if (asset.mime_type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      || typeof asset.data_base64 !== 'string'
+      || !/^[A-Za-z0-9+/\r\n]*={0,2}$/.test(asset.data_base64)) throw new Error('Word 来源文件数据格式无效');
+    const buffer = Buffer.from(asset.data_base64, 'base64');
+    if (!buffer.length || buffer.length > MAX_WORD_SOURCE_BYTES
+      || !buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) throw new Error('Word 来源文件无效或超过 20MB');
+    if (Number(asset.size) !== buffer.length
+      || crypto.createHash('sha256').update(buffer).digest('hex') !== String(asset.sha256 || '')) throw new Error('Word 来源文件完整性校验失败');
+    const sourceDir = path.join(assetDir, 'word-sources');
+    fs.mkdirSync(sourceDir, { recursive: true });
+    const targetPath = path.join(sourceDir, `${crypto.randomUUID()}.docx`);
+    fs.writeFileSync(targetPath, buffer);
+    return targetPath;
+  }
+
   function importPortableTemplate(input) {
     const parsed = parsePortableTemplate(input);
     const normalized = normalizeBidExportTemplate(parsed.config);
     const resolvedName = uniqueImportedName(parsed.templateName || normalized.template_name);
     normalized.template_name = resolvedName.name;
-    normalized.cover.logo_path = restorePortableCoverAsset(parsed.coverAsset);
-    const template = create(normalized);
+    let coverPath = '';
+    let sourcePath = '';
+    let template;
+    try {
+      coverPath = restorePortableCoverAsset(parsed.coverAsset);
+      sourcePath = restorePortableWordSource(parsed.sourceAsset);
+      normalized.cover.logo_path = coverPath;
+      const { source_path: _ignoredSourcePath, ...safeSourceManifest } = parsed.sourceManifest || {};
+      template = create({
+        ...normalized,
+        ...(parsed.sourceManifest ? { source_manifest: { ...safeSourceManifest, ...(sourcePath ? { source_path: sourcePath } : {}) } } : {}),
+      });
+    } catch (error) {
+      if (coverPath) fs.rmSync(coverPath, { force: true });
+      if (sourcePath) fs.rmSync(sourcePath, { force: true });
+      throw error;
+    }
     return {
       success: true,
       renamed: resolvedName.renamed,
@@ -180,9 +265,43 @@ function createTemplateStore({ app, db }) {
     if (result.canceled || !result.filePaths?.[0]) return { success: false, canceled: true };
     const filePath = result.filePaths[0];
     const stat = fs.statSync(filePath);
-    if (!stat.isFile() || stat.size > MAX_PORTABLE_TEMPLATE_BYTES) throw new Error('模板文件无效或超过 20MB');
+    if (!stat.isFile() || stat.size > MAX_PORTABLE_TEMPLATE_BYTES) throw new Error('模板文件无效或超过 44MB');
     const imported = importPortableTemplate(fs.readFileSync(filePath, 'utf8'));
     return { ...imported, canceled: false, path: filePath };
+  }
+
+  async function importWordTemplate() {
+    const result = await dialog.showOpenDialog({
+      title: '从 Word 提取招投标模板',
+      properties: ['openFile'],
+      filters: [{ name: 'Word 文档', extensions: ['docx'] }],
+    });
+    if (result.canceled || !result.filePaths?.[0]) return { success: false, canceled: true };
+    const filePath = result.filePaths[0];
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile() || stat.size > MAX_WORD_SOURCE_BYTES || path.extname(filePath).toLowerCase() !== '.docx') {
+      throw new Error('请选择不超过 20MB 的 DOCX 文档');
+    }
+    const { config, manifest } = await extractWordTemplateInWorker(filePath);
+    const resolvedName = uniqueImportedName(config.template_name);
+    config.template_name = resolvedName.name;
+    const sourceDir = path.join(assetDir, 'word-sources');
+    fs.mkdirSync(sourceDir, { recursive: true });
+    const savedPath = path.join(sourceDir, `${crypto.randomUUID()}.docx`);
+    fs.copyFileSync(filePath, savedPath);
+    let template;
+    try {
+      template = create({ ...config, source_manifest: { ...manifest, source_path: savedPath } });
+    } catch (error) {
+      fs.rmSync(savedPath, { force: true });
+      throw error;
+    }
+    return {
+      success: true,
+      canceled: false,
+      template,
+      message: `已从 Word 提取 ${manifest.chapters.length} 个标题、${manifest.fields.length} 个待填位置；请核对模板样式和字段。`,
+    };
   }
 
   async function selectCoverLogo() {
@@ -225,6 +344,7 @@ function createTemplateStore({ app, db }) {
 
   function create(config) {
     const normalized = normalizeBidExportTemplate(config);
+    if (config?.source_manifest) normalized.source_manifest = config.source_manifest;
     const timestamp = new Date().toISOString();
     const templateId = `bid-template-${crypto.randomUUID()}`;
     db.prepare(`
@@ -236,6 +356,11 @@ function createTemplateStore({ app, db }) {
 
   function update(templateId, config) {
     const normalized = normalizeBidExportTemplate(config);
+    const previous = db.prepare('SELECT config_json FROM bid_export_templates WHERE template_id = ?').get(String(templateId || ''));
+    if (previous) {
+      const sourceManifest = JSON.parse(previous.config_json).source_manifest;
+      if (sourceManifest) normalized.source_manifest = sourceManifest;
+    }
     const result = db.prepare(`
       UPDATE bid_export_templates
       SET template_name = ?, config_json = ?, updated_at = ?
@@ -246,7 +371,12 @@ function createTemplateStore({ app, db }) {
   }
 
   function remove(templateId) {
+    const previous = db.prepare('SELECT config_json FROM bid_export_templates WHERE template_id = ?').get(String(templateId || ''));
     const result = db.prepare('DELETE FROM bid_export_templates WHERE template_id = ?').run(String(templateId || ''));
+    if (result.changes && previous) {
+      const sourcePath = JSON.parse(previous.config_json).source_manifest?.source_path;
+      if (sourcePath && isManagedAsset(sourcePath)) fs.rmSync(sourcePath, { force: true });
+    }
     return { success: result.changes > 0, message: result.changes ? '模板已删除' : '模板不存在或已被删除' };
   }
 
@@ -262,6 +392,7 @@ function createTemplateStore({ app, db }) {
     importPortableTemplate,
     exportTemplate,
     importTemplate,
+    importWordTemplate,
   };
 }
 

@@ -1,3 +1,7 @@
+import * as Dialog from '@radix-ui/react-dialog';
+import { useState } from 'react';
+import type { ThesisTutorBibliographyPreview, ThesisTutorState } from '../../../shared/types/contracts/thesisTutor';
+import { useToast } from '../../../shared/ui/ToastProvider';
 import type { ThesisTutorChapter, ThesisTutorReference, ThesisTutorReferenceType, ThesisTutorReferenceVerificationStatus } from '../types';
 import { referenceTypeOptions, referenceVerificationOptions } from '../model/thesisTutorPageModel';
 
@@ -16,6 +20,7 @@ interface ThesisTutorReferenceWorkspaceProps {
   saveReferenceWorkspace: () => void;
   toggleReferenceChapter: (chapterId: string) => void;
   extractMaterialToWorkspace: () => void;
+  onImportedState: (state: ThesisTutorState) => void;
 }
 
 export function ThesisTutorReferenceWorkspace({
@@ -33,7 +38,62 @@ export function ThesisTutorReferenceWorkspace({
   saveReferenceWorkspace,
   toggleReferenceChapter,
   extractMaterialToWorkspace,
+  onImportedState,
 }: ThesisTutorReferenceWorkspaceProps) {
+  const { showToast } = useToast();
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupResult, setLookupResult] = useState<{
+    referenceId: string; doi: string; title: string; authors: string; year: string; source: string; url: string;
+  } | null>(null);
+  const [importPreview, setImportPreview] = useState<ThesisTutorBibliographyPreview | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  async function previewBibliography() {
+    if (!window.yibiao?.thesisTutor) return;
+    setImporting(true);
+    try {
+      const preview = await window.yibiao.thesisTutor.previewBibliographyImport({ references });
+      if (!preview.canceled) setImportPreview(preview);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '读取题录文件失败', 'error');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function confirmBibliography() {
+    if (!importPreview?.candidates?.length || !window.yibiao?.thesisTutor) return;
+    setImporting(true);
+    try {
+      const result = await window.yibiao.thesisTutor.commitBibliographyImport({
+        references,
+        candidates: importPreview.candidates,
+        fileName: importPreview.fileName || '题录文件',
+      });
+      onImportedState(result.state);
+      setImportPreview(null);
+      showToast(`已导入 ${result.addedCount} 条题录，均为待核验`, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '保存题录失败', 'error');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function lookUpDoi() {
+    if (!activeReference?.doi.trim() || !window.yibiao?.thesisTutor) return;
+    setLookingUp(true);
+    setLookupResult(null);
+    try {
+      const result = await window.yibiao.thesisTutor.lookupDoi(activeReference.doi);
+      setLookupResult({ ...result, referenceId: activeReference.id });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'DOI 题录查询失败', 'error');
+    } finally {
+      setLookingUp(false);
+    }
+  }
+
   return (
             <div className="thesis-tutor-panel thesis-tutor-reference-panel">
               <div className="thesis-tutor-panel-head">
@@ -48,6 +108,10 @@ export function ThesisTutorReferenceWorkspace({
                   <button type="button" className="primary-action" onClick={saveReferenceWorkspace} disabled={saving || isRunning || !references.length}>保存证据链</button>
                 </div>
               </div>
+              <details className="thesis-tutor-bibliography-import">
+                <summary>批量导入题录</summary>
+                <div><span>支持 RIS、BibTeX 文件；先预览去重，再保存为待核验文献。</span><button type="button" className="secondary-action" onClick={() => void previewBibliography()} disabled={saving || isRunning || importing || references.length >= 80}>{importing ? '读取中…' : '选择题录文件'}</button></div>
+              </details>
               {references.length ? (
                 <>
                   <div className="thesis-tutor-reference-verification-summary">
@@ -178,6 +242,26 @@ export function ThesisTutorReferenceWorkspace({
                           disabled={isRunning}
                         />
                       </label>
+                      <details className="thesis-tutor-reference-details">
+                        <summary>检索与核验记录</summary>
+                        <div className="thesis-tutor-reference-detail-grid">
+                          <label className="is-wide"><span>证据编号（用于正文标记）</span><input value={activeReference.id} readOnly onFocus={(event) => event.currentTarget.select()} /></label>
+                          <label><span>DOI（可选）</span><input value={activeReference.doi} onChange={(event) => { updateActiveReference({ doi: event.target.value, verificationStatus: 'unverified' }); setLookupResult(null); }} placeholder="10.xxxx/xxxxx；中文文献可留空" disabled={isRunning} /></label>
+                          <div className="thesis-tutor-reference-lookup"><button type="button" className="secondary-action" onClick={() => void lookUpDoi()} disabled={isRunning || saving || lookingUp || !activeReference.doi.trim()}>{lookingUp ? '查询中…' : '核对 DOI 题录'}</button><span>仅查询题录，原文和观点仍需人工核验。</span></div>
+                          {lookupResult?.referenceId === activeReference.id && (
+                            <div className="thesis-tutor-reference-match">
+                              <strong>Crossref 题录候选</strong>
+                              <p>{lookupResult.title || '无题名'} · {lookupResult.authors || '无作者'} · {lookupResult.year || '无年份'} · {lookupResult.source || '无来源'}</p>
+                              <button type="button" className="secondary-action" onClick={() => { updateActiveReference({ title: lookupResult.title || activeReference.title, authors: lookupResult.authors || activeReference.authors, year: lookupResult.year || activeReference.year, source: lookupResult.source || activeReference.source, doi: lookupResult.doi, verificationSource: lookupResult.url, verificationStatus: 'unverified' }); setLookupResult(null); showToast('已填入候选题录，请打开原文核验后再修改核验状态', 'info'); }} disabled={isRunning || saving}>采用候选题录</button>
+                            </div>
+                          )}
+                          <label><span>检索数据库</span><input value={activeReference.searchDatabase} onChange={(event) => updateActiveReference({ searchDatabase: event.target.value })} placeholder="如知网、万方、PubMed" disabled={isRunning} /></label>
+                          <label><span>检索日期</span><input type="date" value={activeReference.searchedAt} onChange={(event) => updateActiveReference({ searchedAt: event.target.value })} disabled={isRunning} /></label>
+                          <label className="is-wide"><span>检索式或关键词</span><input value={activeReference.searchQuery} onChange={(event) => updateActiveReference({ searchQuery: event.target.value })} placeholder="记录实际使用的检索词和组合方式" disabled={isRunning} /></label>
+                          <label className="is-wide"><span>筛选说明</span><input value={activeReference.screeningNote} onChange={(event) => updateActiveReference({ screeningNote: event.target.value })} placeholder="为何纳入或排除、研究对象与时间范围" disabled={isRunning} /></label>
+                          <label className="is-wide"><span>原文定位</span><input value={activeReference.evidenceLocator} onChange={(event) => updateActiveReference({ evidenceLocator: event.target.value, verificationStatus: 'unverified' })} placeholder="页码、章节、图表编号或原文链接；供观点核对" disabled={isRunning} /></label>
+                        </div>
+                      </details>
                     </div>
                   )}
                   {activeReference && chapters.length > 0 && (
@@ -204,13 +288,24 @@ export function ThesisTutorReferenceWorkspace({
                 </>
               ) : (
                 <div className="thesis-tutor-chapter-empty">
-                  <p>还没有文献或证据条目。可以先新增证据，或把材料粘到下方材料区后结构化提取。</p>
-                  <div className="thesis-tutor-empty-actions">
-                    <button type="button" className="secondary-action" onClick={addReference} disabled={saving || isRunning}>新增证据</button>
-                    <button type="button" className="secondary-action" onClick={extractMaterialToWorkspace} disabled={saving || isRunning || !sourceText.trim()}>从材料区拆证据</button>
-                  </div>
+                  <p>还没有文献或证据条目。可用上方“新增证据”，或在材料区填写内容后拆成证据条目。</p>
                 </div>
               )}
+              <Dialog.Root open={Boolean(importPreview)} onOpenChange={(open) => { if (!open && !importing) setImportPreview(null); }}>
+                <Dialog.Portal>
+                  <Dialog.Overlay className="content-regenerate-modal" />
+                  <Dialog.Content className="thesis-tutor-help-card thesis-tutor-bibliography-dialog">
+                    <Dialog.Title>确认导入题录</Dialog.Title>
+                    <Dialog.Description>{importPreview?.fileName} · {importPreview?.format}，识别 {importPreview?.total || 0} 条；可新增 {importPreview?.candidates?.length || 0} 条，重复 {importPreview?.duplicateCount || 0} 条{importPreview?.overflowCount ? `，超出工作区容量 ${importPreview.overflowCount} 条` : ''}。</Dialog.Description>
+                    <p>仅导入题录信息，原文、引用格式和观点仍需人工核验。</p>
+                    {Boolean(importPreview?.candidates?.length) && <ul>{importPreview?.candidates?.slice(0, 12).map((item, index) => <li key={`${item.doi || item.title}-${index}`}>{item.title}{item.year ? `（${item.year}）` : ''}</li>)}{(importPreview?.candidates?.length || 0) > 12 && <li>其余 {(importPreview?.candidates?.length || 0) - 12} 条将在确认后导入</li>}</ul>}
+                    <div className="thesis-tutor-bibliography-dialog-actions">
+                      <button type="button" className="secondary-action" onClick={() => setImportPreview(null)} disabled={importing}>取消</button>
+                      <button type="button" className="primary-action" onClick={() => void confirmBibliography()} disabled={importing || !importPreview?.candidates?.length}>{importing ? '保存中…' : '确认导入'}</button>
+                    </div>
+                  </Dialog.Content>
+                </Dialog.Portal>
+              </Dialog.Root>
             </div>
   );
 }

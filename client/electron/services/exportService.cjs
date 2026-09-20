@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const zlib = require('node:zlib');
 const { fileURLToPath } = require('node:url');
 const { app, dialog, nativeImage, shell } = require('electron');
 const AdmZip = require('adm-zip');
@@ -8,7 +9,7 @@ const { getSafeImageDimensions } = require('../utils/safeImageDimensions.cjs');
 const { createCanvas, GlobalFonts, loadImage: loadCanvasImage } = require('@napi-rs/canvas');
 const { getGeneratedImagesDir, getImportedImagesDir, getKnowledgeImageLibraryDir } = require('../utils/paths.cjs');
 const { createLocalImageRenderService } = require('./localImageRenderService.cjs');
-const { assertRemoteHttpUrl, fetchWithTimeout, readResponseBuffer } = require('../utils/secureHttp.cjs');
+const { assertRemoteHttpUrl, fetchRemoteWithTimeout, readResponseBuffer } = require('../utils/secureHttp.cjs');
 const localImageRenderService = createLocalImageRenderService();
 const {
   AlignmentType,
@@ -166,7 +167,7 @@ function delay(ms) {
 
 async function fetchImageWithTimeout(url, timeoutMs = REMOTE_IMAGE_FETCH_TIMEOUT_MS) {
   const safeUrl = assertRemoteHttpUrl(url, '导出图片地址不安全');
-  const response = await fetchWithTimeout(safeUrl, {
+  const response = await fetchRemoteWithTimeout(safeUrl, {
     timeoutMs: Math.max(1000, Number(timeoutMs) || REMOTE_IMAGE_FETCH_TIMEOUT_MS),
   });
   if (!response.ok) return { response, arrayBuffer: null };
@@ -226,7 +227,50 @@ function compactText(value, maxLength = 140) {
 }
 
 function countMermaidBlocks(content) {
-  return (String(content || '').match(/```mermaid[\s\S]*?```/gi) || []).length;
+  const source = String(content || '');
+  return (source.match(/```mermaid[\s\S]*?```/gi) || []).length
+    + (source.match(/!\[[^\]]*\]\(\s*<?https?:\/\/mermaid\.ink\/(?:img|svg)\//gi) || []).length;
+}
+
+function isLegacyMermaidImageUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return ['http:', 'https:'].includes(url.protocol)
+      && url.hostname.toLowerCase() === 'mermaid.ink'
+      && /^\/(?:img|svg)\//i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function decodeLegacyMermaidImageUrl(value) {
+  const url = new URL(value);
+  const encoded = decodeURIComponent(url.pathname.replace(/^\/(?:img|svg)\//i, '').split('/')[0]);
+  const compressed = encoded.startsWith('pako:');
+  const base64 = encoded.replace(/^(?:pako|base64):/i, '');
+  if (!base64 || base64.length > 180_000 || !/^[A-Za-z0-9+/_-]+={0,2}$/.test(base64)) {
+    throw new Error('旧版 Mermaid 链接内容无效');
+  }
+  let decoded;
+  try {
+    const bytes = Buffer.from(base64, 'base64url');
+    const data = compressed ? zlib.inflateSync(bytes, { maxOutputLength: 120_000 }) : bytes;
+    decoded = new TextDecoder('utf-8', { fatal: true }).decode(data).trim();
+  } catch {
+    throw new Error('旧版 Mermaid 链接编码损坏');
+  }
+  let code = decoded;
+  if (decoded.startsWith('{')) {
+    try {
+      code = JSON.parse(decoded).code;
+    } catch {
+      throw new Error('旧版 Mermaid 图表数据无效');
+    }
+  }
+  if (typeof code !== 'string' || !code.trim() || code.length > 120_000) {
+    throw new Error('旧版 Mermaid 链接没有可用图表代码');
+  }
+  return code;
 }
 
 function countOutlineStats(items = []) {
@@ -1117,7 +1161,17 @@ function createPresalesProposalCover(payload = {}) {
   ];
 }
 
-function createProjectManagementTocPage() {
+function createProjectManagementTocPage(outline) {
+  const cachedEntries = [];
+  const collectEntries = (items, level = 1) => {
+    if (level > 4) return;
+    for (const item of items || []) {
+      const title = String(item?.title || '').trim();
+      if (title) cachedEntries.push({ title, level });
+      collectEntries(item?.children, level + 1);
+    }
+  };
+  if (outline) collectEntries(outline);
   return [
     paragraph([textRun('目录', { font: '宋体', bold: true, size: 36, color: '000000' })], {
       alignment: AlignmentType.CENTER,
@@ -1125,6 +1179,7 @@ function createProjectManagementTocPage() {
       after: 280,
     }),
     new TableOfContents('目录', {
+      cachedEntries,
       hyperlink: true,
       headingStyleRange: '1-4',
       useAppliedParagraphOutlineLevel: true,
@@ -1767,9 +1822,11 @@ function createCaptionParagraph(context, type, name, fallback = '') {
   const sequence = nextCaptionSequence(context, type);
   const captionName = summarizeCaptionName(name, fallback);
   const style = captionStyle(context, type);
+  const sequenceField = new SimpleField(`SEQ ${sequence.identifier} \\* ARABIC \\* MERGEFORMAT`);
+  sequenceField.addChildElement(captionTextRun(sequence.cachedValue, context, type));
   return paragraph([
     captionTextRun(`${sequence.label} `, context, type),
-    new SimpleField(`SEQ ${sequence.identifier} \\* ARABIC`, sequence.cachedValue),
+    sequenceField,
     ...(captionName ? [captionTextRun(` ${captionName}`, context, type)] : []),
   ], {
     optimized: true,
@@ -2098,16 +2155,29 @@ async function normalizeImageForDocx(loaded) {
     return { buffer: await svgBufferToPngBuffer(loaded.buffer), type: 'png' };
   }
 
-  if (loaded.type !== 'webp') {
+  if (loaded.type !== 'webp' && loaded.type !== 'bmp') {
     return loaded;
   }
 
   const image = nativeImage?.createFromBuffer ? nativeImage.createFromBuffer(loaded.buffer) : null;
   if (!image || image.isEmpty()) {
-    throw new Error('WebP 图片转换失败');
+    throw new Error(`${loaded.type.toUpperCase()} 图片转换失败`);
   }
 
   return { buffer: image.toPNG(), type: 'png' };
+}
+
+async function assertImageExportable(source) {
+  const loaded = await loadImage(source);
+  if (!loaded?.buffer || !loaded.type) {
+    throw new Error('未找到可用图片数据');
+  }
+  const normalized = await normalizeImageForDocx(loaded);
+  const dimensions = getSafeImageDimensions(normalized.buffer);
+  if (normalized.type !== dimensions.type) {
+    throw new Error(`图片格式与实际数据不一致（${normalized.type}/${dimensions.type}）`);
+  }
+  return dimensions;
 }
 
 function resolveAssetImagePath(url) {
@@ -2159,9 +2229,12 @@ async function loadImage(source, context = {}, options = {}) {
   }
 
   if (/^https?:\/\//i.test(url)) {
+    if (['example.com', 'example.org', 'example.net'].includes(new URL(url).hostname.toLowerCase())) {
+      throw new Error('示例图片地址没有实际图片，请替换为本地图片');
+    }
     const { response, arrayBuffer } = await fetchImageWithTimeout(url, options.timeoutMs || REMOTE_IMAGE_FETCH_TIMEOUT_MS);
     if (!response.ok) {
-      throw new Error(`图片下载失败：${url}`);
+      throw new Error('图片下载失败，请检查图片来源');
     }
     const type = imageTypeFromMime(response.headers.get('content-type')) || imageTypeFromPath(new URL(url).pathname);
     return { buffer: Buffer.from(arrayBuffer), type };
@@ -2211,24 +2284,32 @@ async function loadImageWithRetry(source, context = {}, options = {}) {
 
 async function imageRunFromNode(node, context, options = {}) {
   let loaded = null;
-  const imageLabel = compactText(node.alt || node.url || '未知图片');
-  const isMermaidImage = /mermaid/i.test(String(node.alt || '')) || /^https?:\/\/mermaid\.ink\//i.test(String(node.url || ''));
+  const legacyMermaid = isLegacyMermaidImageUrl(node.url);
+  const imageLabel = compactText(node.alt || (legacyMermaid ? 'Mermaid 图' : node.url) || '未知图片', 80);
+  const isMermaidImage = legacyMermaid || /mermaid/i.test(String(node.alt || ''));
+  const mermaidIndex = legacyMermaid ? (context.convertedMermaidCount || 0) + 1 : 0;
+  if (legacyMermaid) reportConversionProgress(context, `正在本地转换 Mermaid 图 ${mermaidIndex}/${context.stats?.mermaidCount || mermaidIndex}。`);
   try {
-    loaded = await loadImageWithRetry(node.url, context, options.loadRetry);
+    if (legacyMermaid) {
+      const code = decodeLegacyMermaidImageUrl(node.url);
+      const dataUrl = await localImageRenderService.renderMermaidToDataUrl(normalizeMermaidForExport(code));
+      loaded = await loadImage(dataUrl, context);
+    } else {
+      loaded = await loadImageWithRetry(node.url, context, options.loadRetry);
+    }
   } catch (error) {
-    const detail = compactText(error.message || '下载失败', 120);
+    const detail = compactText(error.message || '图片读取失败', 120);
     const warning = `图片无法导出：${imageLabel}，${detail}`;
     const message = isMermaidImage
-      ? `图片无法导出：Mermaid 图，图片数据不可用。请重新导出或检查图表内容。`
+      ? '图片无法导出：Mermaid 图，本地转换失败。请检查图表内容。'
       : warning;
     addWarning(context, warning);
-    if (isMermaidImage && /^https?:\/\//i.test(String(node.url || ''))) {
-      return new ExternalHyperlink({
-        children: [textRun(`[${message}]`, { color: 'C83220', underline: true })],
-        link: node.url,
-      });
-    }
     return textRun(`[${message}]`, { color: 'C83220' });
+  } finally {
+    if (legacyMermaid) {
+      context.convertedMermaidCount = mermaidIndex;
+      reportConversionProgress(context, `Mermaid 图 ${mermaidIndex}/${context.stats?.mermaidCount || mermaidIndex} 已处理。`);
+    }
   }
   if (!loaded?.buffer || !loaded.type) {
     const message = `图片无法导出：${imageLabel}，未找到可用图片数据`;
@@ -3559,7 +3640,7 @@ async function buildDocxResult(payload, options = {}) {
 
   const doc = new Document({
     ...(numbering ? { numbering } : {}),
-    ...(wordOptimizationEnabled || structuredDocumentEnabled || patentDisclosureEnabled ? { features: { updateFields: true } } : {}),
+    ...(documentScope === 'bid' || wordOptimizationEnabled || structuredDocumentEnabled || patentDisclosureEnabled ? { features: { updateFields: true } } : {}),
     ...(wordOptimizationEnabled || structuredDocumentEnabled || patentDisclosureEnabled ? { defaultTabStop: 0 } : {}),
     styles: {
       default: {
@@ -3765,13 +3846,16 @@ function createExportService({ configStore, getTemplateStore } = {}) {
 
       const warnings = [];
       const buildResult = await buildDocxResult(payload, { onProgress, warnings, config });
+      const imageWarnings = buildResult.warnings.filter((warning) => String(warning).startsWith('图片无法导出：'));
+      if (imageWarnings.length) {
+        const message = `有 ${imageWarnings.length} 处图片无法插入，Word 未导出。请回到正文生成阶段修复或替换图片后重试。`;
+        reportProgress({ onProgress, warnings: imageWarnings, stats: buildResult.stats }, 96, message, { phase: 'error' });
+        throw new Error(`${message}\n${imageWarnings.slice(0, 5).join('\n')}`);
+      }
       reportProgress({ onProgress, warnings: buildResult.warnings, stats: buildResult.stats }, 96, '正在写入 Word 文件。');
       fs.writeFileSync(result.filePath, buildResult.buffer);
-      const imageWarningCount = buildResult.warnings.filter((warning) => String(warning).startsWith('图片无法导出：')).length;
       const message = buildResult.warnings.length
-        ? imageWarningCount
-          ? `Word 已导出，但有 ${imageWarningCount} 处图片未能插入，另有 ${buildResult.warnings.length - imageWarningCount} 条导出提示，请打开文档核对。`
-          : `Word 已导出，但有 ${buildResult.warnings.length} 条导出提示，请打开文档核对。`
+        ? `Word 已导出，但有 ${buildResult.warnings.length} 条导出提示，请打开文档核对。`
         : 'Word 已导出，请打开文档核对图片、表格和版式。';
       reportProgress({ onProgress, warnings: buildResult.warnings, stats: buildResult.stats }, 100, message, { phase: 'success' });
       return { success: true, path: result.filePath, filePath: result.filePath, message, warnings: buildResult.warnings };
@@ -3780,6 +3864,7 @@ function createExportService({ configStore, getTemplateStore } = {}) {
 }
 
 module.exports = {
+  assertImageExportable,
   buildDocxBuffer,
   buildDocxResult,
   createExportService,

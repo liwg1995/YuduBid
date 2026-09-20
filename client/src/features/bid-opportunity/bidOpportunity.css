@@ -660,3 +660,42 @@
   .opportunity-detail-head p { font-size: 9px; }
   .opportunity-decision-strip span { font-size: 9px; }
 }
+
+@container (max-width: 850px) {
+  .opportunity-workbench {
+    grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.1fr);
+    grid-template-rows: minmax(110px, 150px) minmax(0, 1fr);
+  }
+
+  .opportunity-nav-panel {
+    grid-column: 1 / -1;
+    border-right: 0;
+    border-bottom: 1px solid var(--yb-border-soft);
+  }
+}
+
+@container (max-width: 600px) {
+  .opportunity-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(110px, 150px) minmax(280px, 38vh) minmax(420px, 1fr);
+    overflow-y: auto;
+  }
+
+  .opportunity-nav-panel {
+    grid-column: auto;
+  }
+
+  .opportunity-list-panel {
+    border-right: 0;
+    border-bottom: 1px solid var(--yb-border-soft);
+  }
+
+  .opportunity-overview-lead {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .opportunity-radar-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

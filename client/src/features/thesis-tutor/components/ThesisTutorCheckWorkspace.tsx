@@ -167,11 +167,7 @@ export function ThesisTutorCheckWorkspace({
                 </>
               ) : (
                 <div className="thesis-tutor-chapter-empty">
-                  <p>还没有检查项。可以先生成终稿审查清单，也可以根据学校模板、查重报告或导师意见新增单项检查。</p>
-                  <div className="thesis-tutor-empty-actions">
-                    <button type="button" className="secondary-action" onClick={createDefaultCheckItems} disabled={saving || isRunning}>生成终稿审查清单</button>
-                    <button type="button" className="secondary-action" onClick={extractMaterialToWorkspace} disabled={saving || isRunning || !sourceText.trim()}>从材料区拆检查项</button>
-                  </div>
+                  <p>还没有检查项。可用上方按钮生成终稿审查清单，或根据学校模板、查重报告和导师意见新增检查项。</p>
                 </div>
               )}
             </div>

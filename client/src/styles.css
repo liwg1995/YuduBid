@@ -2085,6 +2085,7 @@ button {
 .content-shell {
   position: relative;
   display: flex;
+  container-type: inline-size;
   min-height: 0;
   flex: 1;
   overflow: hidden;
@@ -6169,8 +6170,10 @@ button {
   left: 50%;
   z-index: 101;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(560px, calc(100vw - 40px));
   max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 48px);
   min-width: 0;
   box-sizing: border-box;
   transform: translate(-50%, -50%);
@@ -6180,6 +6183,12 @@ button {
   border: 1px solid rgba(220, 223, 230, 0.9);
   border-radius: 24px;
   box-shadow: 0 28px 72px rgba(23, 32, 51, 0.24);
+  overflow: hidden;
+}
+
+.export-progress-card .content-regenerate-card-head,
+.export-progress-card .content-regenerate-actions {
+  min-width: 0;
 }
 
 .document-parse-notice-modal {
@@ -6268,7 +6277,10 @@ button {
 .export-progress-body {
   display: grid;
   min-width: 0;
+  min-height: 0;
   gap: 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .export-progress-body .content-generation-progress-track {
@@ -6284,6 +6296,7 @@ button {
 
 .export-warning-list {
   display: grid;
+  min-width: 0;
   gap: 8px;
   padding: 12px 14px;
   background: rgba(255, 209, 102, 0.14);
@@ -6297,9 +6310,11 @@ button {
 }
 
 .export-warning-list small {
+  min-width: 0;
   color: #755110;
   font-size: 12px;
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .export-file-path {
@@ -10603,6 +10618,28 @@ button {
     border-bottom: 1px solid var(--yb-border-soft);
   }
 
+  .content-generation-workspace {
+    grid-template-rows: minmax(240px, 38vh) minmax(420px, 1fr);
+    overflow-y: auto;
+  }
+
+  .content-generation-workspace .content-outline-list {
+    max-height: none;
+  }
+
+  .content-generation-workspace .content-reader-panel {
+    min-height: 420px;
+  }
+
+  .content-generation-workspace .content-generation-output {
+    max-height: none;
+  }
+
+  .technical-workbench > .floating-toolbar {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
   .bid-analysis-command-bar,
   .global-facts-command-bar {
     align-items: stretch;
@@ -13655,5 +13692,251 @@ button {
 
   .agent-floating-content {
     background: var(--yb-surface);
+  }
+}
+
+/* 响应内容区的实际宽度，避免展开的侧边栏把多栏页面挤成窄列。 */
+@container (max-width: 900px) {
+  .content-shell .bid-analysis-command-bar,
+  .content-shell .global-facts-command-bar,
+  .content-shell .content-generation-command-bar,
+  .content-shell .outline-command-bar,
+  .content-shell .bid-analysis-workspace,
+  .content-shell .global-facts-workspace,
+  .content-shell .global-facts-editor-grid,
+  .content-shell .content-generation-workspace,
+  .content-shell .outline-generation-workspace,
+  .content-shell .content-expand-body,
+  .content-shell .demo-content-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .content-shell .bid-analysis-workspace,
+  .content-shell .global-facts-workspace,
+  .content-shell .global-facts-editor-grid,
+  .content-shell .outline-generation-workspace,
+  .content-shell .content-expand-body {
+    overflow-y: auto;
+  }
+
+  .content-shell .content-generation-workspace {
+    grid-template-rows: minmax(240px, 38vh) minmax(420px, 1fr);
+    overflow-y: auto;
+  }
+
+  .content-shell .content-outline-panel,
+  .content-shell .bid-analysis-task-pane,
+  .content-shell .global-facts-panel,
+  .content-shell .global-facts-edit-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--yb-border-soft);
+  }
+
+  .content-shell .content-generation-workspace .content-outline-list,
+  .content-shell .content-generation-workspace .content-generation-output {
+    max-height: none;
+  }
+
+  .content-shell .content-generation-workspace .content-reader-panel {
+    min-height: 420px;
+  }
+
+  .content-shell .outline-generation-workspace {
+    height: auto;
+  }
+
+  .content-shell .settings-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .content-shell .code-generation-layout,
+  .content-shell .code-source-columns,
+  .content-shell .official-document-layout,
+  .content-shell .project-management-layout,
+  .content-shell .project-management-detail-head,
+  .content-shell .duplicate-dimension-grid,
+  .content-shell .patent-demo .demo-hero-card,
+  .content-shell .patent-content-grid,
+  .content-shell .image-library-layout,
+  .content-shell .thesis-tutor-layout,
+  .content-shell .thesis-tutor-profile-grid,
+  .content-shell .thesis-tutor-chapter-grid,
+  .content-shell .thesis-tutor-reference-grid,
+  .content-shell .thesis-tutor-feedback-grid,
+  .content-shell .thesis-tutor-check-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .content-shell .presales-hero,
+  .content-shell .presales-bottom-grid,
+  .content-shell .presales-form-grid,
+  .content-shell .rejection-upload-row,
+  .content-shell .duplicate-upload-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .content-shell .code-generation-page,
+  .content-shell .official-document-page,
+  .content-shell .duplicate-check-page,
+  .content-shell .rejection-check-page {
+    overflow-y: auto;
+  }
+
+  .content-shell .duplicate-check-page {
+    grid-template-rows: auto minmax(500px, 1fr);
+  }
+
+  .content-shell .rejection-check-page {
+    grid-template-rows: auto auto minmax(500px, 1fr);
+  }
+
+  .content-shell .code-generation-header,
+  .content-shell .official-document-header,
+  .content-shell .project-management-panel-head,
+  .content-shell .project-management-list-head,
+  .content-shell .project-management-searchbar,
+  .content-shell .project-management-projectbar,
+  .content-shell .duplicate-page-title,
+  .content-shell .duplicate-guide-head,
+  .content-shell .rejection-page-title,
+  .content-shell .software-copyright-header,
+  .content-shell .software-copyright-projects-hero,
+  .content-shell .software-copyright-projects-toolbar,
+  .content-shell .patent-projects-header,
+  .content-shell .knowledge-library-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .content-shell .software-copyright-projects-toolbar > div:first-child {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .content-shell .software-copyright-projects-filters {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .content-shell .software-copyright-projects-filters > input {
+    width: min(420px, 100%);
+  }
+
+  .content-shell .patent-projects-toolbar,
+  .content-shell .patent-project-card-actions {
+    flex-wrap: wrap;
+  }
+
+  .content-shell .patent-projects-stats,
+  .content-shell .patent-project-card-actions button,
+  .content-shell .patent-projects-primary {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .content-shell .patent-projects-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  }
+
+  .content-shell .thesis-tutor-header,
+  .content-shell .thesis-tutor-help-strip {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .content-shell .rejection-upload-actions,
+  .content-shell .duplicate-upload-actions {
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .content-shell .project-management-list-head > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .content-shell .code-generation-side,
+  .content-shell .official-document-side {
+    overflow: visible;
+  }
+
+  .content-shell .patent-demo .patent-content-grid > * {
+    grid-column: 1 / -1;
+  }
+
+  .content-shell .technical-workbench > .floating-toolbar {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+}
+
+/* 查重和废标页本身会滚动，工具条始终锚定窗口底部。 */
+.app-shell :is(.duplicate-check-page, .rejection-check-page) > .floating-toolbar {
+  position: fixed;
+  right: 42px;
+  bottom: 28px;
+  left: calc(286px + 42px);
+  max-width: calc(100vw - 286px - 84px);
+}
+
+.app-shell:has(.sidebar.is-collapsed) :is(.duplicate-check-page, .rejection-check-page) > .floating-toolbar {
+  left: calc(86px + 42px);
+  max-width: calc(100vw - 86px - 84px);
+}
+
+@media (max-width: 860px) {
+  .app-shell :is(.duplicate-check-page, .rejection-check-page) > .floating-toolbar,
+  .app-shell:has(.sidebar.is-collapsed) :is(.duplicate-check-page, .rejection-check-page) > .floating-toolbar {
+    right: 14px;
+    bottom: 18px;
+    left: 14px;
+    max-width: calc(100vw - 28px);
+  }
+}
+
+@container (max-width: 1100px) {
+  .content-shell .rejection-check-page {
+    grid-template-rows: none;
+    grid-auto-rows: max-content;
+    align-content: start;
+  }
+
+  .content-shell .rejection-check-result-panel {
+    grid-row: auto;
+  }
+
+  .content-shell .about-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .content-shell .settings-tab-shell {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    justify-self: stretch;
+    box-sizing: border-box;
+    overflow: visible;
+    border-radius: 24px;
+  }
+
+  .content-shell .settings-tab {
+    min-width: 0;
+    padding: 11px 10px;
+    text-align: center;
+  }
+
+  .content-shell .settings-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px 22px;
+  }
+
+  .content-shell .settings-section-title {
+    padding: 20px 22px;
+  }
+
+  .content-shell .settings-page-scroll {
+    padding-bottom: 88px;
   }
 }

@@ -1118,3 +1118,42 @@
   color: var(--rejection-danger-text);
   background: rgba(255, 107, 84, 0.14);
 }
+
+/* 工作区变窄时让每个检查类型直接可见，确认项无需横向寻找。 */
+@container (max-width: 1100px) {
+  .rejection-submission-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rejection-submission-statuses {
+    justify-content: flex-start;
+  }
+
+  .rejection-check-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rejection-check-overview dl {
+    flex-wrap: wrap;
+  }
+
+  .rejection-check-result-panel {
+    height: auto;
+    min-width: 0;
+    grid-template-rows: repeat(4, auto) minmax(360px, auto);
+  }
+
+  .rejection-check-result-tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+    overflow: visible;
+  }
+
+  .rejection-check-result-tab {
+    min-width: 0;
+  }
+
+  .rejection-check-result-content {
+    min-width: 0;
+  }
+}

@@ -37,14 +37,11 @@ export function ThesisTutorProfilePanel({
   toggleProfileLock,
   returnToDiagnosis,
 }: ThesisTutorProfilePanelProps) {
-  const shouldShowFullProfilePanel = activePanel === 'diagnosis' || expanded;
+  const shouldShowFullProfilePanel = expanded || (activePanel === 'diagnosis' && !profile.discipline.trim() && !profile.direction.trim() && !profile.title.trim());
   const profileSummaryItems = [
-    ['学位/类型', `${profile.degree || '未填写'} / ${profile.degreeType || '未填写'}`],
-    ['专业方向', `${profile.discipline || '未填写'}${profile.direction ? ` / ${profile.direction}` : ''}`],
-    ['当前阶段', profile.stage || '未填写'],
-    ['引用格式', profile.citationFormat || '未填写'],
     ['论文题目', profile.title || '未定题'],
-    ['档案状态', profileLocked ? '已锁定' : '可编辑'],
+    ['研究方向', profile.direction || profile.discipline || '未填写'],
+    ['阶段', profile.stage || '未填写'],
   ];
   const panel = panelCopy[activePanel];
 
@@ -53,8 +50,8 @@ export function ThesisTutorProfilePanel({
       <section className="thesis-tutor-panel thesis-tutor-profile-summary-panel">
         <div className="thesis-tutor-profile-summary-main">
           <div>
-            <strong>论文档案已作为本模块上下文带入</strong>
-            <span>这里不再重复展示完整表单；题目、方向、阶段和引用格式会自动用于本次生成。</span>
+            <strong>论文档案</strong>
+            <span>当前阶段会自动使用已保存的档案信息。</span>
           </div>
           <div className="thesis-tutor-profile-summary-chips">
             {profileSummaryItems.map(([label, value]) => (
@@ -63,17 +60,8 @@ export function ThesisTutorProfilePanel({
           </div>
         </div>
         <div className="thesis-tutor-profile-summary-side">
-          <div className="thesis-tutor-context-note">
-            <strong>{panel.label}会重点使用</strong>
-            <div>
-              {profileUsageByPanel[activePanel].map((item) => (
-                <span key={item}>{item}</span>
-              ))}
-            </div>
-          </div>
           <div className="thesis-tutor-profile-summary-actions">
-            <button type="button" className="secondary-action" onClick={() => setExpanded(true)}>展开编辑档案</button>
-            <button type="button" className="secondary-action" onClick={returnToDiagnosis}>回到启动诊断</button>
+            <button type="button" className="secondary-action" onClick={() => setExpanded(true)}>编辑档案</button>
           </div>
         </div>
       </section>

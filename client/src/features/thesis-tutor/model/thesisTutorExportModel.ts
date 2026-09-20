@@ -76,6 +76,7 @@ export function buildReferenceExportMarkdown(references: ThesisTutorReference[])
   if (!references.length) return '';
   return references.map((reference, index) => [
     `## ${index + 1}. ${reference.title}`,
+    `- 证据编号：${reference.id}`,
     `- 类型：${getOptionLabel(referenceTypeOptions, reference.type)}`,
     `- 核验状态：${getOptionLabel(referenceVerificationOptions, reference.verificationStatus)}`,
     `- 作者/机构：${reference.authors || '未填写'}`,
@@ -83,6 +84,10 @@ export function buildReferenceExportMarkdown(references: ThesisTutorReference[])
     `- 来源：${reference.source || '未填写'}`,
     `- 关键词：${reference.keywords || '未填写'}`,
     `- 规范引用/出处：${reference.citation || '未填写'}`,
+    `- DOI：${reference.doi || '未填写'}`,
+    `- 检索记录：${[reference.searchDatabase, reference.searchQuery, reference.searchedAt].filter(Boolean).join(' / ') || '未记录'}`,
+    `- 筛选说明：${reference.screeningNote || '未记录'}`,
+    `- 原文定位：${reference.evidenceLocator || '未记录'}`,
     `- 核验来源：${reference.verificationSource || '未填写'}`,
     `- 核验备注：${reference.verificationNotes || '未填写'}`,
     '',

@@ -214,6 +214,11 @@ export interface ExportTemplateRecord {
   config: ExportFormatConfig;
   created_at: string;
   updated_at: string;
+  source_manifest?: {
+    source_name: string;
+    chapters: Array<{ level: number; title: string; paragraph: number }>;
+    fields: Array<{ name: string; paragraph: number; context: string; fill_by: 'ai' | 'manual' }>;
+  } | null;
 }
 
 // ── 选项常量 ──────────────────────────────────────

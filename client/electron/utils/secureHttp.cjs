@@ -1,5 +1,33 @@
+const dns = require('node:dns');
+const ipaddr = require('ipaddr.js');
+const { Agent } = require('undici');
+
 const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
+const MAX_REDIRECTS = 5;
+
+function isPublicIp(value) {
+  try {
+    return ipaddr.process(String(value || '').replace(/^\[|\]$/g, '')).range() === 'unicast';
+  } catch {
+    return false;
+  }
+}
+
+function lookupPublicAddress(hostname, options, callback, lookup = dns.lookup) {
+  lookup(hostname, { ...options, all: true }, (error, addresses) => {
+    if (error) return callback(error);
+    if (!Array.isArray(addresses) || !addresses.length || addresses.some((entry) => !isPublicIp(entry.address))) {
+      return callback(new Error('远程地址解析到了非公网 IP，已阻止连接'));
+    }
+    const selected = addresses[0];
+    return options?.all
+      ? callback(null, [selected])
+      : callback(null, selected.address, selected.family);
+  });
+}
+
+const safeRemoteAgent = new Agent({ connect: { lookup: lookupPublicAddress } });
 
 function normalizeTimeout(timeoutMs) {
   const value = Number(timeoutMs);
@@ -36,10 +64,52 @@ function assertRemoteHttpUrl(value, message = '远程 URL 不安全') {
   } catch {
     throw new Error(message);
   }
-  if (!['http:', 'https:'].includes(parsed.protocol) || isPrivateHostname(parsed.hostname)) {
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || isPrivateHostname(parsed.hostname)
+    || (ipaddr.isValid(parsed.hostname.replace(/^\[|\]$/g, '')) && !isPublicIp(parsed.hostname))) {
     throw new Error(message);
   }
   return parsed.toString();
+}
+
+async function fetchRemoteWithTimeout(url, options = {}) {
+  const timeoutMs = normalizeTimeout(options.timeoutMs);
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
+  const { timeoutMs: _timeoutMs, fetchImpl = fetch, ...requestOptions } = options;
+  let currentUrl = assertRemoteHttpUrl(url);
+  let headers = requestOptions.headers;
+  try {
+    for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+      const response = await fetchImpl(currentUrl, {
+        ...requestOptions, headers, signal, redirect: 'manual', dispatcher: safeRemoteAgent,
+      });
+      if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+      let nextUrl;
+      try {
+        if (redirects === MAX_REDIRECTS) throw new Error('远程地址跳转次数过多');
+        const method = String(requestOptions.method || 'GET').toUpperCase();
+        if (method !== 'GET' && method !== 'HEAD') throw new Error('远程上传地址不允许跳转');
+        const location = response.headers.get('location');
+        if (!location) throw new Error('远程地址跳转缺少目标地址');
+        nextUrl = assertRemoteHttpUrl(new URL(location, currentUrl).toString());
+        if (currentUrl.startsWith('https:') && nextUrl.startsWith('http:')) throw new Error('远程地址不允许降级到 HTTP');
+      } finally {
+        await response.body?.cancel();
+      }
+      if (new URL(nextUrl).origin !== new URL(currentUrl).origin) {
+        headers = new Headers(headers);
+        for (const name of ['authorization', 'proxy-authorization', 'cookie']) headers.delete(name);
+      }
+      currentUrl = nextUrl;
+    }
+  } catch (error) {
+    if ((error?.name === 'AbortError' || error?.name === 'TimeoutError') && !options.signal?.aborted) {
+      const timeoutError = new Error(`网络请求超时（${Math.round(timeoutMs / 1000)} 秒）`);
+      timeoutError.name = 'TimeoutError';
+      throw timeoutError;
+    }
+    throw error;
+  }
 }
 
 async function fetchWithTimeout(url, options = {}) {
@@ -93,6 +163,9 @@ module.exports = {
   DEFAULT_TIMEOUT_MS,
   assertRemoteHttpUrl,
   fetchWithTimeout,
+  fetchRemoteWithTimeout,
+  isPublicIp,
+  lookupPublicAddress,
   readResponseBuffer,
   readResponseText,
 };

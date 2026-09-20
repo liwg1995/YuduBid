@@ -54,6 +54,8 @@ import {
 function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutorPageProps) {
   const { showToast } = useToast();
   const mainScrollRef = useRef<HTMLDivElement | null>(null);
+  const supportWorkspaceRef = useRef<HTMLDetailsElement | null>(null);
+  const referenceWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<ThesisTutorState | null>(null);
   const [profile, setProfile] = useState<ThesisTutorProfile>(defaultProfile);
   const [activePanel, setActivePanel] = useState<ThesisTutorPanel>(initialPanel);
@@ -164,6 +166,16 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
     .filter((item) => item !== activePanel && Boolean(panelResults[item]?.content))
     .length;
   const showReferenceWorkspace = referenceEnabledPanels.has(activePanel);
+  function openReference(id: string) {
+    const exists = references.some((reference) => reference.id === id);
+    if (exists) setActiveReferenceId(id);
+    else showToast('证据链中没有该编号，请补录或修改正文标记', 'info');
+    if (supportWorkspaceRef.current) supportWorkspaceRef.current.open = true;
+    requestAnimationFrame(() => {
+      referenceWorkspaceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (exists) referenceWorkspaceRef.current?.querySelector<HTMLSelectElement>('.thesis-tutor-reference-toolbar select')?.focus({ preventScroll: true });
+    });
+  }
   const showFeedbackWorkspace = feedbackEnabledPanels.has(activePanel);
   const showCheckWorkspace = activePanel === 'format';
   const chapterSummary = activePanel === 'drafting' || activePanel === 'writing'
@@ -699,21 +711,42 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
         returnToDiagnosis={() => switchPanel('diagnosis')}
       />
 
-      <nav className="thesis-tutor-tabs" aria-label="论文导师二级模块">
-        {panelOrder.map((item) => (
-          <button
-            type="button"
-            key={item}
-            className={item === activePanel ? 'is-active' : ''}
-            onClick={() => switchPanel(item)}
-          >
-            {panelCopy[item].label}
-          </button>
-        ))}
-      </nav>
-
       <main className="thesis-tutor-layout">
         <section className="thesis-tutor-main">
+          <ThesisTutorGenerationWorkspace
+            activePanel={activePanel}
+            panel={panel}
+            selectedChartTemplateIds={selectedChartTemplateIds}
+            profileContextItems={profileContextItems}
+            priorResultCount={priorResultCount}
+            draftingPreflight={draftingPreflight}
+            dataPreflight={dataPreflight}
+            userInput={userInput}
+            sourceText={sourceText}
+            importedSourceFileName={state?.importedSourceFileName}
+            nextActionLabel={nextActionLabel}
+            materialExtractLabel={getMaterialExtractLabel()}
+            isRunning={isRunning}
+            saving={saving}
+            setSelectedChartTemplateIds={setSelectedChartTemplateIds}
+            setUserInput={setUserInput}
+            setSourceText={setSourceText}
+            toggleChartTemplate={toggleChartTemplate}
+            applySelectedChartTemplates={applySelectedChartTemplates}
+            generate={generate}
+            importSource={importSource}
+            extractMaterialToWorkspace={extractMaterialToWorkspace}
+          />
+
+          {(showCheckWorkspace || showReferenceWorkspace || showFeedbackWorkspace || activePanel === 'drafting' || activePanel === 'writing') && (
+            <details ref={supportWorkspaceRef} className="thesis-tutor-panel thesis-tutor-collapsible thesis-tutor-support-workspace" key={activePanel}>
+              <summary>辅助工作区 <span>{[
+                showReferenceWorkspace ? `证据 ${references.length} 条` : '',
+                showFeedbackWorkspace ? `反馈 ${feedbackItems.length} 项` : '',
+                showCheckWorkspace ? `检查 ${checkItems.length} 项` : '',
+                activePanel === 'drafting' || activePanel === 'writing' ? `章节 ${chapters.length} 个` : '',
+              ].filter(Boolean).join(' · ')}</span></summary>
+              <div className="thesis-tutor-support-content">
           {showCheckWorkspace && (
             <ThesisTutorCheckWorkspace
               activeCheck={activeCheck}
@@ -734,6 +767,7 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
           )}
 
           {showReferenceWorkspace && (
+            <div ref={referenceWorkspaceRef} className="thesis-tutor-reference-target">
             <ThesisTutorReferenceWorkspace
               activeReference={activeReference}
               references={references}
@@ -749,7 +783,9 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
               saveReferenceWorkspace={saveReferenceWorkspace}
               toggleReferenceChapter={toggleReferenceChapter}
               extractMaterialToWorkspace={extractMaterialToWorkspace}
+              onImportedState={(nextState) => { setState(nextState); syncWorkspaces(nextState); }}
             />
+            </div>
           )}
 
           {showFeedbackWorkspace && (
@@ -787,31 +823,9 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
               extractMaterialToWorkspace={extractMaterialToWorkspace}
             />
           )}
-
-          <ThesisTutorGenerationWorkspace
-            activePanel={activePanel}
-            panel={panel}
-            selectedChartTemplateIds={selectedChartTemplateIds}
-            profileContextItems={profileContextItems}
-            priorResultCount={priorResultCount}
-            draftingPreflight={draftingPreflight}
-            dataPreflight={dataPreflight}
-            userInput={userInput}
-            sourceText={sourceText}
-            importedSourceFileName={state?.importedSourceFileName}
-            nextActionLabel={nextActionLabel}
-            materialExtractLabel={getMaterialExtractLabel()}
-            isRunning={isRunning}
-            saving={saving}
-            setSelectedChartTemplateIds={setSelectedChartTemplateIds}
-            setUserInput={setUserInput}
-            setSourceText={setSourceText}
-            toggleChartTemplate={toggleChartTemplate}
-            applySelectedChartTemplates={applySelectedChartTemplates}
-            generate={generate}
-            importSource={importSource}
-            extractMaterialToWorkspace={extractMaterialToWorkspace}
-          />
+              </div>
+            </details>
+          )}
 
           {task && (
             <ThesisTutorProgressCard
@@ -837,6 +851,7 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
             nextPanel={nextPanel}
             result={result}
             draft={draft}
+            references={references}
             nextActionLabel={nextActionLabel}
             exportProgress={exportProgress}
             isRunning={isRunning}
@@ -845,6 +860,7 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
             copyResult={copyResult}
             saveDraft={saveDraft}
             exportWord={exportWord}
+            openReference={openReference}
             carryResultToNextPanel={carryResultToNextPanel}
             settleTopicToProfile={settleTopicToProfile}
             settleResultToReferences={settleResultToReferences}

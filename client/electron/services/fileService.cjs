@@ -8,6 +8,7 @@ const { getImportedImagesDir } = require('../utils/paths.cjs');
 const {
   assertRemoteHttpUrl,
   fetchWithTimeout,
+  fetchRemoteWithTimeout,
   readResponseBuffer,
   readResponseText,
 } = require('../utils/secureHttp.cjs');
@@ -233,7 +234,7 @@ async function pollMineruAccurate(token, batchId, fileName) {
 async function uploadFile(fileUrl, filePath) {
   const buffer = await fs.readFile(filePath);
   const safeUrl = assertRemoteHttpUrl(fileUrl, '解析服务返回了不安全的上传地址');
-  const response = await fetchWithTimeout(safeUrl, { method: 'PUT', body: buffer, timeoutMs: 120000 });
+  const response = await fetchRemoteWithTimeout(safeUrl, { method: 'PUT', body: buffer, timeoutMs: 120000 });
   if (!response.ok) {
     throw new Error(`文件上传失败：HTTP ${response.status}，${await readResponseText(response)}`);
   }
@@ -241,7 +242,7 @@ async function uploadFile(fileUrl, filePath) {
 
 async function downloadText(url, fallbackMessage) {
   const safeUrl = assertRemoteHttpUrl(url, '解析服务返回了不安全的下载地址');
-  const response = await fetchWithTimeout(safeUrl, { timeoutMs: 120000 });
+  const response = await fetchRemoteWithTimeout(safeUrl, { timeoutMs: 120000 });
   if (!response.ok) {
     throw new Error(`${fallbackMessage}：HTTP ${response.status}`);
   }
@@ -250,7 +251,7 @@ async function downloadText(url, fallbackMessage) {
 
 async function downloadBuffer(url) {
   const safeUrl = assertRemoteHttpUrl(url, '解析服务返回了不安全的下载地址');
-  const response = await fetchWithTimeout(safeUrl, { timeoutMs: 120000 });
+  const response = await fetchRemoteWithTimeout(safeUrl, { timeoutMs: 120000 });
   if (!response.ok) {
     throw new Error(`下载 MinerU 精准解析结果失败：HTTP ${response.status}`);
   }
@@ -359,7 +360,7 @@ function parseDataUrl(value) {
 
 async function loadRemoteImage(url) {
   const safeUrl = assertRemoteHttpUrl(url, '文档图片地址不安全');
-  const response = await fetchWithTimeout(safeUrl, { timeoutMs: remoteImageTimeoutMs });
+  const response = await fetchRemoteWithTimeout(safeUrl, { timeoutMs: remoteImageTimeoutMs });
   if (!response.ok) return null;
   const contentType = response.headers.get('content-type') || '';
   if (contentType && !/^image\//i.test(contentType)) return null;

@@ -1,5 +1,7 @@
 const { countReadableWords } = require('../utils/wordCount.cjs');
+const fs = require('node:fs');
 const { createLocalImageRenderService } = require('./localImageRenderService.cjs');
+const { assertImageExportable, buildDocxResult } = require('./exportService.cjs');
 const localImageRenderService = createLocalImageRenderService();
 
 const IMAGE_STYLES = new Set(['engineering_diagram', 'realistic_photo']);
@@ -168,7 +170,8 @@ function assertMermaidPreviewCompatible(code) {
 async function validateMermaidRender(code) {
   const normalized = normalizeMermaidCode(code);
   assertMermaidPreviewCompatible(normalized);
-  await localImageRenderService.renderMermaidToDataUrl(normalized);
+  const imageDataUrl = await localImageRenderService.renderMermaidToDataUrl(normalized);
+  await assertImageExportable(imageDataUrl);
 }
 
 function normalizePriority(value) {
@@ -1846,6 +1849,43 @@ function appendGeneratedImageMarkdown(content, imagePlan, generatedImage) {
   return `${normalizedContent}\n\n<!-- yibiao-illustration:ai -->\n![${caption}](${generatedImage.asset_url})\n\n*图：${caption}*`;
 }
 
+async function assertGeneratedImageSaved(image, label) {
+  if (!image?.asset_url || !image?.file_path || !fs.existsSync(image.file_path) || fs.statSync(image.file_path).size === 0) {
+    throw new Error(`${label}未保存为可用的本地图片`);
+  }
+  try {
+    await assertImageExportable(image.asset_url);
+  } catch (error) {
+    throw new Error(`${label}无法写入 Word：${error.message || '图片数据损坏'}`);
+  }
+}
+
+function hasUnexpectedGeneratedIllustration(content) {
+  const text = String(content || '');
+  return /!\[[^\]]*\]\([^)]*\)|<img\b|```\s*(?:mermaid|plantuml|graphviz|dot)\b|mermaid\.ink\//i.test(text);
+}
+
+function containsImageForWord(content) {
+  return /!\[[^\]]*\]\([^)]*\)|<img\b|```\s*mermaid\b/i.test(String(content || ''));
+}
+
+async function checkSectionImagesForWord(item, content) {
+  if (!containsImageForWord(content)) return [];
+  if (/<img\b/i.test(content)) {
+    return ['图片无法导出：正文包含 HTML 图片，请重新生成或改用本地 Markdown 图片'];
+  }
+  try {
+    const result = await buildDocxResult({
+      documentScope: 'bid',
+      exportMode: 'basic',
+      outline: [{ ...item, children: [], content }],
+    });
+    return result.warnings.filter((warning) => String(warning).startsWith('图片无法导出：'));
+  } catch (error) {
+    return [`图片无法导出：${error.message || 'Word 图片校验失败'}`];
+  }
+}
+
 function hasExistingIllustration(content, illustrationType) {
   const text = String(content || '');
   if (!text.trim()) {
@@ -2406,6 +2446,10 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   const imageAvailability = aiService.getImageModelAvailability
     ? aiService.getImageModelAvailability()
     : { available: false, message: '生图模型不可用' };
+  const requestedAiImages = generationOptions.useAiImages ?? generationOptions.use_ai_images;
+  if (requestedAiImages === true && !imageAvailability.available) {
+    throw new Error(`已启用 AI 配图，但${imageAvailability.message || '生图模型不可用'}。请先检查生图模型设置。`);
+  }
   const aiImagesEnabled = Boolean(generationOptions.useAiImages ?? generationOptions.use_ai_images ?? imageAvailability.available) && imageAvailability.available;
   const mermaidImagesEnabled = Boolean(generationOptions.useMermaidImages ?? generationOptions.use_mermaid_images ?? Boolean(targetItemId));
   const technicalDiagramEnabled = Boolean(
@@ -2471,6 +2515,19 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   let mermaidImageTargets = [];
   let technicalDiagramTargets = [];
   let sections = createInitialSections(leaves, fullRegenerate ? {} : storedPlan.contentGenerationSections);
+  const invalidExistingImages = [];
+  if (!fullRegenerate && !resume && !expandOnly) {
+    for (const { item } of leaves) {
+      if (targetItemId && item.id !== targetItemId) continue;
+      const section = sections[item.id];
+      const content = section?.content || item.content || '';
+      if (section?.status !== 'success' || !containsImageForWord(content)) continue;
+      const imageWarnings = await checkSectionImagesForWord(item, content);
+      if (!imageWarnings.length) continue;
+      sections[item.id] = { ...section, status: 'error', error: imageWarnings[0] };
+      invalidExistingImages.push(`${item.id} ${item.title || '未命名章节'}：${imageWarnings[0]}`);
+    }
+  }
   const touchedItemIds = new Set(contentRuntime.touched_item_ids);
   let tasksToRun = leaves.filter(({ item }) => {
     const section = sections[item.id];
@@ -2535,6 +2592,9 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
       : `准备生成正文，共 ${leaves.length} 个小节。`];
   if (targetItemId) {
     logs = [`准备重新生成正文小节：${targetItemId}。`];
+  }
+  if (invalidExistingImages.length) {
+    logs = [...logs, `发现 ${invalidExistingImages.length} 个已有小节的图片无法写入 Word，本次自动重新生成这些小节。`, ...invalidExistingImages];
   }
   logs = [...logs, `正文生成并发速度：${contentConcurrency}。`];
   logs = [...logs, tableRequirement === 'heavy'
@@ -3034,11 +3094,20 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
       const knowledgeContents = resolveKnowledgeContents(contentPlan.knowledge?.item_ids, knowledgeContentMap);
       const selectedFactsText = resolveSelectedFactsText(contentPlan, globalFacts);
 
-      const generatedContent = await aiService.chat({
-        messages: buildChapterContentMessages({ chapter: item, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown }),
-        temperature: 0.7,
-        logTitle: `正文生成-${item.id}-${item.title || '未命名章节'}`,
-      });
+      const messages = buildChapterContentMessages({ chapter: item, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown });
+      let generatedContent = '';
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        generatedContent = await aiService.chat({
+          messages: attempt === 0 ? messages : [...messages, { role: 'user', content: '上次输出包含图片链接或图表代码，无法保证图片可用。请重新生成完整正文，只输出文字、列表和表格，不要包含任何图片、图片网址或图表代码。' }],
+          temperature: 0.7,
+          logTitle: `正文生成-${item.id}-${item.title || '未命名章节'}${attempt ? `-重试${attempt}` : ''}`,
+        });
+        if (!hasUnexpectedGeneratedIllustration(generatedContent)) break;
+        logs = [...logs, `正文包含未经校验的图片或图表：${item.id}，重新生成（第 ${attempt + 1} 次）。`];
+      }
+      if (hasUnexpectedGeneratedIllustration(generatedContent)) {
+        throw new Error('模型连续返回未经校验的图片或图表，请重试本小节');
+      }
       rawContent += generatedContent || '';
 
       content = stripRepeatedChapterTitle(normalizeGeneratedMarkdown(rawContent), item);
@@ -3955,12 +4024,23 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
 
     try {
-      const generatedImage = await aiService.generateImage({
-        title: contentPlan.image.title,
-        logTitle: `AI生图-${item.id}-${contentPlan.image.title || item.title || '未命名章节'}`,
-        prompt: contentPlan.image.prompt,
-        style: contentPlan.image.style,
-      });
+      let generatedImage;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          generatedImage = await aiService.generateImage({
+            title: contentPlan.image.title,
+            logTitle: `AI生图-${item.id}-${contentPlan.image.title || item.title || '未命名章节'}${attempt ? `-重试${attempt}` : ''}`,
+            prompt: contentPlan.image.prompt,
+            style: contentPlan.image.style,
+          });
+          await assertGeneratedImageSaved(generatedImage, 'AI 配图');
+          break;
+        } catch (error) {
+          if (attempt === 2) throw error;
+          logs = [...logs, `AI 配图暂时失败：${item.id}，正在重试（${attempt + 1}/2）：${error.message || '生图失败'}`];
+          updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+        }
+      }
       const content = appendGeneratedImageMarkdown(baseContent, contentPlan.image, generatedImage);
       imageStats.ai.success += 1;
       contentStats.illustration_completed += 1;
@@ -3969,8 +4049,9 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     } catch (imageError) {
       imageStats.ai.failed += 1;
       contentStats.illustration_completed += 1;
-      logs = [...logs, `AI 配图失败：${item.id} ${contentPlan.image.title}，${imageError.message || '生图失败'}，已保留正文。`];
-      updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+      const message = `AI 配图失败：${imageError.message || '生图失败'}`;
+      logs = [...logs, `${message}（${item.id} ${contentPlan.image.title}），已保留正文，需重试本小节。`];
+      saveSection(item, { status: 'error', content: baseContent, error: message }, baseContent, { logs });
     }
   }
 
@@ -4010,8 +4091,9 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     } else {
       imageStats.mermaid.failed += 1;
       contentStats.illustration_completed += 1;
-      logs = [...logs, `Mermaid 配图取消：${item.id} ${contentPlan.mermaid.title}，连续修复 ${MERMAID_REPAIR_ATTEMPTS} 轮失败，${mermaidResult.error || '渲染失败'}，已保留正文。`];
-      updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+      const message = `Mermaid 配图失败：${mermaidResult.error || '渲染失败'}`;
+      logs = [...logs, `${message}（${item.id} ${contentPlan.mermaid.title}），已保留正文，需重试本小节。`];
+      saveSection(item, { status: 'error', content: baseContent, error: message }, baseContent, { logs });
     }
   }
 
@@ -4031,8 +4113,9 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     if (!technicalDiagramService?.generateDiagram) {
       imageStats.diagram.skipped += 1;
       contentStats.illustration_completed += 1;
-      logs = [...logs, `跳过技术图谱：${item.id} ${item.title || '未命名章节'}，技术图谱服务不可用。`];
-      updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+      const message = '技术图谱服务不可用';
+      logs = [...logs, `技术图谱失败：${item.id} ${item.title || '未命名章节'}，${message}。`];
+      saveSection(item, { status: 'error', content: baseContent, error: message }, baseContent, { logs });
       return;
     }
 
@@ -4061,6 +4144,7 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
         max_retries: 1,
       });
       const generatedDiagram = technicalDiagramService.generateDiagram(diagramStructure);
+      await assertGeneratedImageSaved(generatedDiagram, '技术图谱');
       const content = appendTechnicalDiagramMarkdown(baseContent, contentPlan.diagram, generatedDiagram);
       imageStats.diagram.success += 1;
       contentStats.illustration_completed += 1;
@@ -4069,8 +4153,9 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     } catch (error) {
       imageStats.diagram.failed += 1;
       contentStats.illustration_completed += 1;
-      logs = [...logs, `技术图谱失败：${item.id} ${contentPlan.diagram.title}，${error.message || '生成失败'}，已保留正文。`];
-      updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+      const message = `技术图谱失败：${error.message || '生成失败'}`;
+      logs = [...logs, `${message}（${item.id} ${contentPlan.diagram.title}），已保留正文，需重试本小节。`];
+      saveSection(item, { status: 'error', content: baseContent, error: message }, baseContent, { logs });
     }
   }
 
@@ -4147,6 +4232,18 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
       pauseIfRequested(expandOnly ? '继续扩写已在配图前暂停，可导出当前已完成内容，稍后继续。' : '正文生成已在配图前暂停，可导出当前已完成内容，稍后继续。');
       await runIllustrations();
       pauseIfRequested(expandOnly ? '继续扩写已在完成前暂停，可导出当前已完成内容，稍后继续。' : '正文生成已在完成前暂停，可导出当前已完成内容，稍后继续。');
+    }
+
+    contentStats.phase = 'validating-images';
+    for (const { item } of leaves) {
+      const section = sections[item.id];
+      if (section?.status !== 'success') continue;
+      const content = section.content || item.content || '';
+      const imageWarnings = await checkSectionImagesForWord(item, content);
+      if (!imageWarnings.length) continue;
+      const message = `配图校验失败：${imageWarnings[0]}`;
+      logs = [...logs, `${item.id} ${item.title || '未命名章节'}：${message}，请重试本小节。`];
+      saveSection(item, { status: 'error', content, error: message }, content, { logs });
     }
 
     const failedCount = leaves.filter(({ item }) => sections[item.id]?.status === 'error').length;

@@ -99,15 +99,6 @@ export function ThesisTutorGenerationWorkspace({
             </div>
           </div>
         )}
-        <div className="thesis-tutor-generation-context">
-          <strong>本次生成会带入上方论文档案</strong>
-          <div>
-            {profileContextItems.map((item) => (
-              <span key={item}>{item}</span>
-            ))}
-            <span>项目上下文：{priorResultCount ? `已带入 ${priorResultCount} 个阶段成果` : '暂无前序成果'}</span>
-          </div>
-        </div>
         {activePanel === 'drafting' && (
           <ThesisTutorPreflightCard
             title="自动成稿前置检查"
@@ -139,6 +130,15 @@ export function ThesisTutorGenerationWorkspace({
           placeholder={panel.placeholder}
           disabled={isRunning}
         />
+        <details className="thesis-tutor-context-details">
+          <summary>查看本次使用的档案与阶段成果</summary>
+          <div className="thesis-tutor-generation-context">
+            <div>
+              {profileContextItems.map((item) => <span key={item}>{item}</span>)}
+              <span>阶段成果：{priorResultCount} 项</span>
+            </div>
+          </div>
+        </details>
       </div>
 
       <div className="thesis-tutor-panel">

@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const { runBidAnalysisTask } = require('./bidAnalysisTask.cjs');
 const { runContentGenerationTask } = require('./contentGenerationTask.cjs');
 const { runGlobalFactsTask } = require('./globalFactsTask.cjs');
-const { runOutlineGenerationTask } = require('./outlineGenerationTask.cjs');
+const { runOutlineGenerationTask, isMissingTechnicalScoreItems } = require('./outlineGenerationTask.cjs');
 const { runRejectionCheckTask, runRejectionItemsExtractionTask } = require('./rejectionCheckTask.cjs');
 
 const taskDefinitions = {
@@ -702,6 +702,11 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
       return startManagedTask('bid-analysis', payload, runBidAnalysisTask);
     },
     startOutlineGeneration(payload) {
+      const technicalPlan = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
+      const scoreContent = technicalPlan.bidAnalysisTasks?.techRequirements?.content || technicalPlan.techRequirements;
+      if (isMissingTechnicalScoreItems(scoreContent) && payload?.noTechnicalScoreMode !== true) {
+        throw new Error('请先确认以无技术评分项模式生成目录');
+      }
       return startManagedTask('outline-generation', payload, runOutlineGenerationTask, {
         outlineMode: payload?.mode,
         referenceKnowledgeDocumentIds: Array.isArray(payload?.reference_knowledge_document_ids) ? payload.reference_knowledge_document_ids : [],

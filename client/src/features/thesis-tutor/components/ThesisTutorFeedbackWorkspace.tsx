@@ -163,11 +163,7 @@ export function ThesisTutorFeedbackWorkspace({
         </>
       ) : (
         <div className="thesis-tutor-chapter-empty">
-          <p>还没有导师反馈任务。可以先新增反馈，或把导师批注粘到材料区后拆成待处理任务。</p>
-          <div className="thesis-tutor-empty-actions">
-            <button type="button" className="secondary-action" onClick={addFeedback} disabled={saving || isRunning}>新增反馈</button>
-            <button type="button" className="secondary-action" onClick={extractMaterialToWorkspace} disabled={saving || isRunning || !sourceText.trim()}>从材料区拆反馈</button>
-          </div>
+          <p>还没有导师反馈任务。可用上方“新增反馈”，或在材料区填写导师批注后拆成任务。</p>
         </div>
       )}
     </div>

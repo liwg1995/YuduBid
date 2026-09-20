@@ -110,12 +110,7 @@ export function ThesisTutorChapterWorkspace({
         </>
       ) : (
         <div className="thesis-tutor-chapter-empty">
-          <p>还没有章节。可以先在“论文档案 → 补充档案 → 论文目录或章节计划”填写目录，再从目录生成章节；也可以直接新增章节。</p>
-          <div className="thesis-tutor-empty-actions">
-            <button type="button" className="secondary-action" onClick={createChaptersFromOutline} disabled={saving || isRunning}>从目录生成章节</button>
-            <button type="button" className="secondary-action" onClick={addChapter} disabled={saving || isRunning}>新增章节</button>
-            <button type="button" className="secondary-action" onClick={extractMaterialToWorkspace} disabled={saving || isRunning || !sourceText.trim()}>材料放入章节</button>
-          </div>
+          <p>还没有章节。可用上方按钮新增章节，或先在论文档案中填写目录，再从目录生成章节。</p>
         </div>
       )}
     </div>

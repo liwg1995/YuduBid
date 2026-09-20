@@ -80,87 +80,29 @@ export function ThesisTutorSidebar({
             <span>档案完整度</span>
           </div>
           <div>
-            <strong>{completedPanels.length}/7</strong>
+            <strong>{completedPanels.length}/{panelOrder.length}</strong>
             <span>阶段成果</span>
           </div>
         </div>
-        <div className="thesis-tutor-overview-grid">
-          <button type="button" onClick={navigateToDiagnosis}>
-            <strong>{profile.title.trim() ? '已定题' : '未定题'}</strong>
-            <span>{profile.title.trim() || profile.direction.trim() || '先补方向和题目'}</span>
-          </button>
-          <button type="button" onClick={() => switchPanel('writing')}>
-            <strong>{chapters.length ? `${chapterDoneCount}/${chapters.length}` : '未建章节'}</strong>
-            <span>{chapters.length ? `${chapterActiveCount} 个章节推进中` : '从目录生成章节'}</span>
-          </button>
-          <button type="button" onClick={() => switchPanel('literature')}>
-            <strong>{references.length}</strong>
-            <span>文献与证据条目</span>
-          </button>
-          <button type="button" onClick={() => switchPanel('review')}>
-            <strong>{openFeedbackCount}</strong>
-            <span>{highPriorityFeedbackCount ? `${highPriorityFeedbackCount} 个高优先级` : '待处理反馈'}</span>
-          </button>
-          <button type="button" onClick={() => switchPanel('format')}>
-            <strong>{openCheckCount}</strong>
-            <span>{severeCheckCount ? `${severeCheckCount} 个高严重级别` : '待处理检查项'}</span>
-          </button>
-          <button type="button" onClick={() => switchPanel('topic')}>
-            <strong>{profile.stage}</strong>
-            <span>{profile.discipline.trim() || '专业未填写'}</span>
-          </button>
-        </div>
+        <p className="thesis-tutor-overview-caption">{profile.title.trim() || profile.direction.trim() || '尚未确定论文题目'} · {profile.stage}</p>
         <div className="thesis-tutor-overview-next">
           <strong>建议下一步</strong>
           <span>
             {profileCompletion < 60
-              ? '先补全论文档案和补充档案。'
-              : !chapters.length
-                ? '从目录计划生成章节工作区。'
-                : openFeedbackCount
-                  ? '优先处理导师反馈闭环中的待办。'
-                  : openCheckCount
-                    ? '完成格式与查重检查清单。'
-                    : '继续沉淀阶段成果并导出需要的 Word。'}
+              ? '先补全论文档案，生成时会自动带入研究背景。'
+              : activePanel === 'review' && openFeedbackCount
+                ? '先处理当前阶段的导师反馈待办。'
+                : activePanel === 'format' && openCheckCount
+                  ? '先完成当前阶段的检查清单。'
+                  : panelResults[activePanel]?.content?.trim()
+                    ? `继续完善“${panelCopy[activePanel].label}”的结果，完成后保存。`
+                    : `填写“${panelCopy[activePanel].label}”的任务要求，再生成结果。`}
           </span>
         </div>
       </section>
 
-      <section className="thesis-tutor-panel thesis-tutor-workflow-panel">
-        <div className="thesis-tutor-panel-head">
-          <div>
-            <strong>论文项目进度</strong>
-            <span>每次生成或保存结果后，会沉淀为后续模块的项目上下文。</span>
-          </div>
-        </div>
-        <div className="thesis-tutor-workflow-summary">
-          <strong>{completedPanels.length}/7</strong>
-          <span>已沉淀阶段成果</span>
-        </div>
-        <div className="thesis-tutor-workflow-list">
-          {panelOrder.map((item, index) => {
-            const itemResult = panelResults[item];
-            const isDone = Boolean(itemResult?.content);
-            const isCurrent = item === activePanel;
-            return (
-              <button
-                type="button"
-                key={item}
-                className={`${isDone ? 'is-done' : ''} ${isCurrent ? 'is-current' : ''}`}
-                onClick={() => switchPanel(item)}
-              >
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <div>
-                  <strong>{panelCopy[item].label}</strong>
-                  <em>{isDone ? `已保存 · ${new Date(itemResult?.updated_at || '').toLocaleDateString('zh-CN')}` : isCurrent ? '当前模块' : '待推进'}</em>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="thesis-tutor-panel thesis-tutor-history">
+      <details className="thesis-tutor-panel thesis-tutor-history thesis-tutor-collapsible">
+        <summary>历史记录 <span>{history.length} 条</span></summary>
         <div className="thesis-tutor-panel-head">
           <div>
             <strong>历史记录</strong>
@@ -221,7 +163,7 @@ export function ThesisTutorSidebar({
         ) : (
           <p className="thesis-tutor-empty">还没有生成记录。</p>
         )}
-      </section>
+      </details>
     </aside>
   );
 }

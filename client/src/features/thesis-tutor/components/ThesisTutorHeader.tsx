@@ -1,4 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
+import * as Popover from '@radix-ui/react-popover';
+import { useState } from 'react';
 import {
   thesisTutorNoticeItems,
   type ThesisTutorPanelCopy,
@@ -24,6 +26,7 @@ export function ThesisTutorHeader({
   clearAll,
 }: ThesisTutorHeaderProps) {
   const actionsDisabled = saving || isRunning;
+  const [clearOpen, setClearOpen] = useState(false);
 
   return (
     <header className="thesis-tutor-header">
@@ -63,13 +66,20 @@ export function ThesisTutorHeader({
         <p>{panel.description}</p>
       </div>
       <div className="thesis-tutor-actions">
-        <button type="button" className="secondary-action" onClick={exportProjectPackage} disabled={actionsDisabled}>导出项目包</button>
-        <button type="button" className="secondary-action" onClick={exportWorkspace} disabled={actionsDisabled}>导出备份</button>
-        <button type="button" className="secondary-action" onClick={importWorkspace} disabled={actionsDisabled}>导入备份/项目包</button>
-        <Dialog.Root>
-          <Dialog.Trigger asChild>
-            <button type="button" className="secondary-action is-danger" disabled={actionsDisabled}>清空</button>
-          </Dialog.Trigger>
+        <Popover.Root>
+          <Popover.Trigger asChild>
+            <button type="button" className="secondary-action" disabled={actionsDisabled} aria-label="打开项目管理菜单">项目管理 ▾</button>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content className="thesis-tutor-project-menu" align="end" sideOffset={6}>
+              <Popover.Close asChild><button type="button" onClick={exportProjectPackage}>导出项目包</button></Popover.Close>
+              <Popover.Close asChild><button type="button" onClick={exportWorkspace}>导出工作区备份</button></Popover.Close>
+              <Popover.Close asChild><button type="button" onClick={importWorkspace}>导入备份或项目包</button></Popover.Close>
+              <Popover.Close asChild><button type="button" className="is-danger" onClick={() => setClearOpen(true)}>清空工作区</button></Popover.Close>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+        <Dialog.Root open={clearOpen} onOpenChange={setClearOpen}>
           <Dialog.Portal>
             <Dialog.Overlay className="content-regenerate-modal" />
             <Dialog.Content className="thesis-tutor-help-card thesis-tutor-clear-card">

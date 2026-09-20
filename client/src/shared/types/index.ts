@@ -85,7 +85,7 @@ export type {
   FeasibilityReportStep,
   FeasibilitySourceFile,
 } from './contracts/feasibilityReport';
-export type { LatestReleaseInfo, ReleaseInstallerDownloadRequest, ReleaseInstallerDownloadResult, UpdateCheckResult, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange, WordExportProgressEvent, WordExportResult, YuDuBidBridge } from './ipc';
+export type { LatestReleaseInfo, ReleaseInstallerDownloadResult, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange, WordExportProgressEvent, WordExportResult, YuDuBidBridge } from './ipc';
 export type {
   SoftwareCopyrightAnalysis,
   SoftwareCopyrightAnalysisFile,

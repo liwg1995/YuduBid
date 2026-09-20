@@ -27,6 +27,7 @@ function MyTemplatesPage({ onCreateTemplate, onEditTemplate }: MyTemplatesPagePr
   const [deleteTarget, setDeleteTarget] = useState<ExportTemplateRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importingWord, setImportingWord] = useState(false);
   const [exportingId, setExportingId] = useState('');
 
   const selectedTemplate = templates.find((template) => template.template_id === selectedId) || templates[0] || null;
@@ -90,6 +91,22 @@ function MyTemplatesPage({ onCreateTemplate, onEditTemplate }: MyTemplatesPagePr
     }
   };
 
+  const handleImportWord = async () => {
+    setImportingWord(true);
+    try {
+      const result = await window.yibiao?.bidTemplates.importWord();
+      if (!result || result.canceled) return;
+      if (!result.success || !result.template) throw new Error(result.message || 'Word 模板提取失败');
+      await loadTemplates();
+      setSelectedId(result.template.template_id);
+      showToast(result.message || 'Word 模板已提取', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Word 模板提取失败', 'error');
+    } finally {
+      setImportingWord(false);
+    }
+  };
+
   const handleExportTemplate = async (template: ExportTemplateRecord) => {
     setExportingId(template.template_id);
     try {
@@ -109,12 +126,13 @@ function MyTemplatesPage({ onCreateTemplate, onEditTemplate }: MyTemplatesPagePr
       <section className="template-library-panel" aria-label="我的模板">
         <div className="template-library-head">
           <div>
-            <span className="section-kicker">模版设置</span>
+            <span className="section-kicker">模板设置</span>
             <h2>我的模板</h2>
             <p>查看、编辑、导入和导出已保存的标书模板。</p>
           </div>
           <div className="template-library-head-actions">
             <button type="button" className="secondary-action" onClick={() => { void handleImportTemplate(); }} disabled={importing}>{importing ? '导入中' : '导入模板'}</button>
+            <button type="button" className="secondary-action" onClick={() => { void handleImportWord(); }} disabled={importingWord} title="从 DOCX 提取部分排版设置和字段候选，导出时不会沿用原文件全部版式">{importingWord ? '提取中' : '从 Word 提取'}</button>
             <button type="button" className="primary-action" onClick={onCreateTemplate}>新建模板</button>
           </div>
         </div>
@@ -158,6 +176,19 @@ function MyTemplatesPage({ onCreateTemplate, onEditTemplate }: MyTemplatesPagePr
               <button type="button" className="secondary-action" onClick={() => onEditTemplate(selectedTemplate.template_id)}>编辑模板</button>
             </div>
             <TemplatePreview config={previewConfig} previewStyle={previewStyle} />
+            {selectedTemplate.source_manifest ? (
+              <div className="template-library-extraction">
+                <strong>Word 提取结果</strong>
+                <span>来源：{selectedTemplate.source_manifest.source_name}；标题 {selectedTemplate.source_manifest.chapters.length} 个，待填位置 {selectedTemplate.source_manifest.fields.length} 个。当前仅提取部分排版设置和字段候选，导出 Word 时不会沿用原文件的全部版式，待填位置也不会自动填入。导出模板包时会一并携带可用的 DOCX 来源文件。</span>
+                <details>
+                  <summary>查看标题与待填位置</summary>
+                  <div className="template-library-extraction-details">
+                    <div><b>标题</b>{selectedTemplate.source_manifest.chapters.length ? <ul>{selectedTemplate.source_manifest.chapters.map((chapter, index) => <li key={`${chapter.paragraph}-${index}`}>{chapter.title}</li>)}</ul> : <span>未识别到</span>}</div>
+                    <div><b>待填位置</b>{selectedTemplate.source_manifest.fields.length ? <ul>{selectedTemplate.source_manifest.fields.map((field, index) => <li key={`${field.name}-${index}`}>{field.name}（{field.fill_by === 'manual' ? '人工' : '可由 AI 填写'}）</li>)}</ul> : <span>未识别到</span>}</div>
+                  </div>
+                </details>
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="template-library-preview-empty">

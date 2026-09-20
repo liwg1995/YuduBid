@@ -16,17 +16,26 @@ function paragraphStyleXml(stylesXml, styleId) {
   return new RegExp(`<w:style w:type="paragraph" w:styleId="${styleId}">[\\s\\S]*?</w:style>`).exec(stylesXml)?.[0] || '';
 }
 
+function captionParagraphXml(documentXml, identifier) {
+  return (documentXml.match(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g) || []).find((item) => item.includes(`SEQ ${identifier}`)) || '';
+}
+
 app.whenReady().then(async () => {
   const temporaryUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'yibiao-bid-template-'));
   app.setPath('userData', temporaryUserData);
   const database = createSqliteDatabase(app);
 
   try {
-    assert(schemaVersion === 18, `数据库版本应为 18，实际为 ${schemaVersion}`);
+    assert(schemaVersion >= 18, `数据库版本不应低于 18，实际为 ${schemaVersion}`);
     const defaults = cloneDefaultBidExportTemplate();
     const logoPath = path.join(temporaryUserData, 'workspace', 'template-assets', 'cover-logo.png');
     fs.mkdirSync(path.dirname(logoPath), { recursive: true });
     fs.writeFileSync(logoPath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'));
+    const sourcePath = path.join(temporaryUserData, 'workspace', 'template-assets', 'word-sources', 'source.docx');
+    fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+    const sourceDocx = new AdmZip();
+    sourceDocx.addFile('word/document.xml', Buffer.from('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body/></w:document>'));
+    fs.writeFileSync(sourcePath, sourceDocx.toBuffer());
     assert(defaults.headings.length === 9, '默认标题样式应为九级');
     assert(defaults.headings.every((heading) => heading.numbering_format === 'outline-decimal' && heading.font === '宋体' && heading.size === '四号' && heading.alignment === '两端对齐' && heading.text_color === '#000000'), '九级标题默认编号、字体、字号、对齐方式或文字颜色异常');
     assert(defaults.headings.every((heading) => heading.spacing_before_pt === 0 && heading.spacing_after_pt === 0 && heading.spacing_before_unit === 'pt' && heading.spacing_after_unit === 'pt'), '九级标题默认段前段后设置异常');
@@ -38,6 +47,7 @@ app.whenReady().then(async () => {
     const store = createTemplateStore({ app, db: database.db });
     const created = store.create({
       templateName: '自动验证模板',
+      source_manifest: { source_name: 'source.docx', source_path: sourcePath, chapters: [{ level: 1, title: '技术方案', paragraph: 1 }], fields: [] },
       page: { orientation: 'landscape', marginTopCm: 2, marginBottomCm: 2, marginLeftCm: 2.5, marginRightCm: 2, headerEnabled: true, headerText: '验证页眉', footerEnabled: true, footerText: '验证页脚', pageNumberEnabled: true },
       headings: [{ font: '黑体', sizePt: 18, alignment: 'center', bold: true, color: '#123456', spacingBeforePt: 8, spacingAfterPt: 8, lineSpacing: 1.5 }],
       body: { font: '宋体', sizePt: 12, alignment: 'justify', firstLineIndentChars: 2, lineSpacing: 1.5, spacingAfterPt: 0 },
@@ -45,6 +55,7 @@ app.whenReady().then(async () => {
       image: { maxWidthPercent: 80, alignment: 'center', captionEnabled: true, captionFont: '宋体', captionSizePt: 10.5 },
     });
     assert(created?.templateId, '模板创建失败');
+    assert(created.source_manifest?.chapters[0]?.title === '技术方案', 'Word 提取信息未随模板保存');
     assert(store.list().length === 1, '模板列表数量异常');
     const updated = store.update(created.templateId, {
       ...created.config,
@@ -74,6 +85,12 @@ app.whenReady().then(async () => {
         caption_bold: true,
         caption_italic: true,
       },
+      image: {
+        ...created.config.image,
+        caption_enabled: true,
+        caption_font: '仿宋',
+        caption_size: '小四',
+      },
       cover: {
         ...created.config.cover,
         enabled: true,
@@ -86,6 +103,7 @@ app.whenReady().then(async () => {
       },
     });
     assert(updated.templateName === '自动验证模板（已更新）', '模板更新失败');
+    assert(updated.source_manifest?.source_name === 'source.docx', '编辑模板丢失了 Word 提取信息');
     assert(updated.config.headings.length === 9, '标题样式未扩展到九级');
 
     const deepOutline = { id: '1', title: '总体方案', content: '' };
@@ -100,7 +118,7 @@ app.whenReady().then(async () => {
       exportMode: 'custom-template',
       exportFormat: updated.config,
       project_name: '模板验证项目',
-      outline: [deepOutline, { id: '2', title: '响应数据', content: '正文段落。\n\n- 无序事项\n\n1. 有序事项\n\n| 项目 | 响应 |\n| --- | --- |\n| 功能 | 满足 |' }],
+      outline: [deepOutline, { id: '2', title: '响应数据', content: `正文段落。\n\n- 无序事项\n\n1. 有序事项\n\n| 项目 | 响应 |\n| --- | --- |\n| 功能 | 满足 |\n\n![设备连接](data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')})` }],
     });
     const qaOutputPath = String(process.env.YUDUBID_QA_OUTPUT || '').trim();
     if (qaOutputPath) {
@@ -110,11 +128,14 @@ app.whenReady().then(async () => {
     }
     const zip = new AdmZip(buffer);
     const documentXml = zip.getEntry('word/document.xml')?.getData().toString('utf-8') || '';
+    const settingsXml = zip.getEntry('word/settings.xml')?.getData().toString('utf-8') || '';
     const numberingXml = zip.getEntry('word/numbering.xml')?.getData().toString('utf-8') || '';
     const stylesXml = zip.getEntry('word/styles.xml')?.getData().toString('utf-8') || '';
     const headerXml = zip.getEntry('word/header1.xml')?.getData().toString('utf-8') || '';
     const footerXml = zip.getEntry('word/footer1.xml')?.getData().toString('utf-8') || '';
     assert(documentXml.includes('w:orient="landscape"'), '横向纸张未写入 DOCX');
+    assert(!/TOC [^<]*\\o/.test(documentXml) && !documentXml.includes('<w:sdt>'), '投标文件不应再自动生成目录页');
+    assert(settingsXml.includes('w:updateFields'), '可更新的题注编号域设置缺失');
     assert(documentXml.includes('模板验证项目') && documentXml.includes('技术响应文件') && documentXml.includes('招标人：验证单位') && documentXml.includes('投标人：测试公司'), '独立封面内容未写入 DOCX');
     assert((documentXml.match(/<w:sectPr/g) || []).length >= 2, '封面与正文未拆分为独立 Word 分节');
     assert(zip.getEntries().some((entry) => entry.entryName.startsWith('word/media/')), '封面 Logo 未嵌入 DOCX');
@@ -134,7 +155,18 @@ app.whenReady().then(async () => {
     const tableCaptionIndex = documentXml.indexOf('SEQ YDBTable');
     const tableIndex = documentXml.indexOf('<w:tbl>');
     assert(tableCaptionIndex >= 0 && tableIndex >= 0 && tableCaptionIndex < tableIndex, '表格题注未生成在表格上方');
-    assert(documentXml.includes('w:rFonts w:ascii="楷体"') && documentXml.includes('<w:i/>'), '表格题注字体或斜体样式未写入 DOCX');
+    const tableCaption = captionParagraphXml(documentXml, 'YDBTable');
+    const figureCaption = captionParagraphXml(documentXml, 'YDBFigure');
+    assert(tableCaption.includes('w:rFonts w:ascii="楷体"') && tableCaption.includes('<w:i/>'), '表格题注字体或斜体样式未写入 DOCX');
+    for (const [captionXml, identifier, font, size] of [
+      [tableCaption, 'YDBTable', '楷体', '21'],
+      [figureCaption, 'YDBFigure', '仿宋', '24'],
+    ]) {
+      const fieldXml = new RegExp(`<w:fldSimple[^>]*SEQ ${identifier}[^>]*>[\\s\\S]*?<\\/w:fldSimple>`).exec(captionXml)?.[0] || '';
+      const runStyles = [...captionXml.matchAll(/<w:r><w:rPr>([\s\S]*?)<\/w:rPr>/g)].map((match) => match[1]);
+      assert(fieldXml.includes(`w:rFonts w:ascii="${font}"`) && fieldXml.includes(`<w:sz w:val="${size}"`) && fieldXml.includes('>1</w:t>'), `${identifier} 题注数字未写入模板字体和字号`);
+      assert(runStyles.length === 3 && runStyles.every((runStyle) => runStyle === runStyles[0]), `${identifier} 题注数字与文字的字体样式不一致`);
+    }
     assert(headerXml.includes('验证页眉'), '页眉未写入 DOCX');
     assert(footerXml.includes('验证页脚') && footerXml.includes('PAGE'), '页脚或页码未写入 DOCX');
     const plainTitleBuffer = await buildDocxBuffer({
@@ -186,12 +218,24 @@ app.whenReady().then(async () => {
     }
     assert(disabledOptimizationRejected, '技能停用后仍允许使用 word-optimization 导出');
     const portable = store.buildPortableTemplate(created.templateId);
-    assert(portable.kind === 'yudubid-bid-template' && portable.version === 1, '可迁移模板包格式异常');
+    assert(portable.kind === 'yudubid-bid-template' && portable.version === 2, '可迁移模板包格式异常');
     assert(portable.template.config.cover.logo_path === '', '模板包不应保留原机器 Logo 绝对路径');
     assert(portable.assets.cover_logo?.data_base64 && portable.assets.cover_logo?.sha256, '模板包未携带封面 Logo 或完整性摘要');
+    assert(portable.assets.word_source?.data_base64 && portable.assets.word_source?.sha256, '模板包未携带 Word 来源文件或完整性摘要');
+    assert(!JSON.stringify(portable).includes(sourcePath), '模板包不应保留原机器 Word 绝对路径');
     const imported = store.importPortableTemplate(JSON.stringify(portable));
     assert(imported.success && imported.renamed && imported.template.template_name.includes('导入'), '同名模板导入未自动重命名');
     assert(fs.existsSync(imported.template.config.cover.logo_path), '导入模板未恢复封面 Logo');
+    assert(imported.template.source_manifest?.source_name === 'source.docx', '导入模板未恢复 Word 提取信息');
+    const importedRow = database.db.prepare('SELECT config_json FROM bid_export_templates WHERE template_id = ?').get(imported.template.template_id);
+    const importedSourcePath = JSON.parse(importedRow.config_json).source_manifest?.source_path;
+    assert(importedSourcePath && fs.existsSync(importedSourcePath), '导入模板未恢复 Word 来源文件');
+    assert(fs.readFileSync(importedSourcePath).equals(fs.readFileSync(sourcePath)), '导入的 Word 来源文件内容不一致');
+    const v1Portable = JSON.parse(JSON.stringify(portable));
+    v1Portable.version = 1;
+    delete v1Portable.assets.word_source;
+    delete v1Portable.template.source_manifest;
+    assert(store.importPortableTemplate(v1Portable).success, '旧版模板包导入失败');
     const legacyImported = store.importPortableTemplate({ ...updated.config, template_name: '旧版 JSON 模板', cover: { ...updated.config.cover, logo_path: '/invalid/foreign/path.png' } });
     assert(legacyImported.success && legacyImported.template.config.cover.logo_path === '', '旧版 JSON 模板兼容导入或路径清理失败');
     const corrupted = JSON.parse(JSON.stringify(portable));
@@ -203,6 +247,15 @@ app.whenReady().then(async () => {
       corruptedRejected = /完整性校验失败/.test(error?.message || '');
     }
     assert(corruptedRejected, '损坏的封面 Logo 未被拒绝');
+    const corruptedSource = JSON.parse(JSON.stringify(portable));
+    corruptedSource.assets.word_source.sha256 = '0'.repeat(64);
+    let corruptedSourceRejected = false;
+    try {
+      store.importPortableTemplate(corruptedSource);
+    } catch (error) {
+      corruptedSourceRejected = /Word 来源文件完整性校验失败/.test(error?.message || '');
+    }
+    assert(corruptedSourceRejected, '损坏的 Word 来源文件未被拒绝');
 
     const resolvedPayload = resolveBidTemplatePayload({
       documentScope: 'bid',
@@ -232,6 +285,7 @@ app.whenReady().then(async () => {
       assert(rejected, `模板导出边界未正确拦截：${expectedMessage}`);
     }
     for (const template of store.list()) assert(store.remove(template.template_id).success, '模板删除失败');
+    assert(!fs.existsSync(sourcePath), '删除模板后未清理 Word 原件副本');
     assert(store.list().length === 0, '模板清理后列表不为空');
     console.log('招投标模板 CRUD、迁移包与 Word 导出验证通过');
   } finally {

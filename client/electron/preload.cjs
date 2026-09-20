@@ -37,27 +37,14 @@ const bridge = {
   getVersion: () => invoke('app:get-version'),
   getLatestVersion: () => invoke('app:get-latest-version'),
   openExternal: (url) => invoke('app:open-external', url),
-  checkUpdate: () => invoke('app:check-update'),
-  startUpdate: () => invoke('app:start-update'),
-  downloadReleaseInstaller: (payload) => invoke('app:download-release-installer', payload),
+  downloadReleaseInstaller: () => invoke('app:download-release-installer'),
   cancelReleaseInstallerDownload: () => invoke('app:cancel-release-installer-download'),
   installDownloadedRelease: () => invoke('app:install-downloaded-release'),
   showDownloadedRelease: () => invoke('app:show-downloaded-release'),
-  quitAndInstall: () => invoke('app:quit-and-install'),
   onUpdateProgress: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('app:update-progress', listener);
     return () => ipcRenderer.removeListener('app:update-progress', listener);
-  },
-  onUpdateDownloaded: (callback) => {
-    const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on('app:update-downloaded', listener);
-    return () => ipcRenderer.removeListener('app:update-downloaded', listener);
-  },
-  onUpdateError: (callback) => {
-    const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on('app:update-error', listener);
-    return () => ipcRenderer.removeListener('app:update-error', listener);
   },
   config: {
     load: () => invoke('config:load'),
@@ -273,6 +260,9 @@ const bridge = {
     saveProfile: (profile) => invoke('thesis-tutor:save-profile', profile),
     saveChapters: (payload) => invoke('thesis-tutor:save-chapters', payload),
     saveReferences: (payload) => invoke('thesis-tutor:save-references', payload),
+    previewBibliographyImport: (payload) => invoke('thesis-tutor:preview-bibliography-import', payload),
+    commitBibliographyImport: (payload) => invoke('thesis-tutor:commit-bibliography-import', payload),
+    lookupDoi: (doi) => invoke('thesis-tutor:lookup-doi', doi),
     saveFeedback: (payload) => invoke('thesis-tutor:save-feedback', payload),
     saveChecks: (payload) => invoke('thesis-tutor:save-checks', payload),
     saveHistory: (payload) => invoke('thesis-tutor:save-history', payload),
@@ -526,6 +516,7 @@ const bridge = {
     getCoverLogoPreview: (filePath) => invoke('bid-templates:get-cover-logo-preview', filePath),
     export: (templateId) => invoke('bid-templates:export', templateId),
     import: () => invoke('bid-templates:import'),
+    importWord: () => invoke('bid-templates:import-word'),
   },
   systemFonts: {
     list: () => invoke('system-fonts:list'),

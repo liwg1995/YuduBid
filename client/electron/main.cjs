@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { registerIpcHandlers } = require('./ipc/index.cjs');
-const { setupAutoUpdate, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall } = require('./services/updateService.cjs');
+const { downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath } = require('./services/updateService.cjs');
 const { getGeneratedImagesDir, getImportedImagesDir, getKnowledgeImageLibraryDir, getSoftwareCopyrightDir } = require('./utils/paths.cjs');
 
 const rendererUrl = process.env.ELECTRON_RENDERER_URL;
@@ -208,8 +208,7 @@ if (gotSingleInstanceLock) {
     migrateLegacyUserData();
     registerAssetProtocol();
     mainWindow = createMainWindow();
-    registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerUpdateDownload, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath, quitAndInstall });
-    setupAutoUpdate({ app, mainWindow });
+    registerIpcHandlers({ app, mainWindow, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath });
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {

@@ -81,6 +81,12 @@ export function createLocalReference(title = '新证据条目'): ThesisTutorRefe
     keywords: '',
     summary: '',
     keyPoints: '',
+    doi: '',
+    searchDatabase: '',
+    searchQuery: '',
+    searchedAt: '',
+    screeningNote: '',
+    evidenceLocator: '',
     relatedChapterIds: [],
     updated_at: now,
   };

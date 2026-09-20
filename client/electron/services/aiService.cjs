@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const os = require('node:os');
 const { spawn } = require('node:child_process');
 const { nativeImage } = require('electron');
+const { normalizeChatMessages } = require('../utils/normalizeChatMessages.cjs');
 const { getAiLogsDir, getGeneratedImagesDir } = require('../utils/paths.cjs');
 const {
   isRetryableHttpStatus,
@@ -19,6 +20,7 @@ const {
 const {
   assertRemoteHttpUrl,
   fetchWithTimeout,
+  fetchRemoteWithTimeout,
   readResponseBuffer,
 } = require('../utils/secureHttp.cjs');
 
@@ -183,7 +185,7 @@ function createHeaders(apiKey) {
 
 async function prepareMultimodalMessages(messages) {
   const prepared = [];
-  for (const message of Array.isArray(messages) ? messages : []) {
+  for (const message of normalizeChatMessages(messages)) {
     if (!Array.isArray(message.content)) {
       prepared.push(message);
       continue;
@@ -209,13 +211,16 @@ async function prepareMultimodalMessages(messages) {
   return prepared;
 }
 
-function imageExtensionFromMime(mimeType) {
-  const normalized = String(mimeType || '').toLowerCase();
-  if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'jpg';
-  if (normalized.includes('webp')) return 'webp';
-  if (normalized.includes('gif')) return 'gif';
-  if (normalized.includes('bmp')) return 'bmp';
-  return 'png';
+function imageExtensionFromBuffer(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) {
+    throw new Error('生图服务返回的图片数据为空或不完整');
+  }
+  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'jpg';
+  if (['GIF87a', 'GIF89a'].includes(buffer.toString('ascii', 0, 6))) return 'gif';
+  if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  if (buffer.toString('ascii', 0, 2) === 'BM') return 'bmp';
+  throw new Error('生图服务未返回支持的图片格式（PNG、JPEG、GIF、WebP 或 BMP）');
 }
 
 function getImageModelAvailability(config) {
@@ -263,7 +268,7 @@ function safeImageResponse(data) {
 
 async function downloadImage(url) {
   const safeUrl = assertRemoteHttpUrl(url, '生图服务返回了不安全的图片地址');
-  const response = await fetchWithTimeout(safeUrl, { timeoutMs: 30000 });
+  const response = await fetchRemoteWithTimeout(safeUrl, { timeoutMs: 30000 });
   await ensureOk(response, '图片下载失败');
   return {
     buffer: await readResponseBuffer(response, GENERATED_IMAGE_MAX_BYTES),
@@ -274,14 +279,14 @@ async function downloadImage(url) {
 function saveGeneratedImage(app, image) {
   const imagesDir = getGeneratedImagesDir(app);
   fs.mkdirSync(imagesDir, { recursive: true });
-  const extension = imageExtensionFromMime(image.mime_type);
+  const extension = imageExtensionFromBuffer(image.buffer);
   const fileName = `${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID()}.${extension}`;
   const filePath = path.join(imagesDir, fileName);
   fs.writeFileSync(filePath, image.buffer);
   return {
     asset_url: `yibiao-asset://generated-images/${encodeURIComponent(fileName)}`,
     file_path: filePath,
-    mime_type: image.mime_type,
+    mime_type: extension === 'jpg' ? 'image/jpeg' : `image/${extension}`,
   };
 }
 

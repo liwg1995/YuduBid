@@ -29,21 +29,50 @@ function createFeasibilityReportStoreRouter({ app, fileService }) {
   const createProjectId = () => `fr-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
   const createSourceId = () => `src-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
 
+  function recoverRegistry() {
+    const projects = fs.existsSync(projectRoot) ? fs.readdirSync(projectRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && /^[a-z0-9][a-z0-9_-]*$/.test(entry.name))
+      .filter((entry) => fs.existsSync(path.join(projectRoot, entry.name, 'workspace', 'yibiao.sqlite')))
+      .map((entry) => {
+        const databasePath = path.join(projectRoot, entry.name, 'workspace', 'yibiao.sqlite');
+        const timestamp = fs.statSync(databasePath).mtime.toISOString();
+        let name = '未命名可研项目';
+        try {
+          name = String(getOrCreateProjectStore(entry.name).store.loadFeasibilityReport().projectInfo?.projectName || '').trim() || name;
+        } catch (error) {
+          console.warn('[feasibility-report] 恢复项目名称失败', entry.name, error);
+        }
+        return { id: entry.name, name, created_at: timestamp, updated_at: timestamp };
+      })
+      .sort((left, right) => right.updated_at.localeCompare(left.updated_at)) : [];
+    return { activeProjectId: projects[0]?.id, projects };
+  }
+
   function readRegistry() {
-    if (!fs.existsSync(registryPath)) return { activeProjectId: undefined, projects: [] };
+    if (!fs.existsSync(registryPath)) {
+      const recovered = recoverRegistry();
+      if (recovered.projects.length) writeRegistry(recovered);
+      return recovered;
+    }
     try {
       const parsed = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.projects)) throw new Error('项目索引结构无效');
       return {
         activeProjectId: parsed?.activeProjectId ? normalizeProjectId(parsed.activeProjectId) : undefined,
-        projects: Array.isArray(parsed?.projects) ? parsed.projects.map((project) => ({
+        projects: parsed.projects.map((project) => ({
           id: normalizeProjectId(project.id),
           name: String(project.name || '').trim() || '未命名可研项目',
           created_at: String(project.created_at || now()),
           updated_at: String(project.updated_at || project.created_at || now()),
-        })) : [],
+        })),
       };
-    } catch {
-      return { activeProjectId: undefined, projects: [] };
+    } catch (error) {
+      const backupPath = `${registryPath}.corrupt-${Date.now()}`;
+      fs.copyFileSync(registryPath, backupPath);
+      console.warn('[feasibility-report] 项目索引损坏，已备份并从项目目录恢复', backupPath, error);
+      const recovered = recoverRegistry();
+      writeRegistry(recovered);
+      return recovered;
     }
   }
 

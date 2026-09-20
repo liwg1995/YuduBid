@@ -5,6 +5,9 @@ function registerThesisTutorIpc({ thesisTutorService }) {
   ipcMain.handle('thesis-tutor:save-profile', (_event, profile) => thesisTutorService.saveProfile(profile));
   ipcMain.handle('thesis-tutor:save-chapters', (_event, payload) => thesisTutorService.saveChapters(payload));
   ipcMain.handle('thesis-tutor:save-references', (_event, payload) => thesisTutorService.saveReferences(payload));
+  ipcMain.handle('thesis-tutor:preview-bibliography-import', (_event, payload) => thesisTutorService.previewBibliographyImport(payload));
+  ipcMain.handle('thesis-tutor:commit-bibliography-import', (_event, payload) => thesisTutorService.commitBibliographyImport(payload));
+  ipcMain.handle('thesis-tutor:lookup-doi', (_event, doi) => thesisTutorService.lookupDoi(doi));
   ipcMain.handle('thesis-tutor:save-feedback', (_event, payload) => thesisTutorService.saveFeedback(payload));
   ipcMain.handle('thesis-tutor:save-checks', (_event, payload) => thesisTutorService.saveChecks(payload));
   ipcMain.handle('thesis-tutor:save-history', (_event, payload) => thesisTutorService.saveHistory(payload));

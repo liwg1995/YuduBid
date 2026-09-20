@@ -609,6 +609,7 @@ function DuplicateCheckPage() {
   const startedMetadataSignatureRef = useRef<string | null>(null);
   const currentAnalysisSignatureRef = useRef('');
   const hydratedRef = useRef(false);
+  const taskEventVersionRef = useRef(0);
   const documentParseNoticeIdsRef = useRef(new Set<string>());
   const { showToast } = useToast();
   const { showDocumentParseNotice } = useDocumentParseNotice();
@@ -644,19 +645,24 @@ function DuplicateCheckPage() {
   useEffect(() => {
     let canceled = false;
 
-    void window.yibiao?.duplicateCheck.loadState()
-      .then((state) => {
-        if (canceled || !state) return;
-        applyDuplicateCheckState(state);
-      })
-      .catch((error) => {
-        showToast(error instanceof Error ? error.message : '读取标书查重缓存失败', 'error');
-      })
-      .finally(() => {
-        if (!canceled) {
+    const loadLatestState = async () => {
+      try {
+        while (!canceled) {
+          const eventVersion = taskEventVersionRef.current;
+          const state = await window.yibiao?.duplicateCheck.loadState();
+          if (canceled) return;
+          if (eventVersion !== taskEventVersionRef.current) continue;
+          if (state) applyDuplicateCheckState(state);
           hydratedRef.current = true;
+          return;
         }
-      });
+      } catch (error) {
+        if (canceled) return;
+        showToast(error instanceof Error ? error.message : '读取标书查重缓存失败', 'error');
+        hydratedRef.current = true;
+      }
+    };
+    void loadLatestState();
 
     return () => {
       canceled = true;
@@ -675,6 +681,7 @@ function DuplicateCheckPage() {
   useEffect(() => {
     const unsubscribe = window.yibiao?.tasks?.onTaskEvent<unknown, unknown, DuplicateCheckWorkspaceState>((event) => {
       if (!event?.duplicateCheck) return;
+      taskEventVersionRef.current += 1;
       const eventSignature = event.duplicateCheck.metadataAnalysis?.signature
         || event.duplicateCheck.outlineAnalysis?.signature
         || event.duplicateCheck.contentAnalysis?.signature

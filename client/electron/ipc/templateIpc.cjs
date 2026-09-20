@@ -10,6 +10,7 @@ function registerTemplateIpc({ templateStore }) {
   ipcMain.handle('bid-templates:get-cover-logo-preview', (_event, filePath) => templateStore.getCoverLogoPreview(filePath));
   ipcMain.handle('bid-templates:export', (_event, templateId) => templateStore.exportTemplate(templateId));
   ipcMain.handle('bid-templates:import', () => templateStore.importTemplate());
+  ipcMain.handle('bid-templates:import-word', () => templateStore.importWordTemplate());
 }
 
 module.exports = { registerTemplateIpc };

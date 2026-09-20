@@ -29,6 +29,14 @@ const outlineModeLabels: Record<OutlineMode, string> = {
   'response-file': '按响应文件目录',
 };
 
+function isMissingTechnicalScoreItems(content: string) {
+  const text = content.trim();
+  if (/^(未提取到|没有提及|未提及|未提及技术评分项)[。\s]*$/.test(text)) return true;
+  if (/^(?:【?技术评分项(?:名称)?】?|【评分项名称】)\s*[：:]\s*(?:未提及|没有提及|未提取到)[。\s]*$/.test(text)) return true;
+  const section = text.match(/^##[\t ]+技术评分项[\t ]*\r?\n([\s\S]*?)(?=^#{1,2}[\t ]|$(?![\s\S]))/m);
+  return /^(没有提及|未提取到|未提及|未提及技术评分项)[。\s]*$/.test(section?.[1]?.trim() || '');
+}
+
 function collectOutlineIds(items: OutlineItem[], ids = new Set<string>()) {
   items.forEach((item) => {
     ids.add(item.id);
@@ -134,6 +142,8 @@ function OutlineEditPage({
   const [progressCollapsed, setProgressCollapsed] = useState(false);
   const [generationDialogOpen, setGenerationDialogOpen] = useState(false);
   const [draftOutlineMode, setDraftOutlineMode] = useState<OutlineMode>(outlineMode);
+  const [noScoreConfirmed, setNoScoreConfirmed] = useState(false);
+  const noTechnicalScoreMode = isMissingTechnicalScoreItems(techRequirements);
   const [draftKnowledgeDocumentIds, setDraftKnowledgeDocumentIds] = useState<string[]>(referenceKnowledgeDocumentIds);
   const [knowledgeSearch, setKnowledgeSearch] = useState('');
   const [expandedKnowledgeFolderIds, setExpandedKnowledgeFolderIds] = useState<Set<string>>(new Set());
@@ -209,7 +219,7 @@ function OutlineEditPage({
       return;
     }
 
-    setDraftOutlineMode(outlineMode);
+    setDraftOutlineMode(noTechnicalScoreMode ? 'free' : outlineMode);
     setDraftKnowledgeDocumentIds(referenceKnowledgeDocumentIds);
     setKnowledgeSearch('');
     void loadKnowledgeIndex();
@@ -237,6 +247,7 @@ function OutlineEditPage({
     }
 
     setDraftOutlineMode(outlineMode);
+    setNoScoreConfirmed(false);
     setDraftKnowledgeDocumentIds(referenceKnowledgeDocumentIds);
     setKnowledgeSearch('');
     setGenerationDialogOpen(true);
@@ -258,18 +269,23 @@ function OutlineEditPage({
       showToast('请先完成招标文件解析', 'info');
       return;
     }
+    if (noTechnicalScoreMode && !noScoreConfirmed) {
+      showToast('请先确认无技术评分项模式', 'info');
+      return;
+    }
 
     try {
       const startedNow = Date.now();
       setStartingOutline(true);
       setLocalStartAt(startedNow);
       setNowTick(startedNow);
-      onOutlineConfigChange(draftOutlineMode, draftKnowledgeDocumentIds);
+      onOutlineConfigChange(noTechnicalScoreMode ? 'free' : draftOutlineMode, draftKnowledgeDocumentIds);
       setGenerationDialogOpen(false);
       await window.yibiao?.tasks.startOutlineGeneration({
         workflowKind,
         projectId,
-        mode: draftOutlineMode,
+        mode: noTechnicalScoreMode ? 'free' : draftOutlineMode,
+        noTechnicalScoreMode: noTechnicalScoreMode && noScoreConfirmed,
         responseFileRequirements,
         reference_knowledge_document_ids: draftKnowledgeDocumentIds,
       });
@@ -710,9 +726,9 @@ function OutlineEditPage({
             <section className="outline-generation-config-section">
               <div className="outline-generation-config-head">
                 <strong>生成方式</strong>
-                <span>{outlineModeLabels[draftOutlineMode]}</span>
+                <span>{noTechnicalScoreMode ? '无技术评分项' : outlineModeLabels[draftOutlineMode]}</span>
               </div>
-              <div className="outline-generation-mode-list" role="radiogroup" aria-label="目录生成方式">
+              {!noTechnicalScoreMode ? <div className="outline-generation-mode-list" role="radiogroup" aria-label="目录生成方式">
                 <button
                   type="button"
                   className={`outline-generation-mode-card${draftOutlineMode === 'free' ? ' is-active' : ''}`}
@@ -740,7 +756,13 @@ function OutlineEditPage({
                   <strong>按响应文件目录</strong>
                   <span>优先按招标文件中的技术文件组成和编制要求组织一级目录，二三级目录由 AI 生成。</span>
                 </button>
-              </div>
+              </div> : null}
+              {noTechnicalScoreMode ? (
+                <label className="outline-generation-config-hint">
+                  <input type="checkbox" checked={noScoreConfirmed} onChange={(event) => setNoScoreConfirmed(event.target.checked)} disabled={generating} />
+                  已确认招标文件没有技术评分项，按技术要求和项目概述生成目录
+                </label>
+              ) : null}
             </section>
 
             <section className="outline-generation-config-section outline-knowledge-picker">
@@ -759,7 +781,7 @@ function OutlineEditPage({
               {draftOutlineMode === 'response-file' && !responseFileRequirements ? (
                 <span className="outline-generation-config-hint">未找到独立的响应文件要求，将退回使用技术评分要求。</span>
               ) : null}
-              <button type="button" className="primary-action" onClick={generateOutline} disabled={generating || !projectOverview || !techRequirements}>
+              <button type="button" className="primary-action" onClick={generateOutline} disabled={generating || !projectOverview || !techRequirements || (noTechnicalScoreMode && !noScoreConfirmed)}>
                 开始生成
               </button>
             </div>

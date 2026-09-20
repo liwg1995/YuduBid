@@ -76,7 +76,6 @@ function createProjectManagementStore({ app, getActiveTask = () => null, onState
       projectTypes: normalizeDictionaryItems([...(stored.projectTypes || []), ...defaultProjectTypes]),
       projectGroups: normalizeDictionaryItems(stored.projectGroups || []),
     };
-    fs.writeFileSync(dictionariesPath(), JSON.stringify(dictionaries, null, 2), 'utf-8');
     return dictionaries;
   }
 
@@ -157,7 +156,7 @@ function createProjectManagementStore({ app, getActiveTask = () => null, onState
       ? index.activeProjectId
       : normalizedProjects[0].id;
     const nextIndex = { activeProjectId, projects: normalizedProjects };
-    writeIndexFile(nextIndex);
+    if (JSON.stringify(nextIndex) !== JSON.stringify(index)) writeIndexFile(nextIndex);
     return nextIndex;
   }
 

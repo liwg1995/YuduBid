@@ -1,11 +1,14 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { app } = require('electron');
+const os = require('node:os');
+const zlib = require('node:zlib');
+const { app, dialog } = require('electron');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const AdmZip = require('adm-zip');
 const { createLocalImageRenderService } = require('../electron/services/localImageRenderService.cjs');
-const { buildDocxResult, normalizeMermaidForExport } = require('../electron/services/exportService.cjs');
+require('../electron/services/contentGenerationTask.cjs');
+const { assertImageExportable, buildDocxResult, createExportService, normalizeMermaidForExport } = require('../electron/services/exportService.cjs');
 
 const samples = [
   {
@@ -78,6 +81,8 @@ async function verifyMermaidExport() {
       const sample = samples[index % samples.length];
       const dataUrl = await renderService.renderMermaidToDataUrl(sample.code);
       assert.match(dataUrl, /^data:image\/png;base64,/, 'Mermaid 导出必须直接使用 Chromium PNG');
+      const exportable = await assertImageExportable(dataUrl);
+      assert.ok(exportable.width > 0 && exportable.height > 0, '生成阶段应校验图片可插入 Word');
       const png = Buffer.from(dataUrl.split(',')[1], 'base64');
       const metrics = await analyzePng(png);
       if (outputDir) {
@@ -164,6 +169,39 @@ ${patentLoopFlowchart}
     const docxZip = new AdmZip(docxResult.buffer);
     const mediaEntries = docxZip.getEntries().filter((entry) => entry.entryName.startsWith('word/media/'));
     assert.ok(mediaEntries.length >= 4, '文本流程图和全部 Mermaid 都必须作为完整图片写入 Word');
+
+    const legacyCode = 'flowchart LR\nA[本地处理] --> B[Word 图片]';
+    const legacyRawUrl = `https://mermaid.ink/img/${Buffer.from(legacyCode).toString('base64url')}`;
+    const legacyPakoUrl = `https://mermaid.ink/img/pako:${zlib.deflateSync(Buffer.from(JSON.stringify({ code: legacyCode }))).toString('base64url')}`;
+    const legacyResult = await buildDocxResult({
+      project_name: '旧版 Mermaid 本地转换验证',
+      outline: [{
+        id: 'legacy-diagram', title: '旧版图片链接',
+        content: `![流程图](${legacyRawUrl})\n\n![流程图](${legacyPakoUrl})\n\n![损坏图](https://mermaid.ink/img/not-valid-mermaid)\n\n![占位图](https://example.com/placeholder.jpg)`,
+      }],
+    });
+    assert.equal(legacyResult.warnings.length, 2, '损坏的 Mermaid 链接和示例图片地址应分别提示');
+    assert.doesNotMatch(legacyResult.warnings[0], /https?:\/\//, '导出提示不应展示外链长地址');
+    assert.match(legacyResult.warnings[1], /示例图片地址/, '示例图片不应被当作有效远程图片下载');
+    const legacyZip = new AdmZip(legacyResult.buffer);
+    assert.ok(legacyZip.getEntries().filter((entry) => entry.entryName.startsWith('word/media/')).length >= 2, '旧版 Mermaid 链接必须本地渲染为图片');
+    assert.doesNotMatch(legacyZip.getEntry('word/_rels/document.xml.rels')?.getData().toString('utf8') || '', /mermaid\.ink/, 'Word 不应保留 Mermaid 外部图片链接');
+    await assert.rejects(assertImageExportable('data:image/png;base64,PGh0bWw+PC9odG1sPg=='), /图片/, '伪装成 PNG 的无效数据必须在生成阶段被拒绝');
+
+    const exportPath = path.join(os.tmpdir(), `yibiao-missing-image-${process.pid}.docx`);
+    const originalShowSaveDialog = dialog.showSaveDialog;
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath: exportPath });
+    try {
+      assert.equal(fs.existsSync(exportPath), false, '测试文件不应预先存在');
+      await assert.rejects(
+        createExportService().exportWord({ outline: [{ id: 'missing-image', title: '缺图', content: '![占位图](https://example.com/placeholder.jpg)' }] }),
+        /图片无法插入，Word 未导出/,
+      );
+      assert.equal(fs.existsSync(exportPath), false, '图片失败时不应写出不完整的 Word');
+    } finally {
+      dialog.showSaveDialog = originalShowSaveDialog;
+      fs.rmSync(exportPath, { force: true });
+    }
 
     for (const [name, code] of supportedDiagramSamples) {
       const svg = await renderService.renderMermaidToSvg(code);

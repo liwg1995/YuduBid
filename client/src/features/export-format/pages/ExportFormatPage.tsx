@@ -1534,8 +1534,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
               {exportProgress.warnings.length > 0 && (
                 <div className="export-warning-list">
                   <strong>需要核对</strong>
-                  {exportProgress.warnings.slice(0, 4).map((warning) => <small key={warning}>{warning}</small>)}
-                  {exportProgress.warnings.length > 4 && <small>还有 {exportProgress.warnings.length - 4} 条图片提示，请打开导出的 Word 核对。</small>}
+                  {exportProgress.warnings.map((warning, index) => <small key={`${index}-${warning}`}>{warning}</small>)}
                 </div>
               )}
             </div>

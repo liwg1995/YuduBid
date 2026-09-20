@@ -94,8 +94,34 @@ export interface ThesisTutorReference {
   keywords: string;
   summary: string;
   keyPoints: string;
+  doi: string;
+  searchDatabase: string;
+  searchQuery: string;
+  searchedAt: string;
+  screeningNote: string;
+  evidenceLocator: string;
   relatedChapterIds: string[];
   updated_at: string;
+}
+
+export interface ThesisTutorBibliographyCandidate {
+  title: string;
+  authors: string;
+  year: string;
+  source: string;
+  doi: string;
+  keywords: string;
+  summary: string;
+}
+
+export interface ThesisTutorBibliographyPreview {
+  canceled: boolean;
+  fileName?: string;
+  format?: 'RIS' | 'BibTeX';
+  total?: number;
+  candidates?: ThesisTutorBibliographyCandidate[];
+  duplicateCount?: number;
+  overflowCount?: number;
 }
 
 export type ThesisTutorFeedbackStatus = 'todo' | 'doing' | 'done' | 'deferred';

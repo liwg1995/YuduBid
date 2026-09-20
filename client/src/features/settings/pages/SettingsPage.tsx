@@ -27,7 +27,7 @@ interface ReleaseDownloadState {
 
 const SETTINGS_ACTIVE_TAB_KEY = 'yibiao-settings-active-tab';
 const DEFAULT_SETTINGS_TAB: SettingsTab = 'text-model';
-const githubReleaseDownloadPattern = /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\/[^/]+\/.+/i;
+const githubReleaseDownloadPattern = /^https:\/\/github\.com\/liwg1995\/YuduBid\/releases\/download\/[^/]+\/[^/?#]+$/i;
 
 const localModelHelp: Record<LocalModelHelpKind, { title: string; description: string; sections: Array<{ title: string; content: string }> }> = {
   'ollama-text': {
@@ -997,12 +997,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     }));
 
     try {
-      const result = await window.yibiao?.downloadReleaseInstaller({
-        version: latestRelease.version,
-        download_url: downloadUrl,
-        download_name: latestRelease.download_name,
-        size,
-      });
+      const result = await window.yibiao?.downloadReleaseInstaller();
       if (result?.canceled) {
         setReleaseDownloadState(createInitialReleaseDownloadState({
           fileName: latestRelease.download_name || '',

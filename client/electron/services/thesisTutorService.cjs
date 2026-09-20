@@ -4,6 +4,8 @@ const AdmZip = require('adm-zip');
 const { dialog } = require('electron');
 const { parseDocumentWithConfig, resolveFileParser } = require('./fileService.cjs');
 const { getThesisTutorDir } = require('../utils/paths.cjs');
+const { lookupDoi } = require('./thesisTutorDoiLookup.cjs');
+const { parseBibliographyFile, selectNewEntries } = require('./thesisTutorBibliography.cjs');
 
 const panelDefinitions = {
   diagnosis: {
@@ -303,6 +305,12 @@ function normalizeReference(item, index = 0) {
     keywords: normalizeString(item.keywords, 500),
     summary: normalizeString(item.summary, 5000),
     keyPoints: normalizeString(item.keyPoints, 5000),
+    doi: normalizeString(item.doi, 200),
+    searchDatabase: normalizeString(item.searchDatabase, 200),
+    searchQuery: normalizeString(item.searchQuery, 1200),
+    searchedAt: normalizeString(item.searchedAt, 40),
+    screeningNote: normalizeString(item.screeningNote, 1200),
+    evidenceLocator: normalizeString(item.evidenceLocator, 500),
     relatedChapterIds,
     updated_at: normalizeString(item.updated_at, 60) || now(),
   };
@@ -333,13 +341,17 @@ function buildReferenceContext(panel, references = [], activeReferenceId = '') {
     return 0;
   });
   return sorted.slice(0, 20).map((item, index) => [
-    `## 证据 ${index + 1}${item.id === activeId ? '（当前选中）' : ''}`,
+    `## 证据 ${item.id}${item.id === activeId ? '（当前选中）' : ''}`,
     `- 类型：${item.type}`,
     `- 核验状态：${item.verificationStatus}`,
     `- 标题：${item.title}`,
     `- 作者/年份：${item.authors || '未填写'} ${item.year || ''}`.trim(),
     `- 来源：${item.source || '未填写'}`,
     `- 引用格式：${item.citation || '未整理'}`,
+    `- DOI：${item.doi || '未填写'}`,
+    `- 检索记录：${[item.searchDatabase, item.searchQuery, item.searchedAt].filter(Boolean).join(' / ') || '未记录'}`,
+    `- 筛选说明：${item.screeningNote || '未记录'}`,
+    `- 原文定位：${item.evidenceLocator || '未记录'}`,
     `- 核验来源：${item.verificationSource || '未填写'}`,
     `- 核验备注：${item.verificationNotes || '未填写'}`,
     `- 关键词：${item.keywords || '未填写'}`,
@@ -765,6 +777,7 @@ function buildProjectReferencesMarkdown(state) {
   if (!references.length) return '# 文献与证据链\n\n暂无文献或证据条目。';
   const parts = references.map((reference, index) => [
     `## ${index + 1}. ${reference.title}`,
+    `- 证据编号：${reference.id}`,
     '',
     `- 类型：${labelOf(referenceTypeLabels, reference.type)}`,
     `- 核验状态：${labelOf(referenceVerificationLabels, reference.verificationStatus)}`,
@@ -773,6 +786,12 @@ function buildProjectReferencesMarkdown(state) {
     `- 来源：${reference.source || '未填写'}`,
     `- 关键词：${reference.keywords || '未填写'}`,
     `- 规范引用/出处：${reference.citation || '未填写'}`,
+    `- DOI：${reference.doi || '未填写'}`,
+    `- 检索数据库：${reference.searchDatabase || '未填写'}`,
+    `- 检索式：${reference.searchQuery || '未填写'}`,
+    `- 检索日期：${reference.searchedAt || '未填写'}`,
+    `- 筛选说明：${reference.screeningNote || '未填写'}`,
+    `- 原文定位：${reference.evidenceLocator || '未填写'}`,
     `- 核验来源：${reference.verificationSource || '未填写'}`,
     `- 核验备注：${reference.verificationNotes || '未填写'}`,
     `- 关联章节ID：${reference.relatedChapterIds.length ? reference.relatedChapterIds.join(', ') : '未关联'}`,
@@ -1080,6 +1099,7 @@ function createPrompt(payload) {
     '1. 不编造文献、作者、DOI、统计结果、访谈对象、实验数据或学校规定。',
     '2. 涉及正文写作时，必须基于用户提供的真实文献和材料；材料不足处用“需补充：...”标注。',
     '3. 证据链中只有“已核验”的条目可作为正式引用；待核验、信息不完整、不可查/慎用的条目只能作为线索或用“待核验：...”标注。',
+    '3a. 关键事实和数值观点应对应具体证据 ID 与原文定位，在相应句后使用精确标记 `[证据:ref-实际ID]`（将 ref-实际ID 换成证据链中的真实 ID）；不要编造 ID。只有题录、检索摘要或 DOI 元数据不等于原文已核验。证据不足时列出待核问题，不把推测写成事实。',
     '4. 查重和 AI 检测只提供合规修改、引用规范和表达自然化建议，不提供规避检测的方法。',
     '5. 输出要像导师批注和任务清单，少讲空话，多给下一步。',
     '',
@@ -1122,7 +1142,7 @@ function createPrompt(payload) {
     '可参考的内置方法论和知识库摘录：',
     knowledgeContext || '无。',
     '',
-    '请按 Markdown 输出。若是启动诊断，输出“启动预检报告 + 风险清单 + 推荐路径 + 本周任务”，必须明确档案缺口、材料缺口、文献/数据真实性风险和下一步先后顺序。若是选题，给 3-5 个候选题并评估难度、创新性、资料充足度、风险。若是文献综述，给检索式、分类框架和综述写法。若是研究设计，给方法匹配、数据需求和风险。若是数据与实证，输出“数据真实性判断 + 样本/变量预检 + 可做分析 + 不建议做的分析 + 写作边界”，不得编造统计结果；没有真实数据时只能给数据需求和分析计划。若是图表与模型图，先判断适合的图类型，再至少输出 1 个 Mermaid 代码块（如 flowchart、graph、mindmap、timeline），并给“图名/图注 + 适用章节 + 图中节点解释 + 可修改项”；不得把未核验变量关系或数据结果画成确定结论，缺材料处用“待补充/待核验”标注。若是自动成稿，先输出“成稿前提检查 + 本次使用的材料 + 缺口标注规则”，再按用户指定范围生成可编辑论文初稿；不得编造文献、数据和统计结论，材料不足处用“需补充：...”或“待核验：...”标注。若是逐章写作或修改，先列材料使用情况，再给正文/批注，并标明使用了哪些证据条目和处理了哪些导师反馈。若是评审答辩，输出评分、问题清单、反馈拆解和答辩准备。若是格式查重，按“终稿质量门”输出可落地的检查清单、引用/证据核验问题、数据边界问题、重复表达/AI 味风险和合规修改建议，并对应已有检查项更新处理建议。',
+    '请按 Markdown 输出。若是启动诊断，输出“启动预检报告 + 风险清单 + 推荐路径 + 本周任务”，必须明确档案缺口、材料缺口、文献/数据真实性风险和下一步先后顺序。若是选题，给 3-5 个候选题并评估难度、创新性、资料充足度、风险。若是文献综述，给中英文检索词、实际可用的数据库检索式、检索记录建议（数据库、检索式、日期、筛选理由）、主题分类框架和综述写法；没有真实检索结果时不要声称已完成检索。若是研究设计，给方法匹配、数据需求和风险。若是数据与实证，输出“数据真实性判断 + 样本/变量预检 + 可做分析 + 不建议做的分析 + 写作边界”，不得编造统计结果；没有真实数据时只能给数据需求和分析计划。若是图表与模型图，先判断适合的图类型，再至少输出 1 个 Mermaid 代码块（如 flowchart、graph、mindmap、timeline），并给“图名/图注 + 适用章节 + 图中节点解释 + 可修改项”；不得把未核验变量关系或数据结果画成确定结论，缺材料处用“待补充/待核验”标注。若是自动成稿，先输出“成稿前提检查 + 本次使用的材料 + 缺口标注规则”，再按用户指定范围生成可编辑论文初稿；关键观点注明证据 ID，无法对应到已核验原文的内容标注待核验。若是逐章写作或修改，先列材料使用情况，再给正文/批注，标明关键观点使用的证据 ID 与原文定位，以及处理了哪些导师反馈。若是评审答辩，输出评分、问题清单、反馈拆解和答辩准备。若是格式查重，按“终稿质量门”输出可落地的检查清单、引用/证据核验问题、数据边界问题、重复表达/AI 味风险和合规修改建议，并对应已有检查项更新处理建议。',
   ].join('\n');
 }
 
@@ -1265,6 +1285,48 @@ function createThesisTutorService({ app, aiService, configStore, dialogService =
       references,
       activeReferenceId: resolveActiveReferenceId(payload.activeReferenceId, references),
     });
+  }
+
+  async function previewBibliographyImport(payload = {}) {
+    const selected = await dialogService.showOpenDialog({
+      title: '选择 RIS 或 BibTeX 题录文件',
+      properties: ['openFile'],
+      filters: [
+        { name: '题录文件', extensions: ['ris', 'bib', 'bibtex'] },
+      ],
+    });
+    if (selected.canceled || !selected.filePaths?.[0]) return { canceled: true };
+    const filePath = selected.filePaths[0];
+    const parsed = parseBibliographyFile(filePath);
+    const picked = selectNewEntries(parsed.entries, normalizeReferences(payload.references));
+    return {
+      canceled: false,
+      fileName: path.basename(filePath),
+      format: parsed.format,
+      total: parsed.entries.length,
+      candidates: picked.added,
+      duplicateCount: picked.duplicates,
+      overflowCount: picked.overflow,
+    };
+  }
+
+  function commitBibliographyImport(payload = {}) {
+    const existing = normalizeReferences(payload.references);
+    const candidates = Array.isArray(payload.candidates) ? payload.candidates.slice(0, 200) : [];
+    const picked = selectNewEntries(candidates, existing);
+    if (!picked.added.length) return { state: loadState(), addedCount: 0, duplicateCount: picked.duplicates };
+    const fileName = path.basename(normalizeString(payload.fileName, 200) || '题录文件');
+    const imported = picked.added.map((item, index) => normalizeReference({
+      ...item,
+      id: createReferenceId(item.title || `导入文献 ${index + 1}`),
+      type: 'literature',
+      verificationStatus: 'unverified',
+      verificationSource: '',
+      verificationNotes: `从“${fileName}”导入题录，尚未核验原文。`,
+    }, index));
+    const references = [...existing, ...imported];
+    const state = saveState({ references, activeReferenceId: imported[0]?.id || existing[0]?.id || '' });
+    return { state, addedCount: imported.length, duplicateCount: picked.duplicates };
   }
 
   function saveFeedback(payload = {}) {
@@ -1623,9 +1685,12 @@ function createThesisTutorService({ app, aiService, configStore, dialogService =
 
   return {
     loadState,
+    lookupDoi,
     saveProfile,
     saveChapters,
     saveReferences,
+    previewBibliographyImport,
+    commitBibliographyImport,
     saveFeedback,
     saveChecks,
     saveHistory,

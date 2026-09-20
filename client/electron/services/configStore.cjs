@@ -2,6 +2,32 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { getConfigFilePath } = require('../utils/paths.cjs');
 
+const CONFIG_SCHEMA_VERSION = 2;
+const ENCRYPTED_PREFIX = 'safeStorage:v1:';
+const SECRET_FIELDS = [
+  ['api_key'],
+  ['file_parser', 'mineru_token'],
+  ['image_model', 'api_key'],
+];
+
+function visitSecretFields(config, visitor) {
+  for (const pathParts of SECRET_FIELDS) {
+    let parent = config;
+    for (const key of pathParts.slice(0, -1)) parent = parent?.[key];
+    const key = pathParts.at(-1);
+    if (parent && typeof parent === 'object' && typeof parent[key] === 'string') visitor(parent, key);
+  }
+  for (const group of ['text_model_profiles', 'image_model_profiles']) {
+    for (const profile of Object.values(config?.[group] || {})) {
+      if (profile && typeof profile === 'object' && typeof profile.api_key === 'string') visitor(profile, 'api_key');
+    }
+  }
+}
+
+function cloneConfig(config) {
+  return JSON.parse(JSON.stringify(config));
+}
+
 const textModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'sensenova', 'ollama', 'volcengine', 'xiaomi', 'deepseek', 'longcat', 'custom'];
 const imageModelProviders = ['agnes-ai-cn', 'agnes-ai-global', 'sensenova', 'ollama', 'comfyui', 'volcengine', 'google-ai-studio', 'custom'];
 const featureModuleIds = ['presales', 'bid', 'official-document', 'project-management', 'thesis-tutor', 'copyright', 'patent'];
@@ -146,6 +172,7 @@ const defaultImageModelProfiles = {
 };
 
 const defaultConfig = {
+  schema_version: CONFIG_SCHEMA_VERSION,
   text_model_provider: 'agnes-ai-cn',
   text_model_profiles: defaultTextModelProfiles,
   api_key: '',
@@ -407,14 +434,50 @@ function normalizeConfig(config) {
   };
 }
 
-function createConfigStore(app) {
+function createConfigStore(app, options = {}) {
   const configFile = getConfigFilePath(app);
+  const storage = options.safeStorage === undefined ? require('electron').safeStorage : options.safeStorage;
+  let cachedRaw = null;
+  let cachedConfig = null;
+
+  function canEncryptSecrets() {
+    try {
+      return Boolean(storage?.isEncryptionAvailable?.())
+        && (process.platform !== 'linux' || storage.getSelectedStorageBackend?.() !== 'basic_text');
+    } catch {
+      return false;
+    }
+  }
+
+  function readConfigFile(raw = fs.readFileSync(configFile, 'utf-8')) {
+    const stored = JSON.parse(raw);
+    const config = cloneConfig(stored);
+    delete config.secrets_encrypted;
+    if (stored.secrets_encrypted) {
+      if (!canEncryptSecrets()) throw new Error('系统密钥服务不可用，无法解密现有配置；原文件未修改');
+      visitSecretFields(config, (parent, key) => {
+        if (!parent[key]) return;
+        if (!parent[key].startsWith(ENCRYPTED_PREFIX)) throw new Error('加密配置格式无效；原文件未修改');
+        parent[key] = storage.decryptString(Buffer.from(parent[key].slice(ENCRYPTED_PREFIX.length), 'base64'));
+      });
+    }
+    return { stored, config };
+  }
 
   function persist(config) {
     const directory = path.dirname(configFile);
     fs.mkdirSync(directory, { recursive: true });
     const temporaryFile = `${configFile}.${process.pid}.${Date.now()}.tmp`;
-    const content = `${JSON.stringify(config, null, 2)}\n`;
+    const diskConfig = cloneConfig(config);
+    diskConfig.schema_version = CONFIG_SCHEMA_VERSION;
+    const encrypted = canEncryptSecrets();
+    diskConfig.secrets_encrypted = encrypted;
+    if (encrypted) {
+      visitSecretFields(diskConfig, (parent, key) => {
+        if (parent[key]) parent[key] = `${ENCRYPTED_PREFIX}${storage.encryptString(parent[key]).toString('base64')}`;
+      });
+    }
+    const content = `${JSON.stringify(diskConfig, null, 2)}\n`;
     try {
       fs.writeFileSync(temporaryFile, content, { encoding: 'utf-8', mode: 0o600 });
       fs.renameSync(temporaryFile, configFile);
@@ -429,6 +492,8 @@ function createConfigStore(app) {
         throw error;
       }
     }
+    cachedRaw = content;
+    cachedConfig = cloneConfig(config);
   }
 
   return {
@@ -445,10 +510,18 @@ function createConfigStore(app) {
 
       try {
         const raw = fs.readFileSync(configFile, 'utf-8');
-        const parsedConfig = JSON.parse(raw);
-        const config = normalizeConfig(parsedConfig);
-        if (JSON.stringify(parsedConfig) !== JSON.stringify(config)) {
+        if (cachedRaw === raw && cachedConfig) return cloneConfig(cachedConfig);
+        const { stored, config: hydrated } = readConfigFile(raw);
+        const config = normalizeConfig(hydrated);
+        let plaintextSecrets = false;
+        visitSecretFields(hydrated, (parent, key) => { if (parent[key]) plaintextSecrets = true; });
+        if (JSON.stringify(hydrated) !== JSON.stringify(config)
+          || stored.schema_version !== CONFIG_SCHEMA_VERSION
+          || (canEncryptSecrets() && !stored.secrets_encrypted && plaintextSecrets)) {
           persist(config);
+        } else {
+          cachedRaw = raw;
+          cachedConfig = cloneConfig(config);
         }
         return config;
       } catch (error) {
@@ -459,7 +532,7 @@ function createConfigStore(app) {
     save(config) {
       try {
         const currentConfig = fs.existsSync(configFile)
-          ? normalizeConfig(JSON.parse(fs.readFileSync(configFile, 'utf-8')))
+          ? normalizeConfig(readConfigFile().config)
           : normalizeConfig();
         const nextConfig = normalizeConfig({
           ...currentConfig,

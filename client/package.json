@@ -1,6 +1,6 @@
 {
   "name": "yudubid-client",
-  "version": "0.9.12",
+  "version": "0.9.13",
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
@@ -20,7 +20,11 @@
     "build": "tsc --noEmit && vite build",
     "verify:model-capabilities": "node scripts/verify-model-capabilities.cjs",
     "verify:agent-foundation": "node scripts/verify-agent-foundation.cjs",
-    "verify:offline": "npm run verify:ipc-contract && npm run verify:task-recovery && npm run verify:thesis-tutor && npm run verify:project-management && npm run verify:model-capabilities && npm run verify:agent-foundation && npm run verify:mermaid-packaging && npm run verify:renderer-packaging && npm run verify:asset-packaging && npm run verify:document-security && npm run verify:code-generation && npm run verify:patent-generation && npm run verify:software-copyright",
+    "verify:offline": "npm run verify:ipc-contract && npm run verify:update-integrity && npm run verify:secure-http && npm run verify:config-secrets && npm run verify:plugin-compatibility && npm run verify:task-recovery && npm run verify:thesis-tutor && npm run verify:project-management && npm run verify:model-capabilities && npm run verify:agent-foundation && npm run verify:mermaid-packaging && npm run verify:renderer-packaging && npm run verify:asset-packaging && npm run verify:document-security && npm run verify:code-generation && npm run verify:patent-generation && npm run verify:software-copyright",
+    "verify:config-secrets": "node scripts/verify-config-secrets.cjs",
+    "verify:secure-http": "node scripts/verify-secure-http.cjs",
+    "verify:update-integrity": "node scripts/verify-update-integrity.cjs",
+    "verify:plugin-compatibility": "node scripts/verify-plugin-compatibility.cjs",
     "verify:document-security": "node scripts/verify-document-security.cjs",
     "verify:mermaid-export": "electron scripts/verify-mermaid-export.cjs",
     "verify:bid-template-export": "electron scripts/verify-bid-template-export.cjs",
@@ -131,15 +135,15 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.5",
-    "adm-zip": "^0.6.0",
+    "adm-zip": "^0.6.1",
     "better-sqlite3": "^12.10.0",
     "cfb": "^1.2.2",
     "chardet": "^2.1.1",
     "cheerio": "^1.2.0",
     "docx": "^9.6.1",
-    "electron-updater": "^6.8.3",
     "iconv-lite": "^0.7.2",
     "image-size": "file:vendor/safe-image-size",
+    "ipaddr.js": "^2.5.0",
     "mammoth": "^1.12.0",
     "mime-types": "^3.0.2",
     "pdf-parse": "^2.4.5",
@@ -147,8 +151,10 @@
     "pptxgenjs": "^4.0.1",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
+    "semver": "^7.8.5",
     "turndown": "^7.2.4",
     "turndown-plugin-gfm": "^1.0.2",
+    "undici": "^7.29.1",
     "unified": "^11.0.5"
   },
   "devDependencies": {
@@ -174,5 +180,11 @@
     "typescript": "^5.9.2",
     "vite": "^7.1.7",
     "wait-on": "^8.0.4"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "^0.8.15",
+    "js-yaml": "^4.3.2",
+    "fast-uri": "^3.1.6",
+    "joi": "^18.2.5"
   }
 }

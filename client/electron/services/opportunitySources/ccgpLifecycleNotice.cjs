@@ -1,6 +1,6 @@
 const cheerio = require('cheerio');
 const crypto = require('node:crypto');
-const { assertRemoteHttpUrl, fetchWithTimeout, readResponseText } = require('../../utils/secureHttp.cjs');
+const { assertRemoteHttpUrl, fetchRemoteWithTimeout, readResponseText } = require('../../utils/secureHttp.cjs');
 
 const allowedHost = 'www.ccgp.gov.cn';
 const userAgent = 'Mozilla/5.0 (compatible; OpenBidKit/0.8; user-initiated local opportunity monitor)';
@@ -25,7 +25,7 @@ function assertCcgpUrl(value) {
 }
 
 async function fetchHtml(url) {
-  const response = await fetchWithTimeout(assertCcgpUrl(url), { timeoutMs: 20000, redirect: 'follow', headers: { 'User-Agent': userAgent, Accept: 'text/html,application/xhtml+xml' } });
+  const response = await fetchRemoteWithTimeout(assertCcgpUrl(url), { timeoutMs: 20000, headers: { 'User-Agent': userAgent, Accept: 'text/html,application/xhtml+xml' } });
   if (!response.ok) throw new Error(`中国政府采购网返回 HTTP ${response.status}`);
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('text/html')) throw new Error(`数据源返回了非 HTML 内容：${contentType || '未知类型'}`);

@@ -15,7 +15,7 @@ import type { ProjectManagementCommercialInput, ProjectManagementComplianceInput
 import type { RejectionCheckWorkspaceState, RejectionDocumentRole } from './contracts/rejectionCheck';
 import type { SoftwareCopyrightAiIllustration, SoftwareCopyrightCase, SoftwareCopyrightCaseList, SoftwareCopyrightCaseMutationResult, SoftwareCopyrightCodeManifest, SoftwareCopyrightCodeMaterialReviewChecks, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightDraftVersion, SoftwareCopyrightDraftVersionComparison, SoftwareCopyrightExportBatch, SoftwareCopyrightFields, SoftwareCopyrightManualAssetReviewChecks, SoftwareCopyrightManualReviewChecks, SoftwareCopyrightManualReviewState, SoftwareCopyrightOptions, SoftwareCopyrightSelectResult, SoftwareCopyrightState, SoftwareCopyrightSubmissionReview } from './contracts/softwareCopyright';
 import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanProjectPayload, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind, TechnicalVolumeConfig } from './contracts/technicalPlan';
-import type { ThesisTutorGeneratePayload, ThesisTutorHistoryItem, ThesisTutorImportSourceResult, ThesisTutorProfile, ThesisTutorState, ThesisTutorWorkspaceTransferResult } from './contracts/thesisTutor';
+import type { ThesisTutorBibliographyCandidate, ThesisTutorBibliographyPreview, ThesisTutorGeneratePayload, ThesisTutorHistoryItem, ThesisTutorImportSourceResult, ThesisTutorProfile, ThesisTutorReference, ThesisTutorState, ThesisTutorWorkspaceTransferResult } from './contracts/thesisTutor';
 import type { OutlineData, OutlineMode } from './outline';
 import type { InstalledPluginRecord, PluginEvent, PluginMutationResult } from './plugin';
 
@@ -63,23 +63,8 @@ export interface LatestReleaseInfo {
     name: string;
     browser_download_url: string;
     size: number;
+    digest?: string;
   }>;
-}
-
-export interface UpdateCheckResult {
-  enabled: boolean;
-  updateAvailable: boolean;
-  version?: string;
-  downloaded?: boolean;
-  failed?: boolean;
-  message?: string;
-}
-
-export interface ReleaseInstallerDownloadRequest {
-  version: string;
-  download_url: string;
-  download_name?: string;
-  size?: number;
 }
 
 export interface ReleaseInstallerDownloadResult {
@@ -305,16 +290,11 @@ export interface YuDuBidBridge {
   getVersion: () => Promise<string>;
   getLatestVersion: () => Promise<LatestReleaseInfo>;
   openExternal: (url: string) => Promise<{ success: boolean; message?: string }>;
-  checkUpdate: () => Promise<UpdateCheckResult>;
-  startUpdate: () => Promise<UpdateCheckResult>;
-  downloadReleaseInstaller: (payload: ReleaseInstallerDownloadRequest) => Promise<ReleaseInstallerDownloadResult>;
+  downloadReleaseInstaller: () => Promise<ReleaseInstallerDownloadResult>;
   cancelReleaseInstallerDownload: () => Promise<{ success: boolean; canceled?: boolean; message?: string }>;
   installDownloadedRelease: () => Promise<{ success: boolean; message?: string }>;
   showDownloadedRelease: () => Promise<{ success: boolean; path?: string; fileName?: string; version?: string; message?: string }>;
-  quitAndInstall: () => Promise<void>;
   onUpdateProgress: (callback: (event: UpdateProgressEvent) => void) => () => void;
-  onUpdateDownloaded: (callback: (event: { version: string }) => void) => () => void;
-  onUpdateError: (callback: (event: { message: string }) => void) => () => void;
   config: {
     load: () => Promise<ClientConfig>;
     save: (config: ClientConfig) => Promise<ConfigSaveResult>;
@@ -509,6 +489,9 @@ export interface YuDuBidBridge {
     saveProfile: (profile: ThesisTutorProfile) => Promise<ThesisTutorState>;
     saveChapters: (payload: { chapters: ThesisTutorGeneratePayload['chapters']; activeChapterId?: string }) => Promise<ThesisTutorState>;
     saveReferences: (payload: { references: ThesisTutorGeneratePayload['references']; activeReferenceId?: string }) => Promise<ThesisTutorState>;
+    previewBibliographyImport: (payload: { references: ThesisTutorReference[] }) => Promise<ThesisTutorBibliographyPreview>;
+    commitBibliographyImport: (payload: { references: ThesisTutorReference[]; candidates: ThesisTutorBibliographyCandidate[]; fileName: string }) => Promise<{ state: ThesisTutorState; addedCount: number; duplicateCount: number }>;
+    lookupDoi: (doi: string) => Promise<{ doi: string; title: string; authors: string; year: string; source: string; url: string }>;
     saveFeedback: (payload: { feedbackItems: ThesisTutorGeneratePayload['feedbackItems']; activeFeedbackId?: string }) => Promise<ThesisTutorState>;
     saveChecks: (payload: { checkItems: ThesisTutorGeneratePayload['checkItems']; activeCheckId?: string }) => Promise<ThesisTutorState>;
     saveHistory: (payload: { history: ThesisTutorHistoryItem[] }) => Promise<ThesisTutorState>;
@@ -741,6 +724,7 @@ export interface YuDuBidBridge {
     getCoverLogoPreview: (filePath: string) => Promise<{ dataUrl: string }>;
     export: (templateId: string) => Promise<{ success: boolean; canceled?: boolean; path?: string; message?: string }>;
     import: () => Promise<{ success: boolean; canceled?: boolean; path?: string; renamed?: boolean; template?: BidExportTemplateRecord; message?: string }>;
+    importWord: () => Promise<{ success: boolean; canceled?: boolean; template?: BidExportTemplateRecord; message?: string }>;
   };
   systemFonts: {
     list: () => Promise<string[]>;

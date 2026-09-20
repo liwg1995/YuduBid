@@ -16,63 +16,27 @@ permissions:
   contents: write
 
 jobs:
-  create-release:
-    name: Create GitHub Release
+  quality-check:
+    name: Offline quality checks
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           ref: ${{ inputs.tag_name || github.ref }}
-
-      - name: Create release notes from commits
-        env:
-          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
-        run: |
-          CURATED_NOTES=".github/release-notes/${TAG_NAME}.md"
-          if [ -f "$CURATED_NOTES" ]; then
-            cp "$CURATED_NOTES" release_notes.md
-            exit 0
-          fi
-
-          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || true)"
-          if [ -n "$PREVIOUS_TAG" ]; then
-            RANGE="$PREVIOUS_TAG..$TAG_NAME"
-            COMPARE_URL="https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${TAG_NAME}"
-          else
-            RANGE="$TAG_NAME"
-            COMPARE_URL="https://github.com/${{ github.repository }}/commits/${TAG_NAME}"
-          fi
-
-          {
-            echo "## 更新内容"
-            echo
-            git log "$RANGE" --no-merges --pretty=format:'- %s (%h)' || true
-            echo
-            echo
-            echo "## What's Changed"
-            echo
-            git log "$RANGE" --no-merges --pretty=format:'- %s (%h)' || true
-            echo
-            echo
-            echo "**Full Changelog**: $COMPARE_URL"
-          } > release_notes.md
-
-      - name: Create or update GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
-        run: |
-          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release edit "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md
-          else
-            gh release create "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md
-          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm run verify:offline
 
   build:
     name: Build ${{ matrix.os }}
-    needs: create-release
+    needs: quality-check
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -110,12 +74,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Install build type dependencies
-        run: npm install --no-save @types/plist
-
-      - name: Rebuild Electron native dependencies
-        run: npm run postinstall
 
       - name: Smoke test Electron native dependencies
         run: npm run smoke:electron-native
@@ -175,25 +133,13 @@ jobs:
         if: runner.os == 'Windows'
         run: npx electron-builder --win nsis zip --publish never
 
-      - name: Verify Windows auto-update artifacts
+      - name: Verify Windows installer
         if: runner.os == 'Windows'
         run: |
           shopt -s nullglob
           installers=(release/*.exe)
-          blockmaps=(release/*.blockmap)
-
           if [ ${#installers[@]} -eq 0 ]; then
-            echo "Missing Windows installer .exe for auto update."
-            exit 1
-          fi
-
-          if [ ! -f release/latest.yml ]; then
-            echo "Missing latest.yml for Windows auto update."
-            exit 1
-          fi
-
-          if [ ${#blockmaps[@]} -eq 0 ]; then
-            echo "Missing .blockmap for Windows differential update."
+            echo "Missing Windows installer .exe."
             exit 1
           fi
 
@@ -219,6 +165,7 @@ jobs:
       - name: Package macOS DMG with instructions
         if: runner.os == 'macOS'
         run: |
+          PRODUCT_NAME="$(node -p "require('./package.json').build.productName")"
           shopt -s nullglob
           for dmg in release/*.dmg; do
             base="$(basename "$dmg" .dmg)"
@@ -226,7 +173,7 @@ jobs:
             rm -rf "$package_dir"
             mkdir -p "$package_dir"
             cp "$dmg" "$package_dir/"
-            cat > "$package_dir/macOS使用说明.txt" <<'EOF'
+            cat > "$package_dir/macOS使用说明.txt" <<EOF
           macOS 使用说明
 
           如果双击 App 提示“已损坏，无法打开”或“无法验证开发者”，这是因为本软件未进行 Apple 官方签名和公证，并不代表文件真的损坏。
@@ -234,13 +181,13 @@ jobs:
           使用步骤：
 
           1. 双击 dmg 文件。
-          2. 将“禹都AI投标助手.app”拖到“应用程序”文件夹。
+          2. 将“${PRODUCT_NAME}.app”拖到“应用程序”文件夹。
           3. 打开“终端”App。
           4. 执行下面命令：
 
-          xattr -dr com.apple.quarantine /Applications/禹都AI投标助手.app
+          xattr -dr com.apple.quarantine "/Applications/${PRODUCT_NAME}.app"
 
-          5. 再从“应用程序”中打开“禹都AI投标助手”。
+          5. 再从“应用程序”中打开“${PRODUCT_NAME}”。
 
           如果仍无法打开，请右键点击 App，选择“打开”，再确认打开。
           EOF
@@ -248,24 +195,95 @@ jobs:
             rm -rf "$package_dir"
           done
 
-      - name: Upload release assets
+      - name: Prepare release assets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
         run: |
           shopt -s nullglob
-          files=(release/*.exe release/*.msi release/*.dmg release/*.zip release/*.blockmap release/latest*.yml)
+          files=(release/*.exe release/*.msi release/*.dmg release/*.zip)
           if [ ${#files[@]} -eq 0 ]; then
             echo "No release assets found."
             exit 1
           fi
-          md5_file="release/YuDuBid-${TAG_NAME#[vV]}-${RUNNER_OS}-md5.txt"
-          if command -v md5sum >/dev/null 2>&1; then
-            md5sum "${files[@]}" > "$md5_file"
-          else
-            for file in "${files[@]}"; do
-              md5 -r "$file"
-            done > "$md5_file"
+          sha_file="release/YuDuBid-${TAG_NAME#[vV]}-${RUNNER_OS}-sha256.txt"
+          for file in "${files[@]}"; do
+            node -e 'const fs=require("fs"),crypto=require("crypto"),path=require("path"),p=process.argv[1],hash=crypto.createHash("sha256"); fs.createReadStream(p).on("data",chunk=>hash.update(chunk)).on("error",error=>{console.error(error);process.exitCode=1}).on("end",()=>console.log(hash.digest("hex")+"  "+path.basename(p)))' "$file"
+          done > "$sha_file"
+
+      - name: Stage release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ runner.os }}
+          path: |
+            client/release/*.exe
+            client/release/*.msi
+            client/release/*.dmg
+            client/release/*.zip
+            client/release/*-sha256.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish complete release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag_name || github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create release notes from commits
+        env:
+          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          CURATED_NOTES=".github/release-notes/${TAG_NAME}.md"
+          if [ -f "$CURATED_NOTES" ]; then
+            cp "$CURATED_NOTES" release_notes.md
+            exit 0
           fi
-          files+=("$md5_file")
-          gh release upload "$TAG_NAME" "${files[@]}" --clobber
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || true)"
+          if [ -n "$PREVIOUS_TAG" ]; then
+            RANGE="$PREVIOUS_TAG..$TAG_NAME"
+            COMPARE_URL="https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${TAG_NAME}"
+          else
+            RANGE="$TAG_NAME"
+            COMPARE_URL="https://github.com/${{ github.repository }}/commits/${TAG_NAME}"
+          fi
+          {
+            echo "## 更新内容"
+            echo
+            git log "$RANGE" --no-merges --pretty=format:'- %s (%h)' || true
+            echo
+            echo
+            echo "## What's Changed"
+            echo
+            git log "$RANGE" --no-merges --pretty=format:'- %s (%h)' || true
+            echo
+            echo
+            echo "**Full Changelog**: $COMPARE_URL"
+          } > release_notes.md
+      - name: Verify staged assets and publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          test -n "$(find release-assets -maxdepth 1 -name '*.exe' -print -quit)"
+          test -n "$(find release-assets -maxdepth 1 -name '*.dmg' -print -quit)"
+          test "$(find release-assets -maxdepth 1 -name '*-sha256.txt' | wc -l)" -eq 2
+          (cd release-assets && sha256sum -c *-sha256.txt)
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            if [ "$(gh release view "$TAG_NAME" --json isDraft --jq '.isDraft')" != "true" ]; then
+              echo "Release 已公开发布，拒绝覆盖附件。"
+              exit 1
+            fi
+            gh release edit "$TAG_NAME" --title "$TAG_NAME" --notes-file release_notes.md
+          else
+            gh release create "$TAG_NAME" --draft --title "$TAG_NAME" --notes-file release_notes.md
+          fi
+          gh release upload "$TAG_NAME" release-assets/* --clobber
+          gh release edit "$TAG_NAME" --draft=false

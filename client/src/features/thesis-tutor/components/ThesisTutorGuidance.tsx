@@ -41,7 +41,7 @@ export function ThesisTutorGuidance({
         </section>
       )}
 
-      <section className="thesis-tutor-help-strip">
+      {isFirstRun && <section className="thesis-tutor-help-strip">
         <div>
           <strong>第一次使用论文导师？</strong>
           <span>先在启动诊断建立论文档案；后续模块会显示摘要并自动带入上下文。</span>
@@ -98,21 +98,7 @@ export function ThesisTutorGuidance({
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-      </section>
-
-      {isFirstRun && (
-        <section className="thesis-tutor-onboarding">
-          <div>
-            <strong>从这里开始论文导师</strong>
-            <span>先确定阶段和卡点，再把导师要求、培养方案或已有材料导入进来。系统会把后续结果沉淀成论文档案、证据链、章节和检查清单。</span>
-          </div>
-          <div className="thesis-tutor-empty-actions">
-            <button type="button" className="secondary-action" onClick={startDiagnosisTemplate} disabled={actionsDisabled}>填入诊断模板</button>
-            <button type="button" className="secondary-action" onClick={importSource} disabled={actionsDisabled}>导入导师要求</button>
-            <button type="button" className="primary-action" onClick={generate} disabled={actionsDisabled}>先生成诊断</button>
-          </div>
-        </section>
-      )}
+      </section>}
     </>
   );
 }

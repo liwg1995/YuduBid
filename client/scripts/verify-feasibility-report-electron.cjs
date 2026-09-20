@@ -63,6 +63,14 @@ async function run() {
 
     const projectPath = path.join(testRoot, 'feasibility-report-projects', projectId);
     assert.equal(fs.existsSync(path.join(projectPath, 'workspace', 'yibiao.sqlite')), true);
+    const registryPath = path.join(testRoot, 'workspace', 'feasibility-report', 'projects.json');
+    fs.writeFileSync(registryPath, '{broken json', 'utf-8');
+    const recoveredRouter = createFeasibilityReportStoreRouter({ app: testApp });
+    const recoveredProjects = recoveredRouter.listProjects();
+    assert.equal(recoveredProjects.projects.length, 1);
+    assert.equal(recoveredProjects.projects[0].name, '重命名后的项目');
+    assert.equal(recoveredRouter.loadState({ projectId }).projectInfo.location, '中文路径测试区');
+    assert.equal(fs.readdirSync(path.dirname(registryPath)).some((name) => name.startsWith('projects.json.corrupt-')), true);
     const deleted = secondRouter.deleteProject({ projectId });
     assert.equal(deleted.projects.length, 0);
     assert.equal(fs.existsSync(projectPath), false);

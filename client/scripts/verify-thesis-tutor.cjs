@@ -3,7 +3,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const AdmZip = require('adm-zip');
+const iconv = require('iconv-lite');
+const ts = require('typescript');
+const vm = require('node:vm');
 const { createThesisTutorService } = require('../electron/services/thesisTutorService.cjs');
+const { lookupDoi, normalizeDoi } = require('../electron/services/thesisTutorDoiLookup.cjs');
+const { parseBibtex, parseBibliographyFile, selectNewEntries } = require('../electron/services/thesisTutorBibliography.cjs');
 const { getThesisTutorDir } = require('../electron/utils/paths.cjs');
 
 function createMockApp(userDataDir) {
@@ -42,10 +47,48 @@ function createDialogService() {
 }
 
 async function main() {
+  const auditSource = fs.readFileSync(path.join(__dirname, '../src/features/thesis-tutor/model/thesisTutorEvidenceAudit.ts'), 'utf-8');
+  const auditExports = {};
+  vm.runInNewContext(ts.transpileModule(auditSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: auditExports });
+  const audit = auditExports.auditThesisEvidence(
+    '结论一[证据:ref-ok]，结论二[证据:ref-pending]，结论三[证据:ref-missing]。\n```text\n[证据:ref-code]\n```',
+    [
+      { id: 'ref-ok', title: '已核验原文', verificationStatus: 'verified', evidenceLocator: '第 3 页' },
+      { id: 'ref-pending', title: '待核验题录', verificationStatus: 'unverified', evidenceLocator: '' },
+    ],
+  );
+  assert.equal(audit.markerCount, 3);
+  assert.equal(audit.referencedCount, 3);
+  assert.deepEqual(Array.from(audit.items, (item) => item.issue), ['unverified', 'missing']);
+  assert.equal(auditExports.auditThesisEvidence('普通正文没有标记', []).markerCount, 0);
+  assert.equal(auditExports.auditThesisEvidence('[证据:ref-ok]', [{ id: 'ref-ok', title: '旧条目', verificationStatus: 'verified' }]).items[0].issue, 'no-locator');
+
+  assert.equal(normalizeDoi('https://doi.org/10.1234/example'), '10.1234/example');
+  assert.throws(() => normalizeDoi('https://localhost/private'), /有效的 DOI/);
+  const doiLookup = await lookupDoi('10.1234/example', async (url) => {
+    assert.equal(url, 'https://api.crossref.org/works/10.1234%2Fexample');
+    return new Response(JSON.stringify({ message: {
+      DOI: '10.1234/example', title: ['A Verified Title'], author: [{ family: 'Wang', given: 'Li' }],
+      published: { 'date-parts': [[2024]] }, 'container-title': ['Journal of Examples'],
+    } }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+  assert.equal(doiLookup.title, 'A Verified Title');
+  assert.equal(doiLookup.authors, 'Wang Li');
+  await assert.rejects(lookupDoi('10.1234/missing', async () => new Response('', { status: 404 })), /未找到/);
+
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'yibiao-thesis-tutor-'));
   const userDataDir = path.join(tempRoot, 'userData');
   const exportDir = path.join(tempRoot, 'exports');
   fs.mkdirSync(exportDir, { recursive: true });
+
+  const risPath = path.join(exportDir, '中文题录.ris');
+  fs.writeFileSync(risPath, iconv.encode('TY  - JOUR\nTI  - 中文题名\nAU  - 张三\nPY  - 2024\nJO  - 学术期刊\nDO  - 10.5678/chinese\nER  - \n', 'gb18030'));
+  assert.equal(parseBibliographyFile(risPath).entries[0].title, '中文题名');
+  assert.equal(parseBibliographyFile(risPath).entries[0].source, '学术期刊');
+  const bibEntries = parseBibtex('@article{one, title={{Nested} title}, author={Wang and Li}, year={2025}, doi={10.5678/nested}}');
+  assert.equal(bibEntries[0].title, 'Nested title');
+  assert.equal(bibEntries[0].authors, 'Wang, Li');
+  assert.equal(selectNewEntries(bibEntries, [{ title: 'Nested title', year: '2025' }]).duplicates, 1);
 
   const app = createMockApp(userDataDir);
   const dialogService = createDialogService();
@@ -117,11 +160,35 @@ async function main() {
         verificationStatus: 'unknown',
         title: '投标文件风险识别研究',
         summary: '用于验证证据链保存。',
+        doi: '10.1234/example',
+        searchDatabase: '知网',
+        searchQuery: '投标文件 AND 风险识别',
+        searchedAt: '2026-09-18',
+        screeningNote: '题目与研究问题相关',
+        evidenceLocator: '第 3 页',
       }],
     });
     assert.equal(state.references[0].type, 'literature');
     assert.equal(state.references[0].verificationStatus, 'unverified');
     assert.equal(state.activeReferenceId, 'ref-1');
+    assert.equal(state.references[0].searchDatabase, '知网');
+    assert.equal(state.references[0].evidenceLocator, '第 3 页');
+
+    dialogService.selectOpenPath(risPath);
+    const bibliographyPreview = await service.previewBibliographyImport({ references: state.references });
+    assert.equal(bibliographyPreview.canceled, false);
+    assert.equal(bibliographyPreview.candidates.length, 1);
+    assert.equal(bibliographyPreview.candidates[0].title, '中文题名');
+    const bibliographyImport = service.commitBibliographyImport({
+      references: state.references,
+      candidates: bibliographyPreview.candidates,
+      fileName: bibliographyPreview.fileName,
+    });
+    assert.equal(bibliographyImport.addedCount, 1);
+    assert.equal(bibliographyImport.state.references[1].verificationStatus, 'unverified');
+    assert.equal(bibliographyImport.state.references[1].doi, '10.5678/chinese');
+    assert.equal(service.commitBibliographyImport({ references: bibliographyImport.state.references, candidates: bibliographyPreview.candidates }).addedCount, 0);
+    state = bibliographyImport.state;
 
     state = service.saveFeedback({
       feedbackItems: [{ id: 'feedback-1', title: '补充研究边界', priority: 'urgent', status: 'open' }],
@@ -169,6 +236,8 @@ async function main() {
     assert.match(aiRequests[0].messages[1].content, /智能投标文件风险识别研究/);
     assert.match(aiRequests[0].messages[1].content, /真实项目材料/);
     assert.match(aiRequests[0].messages[1].content, /待核验/);
+    assert.match(aiRequests[0].messages[1].content, /投标文件 AND 风险识别/);
+    assert.match(aiRequests[0].messages[1].content, /第 3 页/);
 
     const backupPath = path.join(exportDir, 'workspace.json');
     dialogService.selectSavePath(backupPath);

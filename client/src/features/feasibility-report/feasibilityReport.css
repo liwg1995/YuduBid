@@ -1,6 +1,7 @@
 .feasibility-report-page {
   height: 100%;
   min-height: 0;
+  container-type: inline-size;
   padding-bottom: 24px;
 }
 
@@ -914,5 +915,18 @@
   .feasibility-document-preview-pane, .feasibility-outline-detail-pane { min-height: 480px; }
   .feasibility-content-workspace { grid-template-columns: 1fr; height: auto; }
   .feasibility-content-sidebar { min-height: 680px; border-right: 0; border-bottom: 1px solid var(--yb-border-soft); }
+  .feasibility-materials-grid > label { grid-column: 1 / -1 !important; }
+}
+
+@container (max-width: 900px) {
+  .feasibility-project-hero { align-items: flex-start; flex-direction: column; }
+  .feasibility-project-guide { grid-template-columns: minmax(0, 1fr); }
+  .feasibility-analysis-layout, .feasibility-outline-layout, .feasibility-parameters-layout, .feasibility-content-layout { overflow: auto; }
+  .feasibility-three-pane-workspace, .feasibility-outline-workspace { grid-template-columns: minmax(0, 1fr); overflow: visible; }
+  .feasibility-task-card { min-height: 280px; border-right: 0; border-bottom: 1px solid var(--yb-border-soft); }
+  .feasibility-document-editor-pane, .feasibility-outline-structure-pane { min-height: 480px; border-right: 0; border-bottom: 1px solid var(--yb-border-soft); }
+  .feasibility-document-preview-pane, .feasibility-outline-detail-pane { min-height: 480px; }
+  .feasibility-content-workspace { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .feasibility-content-sidebar { min-height: 320px; border-right: 0; border-bottom: 1px solid var(--yb-border-soft); }
   .feasibility-materials-grid > label { grid-column: 1 / -1 !important; }
 }
