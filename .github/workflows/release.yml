@@ -63,7 +63,7 @@ jobs:
 
       - name: Cache Electron build downloads
         if: runner.os == 'macOS'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/Library/Caches/electron
