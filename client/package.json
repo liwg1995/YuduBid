@@ -178,7 +178,7 @@
     "react-markdown": "^10.1.0",
     "rehype-raw": "^7.0.0",
     "typescript": "^5.9.2",
-    "vite": "^7.1.7",
+    "vite": "^8.3.0",
     "wait-on": "^8.0.4"
   },
   "overrides": {
