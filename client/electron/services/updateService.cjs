@@ -264,6 +264,42 @@ function cancelReleaseInstallerDownload(options = {}) {
   return { success: true, canceled: true, message: '已取消更新下载' };
 }
 
+function openMacInstaller(installerPath, app, options = {}) {
+  const launch = options.launch || spawn;
+  const scheduleQuit = options.scheduleQuit || setTimeout;
+  const isDmg = path.extname(installerPath).toLowerCase() === '.dmg';
+
+  return new Promise((resolve) => {
+    let child;
+    let settled = false;
+    try {
+      child = launch('/usr/bin/open', [installerPath], { stdio: 'ignore' });
+    } catch (error) {
+      resolve({ success: false, message: error?.message || '打开安装包失败' });
+      return;
+    }
+
+    child.once('error', (error) => {
+      settled = true;
+      resolve({ success: false, message: error?.message || '打开安装包失败' });
+    });
+    child.once('close', (code) => {
+      if (settled) return;
+      settled = true;
+      if (code !== 0) {
+        resolve({ success: false, message: `打开安装包失败（退出码 ${code}）` });
+        return;
+      }
+      if (isDmg) {
+        scheduleQuit(() => app?.quit?.(), 800);
+        resolve({ success: true, message: '安装镜像已打开，应用即将退出；请在弹出的窗口中将应用拖入“应用程序”文件夹' });
+        return;
+      }
+      resolve({ success: true, message: 'ZIP 安装包已打开，请解压后手动将应用拖入“应用程序”文件夹' });
+    });
+  });
+}
+
 async function installDownloadedRelease(options = {}) {
   const app = options.app;
   const installerPath = updateState.releaseInstallerPath;
@@ -295,16 +331,7 @@ async function installDownloadedRelease(options = {}) {
   }
 
   if (process.platform === 'darwin') {
-    try {
-      const child = spawn('open', [installerPath], {
-        detached: true,
-        stdio: 'ignore',
-      });
-      child.unref();
-      return { success: true, message: '安装包已打开，请按提示覆盖安装' };
-    } catch (error) {
-      return { success: false, message: error?.message || '打开安装包失败' };
-    }
+    return openMacInstaller(installerPath, app);
   }
 
   return { success: false, message: '当前系统暂不支持包内安装' };
@@ -328,4 +355,5 @@ module.exports = {
   cancelReleaseInstallerDownload,
   installDownloadedRelease,
   getDownloadedReleasePath,
+  openMacInstaller,
 };

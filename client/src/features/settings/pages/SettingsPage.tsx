@@ -1053,7 +1053,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   };
 
   const installDownloadedRelease = async () => {
-    setReleaseDownloadState((prev) => ({ ...prev, status: 'installing', message: '正在启动安装程序' }));
+    setReleaseDownloadState((prev) => ({ ...prev, status: 'installing', message: window.yibiao?.platform === 'darwin' ? '正在打开安装镜像' : '正在启动安装程序' }));
     try {
       const result = await window.yibiao?.installDownloadedRelease();
       if (!result?.success) {
@@ -2501,6 +2501,9 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                         </span>
                       </div>
                     )}
+                    {releaseDownloaded && window.yibiao?.platform === 'darwin' && releaseDownloadState.fileName.toLowerCase().endsWith('.dmg') && (
+                      <p>点击“立即安装”后应用会退出；在弹出的安装窗口中将应用拖入“应用程序”。</p>
+                    )}
                   </div>
                 )}
                 <div className="release-detail-actions">
@@ -2537,7 +2540,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                     type="button"
                     className="primary-action"
                     disabled={!latestDownloadUrl || releaseDownloading || releaseInstalling}
-                    title={latestDownloadUrl ? '下载并安装当前系统安装包' : '当前系统安装包仍在构建或上传'}
+                    title={latestDownloadUrl ? (releaseDownloaded && window.yibiao?.platform === 'darwin' ? '打开安装镜像并退出当前应用' : '下载并安装当前系统安装包') : '当前系统安装包仍在构建或上传'}
                     onClick={() => {
                       if (releaseDownloaded) {
                         void installDownloadedRelease();
