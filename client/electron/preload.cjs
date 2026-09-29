@@ -282,6 +282,7 @@ const bridge = {
     },
   },
   knowledgeBase: {
+    // 知识库与资信库使用独立存储。
     getMigrationStatus: () => invoke('knowledge-base:get-migration-status'),
     migrateLegacy: () => invoke('knowledge-base:migrate-legacy'),
     list: () => invoke('knowledge-base:list'),
@@ -299,6 +300,21 @@ const bridge = {
       ipcRenderer.on('knowledge-base:event', listener);
       return () => ipcRenderer.removeListener('knowledge-base:event', listener);
     },
+  },
+  credentialLibrary: {
+    selectImages: () => invoke('credential-library:select-images'),
+    load: () => invoke('credential-library:load'),
+    saveProfile: (partial) => invoke('credential-library:save-profile', partial),
+    addProfileImages: (fieldKey, filePaths) => invoke('credential-library:add-profile-images', fieldKey, filePaths),
+    deleteImage: (imageId) => invoke('credential-library:delete-image', imageId),
+    saveCertificate: (payload) => invoke('credential-library:save-certificate', payload),
+    deleteCertificate: (recordId) => invoke('credential-library:delete-certificate', recordId),
+    saveEmployee: (payload) => invoke('credential-library:save-employee', payload),
+    deleteEmployee: (recordId) => invoke('credential-library:delete-employee', recordId),
+    saveProject: (payload) => invoke('credential-library:save-project', payload),
+    deleteProject: (recordId) => invoke('credential-library:delete-project', recordId),
+    saveOtherMaterial: (payload) => invoke('credential-library:save-other-material', payload),
+    deleteOtherMaterial: (recordId) => invoke('credential-library:delete-other-material', recordId),
   },
   knowledgeImage: {
     listFolders: () => invoke('knowledge-image:list-folders'),
@@ -326,6 +342,7 @@ const bridge = {
     importOriginalPlanDocument: (payload) => invoke('technical-plan:import-original-plan-document', payload),
     importGeneratedOriginalPlan: (payload) => invoke('technical-plan:import-generated-original-plan', payload),
     readTenderMarkdown: (payload) => invoke('technical-plan:read-tender-markdown', payload),
+    saveSelectedBidSection: (payload) => invoke('technical-plan:save-selected-bid-section', payload),
     readOriginalPlanMarkdown: (payload) => invoke('technical-plan:read-original-plan-markdown', payload),
     updateStep: (payload) => invoke('technical-plan:update-step', payload),
     switchWorkflowKind: (workflowKind) => invoke('technical-plan:switch-workflow-kind', workflowKind),
@@ -489,6 +506,7 @@ const bridge = {
     },
   },
   tasks: {
+    startBidSectionExtraction: (payload) => invoke('tasks:start-bid-section-extraction', payload),
     startBidAnalysis: (payload) => invoke('tasks:start-bid-analysis', payload),
     startOutlineGeneration: (payload) => invoke('tasks:start-outline-generation', payload),
     startGlobalFactsGeneration: (payload) => invoke('tasks:start-global-facts-generation', payload),
@@ -522,8 +540,10 @@ const bridge = {
     list: () => invoke('system-fonts:list'),
   },
   export: {
+    previewWord: (payload) => invoke('export:preview-word', payload),
     exportWord: (payload) => invoke('export:word', payload),
     showExportFile: (filePath) => invoke('export:show-file', filePath),
+    checkWordLayout: (filePath) => invoke('export:check-word-layout', filePath),
     onWordExportProgress: (callback) => {
       const listener = (_event, payload) => callback(payload);
       ipcRenderer.on('export:word-progress', listener);

@@ -449,19 +449,36 @@ function createConfigStore(app, options = {}) {
     }
   }
 
+  function decryptSecretFields(config, { requirePrefix = false } = {}) {
+    let needsMigration = false;
+    visitSecretFields(config, (parent, key) => {
+      let value = parent[key];
+      if (!value) return;
+      if (requirePrefix && !value.startsWith(ENCRYPTED_PREFIX)) throw new Error('加密配置格式无效；原文件未修改');
+      let depth = 0;
+      while (value.startsWith(ENCRYPTED_PREFIX)) {
+        if (!canEncryptSecrets()) throw new Error('系统密钥服务不可用，无法解密现有配置；原文件未修改');
+        if (depth >= 4) throw new Error('配置中的凭据加密层数异常；原文件未修改');
+        const encoded = value.slice(ENCRYPTED_PREFIX.length);
+        const ciphertext = Buffer.from(encoded, 'base64');
+        if (!encoded || !ciphertext.length || ciphertext.toString('base64') !== encoded) {
+          throw new Error('加密配置格式无效；原文件未修改');
+        }
+        value = storage.decryptString(ciphertext);
+        depth += 1;
+      }
+      if (depth > 1 || (depth && !requirePrefix)) needsMigration = true;
+      parent[key] = value;
+    });
+    return needsMigration;
+  }
+
   function readConfigFile(raw = fs.readFileSync(configFile, 'utf-8')) {
     const stored = JSON.parse(raw);
     const config = cloneConfig(stored);
     delete config.secrets_encrypted;
-    if (stored.secrets_encrypted) {
-      if (!canEncryptSecrets()) throw new Error('系统密钥服务不可用，无法解密现有配置；原文件未修改');
-      visitSecretFields(config, (parent, key) => {
-        if (!parent[key]) return;
-        if (!parent[key].startsWith(ENCRYPTED_PREFIX)) throw new Error('加密配置格式无效；原文件未修改');
-        parent[key] = storage.decryptString(Buffer.from(parent[key].slice(ENCRYPTED_PREFIX.length), 'base64'));
-      });
-    }
-    return { stored, config };
+    const needsSecretMigration = decryptSecretFields(config, { requirePrefix: Boolean(stored.secrets_encrypted) });
+    return { stored, config, needsSecretMigration };
   }
 
   function persist(config) {
@@ -511,11 +528,11 @@ function createConfigStore(app, options = {}) {
       try {
         const raw = fs.readFileSync(configFile, 'utf-8');
         if (cachedRaw === raw && cachedConfig) return cloneConfig(cachedConfig);
-        const { stored, config: hydrated } = readConfigFile(raw);
+        const { stored, config: hydrated, needsSecretMigration } = readConfigFile(raw);
         const config = normalizeConfig(hydrated);
         let plaintextSecrets = false;
         visitSecretFields(hydrated, (parent, key) => { if (parent[key]) plaintextSecrets = true; });
-        if (JSON.stringify(hydrated) !== JSON.stringify(config)
+        if (needsSecretMigration || JSON.stringify(hydrated) !== JSON.stringify(config)
           || stored.schema_version !== CONFIG_SCHEMA_VERSION
           || (canEncryptSecrets() && !stored.secrets_encrypted && plaintextSecrets)) {
           persist(config);
@@ -531,19 +548,21 @@ function createConfigStore(app, options = {}) {
 
     save(config) {
       try {
+        const incoming = cloneConfig(config || {});
+        decryptSecretFields(incoming);
         const currentConfig = fs.existsSync(configFile)
           ? normalizeConfig(readConfigFile().config)
           : normalizeConfig();
         const nextConfig = normalizeConfig({
           ...currentConfig,
-          ...config,
+          ...incoming,
           text_model_profiles: {
             ...currentConfig.text_model_profiles,
-            ...(config && config.text_model_profiles ? config.text_model_profiles : {}),
+            ...(incoming.text_model_profiles || {}),
           },
           image_model_profiles: {
             ...currentConfig.image_model_profiles,
-            ...(config && config.image_model_profiles ? config.image_model_profiles : {}),
+            ...(incoming.image_model_profiles || {}),
           },
         });
         persist(nextConfig);

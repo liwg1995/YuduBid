@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { BidExportTemplateRecord, BidWordExportMode } from '../../../shared/types/exportFormat';
 import { useToast } from '../../../shared/ui';
 
@@ -11,9 +11,13 @@ interface BidWordExportDialogProps {
   disabled?: boolean;
   onConfirm: (mode: Exclude<BidWordExportMode, 'original-template'>, template?: BidExportTemplateRecord) => Promise<void>;
   onOriginal?: () => Promise<void>;
+  extraOptions?: ReactNode;
+  title?: string;
+  description?: string;
+  kicker?: string;
 }
 
-function BidWordExportDialog({ open, onOpenChange, allowOriginal = false, originalAvailable = false, disabled = false, onConfirm, onOriginal }: BidWordExportDialogProps) {
+function BidWordExportDialog({ open, onOpenChange, allowOriginal = false, originalAvailable = false, disabled = false, onConfirm, onOriginal, extraOptions, title = '选择导出排版', description = '本次选择只影响当前导出的招投标文档，不影响其他业务模块。', kicker = '招投标 Word 导出' }: BidWordExportDialogProps) {
   const { showToast } = useToast();
   const [mode, setMode] = useState<BidWordExportMode>('word-optimization');
   const [wordOptimizationEnabled, setWordOptimizationEnabled] = useState(false);
@@ -101,9 +105,9 @@ function BidWordExportDialog({ open, onOpenChange, allowOriginal = false, origin
         <Dialog.Overlay className="content-regenerate-modal bid-export-choice-overlay" />
         <Dialog.Content className="bid-export-choice-card">
           <div className="content-regenerate-card-head">
-            <span className="section-kicker">招投标 Word 导出</span>
-            <Dialog.Title>选择导出排版</Dialog.Title>
-            <Dialog.Description>本次选择只影响当前导出的招投标文档，不影响其他业务模块。</Dialog.Description>
+            <span className="section-kicker">{kicker}</span>
+            <Dialog.Title>{title}</Dialog.Title>
+            <Dialog.Description>{description}</Dialog.Description>
           </div>
           <div className="bid-export-choice-list">
             {allowOriginal ? <label className={`bid-export-choice${!originalAvailable ? ' is-disabled' : ''}`}><input type="radio" name="bid-export-mode" checked={mode === 'original-template'} disabled={!originalAvailable} onChange={() => setMode('original-template')} /><span><strong>原方案格式</strong><small>保留导入 DOCX 的样式、页眉页脚和已有图片。</small></span></label> : null}
@@ -136,6 +140,7 @@ function BidWordExportDialog({ open, onOpenChange, allowOriginal = false, origin
             ) : null}
             <label className="bid-export-choice"><input type="radio" name="bid-export-mode" checked={mode === 'basic'} onChange={() => setMode('basic')} /><span><strong>基础格式</strong><small>不应用技能或自定义模板，保留兼容导出格式。</small></span></label>
           </div>
+          {extraOptions}
           <div className="content-regenerate-actions">
             <Dialog.Close className="secondary-action" type="button" disabled={disabled}>取消</Dialog.Close>
             <button type="button" className="primary-action" disabled={disabled || loading || (mode === 'custom-template' && !filteredTemplates.length)} onClick={() => void confirm()}>{loading ? '读取配置中…' : '继续导出'}</button>

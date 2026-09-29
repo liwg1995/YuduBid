@@ -37,6 +37,7 @@ export type SectionId =
   | 'patent-prior-art'
   | 'patent-iteration'
   | 'knowledge-base'
+  | 'credential-library'
   | 'image-knowledge-base'
   | 'duplicate-check'
   | 'rejection-check'

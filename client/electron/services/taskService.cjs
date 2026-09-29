@@ -1,16 +1,21 @@
 const crypto = require('node:crypto');
 const { runBidAnalysisTask } = require('./bidAnalysisTask.cjs');
+const { runBidSectionExtractionTask } = require('./bidSectionExtractionTask.cjs');
 const { runContentGenerationTask } = require('./contentGenerationTask.cjs');
 const { runGlobalFactsTask } = require('./globalFactsTask.cjs');
 const { runOutlineGenerationTask, isMissingTechnicalScoreItems } = require('./outlineGenerationTask.cjs');
 const { runRejectionCheckTask, runRejectionItemsExtractionTask } = require('./rejectionCheckTask.cjs');
 
 const taskDefinitions = {
+  'bid-section-extraction': {
+    label: '多标段识别', group: 'technical-plan', groupLabel: '技术方案', step: 2,
+    lockPolicy: 'group-exclusive', stateKey: 'technicalPlan', field: 'bidSectionExtractionTask',
+  },
   'bid-analysis': {
     label: '招标文件解析',
     group: 'technical-plan',
     groupLabel: '技术方案',
-    step: 2,
+    step: 3,
     lockPolicy: 'group-exclusive',
     stateKey: 'technicalPlan',
     field: 'bidAnalysisTask',
@@ -19,7 +24,7 @@ const taskDefinitions = {
     label: '目录生成',
     group: 'technical-plan',
     groupLabel: '技术方案',
-    step: 3,
+    step: 4,
     lockPolicy: 'group-exclusive',
     stateKey: 'technicalPlan',
     field: 'outlineGenerationTask',
@@ -28,7 +33,7 @@ const taskDefinitions = {
     label: '全局事实设定',
     group: 'technical-plan',
     groupLabel: '技术方案',
-    step: 4,
+    step: 5,
     lockPolicy: 'group-exclusive',
     stateKey: 'technicalPlan',
     field: 'globalFactsTask',
@@ -37,7 +42,7 @@ const taskDefinitions = {
     label: '正文生成',
     group: 'technical-plan',
     groupLabel: '技术方案',
-    step: 5,
+    step: 6,
     lockPolicy: 'group-exclusive',
     stateKey: 'technicalPlan',
     field: 'contentGenerationTask',
@@ -252,6 +257,18 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
     const taskField = getTaskField(task.type);
     if (taskField) {
       patch[taskField] = state?.[taskField] || task;
+    }
+
+    if (task.type === 'bid-section-extraction') {
+      copyPatchFields(patch, state, ['bidSections', 'selectedBidSectionId', 'bidSectionSource']);
+      if (task.status === 'success') {
+        copyPatchFields(patch, state, [
+          'step', 'bidAnalysisTasks', 'bidAnalysisTask', 'outlineData', 'outlineGenerationTask',
+          'globalFacts', 'globalFactsTask', 'contentGenerationTask', 'contentGenerationOptions',
+          'contentGenerationSections', 'contentGenerationPlans', 'contentGenerationRuntime',
+          'generationSettingsSnapshot',
+        ]);
+      }
     }
 
     if (task.type === 'bid-analysis') {
@@ -624,6 +641,28 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
     emit(recoveredTask, buildSnapshot(getTaskDefinition('global-facts-generation'), state, recoveredTask));
   }
 
+  function recoverInterruptedBidSectionExtractionTask() {
+    const projects = technicalPlanStore.listProjects?.('technical-plan')?.projects || [];
+    const projectIds = new Set(['default', ...projects.map((project) => project.id)]);
+    for (const projectId of projectIds) {
+      const active = activeTasks.get('bid-section-extraction');
+      if (active && isActiveTaskStatus(active.status) && (active.project_id || 'default') === projectId) continue;
+      const technicalPlan = technicalPlanStore.loadTechnicalPlan({ workflowKind: 'technical-plan', projectId }) || {};
+      const task = technicalPlan.bidSectionExtractionTask;
+      if (!isActiveTaskStatus(task?.status)) continue;
+      const message = '上次多标段识别未完成，请重新识别';
+      const recoveredTask = {
+        ...task, status: 'error', progress: 100, error: message,
+        logs: [...(Array.isArray(task.logs) ? task.logs : []), message], updated_at: now(),
+      };
+      const state = technicalPlanStore.updateTechnicalPlan({
+        workflowKind: 'technical-plan', projectId,
+        bidSectionExtractionTask: recoveredTask,
+      });
+      emit(recoveredTask, buildSnapshot(getTaskDefinition('bid-section-extraction'), state, recoveredTask));
+    }
+  }
+
   function recoverInterruptedRejectionCheckTasks() {
     const staleExtractionMessage = '上次解析未完成，请重新解析';
     const staleCheckMessage = '上次检查未完成，请重新检查';
@@ -698,6 +737,16 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
 
   return {
     subscribe,
+    startBidSectionExtraction(payload) {
+      const plan = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
+      const hasDownstream = Boolean(Object.keys(plan.bidAnalysisTasks || {}).length
+        || plan.outlineData || (plan.globalFacts || []).length
+        || Object.keys(plan.contentGenerationSections || {}).length);
+      if (hasDownstream && payload?.confirmClearDownstream !== true) {
+        throw new Error('重新识别标段会清空当前生成结果，请确认后再执行');
+      }
+      return startManagedTask('bid-section-extraction', payload, runBidSectionExtractionTask);
+    },
     startBidAnalysis(payload) {
       return startManagedTask('bid-analysis', payload, runBidAnalysisTask);
     },
@@ -773,6 +822,7 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
       return startManagedTask('duplicate-analysis', payload, duplicateCheckService.runAnalysisTask);
     },
     getActiveTasks() {
+      recoverInterruptedBidSectionExtractionTask();
       recoverInterruptedContentGenerationTask();
       recoverInterruptedGlobalFactsTask();
       recoverInterruptedRejectionCheckTasks();

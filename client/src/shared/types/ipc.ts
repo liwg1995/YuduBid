@@ -6,6 +6,7 @@ import type { CodeGenerationSelectResult, CodeGenerationState } from './contract
 import type { GrantApplicationPanel, GrantApplicationProfile, GrantApplicationProject, GrantApplicationProjectList, GrantApplicationState, GrantFormFieldMapping, GrantProposalModuleKey, GrantProposalTemplateMapping, GrantProposalVisualSettings, GrantTemplateFillReport } from './contracts/grantApplication';
 import type { FeasibilityBackgroundTaskState, FeasibilityContentGenerationOptions, FeasibilityOutlineTemplate, FeasibilityProjectInfo, FeasibilityProjectList, FeasibilityProjectPayload, FeasibilityProjectRecord, FeasibilityReportState, FeasibilityReportStep, FeasibilityTaskEvent } from './contracts/feasibilityReport';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeImage, KnowledgeImageDeleteResult, KnowledgeImageFolder, KnowledgeImageReferenceResult, KnowledgeImageUploadResult, KnowledgeItem } from './contracts/knowledgeBase';
+import type { CredentialCertificate, CredentialEmployee, CredentialImageFieldKey, CredentialLibraryMutationResult, CredentialLibraryProfile, CredentialLibrarySnapshot, CredentialOtherMaterial, CredentialProject, CredentialRecordSavePayload } from './contracts/credentialLibrary';
 import type { OfficialDocumentPromptInput } from '../prompts/officialDocument';
 import type { OfficialDocumentImportResult, OfficialDocumentState } from './contracts/officialDocument';
 import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentPoint, PatentRevisionResult, PatentWorkspaceProjectList } from './contracts/patentGeneration';
@@ -16,7 +17,7 @@ import type { RejectionCheckWorkspaceState, RejectionDocumentRole } from './cont
 import type { SoftwareCopyrightAiIllustration, SoftwareCopyrightCase, SoftwareCopyrightCaseList, SoftwareCopyrightCaseMutationResult, SoftwareCopyrightCodeManifest, SoftwareCopyrightCodeMaterialReviewChecks, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightDraftVersion, SoftwareCopyrightDraftVersionComparison, SoftwareCopyrightExportBatch, SoftwareCopyrightFields, SoftwareCopyrightManualAssetReviewChecks, SoftwareCopyrightManualReviewChecks, SoftwareCopyrightManualReviewState, SoftwareCopyrightOptions, SoftwareCopyrightSelectResult, SoftwareCopyrightState, SoftwareCopyrightSubmissionReview } from './contracts/softwareCopyright';
 import type { BidAnalysisTaskState, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationRuntimeState, ContentGenerationSectionState, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanProjectPayload, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind, TechnicalVolumeConfig } from './contracts/technicalPlan';
 import type { ThesisTutorBibliographyCandidate, ThesisTutorBibliographyPreview, ThesisTutorGeneratePayload, ThesisTutorHistoryItem, ThesisTutorImportSourceResult, ThesisTutorProfile, ThesisTutorReference, ThesisTutorState, ThesisTutorWorkspaceTransferResult } from './contracts/thesisTutor';
-import type { OutlineData, OutlineMode } from './outline';
+import type { OutlineData, OutlineItem, OutlineMode } from './outline';
 import type { InstalledPluginRecord, PluginEvent, PluginMutationResult } from './plugin';
 
 export interface TaskEvent<TState = unknown, TRejectionCheckState = unknown, TDuplicateCheckState = unknown> {
@@ -47,6 +48,14 @@ export interface WordExportResult {
   filePath?: string;
   message?: string;
   warnings?: string[];
+}
+
+export interface WordLayoutAuditResult {
+  renderer: 'LibreOffice';
+  pageCount: number;
+  checkedPages: number;
+  truncated: boolean;
+  issues: Array<{ page: number; severity: 'warning' | 'review'; code: string; message: string }>;
 }
 
 export interface LatestReleaseInfo {
@@ -91,7 +100,7 @@ export type UsageTrendRange = '1h' | '6h' | '1d' | '7d' | '14d';
 export interface UsageStatsSummary {
   version: number;
   updated_at?: string | null;
-  totals: { requests: number; prompt_tokens: number; completion_tokens: number; reasoning_tokens: number; total_tokens: number };
+  totals: { requests: number; prompt_tokens: number; completion_tokens: number; reasoning_tokens: number; cached_tokens: number; total_tokens: number };
   daily: Array<{ date: string; requests: number; prompt_tokens: number; completion_tokens: number; reasoning_tokens: number; total_tokens: number }>;
   trend: Array<{ date: string; requests: number; prompt_tokens: number; completion_tokens: number; reasoning_tokens: number; total_tokens: number }>;
   by_model: Array<{ provider: string; model: string; requests: number; total_tokens: number }>;
@@ -533,6 +542,21 @@ export interface YuDuBidBridge {
     readAnalysis: (documentId: string) => Promise<KnowledgeAnalysisSnapshot>;
     onEvent: (callback: (event: KnowledgeBaseEvent) => void) => () => void;
   };
+  credentialLibrary: {
+    selectImages: () => Promise<string[]>;
+    load: () => Promise<CredentialLibrarySnapshot>;
+    saveProfile: (partial: Partial<CredentialLibraryProfile>) => Promise<CredentialLibrarySnapshot>;
+    addProfileImages: (fieldKey: CredentialImageFieldKey, filePaths: string[]) => Promise<CredentialLibrarySnapshot>;
+    deleteImage: (imageId: string) => Promise<CredentialLibraryMutationResult>;
+    saveCertificate: (payload: CredentialRecordSavePayload<CredentialCertificate>) => Promise<CredentialLibraryMutationResult>;
+    deleteCertificate: (recordId: string) => Promise<CredentialLibraryMutationResult>;
+    saveEmployee: (payload: CredentialRecordSavePayload<CredentialEmployee>) => Promise<CredentialLibraryMutationResult>;
+    deleteEmployee: (recordId: string) => Promise<CredentialLibraryMutationResult>;
+    saveProject: (payload: CredentialRecordSavePayload<CredentialProject>) => Promise<CredentialLibraryMutationResult>;
+    deleteProject: (recordId: string) => Promise<CredentialLibraryMutationResult>;
+    saveOtherMaterial: (payload: CredentialRecordSavePayload<CredentialOtherMaterial>) => Promise<CredentialLibraryMutationResult>;
+    deleteOtherMaterial: (recordId: string) => Promise<CredentialLibraryMutationResult>;
+  };
   knowledgeImage: {
     listFolders: () => Promise<KnowledgeImageFolder[]>;
     createFolder: (name: string) => Promise<KnowledgeImageFolder>;
@@ -559,6 +583,7 @@ export interface YuDuBidBridge {
     importOriginalPlanDocument: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
     importGeneratedOriginalPlan: (payload?: TechnicalPlanProjectPayload & { sourceProjectId?: string; source_project_id?: string }) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string; tenderMarkdown?: string }>;
     readTenderMarkdown: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<string>;
+    saveSelectedBidSection: (payload: TechnicalPlanProjectPayload & { sectionId: string }) => Promise<TechnicalPlanState>;
     readOriginalPlanMarkdown: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<string>;
     updateStep: (payload: TechnicalPlanStep | (TechnicalPlanProjectPayload & { step: TechnicalPlanStep })) => Promise<TechnicalPlanState>;
     switchWorkflowKind: (workflowKind: TechnicalPlanWorkflowKind) => Promise<TechnicalPlanState>;
@@ -702,6 +727,7 @@ export interface YuDuBidBridge {
     onEvent: (callback: (event: PluginEvent) => void) => () => void;
   };
   tasks: {
+    startBidSectionExtraction: (payload: unknown) => Promise<unknown>;
     startBidAnalysis: (payload: unknown) => Promise<unknown>;
     startOutlineGeneration: (payload: unknown) => Promise<unknown>;
     startGlobalFactsGeneration: (payload: unknown) => Promise<unknown>;
@@ -730,8 +756,10 @@ export interface YuDuBidBridge {
     list: () => Promise<string[]>;
   };
   export: {
-  exportWord: (payload: unknown) => Promise<WordExportResult>;
+    previewWord: (payload: { project_name?: string; documentProfile?: 'feasibility-report'; outline: OutlineItem[] }) => Promise<Uint8Array>;
+    exportWord: (payload: unknown) => Promise<WordExportResult>;
     showExportFile: (filePath: string) => Promise<{ success: boolean; path: string }>;
+    checkWordLayout: (filePath: string) => Promise<WordLayoutAuditResult>;
     onWordExportProgress: (callback: (event: WordExportProgressEvent) => void) => () => void;
   };
 }

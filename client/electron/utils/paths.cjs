@@ -121,7 +121,12 @@ function getAiLogsDir(app) {
   return path.join(getUserDataPath(app), 'logs', 'ai');
 }
 
+function getCredentialLibraryDir(app) {
+  return path.join(getWorkspaceDir(app), 'credential-library');
+}
+
 module.exports = {
+  getCredentialLibraryDir,
   getAgentRunsDir,
   getAiLogsDir,
   getDuplicateCheckContentDir,

@@ -344,6 +344,7 @@ function createFeasibilityReportTaskService({ aiService, technicalDiagramService
         const useAiImages = Boolean(requestedOptions.useAiImages && imageAvailability.available);
         const useMermaidImages = Boolean(requestedOptions.useMermaidImages);
         const useTechnicalDiagrams = Boolean(requestedOptions.useTechnicalDiagrams && technicalDiagramService?.generateDiagram && aiService.isSkillEnabled?.('technical-diagram'));
+        const autoReview = Boolean(requestedOptions.autoReview);
         const requestedMaxAiImages = Number(requestedOptions.maxAiImages);
         const maxAiImages = useAiImages ? Math.max(0, Math.min(Number.isFinite(requestedMaxAiImages) ? Math.round(requestedMaxAiImages) : 6, targets.length)) : 0;
         const maxMermaidImages = useMermaidImages ? Math.min(6, targets.length) : 0;
@@ -355,6 +356,8 @@ function createFeasibilityReportTaskService({ aiService, technicalDiagramService
         };
         let completed = 0;
         let failed = 0;
+        let reviewed = 0;
+        let reviewFailed = 0;
         update(3, `已确定 ${targets.length} 个待生成小节。配图方式：${[useAiImages ? 'AI 生图' : '', useTechnicalDiagrams ? '技术图谱' : '', useMermaidImages ? 'Mermaid' : ''].filter(Boolean).join('、') || '不配图'}。`, { stats: { total: targets.length, completed, failed, images: imageStats } });
         for (const { item, path } of targets) {
           if (isPauseRequested()) return { status: 'paused', message: `任务已暂停，已完成 ${completed} 个小节。`, stats: { total: targets.length, completed, failed } };
@@ -404,6 +407,22 @@ function createFeasibilityReportTaskService({ aiService, technicalDiagramService
               }
             }
             feasibilityReportStore.saveGeneratedChapterContent({ projectId, nodeId: item.id, content: markdown });
+            if (autoReview) {
+              update(Math.max(8, Math.round(((completed + failed + 0.85) / targets.length) * 95)), `正在审校“${item.title}”。`, { stats: { total: targets.length, completed, failed, reviewed, reviewFailed, currentNodeId: item.id, phase: 'reviewing' } });
+              try {
+                const reviewedMarkdown = normalizeGeneratedContentHeadings(await aiService.chat({
+                  messages: humanWritingMessages({ projectInfo: initial.projectInfo, keyParametersMarkdown: initial.keyParametersMarkdown, sectionPath: path, content: markdown }),
+                  temperature: 0.25,
+                }));
+                if (!reviewedMarkdown) throw new Error('模型未返回有效审校正文');
+                assertReviewPreservesProtectedContent(markdown, reviewedMarkdown);
+                feasibilityReportStore.saveReviewedChapterContent({ projectId, nodeId: item.id, content: reviewedMarkdown });
+                reviewed += 1;
+              } catch (reviewError) {
+                reviewFailed += 1;
+                update(Math.max(8, Math.round(((completed + failed + 0.9) / targets.length) * 95)), `“${item.title}”审校失败，已保留原正文：${reviewError.message || String(reviewError)}`, { stats: { total: targets.length, completed, failed, reviewed, reviewFailed, currentNodeId: item.id, phase: 'reviewing' } });
+              }
+            }
             completed += 1;
             update(Math.round(((completed + failed) / targets.length) * 95), `“${item.title}”已生成并保存。`, { stats: { total: targets.length, completed, failed, phase: 'generating', images: imageStats } });
           } catch (error) {
@@ -412,9 +431,10 @@ function createFeasibilityReportTaskService({ aiService, technicalDiagramService
             update(Math.round(((completed + failed) / targets.length) * 95), `“${item.title}”生成失败，已保留其他小节成果。`, { stats: { total: targets.length, completed, failed } });
           }
         }
-        const stats = { total: targets.length, completed, failed, phase: 'done', images: imageStats };
+        const stats = { total: targets.length, completed, failed, reviewed, reviewFailed, phase: 'done', images: imageStats };
         if (failed && !completed) return { status: 'error', message: '本轮正文生成失败，可点击补写失败小节重试。', error: '所有待生成小节均生成失败', stats };
-        return { message: failed ? `正文生成结束，成功 ${completed} 节、失败 ${failed} 节。` : `已完成 ${completed} 个正文小节。`, stats };
+        const reviewMessage = autoReview ? ` 自动审校成功 ${reviewed} 节、失败 ${reviewFailed} 节。` : '';
+        return { message: (failed ? `正文生成结束，成功 ${completed} 节、失败 ${failed} 节。` : `已完成 ${completed} 个正文小节。`) + reviewMessage, stats };
       }, () => {
         const initial = feasibilityReportStore.loadState({ projectId: payload.projectId });
         if (!initial.outlineData || !initial.keyParametersMarkdown.trim()) throw new Error('请先完成报告目录和关键参数');

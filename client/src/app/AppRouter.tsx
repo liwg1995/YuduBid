@@ -16,6 +16,7 @@ const FeasibilityReportHome = lazy(() => import('../features/feasibility-report/
 const GrantApplicationPage = lazy(() => import('../features/grant-application/pages/GrantApplicationPage'));
 const GrantApplicationProjectsPage = lazy(() => import('../features/grant-application/pages/GrantApplicationProjectsPage'));
 const KnowledgeLibraryPage = lazy(() => import('../features/knowledge-base/pages/KnowledgeLibraryPage'));
+const CredentialLibraryPage = lazy(() => import('../features/credential-library/pages/CredentialLibraryPage'));
 const OfficialDocumentDraftingPage = lazy(() => import('../features/official-document/pages/OfficialDocumentDraftingPage'));
 const PatentDisclosurePage = lazy(() => import('../features/patent-generation/pages/PatentDisclosurePage'));
 const PatentIterationPage = lazy(() => import('../features/patent-generation/pages/PatentIterationPage'));
@@ -108,6 +109,8 @@ function AppRouteContent({ activeSection, featureModuleSettings, pluginNavigatio
       return <PatentIterationPage onNavigate={onSectionChange} />;
     case 'knowledge-base':
       return <KnowledgeLibraryPage />;
+    case 'credential-library':
+      return <CredentialLibraryPage />;
     case 'image-knowledge-base':
       return <KnowledgeLibraryPage initialType="image" />;
     case 'duplicate-check':

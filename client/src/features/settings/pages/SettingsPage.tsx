@@ -2389,6 +2389,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           </div>
           <UsageTrendChart trend={usageStats?.trend || []} range={usageRange} />
           <div className="usage-thinking-note">Thinking Token：{(usageStats?.totals.reasoning_tokens || 0).toLocaleString()}（仅服务商返回该字段时统计）</div>
+          <div className="usage-thinking-note">缓存命中 Token：{(usageStats?.totals.cached_tokens || 0).toLocaleString()}（包含在输入 Token 中，仅服务商返回该字段时统计）</div>
           {usageStats?.by_model?.length ? (
             <div className="settings-list">
               {usageStats.by_model.map((item) => <div className="settings-row" key={`${item.provider}-${item.model}`}><div className="settings-row-copy"><strong>{item.model}</strong><span>{item.provider} · {item.requests} 次请求</span></div><strong>{item.total_tokens.toLocaleString()} Token</strong></div>)}

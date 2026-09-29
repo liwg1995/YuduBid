@@ -88,6 +88,8 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
   const [savingStep, setSavingStep] = useState(false);
   const [exportProgress, setExportProgress] = useState<ExportProgressState>(initialExportProgress);
   const [exportChoiceOpen, setExportChoiceOpen] = useState(false);
+  const [includePreparationNotes, setIncludePreparationNotes] = useState(true);
+  const [includeAppendixTables, setIncludeAppendixTables] = useState(true);
 
   useEffect(() => {
     let disposed = false;
@@ -231,6 +233,11 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
         document_title: '可行性研究报告',
         project_name: reportState.projectInfo.projectName || reportState.projectName,
         construction_unit: reportState.projectInfo.constructionUnit,
+        feasibility_options: {
+          includePreparationNotes,
+          includeAppendixTables,
+          project_info: reportState.projectInfo,
+        },
         outline: reportState.outlineData.outline,
       });
       if (!result) throw new Error('Word 导出服务尚未就绪，请重启客户端后重试');
@@ -378,6 +385,13 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
         onOpenChange={setExportChoiceOpen}
         disabled={exportProgress.running}
         onConfirm={exportWord}
+        title="导出可行性研究报告"
+        kicker="可研报告 Word 导出"
+        description="选择正文排版，并决定是否加入编制信息页和项目基本情况附表。"
+        extraOptions={<div className="bid-export-choice-list" aria-label="可研报告附加内容">
+          <label className="bid-export-choice"><input type="checkbox" checked={includePreparationNotes} onChange={(event) => setIncludePreparationNotes(event.target.checked)} /><span><strong>编制信息页</strong><small>列出项目名称、建设单位及待填写的编制人员信息。</small></span></label>
+          <label className="bid-export-choice"><input type="checkbox" checked={includeAppendixTables} onChange={(event) => setIncludeAppendixTables(event.target.checked)} /><span><strong>项目基本情况附表</strong><small>汇总当前项目资料中的规模、周期、投资和资金来源。</small></span></label>
+        </div>}
       />
       <Dialog.Root
         open={exportProgress.open}

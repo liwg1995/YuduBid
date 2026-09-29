@@ -694,6 +694,43 @@ function paragraphSpacingToTwips(value, unit, fontSizePoints = 12) {
   return pointsToTwips(measurementToPoints(value, unit, fontSizePoints));
 }
 
+function applyTemplateCharacterIndents(buffer, exportFormat) {
+  // docx only writes w:firstLine (twips). Word needs w:firstLineChars to retain
+  // the template's character unit instead of displaying its fallback as cm.
+  const characterIndents = new Map();
+  for (const style of [exportFormat.body_text, ...exportFormat.headings]) {
+    const characters = Number(style.first_line_indent_chars);
+    if (characters > 0) {
+      characterIndents.set(Math.round(characters * 240), Math.round(characters * 100));
+    }
+  }
+  const listCharacters = Number(exportFormat.body_text.list_indent_chars);
+  const listTwips = Math.round(listCharacters * 240);
+  if (!characterIndents.size && !(listCharacters > 0)) return buffer;
+  const zip = new AdmZip(buffer);
+  for (const name of ['word/styles.xml', 'word/document.xml', 'word/numbering.xml']) {
+    const entry = zip.getEntry(name);
+    if (!entry) continue;
+    const xml = entry.getData().toString('utf8');
+    const updated = xml.replace(/<w:ind\b[^>]*\/>/g, (indent) => {
+      let result = indent;
+      const twips = Number(/\bw:firstLine="(\d+)"/.exec(indent)?.[1]);
+      const characters = characterIndents.get(twips);
+      if (characters !== undefined && !/\bw:firstLineChars=/.test(result)) {
+        result = result.replace(/\s*\/>$/, ` w:firstLineChars="${characters}"/>`);
+      }
+      const left = Number(/\bw:left="(\d+)"/.exec(indent)?.[1]);
+      if (listCharacters > 0 && left === listTwips && /\bw:hanging="\d+"/.test(indent) && !/\bw:leftChars=/.test(result)) {
+        const hanging = Number(/\bw:hanging="(\d+)"/.exec(indent)?.[1]);
+        result = result.replace(/\s*\/>$/, ` w:leftChars="${Math.round(listCharacters * 100)}" w:hangingChars="${Math.round(hanging / 240 * 100)}"/>`);
+      }
+      return result;
+    });
+    if (updated !== xml) zip.updateFile(name, Buffer.from(updated, 'utf8'));
+  }
+  return zip.toBuffer();
+}
+
 function customLineSpacing(value, mode = 'multiple', unit = 'multiple') {
   if (mode === 'single') return { line: 240, lineRule: LineRuleType.AUTO };
   if (mode === 'one-and-half') return { line: 360, lineRule: LineRuleType.AUTO };
@@ -743,7 +780,7 @@ function customBodyParagraphOptions(context, overrides = {}) {
       after: paragraphSpacingToTwips(body.spacing_after_pt, body.spacing_after_unit, chineseSizeToPoints(body.size)),
       ...customLineSpacing(body.line_spacing_multiple, body.line_spacing_mode, body.line_spacing_unit),
     },
-    indent: { left: Math.round(body.list_indent_chars * 240), right: 0, firstLine: Math.round(body.first_line_indent_chars * 240) },
+    indent: { left: 0, right: 0, firstLine: Math.round(body.first_line_indent_chars * 240) },
     ...overrides,
   };
 }
@@ -1595,8 +1632,8 @@ function createUnorderedListReference(context) {
 
 function customListIndent(context) {
   const indentChars = Number(context?.exportFormat?.body_text?.list_indent_chars);
-  const left = Math.max(240, Math.round((Number.isFinite(indentChars) ? indentChars : 2) * 240));
-  return { left, hanging: 240, right: 0 };
+  const left = Math.max(0, Math.round((Number.isFinite(indentChars) ? indentChars : 2) * 240));
+  return { left, hanging: Math.min(240, left), right: 0 };
 }
 
 function orderedListNumbering(style, level) {
@@ -2940,7 +2977,9 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
         presalesProposalDocument,
         keepNext: optimized || formalDocument ? true : undefined,
         numbering: context.customTemplateEnabled ? undefined : optimized || structuredDocument ? { reference: WORD_OPTIMIZATION_HEADING_REFERENCE, level: headingDepth } : undefined,
-        indent: optimized || formalDocument ? { left: 0, right: 0 } : undefined,
+        indent: customHeading
+          ? { left: 0, right: 0, firstLine: Math.round(customHeading.first_line_indent_chars * 240) }
+          : optimized || formalDocument ? { left: 0, right: 0 } : undefined,
         tabStops: optimized || formalDocument ? [] : undefined,
         // 标题只有一行时不能使用两端对齐，否则中文字符会被拉开。
         // 保留正式公文一级标题居中，其余标题统一左对齐并保留编号缩进。
@@ -3344,6 +3383,7 @@ async function buildDocxResult(payload, options = {}) {
   const projectManagementDocumentEnabled = payload.document_profile === 'project-management' || payload.documentProfile === 'project-management';
   const presalesProposalDocumentEnabled = payload.document_profile === 'presales-proposal' || payload.documentProfile === 'presales-proposal';
   const feasibilityReportEnabled = payload.document_profile === 'feasibility-report' || payload.documentProfile === 'feasibility-report';
+  const feasibilityOptions = feasibilityReportEnabled && payload.feasibility_options && typeof payload.feasibility_options === 'object' ? payload.feasibility_options : null;
   const patentDisclosureEnabled = payload.document_profile === 'patent-disclosure' || payload.documentProfile === 'patent-disclosure';
   const structuredDocumentEnabled = projectManagementDocumentEnabled || presalesProposalDocumentEnabled;
   const formalDocumentEnabled = officialDocumentEnabled || structuredDocumentEnabled || patentDisclosureEnabled;
@@ -3419,10 +3459,47 @@ async function buildDocxResult(payload, options = {}) {
 
   const customCoverChildren = customCoverEnabled ? await createCustomBidCover(payload, context) : [];
 
+  if (feasibilityOptions?.includePreparationNotes) {
+    const info = feasibilityOptions.project_info || {};
+    children.push(
+      paragraph([textRun('可行性研究报告编制信息', { bold: true, size: 28, font: '黑体' })], { after: 260 }),
+      paragraph([textRun(`项目名称：${String(info.projectName || payload.project_name || '—')}`, { size: 22 })], { after: 140 }),
+      paragraph([textRun(`建设单位：${String(info.constructionUnit || '—')}`, { size: 22 })], { after: 140 }),
+      paragraph([textRun('编制单位：________________', { size: 22 })], { after: 140 }),
+      paragraph([textRun('编制人：________    校核人：________    审定人：________', { size: 22 })], { after: 140 }),
+      paragraph([textRun('编制依据及资料来源请在正式提交前由编制单位核实并补充。', { size: 20, color: '666666' })], { after: 260 }),
+      pageBreakParagraph(),
+    );
+  }
+
   reportProgress(context, 10, stats.mermaidCount
     ? `准备导出正文，并转换 ${stats.mermaidCount} 张 Mermaid 图。`
     : '准备导出正文。');
   await addOutlineItems(children, payload.outline || [], context);
+  if (feasibilityOptions?.includeAppendixTables) {
+    const info = feasibilityOptions.project_info || {};
+    const rows = [
+      ['项目名称', info.projectName || payload.project_name],
+      ['建设单位', info.constructionUnit],
+      ['建设地点', info.location],
+      ['建设内容与规模', info.constructionContent],
+      ['建设周期', info.constructionPeriodYears ? `${info.constructionPeriodYears} 年` : ''],
+      ['运营周期', info.operationPeriodYears ? `${info.operationPeriodYears} 年` : ''],
+      ['总投资', info.totalInvestment],
+      ['资金来源', info.fundingSource],
+    ];
+    const appendixRows = [['项目要素', '当前资料'], ...rows].map(([label, value], index) => new TableRow({
+      children: [label, String(value || '').trim() || '待补充'].map((cell) => new TableCell({
+        children: [paragraph([textRun(cell, { size: 20, bold: index === 0 })], { after: 40 })],
+        shading: index === 0 ? { type: ShadingType.CLEAR, fill: 'E9F1F5' } : undefined,
+      })),
+    }));
+    children.push(
+      pageBreakParagraph(),
+      paragraph([textRun('附表：项目基本情况', { bold: true, size: 28, font: '黑体' })], { after: 260 }),
+      new Table({ rows: appendixRows, width: { size: 9000, type: WidthType.DXA } }),
+    );
+  }
   reportProgress(context, 90, '正在生成 Word 文件。');
 
   const numbering = createNumberingConfig(context);
@@ -3690,7 +3767,12 @@ async function buildDocxResult(payload, options = {}) {
     sections,
   });
 
-  return { buffer: await Packer.toBuffer(doc), warnings: context.warnings, stats };
+  const buffer = await Packer.toBuffer(doc);
+  return {
+    buffer: customTemplateEnabled ? applyTemplateCharacterIndents(buffer, exportFormat) : buffer,
+    warnings: context.warnings,
+    stats,
+  };
 }
 
 async function buildDocxBuffer(payload, options = {}) {
@@ -3788,6 +3870,23 @@ function resolveBidTemplatePayload(payload = {}, templateStore) {
 
 function createExportService({ configStore, getTemplateStore } = {}) {
   return {
+    async previewWord(payload = {}) {
+      if (!Array.isArray(payload.outline) || payload.outline.length !== 1 || payload.outline[0]?.children?.length) {
+        throw new Error('请选择一个有正文的小节进行 Word 预览');
+      }
+      const content = String(payload.outline[0]?.content || '').trim();
+      if (!content) throw new Error('当前小节尚无正文');
+      const result = await buildDocxResult({
+        documentScope: 'bid',
+        exportMode: 'basic',
+        documentProfile: payload.documentProfile === 'feasibility-report' ? 'feasibility-report' : undefined,
+        project_name: String(payload.project_name || '技术方案'),
+        outline: [{ id: String(payload.outline[0].id || 'preview'), title: String(payload.outline[0].title || '当前小节'), description: '', content }],
+      }, { config: configStore?.load?.() || null });
+      const imageWarnings = result.warnings.filter((warning) => String(warning).startsWith('图片无法导出：'));
+      if (imageWarnings.length) throw new Error(`有 ${imageWarnings.length} 张图片无法用于 Word 预览：${imageWarnings[0]}`);
+      return new Uint8Array(result.buffer);
+    },
     showExportFile(filePath) {
       const target = String(filePath || '').trim();
       if (!target || !path.isAbsolute(target) || !fs.existsSync(target)) {

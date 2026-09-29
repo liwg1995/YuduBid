@@ -1,0 +1,9 @@
+.content-word-preview { height: min(72vh, 900px); min-height: 340px; overflow: auto; background: var(--yb-bg); border: 1px solid var(--yb-border); border-radius: var(--yb-radius-md); }
+.content-word-editor { min-height: 100%; }
+.content-word-status { padding: 20px; color: var(--yb-text-soft); }
+.content-word-status p { white-space: pre-wrap; }
+.content-word-overlay { position: fixed; inset: 0; z-index: 120; background: rgba(12, 18, 32, .55); }
+.content-word-dialog { position: fixed; top: 50%; left: 50%; z-index: 121; width: min(1000px, calc(100vw - 32px)); max-height: calc(100vh - 32px); transform: translate(-50%, -50%); display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px; padding: 18px; background: var(--yb-surface); border: 1px solid var(--yb-border); border-radius: var(--yb-radius-lg); box-shadow: var(--yb-shadow); color: var(--yb-text); }
+.content-word-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.content-word-dialog-head h2 { margin: 0 0 5px; }
+.content-word-dialog-head p { margin: 0; color: var(--yb-text-soft); }

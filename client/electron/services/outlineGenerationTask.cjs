@@ -1,4 +1,5 @@
 const { getBidAnalysisTasks } = require('./bidAnalysisTask.cjs');
+const { wordBudgetGuidance } = require('./generationWordBudget.cjs');
 
 function formatSuggestions(suggestions) {
   if (!suggestions?.length) return '';
@@ -157,20 +158,22 @@ function noScoreOutlineSystemPrompt(topLevelOnly = false) {
   return `你是专业的技术投标文件编写专家。招标文件没有可用的技术评分项。请根据项目概述、明确的技术要求及项目类型组织技术文件目录。只写技术方案正文，不加入商务、报价、资信章节，不虚构评分项、项目事实、参数、业绩或承诺。${topLevelOnly ? '只生成一级目录，不要生成子目录。' : '生成完整的二级和三级目录，每个一级目录都要有具体子章节。'}只返回 JSON，使用 outline 数组；每个章节包含 id、title、description${topLevelOnly ? '' : '，子章节放入 children'}。`;
 }
 
-function generateOutlineMessages({ overview, requirements, suggestions, noTechnicalScoreMode }) {
+function generateOutlineMessages({ overview, requirements, suggestions, noTechnicalScoreMode, minimumWords, maximumWords, sectionWords }) {
   return [
     { role: 'system', content: noTechnicalScoreMode ? noScoreOutlineSystemPrompt() : outlineSystemPrompt() },
     { role: 'user', content: `项目概述：\n${overview}` },
     { role: 'user', content: `${noTechnicalScoreMode ? '招标文件技术要求' : '技术评分要求'}：\n${requirements}` },
+    ...((minimumWords || maximumWords || sectionWords) ? [{ role: 'user', content: wordBudgetGuidance({ minimumWords, maximumWords, sectionWords }) }] : []),
     { role: 'user', content: `${noTechnicalScoreMode ? '招标文件未列技术评分项。请依据项目概述及明确的技术要求生成技术文件目录；可补充通用专业章节，但不得编造项目事实、参数或承诺。' : '请生成完整的技术标目录结构，确保覆盖所有技术评分要点。'}${formatSuggestions(suggestions)}` },
   ];
 }
 
-function generateTopLevelOutlineMessages({ overview, requirements, suggestions, noTechnicalScoreMode }) {
+function generateTopLevelOutlineMessages({ overview, requirements, suggestions, noTechnicalScoreMode, minimumWords, maximumWords, sectionWords }) {
   return [
     { role: 'system', content: noTechnicalScoreMode ? noScoreOutlineSystemPrompt(true) : topLevelOutlineSystemPrompt() },
     { role: 'user', content: `项目概述：\n${overview}` },
     { role: 'user', content: `${noTechnicalScoreMode ? '招标文件技术要求' : '技术评分要求'}：\n${requirements}` },
+    ...((minimumWords || maximumWords || sectionWords) ? [{ role: 'user', content: wordBudgetGuidance({ minimumWords, maximumWords, sectionWords }) }] : []),
     { role: 'user', content: `请仅生成一级目录列表，不要生成二级和三级目录。返回的 JSON 仍然使用 outline 字段，每个一级目录都必须包含 id、title、description。${formatSuggestions(suggestions)}` },
   ];
 }
@@ -207,7 +210,7 @@ JSON 格式要求：
   ];
 }
 
-function generateAlignedChildrenMessages({ overview, requirements, outlineMode, parentItem, group, suggestions }) {
+function generateAlignedChildrenMessages({ overview, requirements, outlineMode, parentItem, group, suggestions, minimumWords, maximumWords, sectionWords }) {
   const responseFileMode = outlineMode === 'response-file';
   const sourceLabel = responseFileMode ? '响应文件技术文件目录' : '技术评分大类';
   const detailLines = (group.detail_points || [])
@@ -231,12 +234,13 @@ function generateAlignedChildrenMessages({ overview, requirements, outlineMode, 
     { role: 'user', content: `技术评分要求原文：\n${requirements}` },
     { role: 'user', content: `当前固定一级目录：\n编号：${parentItem.id}\n标题：${parentItem.title}\n描述：${parentItem.description || ''}` },
     { role: 'user', content: `当前对应的${sourceLabel}：\nrequirement_id：${group.requirement_id}\n标题：${group.title}\n描述：${group.description}\n细项：\n${detailContent}` },
+    ...((minimumWords || maximumWords || sectionWords) ? [{ role: 'user', content: wordBudgetGuidance({ minimumWords, maximumWords, sectionWords }) }] : []),
   ];
   messages.push({ role: 'user', content: `请仅生成该一级目录下的二级、三级目录，一级目录标题必须保持为当前给定标题，返回格式必须是 {"children": [...]}。${formatSuggestions(suggestions)}` });
   return messages;
 }
 
-function generateChildrenMessages({ overview, requirements, parentItem, suggestions, noTechnicalScoreMode }) {
+function generateChildrenMessages({ overview, requirements, parentItem, suggestions, noTechnicalScoreMode, minimumWords, maximumWords, sectionWords }) {
   const systemPrompt = `你是一个专业的标书编写专家。请围绕指定的一级目录，生成其下属的二级目录和三级目录。
 
 要求：
@@ -251,6 +255,7 @@ function generateChildrenMessages({ overview, requirements, parentItem, suggesti
     { role: 'user', content: `项目概述：\n${overview}` },
     { role: 'user', content: `${noTechnicalScoreMode ? '招标文件技术要求' : '技术评分要求'}：\n${requirements}` },
     { role: 'user', content: `当前一级目录：\n编号：${parentItem.id}\n标题：${parentItem.title}\n描述：${parentItem.description || ''}` },
+    ...((minimumWords || maximumWords || sectionWords) ? [{ role: 'user', content: wordBudgetGuidance({ minimumWords, maximumWords, sectionWords }) }] : []),
   ];
   messages.push({ role: 'user', content: `请仅生成该一级目录下的二级、三级目录，返回格式必须是 {"children": [...]}。${formatSuggestions(suggestions)}` });
   return messages;
@@ -1041,6 +1046,9 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
     overview,
     requirements,
     responseFileRequirements,
+    minimumWords: Math.max(0, Number(storedPlan.contentGenerationOptions?.minimumWords || 0)),
+    maximumWords: Math.max(0, Number(storedPlan.contentGenerationOptions?.maximumWords || 0)),
+    sectionWords: Math.max(0, Number(storedPlan.contentGenerationOptions?.sectionWords || 0)),
     reference_knowledge_document_ids: referenceKnowledgeDocumentIds,
   };
   taskPayload.noTechnicalScoreMode = technicalScoreMissing;
@@ -1054,6 +1062,11 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
   outline = await enhanceOutlineWithKnowledgeAdditions(aiService, taskPayload, outline, knowledgeItems, log);
   technicalPlan = workspaceStore.updateTechnicalPlan({
     outlineData: { ...outline, project_overview: overview },
+    generationSettingsSnapshot: {
+      minimumWords: taskPayload.minimumWords,
+      maximumWords: taskPayload.maximumWords,
+      sectionWords: taskPayload.sectionWords,
+    },
     globalFactsTask: undefined,
     globalFacts: [],
     contentGenerationTask: undefined,

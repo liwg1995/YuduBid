@@ -39,6 +39,11 @@ export const appMenuItems: AppMenuItem[] = [
     description: '文档资料与图片素材',
   },
   {
+    id: 'credential-library',
+    label: '资信库',
+    description: '企业资质、人员和项目业绩',
+  },
+  {
     id: 'duplicate-check',
     label: '标书查重',
     description: '相似度与重复表达检测',

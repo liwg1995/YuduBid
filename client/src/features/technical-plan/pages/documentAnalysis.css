@@ -1,0 +1,41 @@
+.technical-workbench > .document-analysis-page { display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; }
+.document-analysis-page > .analysis-markdown-card { flex: 1 0 240px; min-height: 240px; }
+.existing-plan-analysis-page { gap: 10px; }
+.existing-plan-analysis-page .analysis-import-card { padding: 14px 22px; }
+.existing-plan-analysis-page .analysis-import-card strong { margin: 4px 0 3px; font-size: 22px; }
+.existing-plan-analysis-page .analysis-upload-grid { gap: 12px; }
+.existing-plan-analysis-page .analysis-upload-tile:not(.bid-section-selection) { gap: 12px; padding: 12px 18px; }
+.existing-plan-analysis-page .analysis-upload-tile:not(.bid-section-selection) strong { margin: 4px 0 2px; font-size: 19px; }
+.existing-plan-analysis-page .bid-section-selection { padding: 10px 18px; }
+.existing-plan-analysis-page .analysis-result-head { padding: 12px 18px; }
+.analysis-section-trigger { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 18px; border: 1px solid var(--yb-border-soft); border-radius: 14px; background: var(--yb-card-bg); color: var(--yb-text); text-align: left; cursor: pointer; font: inherit; }
+.analysis-section-trigger:hover { border-color: var(--yb-primary); }
+.analysis-section-trigger:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+.analysis-section-trigger-copy { display: flex; min-width: 0; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+.analysis-section-trigger-copy strong { color: var(--yb-text); font-size: 14px; white-space: nowrap; }
+.analysis-section-trigger-copy > span { color: var(--yb-text-soft); font-size: 13px; }
+.analysis-section-trigger-action { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; color: var(--yb-primary); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.analysis-section-trigger-action span { font-size: 19px; line-height: 0.7; }
+.analysis-section-collapse { padding: 0 4px; border: 0; background: none; color: var(--yb-primary); cursor: pointer; font: inherit; font-size: 13px; }
+.analysis-section-collapse:hover { text-decoration: underline; }
+.bid-section-selection { display: flex; width: 100%; flex: 0 0 auto; align-self: flex-start; align-items: center; flex-wrap: wrap; gap: 8px 20px; padding: 14px 20px; }
+.bid-section-selection > .bid-section-copy { flex: 1 1 460px; min-width: 0; }
+.bid-section-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+.bid-section-heading .section-kicker { flex: 0 0 auto; }
+.bid-section-heading strong { display: inline; margin: 0; }
+.bid-section-copy p { margin-top: 3px; line-height: 1.5; }
+.bid-section-selection select { width: min(380px, 100%); max-width: 100%; min-width: 0; flex: 0 1 380px; padding: 10px 12px; color: var(--yb-text); background: var(--yb-control-bg); border: 1px solid var(--yb-control-border); border-radius: 10px; }
+.bid-section-evidence { flex: 1 1 100%; display: grid; min-width: 0; max-height: 240px; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 10px; overflow-x: hidden; overflow-y: auto; }
+.bid-section-evidence details { min-width: 0; padding: 10px 12px; overflow-wrap: anywhere; color: var(--yb-text); background: var(--yb-control-bg); border: 1px solid var(--yb-control-border); border-radius: 10px; }
+.bid-section-evidence summary { cursor: pointer; font-weight: 600; }
+.bid-section-evidence p { margin: 7px 0 0; font-size: 13px; }
+.bid-section-evidence blockquote { margin: 5px 0 9px; padding-left: 10px; border-left: 2px solid var(--yb-control-border); color: var(--yb-text-soft); white-space: pre-wrap; font-size: 12px; }
+.bid-section-evidence small { display: block; margin-top: 8px; color: var(--yb-text-muted); }
+.bid-section-error { flex: 1 1 100%; margin: 0; color: var(--yb-text-soft); line-height: 1.4; }
+@media (max-width: 760px) {
+  .analysis-section-trigger { align-items: flex-start; flex-direction: column; }
+  .bid-section-selection { align-items: stretch; flex-direction: column; }
+  .bid-section-selection > .bid-section-copy { width: 100%; flex: 0 1 auto; }
+  .bid-section-selection > button { align-self: flex-start; }
+  .bid-section-selection select { width: 100%; flex-basis: auto; }
+}

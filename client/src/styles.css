@@ -4441,17 +4441,12 @@ button {
   color: var(--yb-text-soft);
 }
 
-.analysis-upload-actions,
-.analysis-preview-tabs {
+.analysis-upload-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-}
-
-.analysis-preview-tabs {
-  justify-self: end;
 }
 
 .analysis-result-grid {
@@ -5128,6 +5123,16 @@ button {
 .global-facts-command-bar p {
   margin: 0;
   color: var(--yb-text-soft);
+}
+
+.global-facts-command-bar .global-facts-pending {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--yb-primary);
+  border-radius: 10px;
+  background: var(--yb-control-bg);
+  color: var(--yb-text);
+  line-height: 1.5;
 }
 
 .global-facts-stats {
@@ -6356,6 +6361,52 @@ button {
 
 .export-file-path button:hover {
   text-decoration: underline;
+}
+
+.word-layout-audit {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.word-layout-audit > small {
+  color: var(--yb-text-soft);
+  line-height: 1.5;
+}
+
+.word-layout-audit-result {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--yb-control-border);
+  border-radius: 12px;
+  background: var(--yb-control-bg);
+  color: var(--yb-text);
+  line-height: 1.5;
+}
+
+.word-layout-audit-result span {
+  overflow-wrap: anywhere;
+}
+
+:root[data-ui-theme="dark"] body .export-progress-card {
+  color: var(--yb-text);
+  background: var(--yb-surface);
+  border-color: var(--yb-border);
+}
+
+:root[data-ui-theme="dark"] body .export-progress-card .export-warning-list {
+  background: rgba(190, 145, 35, 0.14);
+  border-color: rgba(230, 181, 59, 0.3);
+}
+
+:root[data-ui-theme="dark"] body .export-progress-card .export-warning-list :is(strong, small) {
+  color: #f2cc7b;
 }
 
 .content-generation-config-list {
@@ -10680,8 +10731,7 @@ button {
     align-items: stretch;
   }
 
-  .analysis-upload-actions,
-  .analysis-preview-tabs {
+  .analysis-upload-actions {
     justify-content: flex-start;
   }
 

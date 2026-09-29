@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MarkdownEditor, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { OutlineData } from '../../../shared/types';
-import type { BackgroundTaskState, GlobalFactGroupState, TechnicalPlanWorkflowKind } from '../types';
+import type { BackgroundTaskState, GlobalFactGroupState, MissingFactPolicy, TechnicalPlanWorkflowKind } from '../types';
 
 interface GlobalFactsPageProps {
   projectId?: string;
@@ -9,6 +9,8 @@ interface GlobalFactsPageProps {
   outlineData: OutlineData | null;
   globalFacts: GlobalFactGroupState[];
   task?: BackgroundTaskState;
+  missingFactPolicy?: MissingFactPolicy;
+  policyStale?: boolean;
   onGlobalFactsSaved: (globalFacts: GlobalFactGroupState[]) => Promise<void> | void;
 }
 
@@ -37,7 +39,7 @@ function getProgress(task: BackgroundTaskState | undefined, hasFacts: boolean) {
   return hasFacts ? 100 : 0;
 }
 
-function GlobalFactsPage({ projectId, workflowKind, outlineData, globalFacts, task, onGlobalFactsSaved }: GlobalFactsPageProps) {
+function GlobalFactsPage({ projectId, workflowKind, outlineData, globalFacts, task, missingFactPolicy, policyStale, onGlobalFactsSaved }: GlobalFactsPageProps) {
   const { showToast } = useToast();
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(globalFacts[0]?.id || null);
   const [draftTitle, setDraftTitle] = useState('');
@@ -53,6 +55,7 @@ function GlobalFactsPage({ projectId, workflowKind, outlineData, globalFacts, ta
   const statusKey = running ? 'running' : taskFailed ? 'error' : globalFacts.length ? 'success' : 'idle';
   const latestLog = task?.logs?.[task.logs.length - 1] || '';
   const totalChars = useMemo(() => globalFacts.reduce((sum, group) => sum + group.content.length, 0), [globalFacts]);
+  const pendingGroups = missingFactPolicy === 'placeholder' ? globalFacts.filter((group) => group.content.includes('【待填写】')) : [];
   const dirty = Boolean(activeGroup && (draftTitle !== activeGroup.title || draftContent !== activeGroup.content));
 
   const startGeneration = useCallback(async () => {
@@ -149,9 +152,11 @@ function GlobalFactsPage({ projectId, workflowKind, outlineData, globalFacts, ta
     <div className="plan-step-body global-facts-page">
       <section className="global-facts-command-bar">
         <div>
-          <span className="section-kicker">STEP 04</span>
+          <span className="section-kicker">STEP 05</span>
           <strong>全局事实设定</strong>
           <p>基于目录提前预设正文会反复用到的事实变量，避免各小节随机生成人员、时间、型号等内容。</p>
+          {pendingGroups.length > 0 && <div className="global-facts-pending" role="status">还有 {pendingGroups.length} 个事实大项包含【待填写】。请逐项核对并保存，补齐后才能进入正文生成：{pendingGroups.map((group) => group.title).join('、')}。</div>}
+          {policyStale && <div className="global-facts-pending" role="status">事实缺失处理方式已变更，请重新解析全局事实后继续。</div>}
         </div>
         <div className="global-facts-stats">
           <span><strong>{globalFacts.length}</strong> 个大项</span>

@@ -4,7 +4,9 @@ const { createLocalImageRenderService } = require('./localImageRenderService.cjs
 const { assertImageExportable, buildDocxResult } = require('./exportService.cjs');
 const localImageRenderService = createLocalImageRenderService();
 
-const IMAGE_STYLES = new Set(['engineering_diagram', 'realistic_photo']);
+const { AI_IMAGE_STYLES } = require('./aiImageStyles.cjs');
+const { normalizeWordCount, resolveSectionWordTarget } = require('./generationWordBudget.cjs');
+const IMAGE_STYLES = new Set(Object.keys(AI_IMAGE_STYLES));
 const TECHNICAL_DIAGRAM_TYPES = new Set(['architecture', 'data-flow', 'flowchart', 'deployment', 'process', 'topology']);
 const TECHNICAL_DIAGRAM_STYLES = new Set(['document', 'blueprint', 'clean']);
 const DEFAULT_CONTENT_CONCURRENCY = 5;
@@ -199,11 +201,6 @@ function normalizeTableRequirement(value) {
   if (text === '适中') return 'moderate';
   if (text === '大量') return 'heavy';
   return 'heavy';
-}
-
-function normalizeMinimumWords(value) {
-  const words = Number(value);
-  return Math.max(0, Number.isFinite(words) ? Math.round(words) : 0);
 }
 
 function normalizeContentConcurrency(value) {
@@ -534,8 +531,8 @@ function buildChapterContentPlanMessages({ chapter, parentChapters, siblingChapt
 9. ${imageGenerationAvailable ? `image.needed 必须保持为 true；本次 AI 生图上限为 ${maxAiImages || 0} 张，共 ${totalSections || 0} 个小节，达到上限时按章节优先级择优执行。` : '由于 AI 生图不可用，image 字段只需返回不需要。'}
 10. ${imageGenerationAvailable ? 'AI 生图提示词要围绕当前章节的具象工程对象或现场场景；即使与 Mermaid、技术图谱同时需要，也要单独填写完整提示词。' : '不要为了满足格式而编造 AI 生图需求。'}
 11. priority 含义：3 表示有价值候选，4 表示推荐，5 表示强推荐；只有达到 3 才将对应配图的 needed 设为 true。
-12. engineering_diagram 表示工程图示风，适合设备连接、机柜布置、电池更换方案、施工组织或运维场景示意等具象工程图。
-13. realistic_photo 表示专业实景示意风，适合设备、场地、机房、施工现场、检测工具、运维操作等真实场景表现。
+12. image.style 从以下画面风格中按内容选择：${Object.entries(AI_IMAGE_STYLES).map(([key, value]) => `${key}（${value.label}）`).join('、')}。
+13. 优先选择与章节对象相符的画面风格，不要在图中生成需要精确核验的文字或参数。
 14. diagram.type 只能取 architecture、data-flow、flowchart、deployment、process、topology；diagram.style 只能取 document、blueprint、clean。投标技术方案默认优先 document，需要正式工程感时用 blueprint，极简文档图用 clean。
 15. diagram.prompt 要描述图中应包含的层级、节点、箭头关系和图例语义，不要输出 SVG、Mermaid、PlantUML 或 draw.io XML。
 16. knowledge.item_ids 只能从参考知识库轻量条目的 id 中选择；可以多选，可以为空数组；不要编造 id，不要输出 reason。
@@ -612,7 +609,7 @@ JSON 格式：
   },
   "image": {
     "needed": false,
-    "style": "engineering_diagram 或 realistic_photo；不需要配图时留空",
+    "style": "从上述画面风格中选择一个；不需要配图时留空",
     "title": "图片标题；不需要配图时留空",
     "prompt": "用于生图模型的中文提示词；不需要配图时留空",
     "priority": 3,
@@ -639,7 +636,7 @@ function formatKnowledgeContentsForPrompt(contents) {
     .join('\n\n');
 }
 
-function buildChapterContentMessages({ chapter, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown }) {
+function buildChapterContentMessages({ chapter, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown, sectionWordTarget }) {
   const chapterId = chapter.id || 'unknown';
   const chapterTitle = chapter.title || '未命名章节';
   const chapterDescription = chapter.description || '';
@@ -670,6 +667,9 @@ ${hasOriginalPlan ? '14. 不要把原方案整体照搬到每个章节；只吸�
 
   if (String(projectOverview || '').trim()) {
     messages.push({ role: 'user', content: `项目概述信息：\n${projectOverview}` });
+  }
+  if (sectionWordTarget > 0) {
+    messages.push({ role: 'user', content: `本节参考篇幅约 ${sectionWordTarget} 字。按评分要求和内容复杂度自然调整，优先完整响应，不重复其他章节，也不要为凑字数添加空泛段落。` });
   }
   if (hasOriginalPlan) {
     messages.push({
@@ -2334,7 +2334,8 @@ function createInitialSections(leaves, existingSections) {
     const existing = next[item.id];
     const interrupted = existing?.status === 'running';
     const content = interrupted ? '' : existing?.content || item.content || '';
-    const existingStatus = interrupted ? 'error' : existing?.status;
+    // 正文以目录内容为准；旧任务可能留下「已有正文、状态仍为 idle」的记录。
+    const existingStatus = interrupted ? 'error' : existing?.status === 'idle' && content.trim() ? 'success' : existing?.status;
     next[item.id] = {
       id: item.id,
       title: item.title || '未命名章节',
@@ -2358,7 +2359,7 @@ function progressFor(leaves, sections) {
 }
 
 function taskStatusFor(leaves, sections) {
-  if (leaves.some(({ item }) => sections[item.id]?.status === 'error')) {
+  if (leaves.some(({ item }) => sections[item.id]?.status !== 'success')) {
     return 'error';
   }
 
@@ -2435,13 +2436,40 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   }
   const regenerateRequirement = resume ? contentRuntime.regenerate_requirement : String(payload.requirement || '').trim();
   const generationOptions = payload.generationOptions || payload.generation_options || storedPlan.contentGenerationOptions || {};
+  const factPolicy = storedPlan.contentGenerationOptions?.missingFactPolicy || 'infer';
+  const generatedFactPolicy = storedPlan.globalFactsTask?.stats?.globalFactsPolicy;
+  if (generatedFactPolicy && generatedFactPolicy !== factPolicy) {
+    throw new Error('事实缺失处理方式已变更，请重新解析全局事实后再生成正文');
+  }
+  if (factPolicy === 'placeholder') {
+    const pending = (storedPlan.globalFacts || []).filter((group) => String(group.content || '').includes('【待填写】'));
+    if (pending.length) throw new Error(`请先补齐 ${pending.length} 个全局事实大项中的【待填写】，再生成正文`);
+  }
+  const requestedImageStyle = IMAGE_STYLES.has(generationOptions.aiImageStyle) ? generationOptions.aiImageStyle : '';
   const contentConcurrency = normalizeContentConcurrency(
     generationOptions.contentConcurrency ?? generationOptions.content_concurrency ?? payload.concurrency,
   );
   const developerModeEnabled = isDeveloperModeEnabled(aiService);
   const tableRequirement = normalizeTableRequirement(generationOptions.tableRequirement ?? generationOptions.table_requirement);
   let maxTables = maxTablesForRequirement(tableRequirement, leaves.length);
-  const minimumWords = targetItemId ? 0 : normalizeMinimumWords(generationOptions.minimumWords ?? generationOptions.minimum_words);
+  const minimumWords = targetItemId ? 0 : normalizeWordCount(generationOptions.minimumWords ?? generationOptions.minimum_words);
+  const maximumWords = targetItemId ? 0 : normalizeWordCount(generationOptions.maximumWords ?? generationOptions.maximum_words);
+  const configuredSectionWords = normalizeWordCount(generationOptions.sectionWords ?? generationOptions.section_words);
+  if (maximumWords > 0 && minimumWords > maximumWords) {
+    throw new Error('全文参考上限不能低于最低字数，请先调整生成设置');
+  }
+  if (!resume && !expandOnly && !targetItemId && storedPlan.generationSettingsSnapshot) {
+    const snapshot = storedPlan.generationSettingsSnapshot;
+    const current = {
+      minimumWords,
+      maximumWords,
+      sectionWords: configuredSectionWords,
+    };
+    if (Object.keys(current).some((key) => (Number(snapshot[key]) || 0) !== current[key])) {
+      throw new Error('篇幅设置已与当前目录生成时不同，请重新生成目录后再生成正文');
+    }
+  }
+  const sectionWordTarget = resolveSectionWordTarget(configuredSectionWords, maximumWords, leaves.length);
   const referenceKnowledgeDocumentIds = normalizeReferenceDocumentIds(storedPlan);
   const imageAvailability = aiService.getImageModelAvailability
     ? aiService.getImageModelAvailability()
@@ -2514,6 +2542,10 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   let aiImageTargets = [];
   let mermaidImageTargets = [];
   let technicalDiagramTargets = [];
+  const restoredContentCount = fullRegenerate ? 0 : leaves.filter(({ item }) => {
+    const section = storedPlan.contentGenerationSections?.[item.id];
+    return section?.status === 'idle' && String(section.content || item.content || '').trim();
+  }).length;
   let sections = createInitialSections(leaves, fullRegenerate ? {} : storedPlan.contentGenerationSections);
   const invalidExistingImages = [];
   if (!fullRegenerate && !resume && !expandOnly) {
@@ -2595,6 +2627,9 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   }
   if (invalidExistingImages.length) {
     logs = [...logs, `发现 ${invalidExistingImages.length} 个已有小节的图片无法写入 Word，本次自动重新生成这些小节。`, ...invalidExistingImages];
+  }
+  if (restoredContentCount) {
+    logs = [...logs, `已核对并恢复 ${restoredContentCount} 个已有正文小节的完成状态，保留原有内容。`];
   }
   logs = [...logs, `正文生成并发速度：${contentConcurrency}。`];
   logs = [...logs, tableRequirement === 'heavy'
@@ -3094,7 +3129,7 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
       const knowledgeContents = resolveKnowledgeContents(contentPlan.knowledge?.item_ids, knowledgeContentMap);
       const selectedFactsText = resolveSelectedFactsText(contentPlan, globalFacts);
 
-      const messages = buildChapterContentMessages({ chapter: item, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown });
+      const messages = buildChapterContentMessages({ chapter: item, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown, sectionWordTarget });
       let generatedContent = '';
       for (let attempt = 0; attempt < 3; attempt += 1) {
         generatedContent = await aiService.chat({
@@ -4031,7 +4066,7 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
             title: contentPlan.image.title,
             logTitle: `AI生图-${item.id}-${contentPlan.image.title || item.title || '未命名章节'}${attempt ? `-重试${attempt}` : ''}`,
             prompt: contentPlan.image.prompt,
-            style: contentPlan.image.style,
+            style: requestedImageStyle || contentPlan.image.style,
           });
           await assertGeneratedImageSaved(generatedImage, 'AI 配图');
           break;
@@ -4247,22 +4282,28 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     }
 
     const failedCount = leaves.filter(({ item }) => sections[item.id]?.status === 'error').length;
+    const pendingCount = leaves.filter(({ item }) => !['success', 'error'].includes(sections[item.id]?.status)).length;
     const finalProgress = progressFor(leaves, sections);
     const finalStatus = taskStatusFor(leaves, sections);
     contentStats.phase = 'done';
-    logs = [...logs, expandOnly
-      ? (failedCount ? `继续扩写完成，${failedCount} 个小节处于失败状态，请人工核对。` : '继续扩写完成。')
-      : targetItemId
-      ? (failedCount ? `小节重新生成结束，当前整体进度 ${finalProgress}%，${failedCount} 个小节失败。` : `小节重新生成完成，当前整体进度 ${finalProgress}%。`)
-      : (failedCount ? `正文生成完成，${failedCount} 个小节失败。` : '正文生成完成。')];
+    if (maximumWords > 0 && !targetItemId && countTotalContentWords() > maximumWords) {
+      logs = [...logs, `当前正文约 ${countTotalContentWords()} 字，超过参考上限 ${maximumWords} 字；请人工核对后调整篇幅。`];
+    }
+    logs = [...logs, pendingCount
+      ? `仍有 ${pendingCount} 个小节未完成，任务不能标记为成功；请继续生成正文。`
+      : expandOnly
+        ? (failedCount ? `继续扩写完成，${failedCount} 个小节处于失败状态，请人工核对。` : '继续扩写完成。')
+        : targetItemId
+          ? (failedCount ? `小节重新生成结束，当前整体进度 ${finalProgress}%，${failedCount} 个小节失败。` : `小节重新生成完成，当前整体进度 ${finalProgress}%。`)
+          : (failedCount ? `正文生成完成，${failedCount} 个小节失败。` : '正文生成完成。')];
     technicalPlan = workspaceStore.updateTechnicalPlan({
       outlineData,
       contentGenerationSections: sections,
       contentGenerationPlans: storedContentPlans,
       contentGenerationRuntime: undefined,
-      contentGenerationTask: updateTask({ status: finalStatus, progress: finalProgress, logs, stats: statsSnapshot(), pause_requested: false }),
+      contentGenerationTask: updateTask({ status: finalStatus, progress: finalProgress, logs, stats: statsSnapshot(), error: pendingCount ? `${pendingCount} 个小节尚未完成` : undefined, pause_requested: false }),
     });
-    updateTask({ status: finalStatus, progress: finalProgress, logs, stats: statsSnapshot(), pause_requested: false }, technicalPlan);
+    updateTask({ status: finalStatus, progress: finalProgress, logs, stats: statsSnapshot(), error: pendingCount ? `${pendingCount} 个小节尚未完成` : undefined, pause_requested: false }, technicalPlan);
   } catch (error) {
     if (error?.code === 'CONTENT_GENERATION_PAUSED') {
       return;

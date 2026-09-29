@@ -578,7 +578,7 @@ function OutlineEditPage({
     <div className="plan-step-body outline-generation-page">
       <section className="outline-command-bar">
         <div>
-          <span className="section-kicker">STEP 03</span>
+          <span className="section-kicker">STEP 04</span>
           <strong>目录生成</strong>
           <p>生成前选择目录方式和参考知识库；当前参考知识库：{referenceKnowledgeDocumentIds.length ? `已选择 ${referenceKnowledgeDocumentIds.length} 个文档` : '未选择'}。</p>
         </div>

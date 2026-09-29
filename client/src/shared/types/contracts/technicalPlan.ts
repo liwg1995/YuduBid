@@ -1,24 +1,30 @@
 import type { OutlineData, OutlineMode } from '../outline';
 
-export type TechnicalPlanStep = 'document-analysis' | 'bid-analysis' | 'outline-generation' | 'global-facts' | 'content-edit' | 'expand';
+export type TechnicalPlanStep = 'document-analysis' | 'generation-settings' | 'bid-analysis' | 'outline-generation' | 'global-facts' | 'content-edit' | 'expand';
 export type TechnicalPlanWorkflowKind = 'technical-plan' | 'existing-plan-expansion';
 export type BidAnalysisMode = 'key' | 'full';
 export type BidAnalysisTaskStatus = 'idle' | 'running' | 'success' | 'error';
-export type BackgroundTaskType = 'bid-analysis' | 'outline-generation' | 'global-facts-generation' | 'content-generation';
+export type BackgroundTaskType = 'bid-section-extraction' | 'bid-analysis' | 'outline-generation' | 'global-facts-generation' | 'content-generation';
 export type BackgroundTaskStatus = 'running' | 'pausing' | 'stopping' | 'stopped' | 'paused' | 'success' | 'error';
 export type ContentGenerationSectionStatus = 'idle' | 'running' | 'success' | 'error';
 export type ContentTableRequirement = 'none' | 'light' | 'moderate' | 'heavy';
+export type MissingFactPolicy = 'infer' | 'placeholder' | 'generic';
+export type ContentAiImageStyle = 'auto' | 'engineering_diagram' | 'realistic_photo' | 'product_shot' | 'architectural_render' | '3d_render' | 'isometric_illustration' | 'cutaway_illustration' | 'exploded_view' | 'line_drawing' | 'flat_illustration';
 
 export interface ContentGenerationOptions {
   useAiImages: boolean;
+  aiImageStyle?: ContentAiImageStyle;
   maxAiImages: number;
   useMermaidImages: boolean;
   useTechnicalDiagrams: boolean;
   tableRequirement: ContentTableRequirement;
   minimumWords: number;
+  maximumWords?: number;
+  sectionWords?: number;
   contentConcurrency: number;
   enableConsistencyAudit: boolean;
   enableOriginalPlanCoverageAudit?: boolean;
+  missingFactPolicy?: MissingFactPolicy;
 }
 
 export interface ContentImageStats {
@@ -42,6 +48,7 @@ export interface BackgroundTaskState {
   pause_requested?: boolean;
   stop_requested?: boolean;
   stats?: {
+    globalFactsPolicy?: MissingFactPolicy;
     content?: {
       phase: 'planning' | 'generating' | 'outline-expanding' | 'expanding' | 'auditing' | 'illustrating' | 'done';
       planning_total: number;
@@ -128,7 +135,7 @@ export interface ContentGenerationPlanData {
   };
   image: {
     needed: boolean;
-    style: 'engineering_diagram' | 'realistic_photo' | '';
+    style: Exclude<ContentAiImageStyle, 'auto'> | '';
     title: string;
     prompt: string;
     priority: number;
@@ -185,6 +192,10 @@ export interface TechnicalPlanState {
   workflowKind: TechnicalPlanWorkflowKind;
   step: TechnicalPlanStep;
   tenderFile: TechnicalPlanTenderFile | null;
+  bidSections?: Array<{ id: string; title: string; startLine: number; endLine: number; includeRanges?: Array<{ startLine: number; endLine: number; reason?: string }>; evidence?: string[] }>;
+  selectedBidSectionId?: string;
+  bidSectionSource?: 'heading' | 'evidence';
+  bidSectionExtractionTask?: BackgroundTaskState;
   originalPlanFile: TechnicalPlanOriginalPlanFile | null;
   projectOverview: string;
   techRequirements: string;
@@ -200,6 +211,7 @@ export interface TechnicalPlanState {
   globalFacts: GlobalFactGroupState[];
   contentGenerationTask?: BackgroundTaskState;
   contentGenerationOptions?: ContentGenerationOptions;
+  generationSettingsSnapshot?: { minimumWords: number; maximumWords?: number; sectionWords?: number };
   contentGenerationSections: ContentGenerationSections;
   contentGenerationPlans: ContentGenerationPlans;
   contentGenerationRuntime?: ContentGenerationRuntimeState;

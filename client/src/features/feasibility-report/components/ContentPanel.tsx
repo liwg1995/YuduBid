@@ -1,10 +1,12 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Switch from '@radix-ui/react-switch';
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { OutlineItem } from '../../../shared/types/outline';
 import { MarkdownEditor, MarkdownRenderer, useAppDialog, useToast } from '../../../shared/ui';
 import type { FeasibilityContentGenerationOptions, FeasibilityReportState } from '../types';
 import { isTaskRunning } from './TaskProgressCard';
+
+const ContentWordPreview = lazy(() => import('../../technical-plan/components/ContentWordPreview'));
 
 interface LeafEntry { item: OutlineItem; path: string[] }
 function collectLeaves(items: OutlineItem[], parents: string[] = []): LeafEntry[] {
@@ -31,6 +33,7 @@ const defaultGenerationOptions: FeasibilityContentGenerationOptions = {
   maxAiImages: 6,
   useMermaidImages: true,
   useTechnicalDiagrams: true,
+  autoReview: false,
 };
 
 function normalizeGenerationOptions(options: FeasibilityContentGenerationOptions | undefined, imageModelAvailable: boolean, technicalDiagramAvailable: boolean, leafCount: number): FeasibilityContentGenerationOptions {
@@ -40,6 +43,7 @@ function normalizeGenerationOptions(options: FeasibilityContentGenerationOptions
     maxAiImages: Math.max(0, Math.min(Math.round(Number(source.maxAiImages) || 0), Math.max(1, leafCount))),
     useMermaidImages: Boolean(source.useMermaidImages),
     useTechnicalDiagrams: Boolean(source.useTechnicalDiagrams && technicalDiagramAvailable),
+    autoReview: Boolean(source.autoReview),
   };
 }
 
@@ -74,6 +78,7 @@ export default function ContentPanel({ projectId, state, onStateChange }: { proj
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(selected?.item.content || '');
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [wordPreviewOpen, setWordPreviewOpen] = useState(false);
   const [generationDialogOpen, setGenerationDialogOpen] = useState(false);
   const [imageModelStatus, setImageModelStatus] = useState<'untested' | 'available' | 'unavailable'>('untested');
   const [technicalDiagramAvailable, setTechnicalDiagramAvailable] = useState(false);
@@ -187,7 +192,7 @@ export default function ContentPanel({ projectId, state, onStateChange }: { proj
         <div className="content-outline-list"><ContentNavigation items={state.outlineData?.outline || []} level={1} selectedId={selected?.item.id || ''} reviewingNodeId={reviewingNodeId} state={state} onSelect={(id) => { setSelectedId(id); setEditing(false); }} /></div>
       </aside>
       <article className="content-reader-panel">
-        {selected ? <><div className="content-reader-head"><div><span className="section-kicker">正文内容</span><strong>{selected.item.title}</strong><p>{selected.path.join(' / ')} · {state.contentSections[selected.item.id]?.status === 'running' ? '正在生成' : selected.item.content?.trim() ? '已生成' : '待生成'}</p></div><div className="content-reader-actions"><span className={`content-status-badge is-${selected.item.content?.trim() ? 'success' : state.contentSections[selected.item.id]?.status || 'idle'}`}>{selected.item.content?.trim() ? '已生成' : state.contentSections[selected.item.id]?.status === 'running' ? '生成中' : '待生成'}</span><button type="button" className="secondary-action" disabled={running} onClick={() => setEditing(!editing)}>{editing ? '取消' : '编辑'}</button>{editing ? <button type="button" className="primary-action" onClick={() => void save()}>保存</button> : <button type="button" className="secondary-action" disabled={running} onClick={() => void regenerateCurrent()}>重新生成本节</button>}</div></div><div className={editing ? '' : 'markdown-viewer content-generation-output'}>{editing ? <MarkdownEditor value={draft} onChange={setDraft} placeholder="在此编写本节正文…" /> : selected.item.content?.trim() ? <MarkdownRenderer allowRawHtml={false}>{selected.item.content}</MarkdownRenderer> : <div className="markdown-empty-state content-generation-empty"><strong>{state.contentSections[selected.item.id]?.status === 'running' ? '正在生成此章节' : '正文待生成'}</strong><p>{state.contentSections[selected.item.id]?.error || (state.contentSections[selected.item.id]?.status === 'running' ? '模型返回内容后会自动显示在这里。' : '点击上方“生成正文”后，后台会按目录顺序撰写并保存。')}</p></div>}</div></> : <div className="markdown-empty-state content-generation-empty"><strong>当前目录没有可生成的小节</strong></div>}
+        {selected ? <><div className="content-reader-head"><div><span className="section-kicker">正文内容</span><strong>{selected.item.title}</strong><p>{selected.path.join(' / ')} · {state.contentSections[selected.item.id]?.status === 'running' ? '正在生成' : selected.item.content?.trim() ? '已生成' : '待生成'}</p></div><div className="content-reader-actions"><span className={`content-status-badge is-${selected.item.content?.trim() ? 'success' : state.contentSections[selected.item.id]?.status || 'idle'}`}>{selected.item.content?.trim() ? '已生成' : state.contentSections[selected.item.id]?.status === 'running' ? '生成中' : '待生成'}</span>{!editing && selected.item.content?.trim() ? <button type="button" className="secondary-action" onClick={() => setWordPreviewOpen(true)}>Word 预览</button> : null}<button type="button" className="secondary-action" disabled={running} onClick={() => setEditing(!editing)}>{editing ? '取消' : '编辑'}</button>{editing ? <button type="button" className="primary-action" onClick={() => void save()}>保存</button> : <button type="button" className="secondary-action" disabled={running} onClick={() => void regenerateCurrent()}>重新生成本节</button>}</div></div><div className={editing ? '' : 'markdown-viewer content-generation-output'}>{editing ? <MarkdownEditor value={draft} onChange={setDraft} placeholder="在此编写本节正文…" /> : selected.item.content?.trim() ? <MarkdownRenderer allowRawHtml={false}>{selected.item.content}</MarkdownRenderer> : <div className="markdown-empty-state content-generation-empty"><strong>{state.contentSections[selected.item.id]?.status === 'running' ? '正在生成此章节' : '正文待生成'}</strong><p>{state.contentSections[selected.item.id]?.error || (state.contentSections[selected.item.id]?.status === 'running' ? '模型返回内容后会自动显示在这里。' : '点击上方“生成正文”后，后台会按目录顺序撰写并保存。')}</p></div>}</div></> : <div className="markdown-empty-state content-generation-empty"><strong>当前目录没有可生成的小节</strong></div>}
       </article>
     </section>
     <Dialog.Root open={generationDialogOpen} onOpenChange={setGenerationDialogOpen}>
@@ -222,6 +227,10 @@ export default function ContentPanel({ projectId, state, onStateChange }: { proj
               <span><strong>生成 Mermaid 图片</strong><small>适合流程、层级、时间线和关系图，预览和 Word 导出均在本地转换。</small></span>
               <Switch.Root className="content-generation-switch" checked={draftGenerationOptions.useMermaidImages} onCheckedChange={(checked) => setDraftGenerationOptions((current) => ({ ...current, useMermaidImages: checked }))} aria-label="是否生成 Mermaid 图片"><Switch.Thumb className="content-generation-switch-thumb" /></Switch.Root>
             </label>
+            <label className="content-generation-config-row">
+              <span><strong>生成后自动自然化审校</strong><small>每节正文保存后调用 AI 审校，校验事实、数字、表格和图片；审校失败时保留原正文。</small></span>
+              <Switch.Root className="content-generation-switch" checked={draftGenerationOptions.autoReview} onCheckedChange={(checked) => setDraftGenerationOptions((current) => ({ ...current, autoReview: checked }))} aria-label="是否生成后自动自然化审校"><Switch.Thumb className="content-generation-switch-thumb" /></Switch.Root>
+            </label>
             {draftGenerationOptions.useMermaidImages ? <p className="content-generation-config-note">Mermaid 图不会调用第三方图片转换服务，生成失败时保留正文，不影响后续章节。</p> : null}
           </div>
           <div className="content-regenerate-actions">
@@ -233,5 +242,6 @@ export default function ContentPanel({ projectId, state, onStateChange }: { proj
       </Dialog.Portal>
     </Dialog.Root>
     <Dialog.Root open={previewOpen} onOpenChange={setPreviewOpen}><Dialog.Portal><Dialog.Overlay className="detail-help-modal" /><Dialog.Content className="detail-help-card feasibility-full-preview"><header className="detail-help-head"><div><Dialog.Title>可行性研究报告整篇预览</Dialog.Title><Dialog.Description>{completed}/{leaves.length} 小节已完成，包含 {mermaidCount} 张 Mermaid 图。</Dialog.Description></div><Dialog.Close type="button" className="detail-help-close" aria-label="关闭整篇预览">×</Dialog.Close></header><div className="feasibility-full-preview-body markdown-viewer"><MarkdownRenderer allowRawHtml={false}>{fullMarkdown}</MarkdownRenderer></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+    <Dialog.Root open={wordPreviewOpen} onOpenChange={setWordPreviewOpen}><Dialog.Portal><Dialog.Overlay className="content-word-overlay" /><Dialog.Content className="content-word-dialog"><div className="content-word-dialog-head"><div><Dialog.Title>{selected?.item.title || 'Word 预览'}</Dialog.Title><Dialog.Description>按本地基础排版预览当前小节；最终文件以实际导出排版为准。</Dialog.Description></div><Dialog.Close type="button" className="secondary-action">关闭</Dialog.Close></div>{wordPreviewOpen && selected ? <Suspense fallback={<div className="content-word-status">正在加载预览组件…</div>}><ContentWordPreview sectionId={selected.item.id} title={selected.item.title} content={selected.item.content || ''} projectName={state.projectInfo.projectName || state.projectName} documentProfile="feasibility-report" /></Suspense> : null}</Dialog.Content></Dialog.Portal></Dialog.Root>
   </div>;
 }

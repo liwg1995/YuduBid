@@ -205,7 +205,7 @@ function runInvalidBidAndRejectionItemsExtraction({ aiService, fileContent }) {
 async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, payload }) {
   const mode = payload.mode || 'key';
   const selectedTasks = getBidAnalysisTasks(mode);
-  const fileContent = workspaceStore.readTenderMarkdown();
+  const fileContent = workspaceStore.readTenderMarkdownForGeneration();
   if (!String(fileContent || '').trim()) {
     throw new Error('请先上传招标文件，再开始解析');
   }

@@ -5,7 +5,7 @@ const { getUserDataPath } = require('../utils/paths.cjs');
 const MAX_RECENT_RECORDS = 200;
 
 function createEmptyStats() {
-  return { version: 1, updated_at: null, totals: { requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, total_tokens: 0 }, daily: {}, hourly: {}, five_minute: {}, recent: [] };
+  return { version: 1, updated_at: null, totals: { requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, cached_tokens: 0, total_tokens: 0 }, daily: {}, hourly: {}, five_minute: {}, recent: [] };
 }
 
 function normalizeNumber(value) {
@@ -14,11 +14,13 @@ function normalizeNumber(value) {
 }
 
 function normalizeUsage(usage = {}) {
+  const promptDetails = usage.prompt_tokens_details || usage.promptTokensDetails || usage.input_token_details || usage.inputTokenDetails || {};
   const promptTokens = normalizeNumber(usage.prompt_tokens ?? usage.input_tokens);
   const completionTokens = normalizeNumber(usage.completion_tokens ?? usage.output_tokens);
   const reasoningTokens = normalizeNumber(usage.reasoning_tokens ?? usage.reasoning_tokens_details?.reasoning_tokens);
+  const cachedTokens = normalizeNumber(usage.cached_tokens ?? usage.cachedTokens ?? usage.prompt_cached_tokens ?? usage.prompt_cache_hit_tokens ?? usage.cache_read_input_tokens ?? usage.cached_content_token_count ?? promptDetails.cached_tokens ?? promptDetails.cache_read ?? promptDetails.cache_read_input_tokens);
   const totalTokens = normalizeNumber(usage.total_tokens) || promptTokens + completionTokens;
-  return { prompt_tokens: promptTokens, completion_tokens: completionTokens, reasoning_tokens: reasoningTokens, total_tokens: totalTokens };
+  return { prompt_tokens: promptTokens, completion_tokens: completionTokens, reasoning_tokens: reasoningTokens, cached_tokens: cachedTokens, total_tokens: totalTokens };
 }
 
 function createUsageStatsStore(app) {
@@ -92,7 +94,7 @@ function createUsageStatsStore(app) {
           : rangeConfig.step < 24 * 60 * 60 * 1000
             ? date.toISOString().slice(0, 13)
             : date.toISOString().slice(0, 10);
-        trend.push({ date: key, requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, total_tokens: 0, ...(rangeConfig.source[key] || {}) });
+        trend.push({ date: key, requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, cached_tokens: 0, total_tokens: 0, ...(rangeConfig.source[key] || {}) });
       }
       return { ...stats, daily, trend, range, by_model: Object.values(byModel).sort((a, b) => b.total_tokens - a.total_tokens) };
     },
@@ -109,20 +111,20 @@ function createUsageStatsStore(app) {
       for (const key of Object.keys(stats.totals)) stats.totals[key] += normalizedUsage[key] || 0;
       stats.totals.requests += 1;
       const day = String(record.created_at).slice(0, 10);
-      const daily = stats.daily[day] || { requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, total_tokens: 0 };
+      const daily = stats.daily[day] || { requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, cached_tokens: 0, total_tokens: 0 };
       daily.requests += 1;
-      for (const key of ['prompt_tokens', 'completion_tokens', 'reasoning_tokens', 'total_tokens']) daily[key] += normalizedUsage[key] || 0;
+      for (const key of ['prompt_tokens', 'completion_tokens', 'reasoning_tokens', 'cached_tokens', 'total_tokens']) daily[key] = (daily[key] || 0) + (normalizedUsage[key] || 0);
       stats.daily[day] = daily;
       const hour = String(record.created_at).slice(0, 13);
-      const hourly = stats.hourly[hour] || { requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, total_tokens: 0 };
+      const hourly = stats.hourly[hour] || { requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, cached_tokens: 0, total_tokens: 0 };
       hourly.requests += 1;
-      for (const key of ['prompt_tokens', 'completion_tokens', 'reasoning_tokens', 'total_tokens']) hourly[key] += normalizedUsage[key] || 0;
+      for (const key of ['prompt_tokens', 'completion_tokens', 'reasoning_tokens', 'cached_tokens', 'total_tokens']) hourly[key] = (hourly[key] || 0) + (normalizedUsage[key] || 0);
       stats.hourly[hour] = hourly;
       const minuteTimestamp = new Date(Math.floor(new Date(record.created_at).getTime() / (5 * 60 * 1000)) * (5 * 60 * 1000));
       const minute = minuteTimestamp.toISOString().slice(0, 16);
-      const fiveMinute = stats.five_minute[minute] || { requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, total_tokens: 0 };
+      const fiveMinute = stats.five_minute[minute] || { requests: 0, prompt_tokens: 0, completion_tokens: 0, reasoning_tokens: 0, cached_tokens: 0, total_tokens: 0 };
       fiveMinute.requests += 1;
-      for (const key of ['prompt_tokens', 'completion_tokens', 'reasoning_tokens', 'total_tokens']) fiveMinute[key] += normalizedUsage[key] || 0;
+      for (const key of ['prompt_tokens', 'completion_tokens', 'reasoning_tokens', 'cached_tokens', 'total_tokens']) fiveMinute[key] = (fiveMinute[key] || 0) + (normalizedUsage[key] || 0);
       stats.five_minute[minute] = fiveMinute;
       stats.recent = [...stats.recent, record].slice(-MAX_RECENT_RECORDS);
       stats.updated_at = new Date().toISOString();

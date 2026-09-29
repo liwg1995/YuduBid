@@ -11,6 +11,7 @@ export interface FeasibilityContentGenerationOptions {
   maxAiImages: number;
   useMermaidImages: boolean;
   useTechnicalDiagrams: boolean;
+  autoReview: boolean;
 }
 
 export interface FeasibilityProjectInfo {

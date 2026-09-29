@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import DocumentAnalysisPage from './DocumentAnalysisPage';
+import GenerationSettingsPage from './GenerationSettingsPage';
 import BidAnalysisPage from './BidAnalysisPage';
 import OutlineEditPage from './OutlineEditPage';
 import GlobalFactsPage from './GlobalFactsPage';
@@ -12,12 +13,13 @@ import { AgentFloatingPanel, FloatingToolbar, MarkdownRenderer, ToolbarArrowLeft
 import { countReadableWords } from '../../../shared/utils/wordCount';
 import type { BackgroundTaskState, BidAnalysisTasks, ContentGenerationOptions, ContentTableRequirement, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
 import type { BidExportTemplateRecord, BidWordExportMode, OutlineData, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
-import type { AgentHostStatus, AgentRunResult } from '../../../shared/types/ipc';
+import type { AgentHostStatus, AgentRunResult, WordLayoutAuditResult } from '../../../shared/types/ipc';
 import type { SectionId } from '../../../shared/types/navigation';
 import type { PluginNavigationTarget } from '../../../shared/types/plugin';
 
 const steps: TechnicalPlanStep[] = [
   'document-analysis',
+  'generation-settings',
   'bid-analysis',
   'outline-generation',
   'global-facts',
@@ -27,6 +29,7 @@ const steps: TechnicalPlanStep[] = [
 
 const stepLabels: Record<TechnicalPlanStep, string> = {
   'document-analysis': '上传招标文件',
+  'generation-settings': '生成设置',
   'bid-analysis': '招标文件解析',
   'outline-generation': '目录生成',
   'global-facts': '全局事实设定',
@@ -38,6 +41,10 @@ const resetState = {
   workflowKind: 'technical-plan' as TechnicalPlanWorkflowKind,
   step: 'document-analysis' as TechnicalPlanStep,
   tenderFile: null,
+  bidSections: [],
+  selectedBidSectionId: '',
+  bidSectionSource: 'heading' as const,
+  bidSectionExtractionTask: undefined,
   originalPlanFile: null,
   projectOverview: '',
   techRequirements: '',
@@ -53,6 +60,7 @@ const resetState = {
   globalFacts: [] as GlobalFactGroupState[],
   contentGenerationTask: undefined,
   contentGenerationOptions: undefined,
+  generationSettingsSnapshot: undefined,
   contentGenerationSections: {},
   contentGenerationPlans: {},
   contentGenerationRuntime: undefined,
@@ -101,6 +109,9 @@ interface ExportProgressState {
   mermaidCount: number;
   filePath?: string;
   error?: string;
+  layoutChecking?: boolean;
+  layoutAudit?: WordLayoutAuditResult;
+  layoutError?: string;
 }
 
 const initialExportProgress: ExportProgressState = {
@@ -244,7 +255,16 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const agentContinuousPersistenceReadyRef = useRef(false);
   const activeIndex = steps.indexOf(state.step);
   const bidAnalysisReady = areRequiredBidAnalysisTasksReady(state.bidAnalysisTasks);
-  const globalFactsReady = state.globalFacts.length > 0 && state.globalFactsTask?.status === 'success';
+  const generationSettingsStale = Boolean(state.generationSettingsSnapshot && (
+    state.generationSettingsSnapshot.minimumWords !== (state.contentGenerationOptions?.minimumWords || 0)
+    || (state.generationSettingsSnapshot.maximumWords || 0) !== (state.contentGenerationOptions?.maximumWords || 0)
+    || (state.generationSettingsSnapshot.sectionWords || 0) !== (state.contentGenerationOptions?.sectionWords || 0)
+  ));
+  const pendingGlobalFacts = state.contentGenerationOptions?.missingFactPolicy === 'placeholder'
+    ? state.globalFacts.filter((group) => group.content.includes('【待填写】'))
+    : [];
+  const globalFactsPolicyStale = Boolean(state.globalFactsTask?.stats?.globalFactsPolicy && state.globalFactsTask.stats.globalFactsPolicy !== (state.contentGenerationOptions?.missingFactPolicy || 'infer'));
+  const globalFactsReady = state.globalFacts.length > 0 && state.globalFactsTask?.status === 'success' && pendingGlobalFacts.length === 0 && !globalFactsPolicyStale;
   const contentTaskStatus = state.contentGenerationTask?.status;
   const isContentGenerating = contentTaskStatus === 'running' || contentTaskStatus === 'pausing';
   const isContentPaused = contentTaskStatus === 'paused';
@@ -269,7 +289,10 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     [selectedExpandLeaves, state.contentGenerationSections],
   );
   const previewExpandItem = state.outlineData?.outline && previewExpandItemId ? findOutlineItem(state.outlineData.outline, previewExpandItemId) : null;
-  const previewExpandContent = previewExpandItem ? getLeafContent(previewExpandItem, state.contentGenerationSections) : '';
+  const previewExpandContent = previewExpandItem
+    ? getLeafContent(previewExpandItem, state.contentGenerationSections)
+      .replace(/<!--\s*yibiao-illustration:(?:ai|mermaid|diagram)\s*-->/gi, '')
+    : '';
   const expandTaskStatus = state.contentGenerationTask?.status || 'idle';
   const expandContentStats = state.contentGenerationTask?.stats?.content;
   const expandPhase = expandContentStats?.phase || state.contentGenerationRuntime?.phase || '';
@@ -327,19 +350,22 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const expandStatusClass = ['running', 'pausing', 'stopping', 'stopped', 'paused', 'success', 'error'].includes(expandTaskStatus) ? expandTaskStatus : 'idle';
   const isNextDisabled = activeIndex >= steps.length - 1
     || (state.step === 'document-analysis' && (!state.tenderFile || (requiresOriginalPlan && !state.originalPlanFile)))
+    || (state.step === 'generation-settings' && !state.contentGenerationOptions)
     || (state.step === 'bid-analysis' && !bidAnalysisReady)
-    || (state.step === 'outline-generation' && !state.outlineData)
+    || (state.step === 'outline-generation' && (!state.outlineData || generationSettingsStale))
     || (state.step === 'global-facts' && !globalFactsReady);
   const nextTooltip = state.step === 'document-analysis' && !state.tenderFile
     ? '上传完招标文件后才能进入下一步'
     : state.step === 'document-analysis' && requiresOriginalPlan && !state.originalPlanFile
       ? '上传完原方案后才能进入下一步'
+      : state.step === 'generation-settings' && !state.contentGenerationOptions
+        ? '请先保存本次生成设置'
       : state.step === 'bid-analysis' && !bidAnalysisReady
       ? '招标文件解析完成后才能进入目录生成'
-      : state.step === 'outline-generation' && !state.outlineData
-        ? '目录生成完成后才能进入全局事实设定'
+      : state.step === 'outline-generation' && (!state.outlineData || generationSettingsStale)
+        ? generationSettingsStale ? '生成设置已变更，请重新生成目录' : '目录生成完成后才能进入全局事实设定'
         : state.step === 'global-facts' && !globalFactsReady
-          ? '全局事实设定完成后才能进入正文生成'
+          ? pendingGlobalFacts.length ? `请先补齐 ${pendingGlobalFacts.length} 个事实大项中的【待填写】` : globalFactsPolicyStale ? '事实处理方式已变更，请重新解析全局事实' : '全局事实设定完成后才能进入正文生成'
           : activeIndex >= steps.length - 1
             ? '当前已经是最后一步'
             : `进入${stepLabels[steps[activeIndex + 1]]}`;
@@ -523,10 +549,12 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     if (!confirmed) return;
     try {
       if (action === 'bid-analysis') {
+        if (!state.contentGenerationOptions) { switchStep('generation-settings'); showToast('请先保存本次生成设置', 'info'); return; }
         const taskIds = getBidAnalysisTasks(state.bidAnalysisMode).map((task) => task.id);
         await window.yibiao?.tasks.startBidAnalysis({ workflowKind, projectId, mode: state.bidAnalysisMode, task_ids: taskIds, force_rerun: false });
         switchStep('bid-analysis');
       } else if (action === 'outline-generation') {
+        if (!state.contentGenerationOptions) { switchStep('generation-settings'); showToast('请先保存本次生成设置', 'info'); return; }
         await window.yibiao?.tasks.startOutlineGeneration({
           workflowKind,
           projectId,
@@ -551,6 +579,11 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     if (!state.tenderFile || (requiresOriginalPlan && !state.originalPlanFile)) {
       switchStep('document-analysis');
       showToast(requiresOriginalPlan ? '请先上传招标文件和原方案' : '请先上传招标文件', 'info');
+      return;
+    }
+    if (!state.contentGenerationOptions || generationSettingsStale) {
+      switchStep('generation-settings');
+      showToast(generationSettingsStale ? '生成设置已变更，请重新生成目录后再继续' : '请先保存本次生成设置', 'info');
       return;
     }
     const confirmed = await confirm({
@@ -637,15 +670,20 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           const imageAvailable = config?.image_model?.status === 'available';
           const diagramAvailable = Boolean(config?.skill_settings?.skills?.['technical-diagram']?.enabled);
           const generationOptions: ContentGenerationOptions = {
+            ...savedOptions,
             useAiImages: imageAvailable && Boolean(savedOptions?.useAiImages),
+            aiImageStyle: savedOptions?.aiImageStyle ?? 'auto',
             maxAiImages: Math.max(0, Math.min(savedOptions?.maxAiImages ?? 0, outlineLeaves.length)),
             useMermaidImages: savedOptions?.useMermaidImages ?? true,
             useTechnicalDiagrams: diagramAvailable && (savedOptions?.useTechnicalDiagrams ?? true),
             tableRequirement: savedOptions?.tableRequirement ?? 'heavy',
             minimumWords: Math.max(0, savedOptions?.minimumWords ?? 0),
+            maximumWords: Math.max(0, savedOptions?.maximumWords ?? 0),
+            sectionWords: Math.max(0, savedOptions?.sectionWords ?? 0),
             contentConcurrency: Math.max(1, savedOptions?.contentConcurrency ?? 5),
             enableConsistencyAudit: savedOptions?.enableConsistencyAudit ?? true,
             enableOriginalPlanCoverageAudit: requiresOriginalPlan && Boolean(savedOptions?.enableOriginalPlanCoverageAudit),
+            missingFactPolicy: savedOptions?.missingFactPolicy,
           };
           await window.yibiao?.tasks.startContentGeneration({ workflowKind, projectId, generationOptions });
           switchStep('content-edit');
@@ -690,6 +728,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     const normalizedConcurrency = Math.max(1, Math.round(Number(expandConcurrency) || 1));
     const savedOptions: ContentGenerationOptions = {
       useAiImages: expandUseAiImages && expandImageModelAvailable,
+      aiImageStyle: state.contentGenerationOptions?.aiImageStyle ?? 'auto',
       maxAiImages: expandUseAiImages ? Math.max(0, Math.min(Math.round(Number(expandMaxAiImages) || 0), selectedExpandLeaves.length)) : 0,
       useMermaidImages: expandUseMermaidImages,
       useTechnicalDiagrams: expandUseTechnicalDiagrams && expandTechnicalDiagramAvailable,
@@ -698,6 +737,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       contentConcurrency: normalizedConcurrency,
       enableConsistencyAudit: expandConsistencyAudit,
       enableOriginalPlanCoverageAudit: state.contentGenerationOptions?.enableOriginalPlanCoverageAudit || false,
+      missingFactPolicy: state.contentGenerationOptions?.missingFactPolicy,
     };
 
     try {
@@ -769,6 +809,13 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       }
 
       setState((prev) => {
+        if (taskType === 'bid-section-extraction') {
+          return {
+            ...prev,
+            ...technicalPlan,
+            bidSectionExtractionTask: trimTaskLogs(technicalPlan.bidSectionExtractionTask) || latestTask,
+          };
+        }
         if (taskType === 'bid-analysis') {
           const outlineDataReset = hasOwnField(technicalPlan, 'outlineData') && technicalPlan.outlineData === null;
           return {
@@ -919,6 +966,22 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     setExportChoiceOpen(true);
   };
 
+  const auditExportedWordLayout = async (filePath: string) => {
+    setExportProgress((prev) => prev.filePath === filePath
+      ? { ...prev, layoutChecking: true, layoutError: undefined, layoutAudit: undefined }
+      : prev);
+    try {
+      const layoutAudit = await window.yibiao?.export.checkWordLayout(filePath);
+      setExportProgress((prev) => prev.filePath === filePath
+        ? { ...prev, layoutChecking: false, layoutAudit }
+        : prev);
+    } catch (error) {
+      setExportProgress((prev) => prev.filePath === filePath
+        ? { ...prev, layoutChecking: false, layoutError: error instanceof Error ? error.message : '版式自检失败' }
+        : prev);
+    }
+  };
+
   const exportWord = async (mode: Exclude<BidWordExportMode, 'original-template'> = 'word-optimization', template?: BidExportTemplateRecord, outlineOverride?: OutlineItem[]) => {
     if (!state.outlineData?.outline?.length) {
       showToast('请先生成目录', 'info');
@@ -987,6 +1050,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         warnings: result?.warnings || prev.warnings,
         filePath: result?.path || result?.filePath,
       }));
+      const exportedPath = result?.path || result?.filePath;
+      if (exportedPath) void auditExportedWordLayout(exportedPath);
       showToast(result?.message || 'Word 已导出', result?.warnings?.length ? 'info' : 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出 Word 失败';
@@ -1067,6 +1132,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         warnings: result?.warnings || prev.warnings,
         filePath: result?.path || result?.filePath,
       }));
+      const exportedPath = result?.path || result?.filePath;
+      if (exportedPath) void auditExportedWordLayout(exportedPath);
       showToast(result?.message || 'Word 已按原方案格式导出', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '原格式导出 Word 失败';
@@ -1398,6 +1465,11 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           workflowKind={workflowKind}
           tenderFile={state.tenderFile}
           tenderMarkdown={tenderMarkdown}
+          bidSections={state.bidSections}
+          selectedBidSectionId={state.selectedBidSectionId}
+          bidSectionSource={state.bidSectionSource}
+          bidSectionExtractionTask={state.bidSectionExtractionTask}
+          hasDownstreamResults={Boolean(Object.keys(state.bidAnalysisTasks).length || state.outlineData || state.globalFacts.length || Object.keys(state.contentGenerationSections).length)}
           originalPlanFile={state.originalPlanFile}
           originalPlanMarkdown={originalPlanMarkdown}
           onFileImported={(nextState, markdown) => {
@@ -1407,6 +1479,19 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           onOriginalPlanImported={(nextState, markdown) => {
             setState((prev) => ({ ...prev, ...nextState }));
             setOriginalPlanMarkdown(markdown);
+          }}
+          onSectionSelected={(nextState) => setState((prev) => ({ ...prev, ...nextState }))}
+        />
+      )}
+
+      {state.step === 'generation-settings' && (
+        <GenerationSettingsPage
+          options={state.contentGenerationOptions}
+          selectedBidSectionTitle={state.bidSections?.find((section) => section.id === state.selectedBidSectionId)?.title}
+          stale={generationSettingsStale}
+          onSave={async (options) => {
+            await saveContentGenerationOptions(options);
+            showToast('生成设置已保存', 'success');
           }}
         />
       )}
@@ -1477,6 +1562,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           outlineData={state.outlineData}
           globalFacts={state.globalFacts}
           task={state.globalFactsTask}
+          missingFactPolicy={state.contentGenerationOptions?.missingFactPolicy}
+          policyStale={globalFactsPolicyStale}
           onGlobalFactsSaved={saveGlobalFacts}
         />
       )}
@@ -1498,7 +1585,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         <section className="plan-step-body content-expand-page">
           <div className="content-generation-command-bar">
             <div>
-              <span className="section-kicker">STEP 06</span>
+              <span className="section-kicker">STEP 07</span>
               <strong>扩写改写</strong>
               <p>对已生成正文做段落级加厚，优先补充机理、步骤、风险、验收和交付物。</p>
             </div>
@@ -1562,7 +1649,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                   <div className="content-expand-section-head">
                     <div className="content-expand-title-block">
                       <strong>选择扩写范围</strong>
-                      <span>可从 STEP 05 当前小节进入，也可以在这里多选、全选目录小节。</span>
+                      <span>可从 STEP 06 当前小节进入，也可以在这里多选、全选目录小节。</span>
                     </div>
                     <div className="content-expand-selection-actions">
                       <button type="button" className="secondary-action" onClick={selectAllExpandItems} disabled={isContentGenerating || isContentPaused || !generatedLeaves.length}>全选</button>
@@ -1715,7 +1802,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
             </div>
             <div className="markdown-viewer content-expand-preview-body">
               {previewExpandContent.trim() ? (
-                <MarkdownRenderer>{previewExpandContent}</MarkdownRenderer>
+                <MarkdownRenderer enableMermaid>{previewExpandContent}</MarkdownRenderer>
               ) : (
                 <p className="content-editor-empty">当前小节暂无正文内容。</p>
               )}
@@ -1778,6 +1865,19 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                   >
                     {exportProgress.filePath}
                   </button>
+                </div>
+              )}
+              {!exportProgress.running && exportProgress.filePath && (
+                <div className="word-layout-audit">
+                  <button type="button" className="secondary-action" disabled={exportProgress.layoutChecking} onClick={() => exportProgress.filePath && void auditExportedWordLayout(exportProgress.filePath)}>{exportProgress.layoutChecking ? '正在检查分页…' : '重新检查 Word 版式'}</button>
+                  <small>使用本地 LibreOffice 渲染分页；Word/WPS 的实际分页可能略有差异。</small>
+                  {exportProgress.layoutError && <p role="alert">{exportProgress.layoutError}</p>}
+                  {exportProgress.layoutAudit && <div className="word-layout-audit-result" role="status">
+                    <strong>已检查 {exportProgress.layoutAudit.checkedPages}/{exportProgress.layoutAudit.pageCount} 页，发现 {exportProgress.layoutAudit.issues.length} 处需复核</strong>
+                    {exportProgress.layoutAudit.issues.length === 0 && <span>未发现明显空白页、大块留白或越界文字。请仍在 Word/WPS 中核对表格跨页和图片位置。</span>}
+                    {exportProgress.layoutAudit.issues.map((issue, index) => <span key={`${issue.page}-${issue.code}-${index}`}>第 {issue.page} 页：{issue.message}</span>)}
+                    {exportProgress.layoutAudit.truncated && <span>文档页数或提示数量超过本次检查上限，剩余页面请手动核对。</span>}
+                  </div>}
                 </div>
               )}
               {exportProgress.warnings.length > 0 && (

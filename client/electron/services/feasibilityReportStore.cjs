@@ -27,6 +27,7 @@ const DEFAULT_CONTENT_GENERATION_OPTIONS = {
   maxAiImages: 6,
   useMermaidImages: true,
   useTechnicalDiagrams: true,
+  autoReview: false,
 };
 
 const TASK_FIELDS = {
@@ -82,6 +83,7 @@ function normalizeContentGenerationOptions(value) {
     maxAiImages: Math.max(0, Math.min(100, Number.isFinite(requestedMaxAiImages) ? Math.round(requestedMaxAiImages) : DEFAULT_CONTENT_GENERATION_OPTIONS.maxAiImages)),
     useMermaidImages: Boolean(source.useMermaidImages ?? DEFAULT_CONTENT_GENERATION_OPTIONS.useMermaidImages),
     useTechnicalDiagrams: Boolean(source.useTechnicalDiagrams ?? DEFAULT_CONTENT_GENERATION_OPTIONS.useTechnicalDiagrams),
+    autoReview: Boolean(source.autoReview ?? DEFAULT_CONTENT_GENERATION_OPTIONS.autoReview),
   };
 }
 

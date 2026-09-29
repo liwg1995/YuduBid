@@ -268,7 +268,7 @@ function BidAnalysisPage({
     <div className="plan-step-body bid-analysis-page">
       <section className="bid-analysis-command-bar">
         <div>
-          <span className="section-kicker">STEP 02</span>
+          <span className="section-kicker">STEP 03</span>
           <strong>招标文件解析</strong>
           <p>并发解析招标文件，关键项成功后进入目录生成。</p>
         </div>

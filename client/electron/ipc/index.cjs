@@ -6,6 +6,7 @@ const { registerAiIpc } = require('./aiIpc.cjs');
 const { registerAgentIpc } = require('./agentIpc.cjs');
 const { registerBidOpportunityIpc } = require('./bidOpportunityIpc.cjs');
 const { registerCodeGenerationIpc } = require('./codeGenerationIpc.cjs');
+const { registerCredentialLibraryIpc } = require('./credentialLibraryIpc.cjs');
 const { registerConfigIpc } = require('./configIpc.cjs');
 const { registerDuplicateCheckIpc } = require('./duplicateCheckIpc.cjs');
 const { registerExportIpc } = require('./exportIpc.cjs');
@@ -28,6 +29,7 @@ const { registerThesisTutorIpc } = require('./thesisTutorIpc.cjs');
 const { createAiService } = require('../services/aiService.cjs');
 const { createBidOpportunityService } = require('../services/bidOpportunityService.cjs');
 const { createCodeGenerationService } = require('../services/codeGenerationService.cjs');
+const { createCredentialLibraryService } = require('../services/credentialLibraryService.cjs');
 const { createCheckResultExportService } = require('../services/checkResultExportService.cjs');
 const { createConfigStore } = require('../services/configStore.cjs');
 const { createDuplicateCheckService } = require('../services/duplicateCheckService.cjs');
@@ -438,6 +440,9 @@ function createTechnicalPlanStoreRouter({ app, fileService, technicalPlanStore, 
     readTenderMarkdown(payload) {
       return pickStore(payload).readTenderMarkdown();
     },
+    saveSelectedBidSection(payload = {}) {
+      return withProjectMeta(pickStore(payload).saveSelectedBidSection(payload.sectionId), payload);
+    },
     readOriginalPlanMarkdown(payload) {
       return pickStore(payload).readOriginalPlanMarkdown();
     },
@@ -784,6 +789,7 @@ function registerIpcHandlers({ app, mainWindow, downloadReleaseInstaller, cancel
     const existingPlanExpansionApp = createScopedApp(app, 'existing-plan-expansion');
     const existingPlanExpansionDatabase = createSqliteDatabase(existingPlanExpansionApp);
     const knowledgeBaseStore = createKnowledgeBaseStore({ app, db: sqliteDatabase.db });
+    const credentialLibraryService = createCredentialLibraryService({ app, db: sqliteDatabase.db });
     templateStore = createTemplateStore({ app, db: sqliteDatabase.db });
     const knowledgeBaseService = createKnowledgeBaseService({ app, aiService, configStore, knowledgeBaseStore });
     const knowledgeImageService = createKnowledgeImageService({ app, db: sqliteDatabase.db });
@@ -831,6 +837,7 @@ function registerIpcHandlers({ app, mainWindow, downloadReleaseInstaller, cancel
       onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
     });
     registerKnowledgeBaseIpc({ knowledgeBaseService, knowledgeImageService });
+    registerCredentialLibraryIpc({ credentialLibraryService, configStore });
     registerTemplateIpc({ templateStore });
     registerBidOpportunityIpc({ bidOpportunityService });
     registerTechnicalPlanIpc({ technicalPlanStore: technicalPlanStoreRouter });

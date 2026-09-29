@@ -1,6 +1,6 @@
 {
   "name": "yudubid-client",
-  "version": "0.9.13",
+  "version": "0.9.14",
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
@@ -134,6 +134,8 @@
     "artifactName": "YuDuBid-${version}-${os}-${arch}.${ext}"
   },
   "dependencies": {
+    "@docx-editor.dev/core": "2.15.0",
+    "@docx-editor.dev/react": "2.15.0",
     "@napi-rs/canvas": "^1.0.5",
     "adm-zip": "^0.6.1",
     "better-sqlite3": "^12.10.0",

@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Popover from '@radix-ui/react-popover';
 import * as Switch from '@radix-ui/react-switch';
-import { Children, isValidElement, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Children, isValidElement, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Components } from 'react-markdown';
 import { DetailHelpLink, MarkdownEditor, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { ClientConfig, ImageModelStatus, OutlineData, OutlineItem } from '../../../shared/types';
@@ -9,6 +9,8 @@ import { countReadableWords } from '../../../shared/utils/wordCount';
 import type { BackgroundTaskState, ContentGenerationOptions, ContentGenerationSectionStatus, ContentGenerationSections, ContentImageStats, ContentTableRequirement, TechnicalPlanWorkflowKind } from '../types';
 import KnowledgeImagePicker from '../../knowledge-base/components/KnowledgeImagePicker';
 import '../../knowledge-base/imageKnowledgeBase.css';
+
+const ContentWordPreview = lazy(() => import('../components/ContentWordPreview'));
 
 interface ContentEditPageProps {
   projectId?: string;
@@ -66,11 +68,14 @@ const tableRequirementOptions: Array<{ value: ContentTableRequirement; label: st
 
 const defaultContentGenerationOptions: ContentGenerationOptions = {
   useAiImages: false,
+  aiImageStyle: 'auto',
   maxAiImages: 6,
   useMermaidImages: true,
   useTechnicalDiagrams: true,
   tableRequirement: 'heavy',
   minimumWords: 0,
+  maximumWords: 0,
+  sectionWords: 0,
   contentConcurrency: 5,
   enableConsistencyAudit: true,
   enableOriginalPlanCoverageAudit: false,
@@ -94,19 +99,25 @@ function normalizeGenerationOptions(options: ContentGenerationOptions | undefine
   const maxAiImagesLimit = Math.max(1, leafCount);
   const requestedMaxAiImages = Number(options?.maxAiImages ?? fallback.maxAiImages);
   const requestedMinimumWords = Number(options?.minimumWords ?? fallback.minimumWords);
+  const requestedMaximumWords = Number(options?.maximumWords ?? fallback.maximumWords ?? 0);
+  const requestedSectionWords = Number(options?.sectionWords ?? fallback.sectionWords ?? 0);
   const requestedContentConcurrency = Number(options?.contentConcurrency ?? fallback.contentConcurrency);
   const tableRequirement = options?.tableRequirement;
 
   return {
     useAiImages: Boolean(options?.useAiImages ?? fallback.useAiImages) && imageModelAvailable,
+    aiImageStyle: options?.aiImageStyle ?? 'auto',
     maxAiImages: Math.max(0, Math.min(Number.isFinite(requestedMaxAiImages) ? Math.round(requestedMaxAiImages) : fallback.maxAiImages, maxAiImagesLimit)),
     useMermaidImages: Boolean(options?.useMermaidImages ?? fallback.useMermaidImages),
     useTechnicalDiagrams: Boolean(options?.useTechnicalDiagrams ?? fallback.useTechnicalDiagrams) && technicalDiagramAvailable,
     tableRequirement: isContentTableRequirement(tableRequirement) ? tableRequirement : fallback.tableRequirement,
     minimumWords: Math.max(0, Number.isFinite(requestedMinimumWords) ? Math.round(requestedMinimumWords) : fallback.minimumWords),
+    maximumWords: Math.max(0, Number.isFinite(requestedMaximumWords) ? Math.round(requestedMaximumWords) : fallback.maximumWords ?? 0),
+    sectionWords: Math.max(0, Number.isFinite(requestedSectionWords) ? Math.round(requestedSectionWords) : fallback.sectionWords ?? 0),
     contentConcurrency: Math.max(1, Number.isFinite(requestedContentConcurrency) ? Math.round(requestedContentConcurrency) : fallback.contentConcurrency),
     enableConsistencyAudit: Boolean(options?.enableConsistencyAudit ?? fallback.enableConsistencyAudit),
     enableOriginalPlanCoverageAudit: isExpansionWorkflow ? Boolean(options?.enableOriginalPlanCoverageAudit ?? fallback.enableOriginalPlanCoverageAudit) : false,
+    missingFactPolicy: options?.missingFactPolicy ?? fallback.missingFactPolicy,
   };
 }
 
@@ -360,6 +371,7 @@ function ContentEditPage({
   const [draftGenerationOptions, setDraftGenerationOptions] = useState<ContentGenerationOptions>(defaultContentGenerationOptions);
   const [pendingMinimumWordsChoice, setPendingMinimumWordsChoice] = useState<PendingMinimumWordsChoice | null>(null);
   const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
+  const [wordPreview, setWordPreview] = useState<{ sectionId: string; title: string; content: string; projectName: string } | null>(null);
   const [pausePending, setPausePending] = useState(false);
   const firstLeafId = leaves[0]?.id || '';
   const selectedItem = outlineData?.outline && selectedItemId ? findItem(outlineData.outline, selectedItemId) : null;
@@ -558,6 +570,9 @@ function ContentEditPage({
 
   const saveDraftGenerationOptions = async (showSuccess: boolean, imageAvailable = imageModelAvailable, diagramAvailable = technicalDiagramAvailable) => {
     const normalizedDraftOptions = normalizeGenerationOptions(draftGenerationOptions, imageAvailable, leaves.length, isExpansionWorkflow, diagramAvailable);
+    if (normalizedDraftOptions.maximumWords && normalizedDraftOptions.minimumWords > normalizedDraftOptions.maximumWords) {
+      throw new Error('全文参考上限不能低于最低字数');
+    }
     const currentOptions = contentGenerationOptions
       ? { ...defaultContentGenerationOptions, ...contentGenerationOptions }
       : normalizeGenerationOptions(undefined, imageAvailable, leaves.length, isExpansionWorkflow, diagramAvailable);
@@ -701,14 +716,9 @@ function ContentEditPage({
       projectId,
       regenerate,
       generationOptions: {
+        ...savedGenerationOptions,
         useAiImages: nextImageModelAvailable && savedGenerationOptions.useAiImages,
-        maxAiImages: savedGenerationOptions.maxAiImages,
-        useMermaidImages: savedGenerationOptions.useMermaidImages,
         useTechnicalDiagrams: nextTechnicalDiagramAvailable && savedGenerationOptions.useTechnicalDiagrams,
-        tableRequirement: savedGenerationOptions.tableRequirement,
-        minimumWords: savedGenerationOptions.minimumWords,
-        contentConcurrency: savedGenerationOptions.contentConcurrency,
-        enableConsistencyAudit: savedGenerationOptions.enableConsistencyAudit,
         enableOriginalPlanCoverageAudit: isExpansionWorkflow && savedGenerationOptions.enableOriginalPlanCoverageAudit,
       },
     });
@@ -816,13 +826,9 @@ function ContentEditPage({
         targetItemId: requirementItem.id,
         requirement: regenerateRequirement,
         generationOptions: {
+          ...savedGenerationOptions,
           useAiImages: nextImageModelAvailable && savedGenerationOptions.useAiImages,
-          maxAiImages: savedGenerationOptions.maxAiImages,
-          useMermaidImages: savedGenerationOptions.useMermaidImages,
           useTechnicalDiagrams: nextTechnicalDiagramAvailable && savedGenerationOptions.useTechnicalDiagrams,
-          tableRequirement: savedGenerationOptions.tableRequirement,
-          contentConcurrency: savedGenerationOptions.contentConcurrency,
-          enableConsistencyAudit: savedGenerationOptions.enableConsistencyAudit,
           enableOriginalPlanCoverageAudit: isExpansionWorkflow && savedGenerationOptions.enableOriginalPlanCoverageAudit,
         },
       });
@@ -948,7 +954,7 @@ function ContentEditPage({
     <div className="plan-step-body content-generation-page">
       <section className="content-generation-command-bar">
         <div>
-          <span className="section-kicker">STEP 05</span>
+          <span className="section-kicker">STEP 06</span>
           <strong>正文生成</strong>
           <p>按目录叶子小节并发生成技术方案正文，页面切换不会中断后台任务。</p>
         </div>
@@ -1022,6 +1028,9 @@ function ContentEditPage({
             </div>
             <div className="content-reader-actions">
               <span className={`content-status-badge is-${selectedStatus}`}>{statusLabels[selectedStatus]}</span>
+              {!editing && selectedItem && selectedIsLeaf && selectedContent.trim() && (
+                <button type="button" className="secondary-action" onClick={() => setWordPreview({ sectionId: selectedItem.id, title: selectedItem.title, content: selectedContent, projectName: outlineData?.project_name || '技术方案' })}>Word 预览</button>
+              )}
               {editing ? (
                 <>
                   <button type="button" className={isPreviewing ? 'secondary-action' : 'primary-action'} onClick={togglePreview}>
@@ -1151,6 +1160,14 @@ function ContentEditPage({
                 />
               </label>
               <label className="content-generation-config-row">
+                <span><strong>全文参考上限</strong><small>0 表示不限制；超出时提示复核，不自动删减已生成内容。</small></span>
+                <input type="number" min="0" step="1000" value={draftGenerationOptions.maximumWords || 0} disabled={generationStrategyLocked} onChange={(event) => setDraftGenerationOptions((prev) => ({ ...prev, maximumWords: Math.max(0, Math.round(Number(event.target.value) || 0)) }))} />
+              </label>
+              <label className="content-generation-config-row">
+                <span><strong>每节参考字数</strong><small>0 表示按全文目标和目录数量分配。</small></span>
+                <input type="number" min="0" step="100" value={draftGenerationOptions.sectionWords || 0} disabled={generationStrategyLocked} onChange={(event) => setDraftGenerationOptions((prev) => ({ ...prev, sectionWords: Math.max(0, Math.round(Number(event.target.value) || 0)) }))} />
+              </label>
+              <label className="content-generation-config-row">
                 <span>
                   <strong>全文一致性审计</strong>
                   <small>正文扩写完成后，先检查并修复与全局事实冲突的内容，再进入配图。</small>
@@ -1222,6 +1239,22 @@ function ContentEditPage({
                     maxAiImages: Math.max(0, Math.min(Number(event.target.value) || 0, Math.max(1, leaves.length))),
                   }))}
                 />
+              </label>
+              <label className="content-generation-config-row">
+                <span><strong>AI 配图风格</strong><small>自动选择会按小节内容匹配画面；指定风格会应用于本轮所有 AI 配图。</small></span>
+                <select value={draftGenerationOptions.aiImageStyle || 'auto'} disabled={generationStrategyLocked || !draftGenerationOptions.useAiImages || !imageModelAvailable} onChange={(event) => setDraftGenerationOptions((prev) => ({ ...prev, aiImageStyle: event.target.value as ContentGenerationOptions['aiImageStyle'] }))}>
+                  <option value="auto">自动选择</option>
+                  <option value="engineering_diagram">工程示意图</option>
+                  <option value="realistic_photo">写实摄影</option>
+                  <option value="product_shot">设备特写</option>
+                  <option value="architectural_render">建筑场地效果图</option>
+                  <option value="3d_render">三维模型</option>
+                  <option value="isometric_illustration">轴测插画</option>
+                  <option value="cutaway_illustration">剖视插画</option>
+                  <option value="exploded_view">爆炸分解图</option>
+                  <option value="line_drawing">技术线稿</option>
+                  <option value="flat_illustration">扁平插画</option>
+                </select>
               </label>
               <label className="content-generation-config-row">
                 <span>
@@ -1337,6 +1370,18 @@ function ContentEditPage({
             <Dialog.Close className="image-preview-close" type="button" aria-label="关闭图片预览">×</Dialog.Close>
             <Dialog.Title>{previewImage?.alt || '图片预览'}</Dialog.Title>
             {previewImage && <img src={previewImage.src} alt={previewImage.alt} />}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <Dialog.Root open={Boolean(wordPreview)} onOpenChange={(open) => !open && setWordPreview(null)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-word-overlay" />
+          <Dialog.Content className="content-word-dialog" aria-describedby="content-word-preview-description">
+            <div className="content-word-dialog-head">
+              <div><Dialog.Title>{wordPreview?.title || 'Word 预览'}</Dialog.Title><Dialog.Description id="content-word-preview-description">按本地基础排版生成当前小节预览；最终文件以实际导出模板为准。</Dialog.Description></div>
+              <Dialog.Close type="button" className="secondary-action">关闭</Dialog.Close>
+            </div>
+            {wordPreview && <Suspense fallback={<div className="content-word-status">正在加载预览组件…</div>}><ContentWordPreview {...wordPreview} /></Suspense>}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

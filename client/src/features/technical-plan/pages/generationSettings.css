@@ -1,0 +1,16 @@
+.generation-settings-page { width: 100%; min-width: 0; height: 100%; min-height: 0; overflow: auto; padding-bottom: 24px; }
+.generation-settings-header, .generation-settings-fields { width: 100%; padding: 22px; background: var(--yb-surface); border: 1px solid var(--yb-border); border-radius: var(--yb-radius-lg); }
+.generation-settings-header { position: relative; padding-right: 230px; }
+.generation-settings-header h2 { margin: 8px 0; }
+.generation-settings-header p { color: var(--yb-text-soft); }
+.generation-settings-header strong { display: inline-block; margin-top: 12px; }
+.generation-settings-save { position: absolute; top: 22px; right: 22px; }
+.generation-settings-fields { display: grid; gap: 0; margin-top: 18px; }
+.generation-settings-fields label { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 82px; border-bottom: 1px solid var(--yb-border-soft); }
+.generation-settings-fields label:last-child { border-bottom: 0; }
+.generation-settings-fields label span { display: grid; gap: 5px; }
+.generation-settings-fields label small { color: var(--yb-text-soft); }
+.generation-settings-fields :is(input[type="number"], select) { width: 180px; padding: 10px 12px; color: var(--yb-text); background: var(--yb-control-bg); border: 1px solid var(--yb-control-border); border-radius: 9px; }
+.generation-settings-fields input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--yb-primary); }
+.generation-settings-warning { padding: 12px 16px; color: var(--yb-text); background: var(--yb-control-bg); border: 1px solid var(--yb-primary); border-radius: 10px; }
+@media (max-width: 700px) { .generation-settings-header { padding-right: 22px; } .generation-settings-save { position: static; display: block; margin-top: 18px; } .generation-settings-fields label { align-items: stretch; flex-direction: column; padding: 14px 0; gap: 8px; } .generation-settings-fields :is(input[type="number"], select) { width: 100%; } }

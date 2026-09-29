@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { getBidAnalysisTasks } = require('./bidAnalysisTask.cjs');
+const { detectBidSections, normalizeBidSections, selectBidSectionMarkdown } = require('./bidSectionSelection.cjs');
 const { getTechnicalPlanOriginalPlanMarkdownPath, getTechnicalPlanOriginalPlanSourceDir, getTechnicalPlanTenderMarkdownPath } = require('../utils/paths.cjs');
 const { deleteImportedImageBatches } = require('../utils/importedImages.cjs');
 const { safeRemoveSync } = require('../utils/safeRemove.cjs');
@@ -15,6 +16,7 @@ const initialState = {
   step: 'document-analysis',
   tenderFile: null,
   originalPlanFile: null,
+  bidSectionSource: 'heading',
   projectOverview: '',
   techRequirements: '',
   responseFileRequirements: '',
@@ -24,6 +26,7 @@ const initialState = {
   outlineMode: 'aligned',
   referenceKnowledgeDocumentIds: [],
   bidAnalysisTask: undefined,
+  bidSectionExtractionTask: undefined,
   outlineGenerationTask: undefined,
   globalFactsTask: undefined,
   globalFacts: [],
@@ -37,6 +40,7 @@ const initialState = {
 };
 
 const taskFieldTypes = {
+  bidSectionExtractionTask: 'bid-section-extraction',
   bidAnalysisTask: 'bid-analysis',
   outlineGenerationTask: 'outline-generation',
   globalFactsTask: 'global-facts-generation',
@@ -83,7 +87,7 @@ function normalizeStatus(value, allowed, fallback) {
 }
 
 function isValidStep(value) {
-  return ['document-analysis', 'bid-analysis', 'outline-generation', 'global-facts', 'content-edit', 'expand'].includes(value);
+  return ['document-analysis', 'generation-settings', 'bid-analysis', 'outline-generation', 'global-facts', 'content-edit', 'expand'].includes(value);
 }
 
 function normalizeWorkflowKind(value) {
@@ -195,6 +199,43 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     return fs.readFileSync(filePath, 'utf-8');
   }
 
+  function readTenderMarkdownForGeneration() {
+    const markdown = readTenderMarkdown();
+    const meta = ensureMetaRow();
+    return selectBidSectionMarkdown(markdown, meta.selected_bid_section_id, safeJsonParse(meta.bid_sections_json, []));
+  }
+
+  function saveSelectedBidSection(sectionId) {
+    const nextId = String(sectionId || '').trim();
+    const markdown = readTenderMarkdown();
+    const sections = normalizeBidSections(safeJsonParse(ensureMetaRow().bid_sections_json, []), markdown);
+    const availableSections = sections.length ? sections : detectBidSections(markdown);
+    if (nextId && !availableSections.some((section) => section.id === nextId)) throw new Error('当前招标文件中未找到所选标段');
+    const meta = ensureMetaRow();
+    if ((meta.selected_bid_section_id || '') === nextId) return loadTechnicalPlan();
+    const activeTask = db.prepare("SELECT type FROM technical_plan_tasks WHERE status IN ('running', 'pausing', 'stopping') LIMIT 1").get();
+    if (activeTask) throw new Error('后台任务运行中，请先等待任务完成或暂停后再切换标段');
+    db.transaction(() => {
+      clearDownstreamFromTender({ preserveBidSections: true });
+      updateMeta({ selected_bid_section_id: nextId || null });
+    })();
+    return loadTechnicalPlan();
+  }
+
+  function saveDetectedBidSections(sections, sourceMarkdown) {
+    const markdown = readTenderMarkdown();
+    if (sourceMarkdown !== undefined && stableHash(markdown) !== stableHash(sourceMarkdown)) {
+      throw new Error('招标文件在标段识别期间已变化，请重新识别');
+    }
+    const normalized = normalizeBidSections(sections, markdown);
+    if (normalized.length < 2) throw new Error('未识别到至少两个有原文范围的标段');
+    db.transaction(() => {
+      clearDownstreamFromTender();
+      updateMeta({ bid_sections_json: JSON.stringify(normalized) });
+    })();
+    return loadTechnicalPlan();
+  }
+
   function readOriginalPlanMarkdown() {
     const meta = ensureMetaRow();
     const filePath = resolveMarkdownPath(meta.original_plan_markdown_path || originalPlanMarkdownRelativePath);
@@ -221,7 +262,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     return {
       task_id: row.task_id,
       type: row.type,
-      status: normalizeStatus(row.status, ['running', 'pausing', 'paused', 'success', 'error'], 'running'),
+      status: normalizeStatus(row.status, ['running', 'pausing', 'stopping', 'stopped', 'paused', 'success', 'error'], 'running'),
       progress: Number(row.progress || 0),
       logs: safeJsonParse(row.logs_json, []),
       started_at: row.started_at,
@@ -620,12 +661,14 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     }
   }
 
-  function clearDownstreamFromTender() {
+  function clearDownstreamFromTender({ preserveBidSections = false } = {}) {
     db.prepare('DELETE FROM technical_plan_tasks').run();
     db.prepare('DELETE FROM technical_plan_bid_items').run();
     db.prepare('DELETE FROM technical_plan_reference_docs').run();
     db.prepare('DELETE FROM technical_plan_outline_nodes').run();
     db.prepare('DELETE FROM technical_plan_global_fact_groups').run();
+    db.prepare('DELETE FROM technical_plan_content_sections').run();
+    db.prepare('DELETE FROM technical_plan_content_plans').run();
     updateMeta({
       step: 'document-analysis',
       bid_analysis_mode: 'key',
@@ -633,7 +676,10 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       outline_project_name: null,
       outline_project_overview: null,
       content_generation_options_json: null,
+      generation_settings_snapshot_json: null,
       content_generation_runtime_json: null,
+      selected_bid_section_id: null,
+      bid_sections_json: preserveBidSections ? undefined : null,
     });
   }
 
@@ -642,6 +688,8 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     db.prepare('DELETE FROM technical_plan_reference_docs').run();
     db.prepare('DELETE FROM technical_plan_outline_nodes').run();
     db.prepare('DELETE FROM technical_plan_global_fact_groups').run();
+    db.prepare('DELETE FROM technical_plan_content_sections').run();
+    db.prepare('DELETE FROM technical_plan_content_plans').run();
     updateMeta({
       workflow_kind: normalizeWorkflowKind(workflowKind),
       step: 'document-analysis',
@@ -649,6 +697,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       outline_project_name: null,
       outline_project_overview: null,
       content_generation_options_json: null,
+      generation_settings_snapshot_json: null,
       content_generation_runtime_json: null,
     });
   }
@@ -676,6 +725,8 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     if (hasOwn(partial, 'bidAnalysisMode') && isValidBidMode(partial.bidAnalysisMode)) metaUpdates.bid_analysis_mode = partial.bidAnalysisMode;
     if (hasOwn(partial, 'outlineMode') && isValidOutlineMode(partial.outlineMode)) metaUpdates.outline_mode = partial.outlineMode;
     if (hasOwn(partial, 'contentGenerationOptions')) metaUpdates.content_generation_options_json = jsonOrNull(partial.contentGenerationOptions);
+    if (hasOwn(partial, 'bidSections')) metaUpdates.bid_sections_json = jsonOrNull(normalizeBidSections(partial.bidSections, readTenderMarkdown()));
+    if (hasOwn(partial, 'generationSettingsSnapshot')) metaUpdates.generation_settings_snapshot_json = jsonOrNull(partial.generationSettingsSnapshot);
     if (hasOwn(partial, 'contentGenerationRuntime')) metaUpdates.content_generation_runtime_json = jsonOrNull(partial.contentGenerationRuntime);
     if (hasOwn(partial, 'technicalVolume')) metaUpdates.technical_volume_json = jsonOrNull(partial.technicalVolume);
 
@@ -748,6 +799,13 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       workflowKind: normalizeWorkflowKind(meta.workflow_kind),
       step: isValidStep(meta.step) ? meta.step : 'document-analysis',
       tenderFile,
+      bidSections: tenderFile ? (() => {
+        const markdown = readTenderMarkdown();
+        const saved = normalizeBidSections(safeJsonParse(meta.bid_sections_json, []), markdown);
+        return saved.length ? saved : detectBidSections(markdown);
+      })() : [],
+      bidSectionSource: meta.bid_sections_json ? 'evidence' : 'heading',
+      selectedBidSectionId: meta.selected_bid_section_id || '',
       originalPlanFile,
       projectOverview: bidAnalysisTasks.projectOverview?.status === 'success' ? bidAnalysisTasks.projectOverview.content : '',
       techRequirements: bidAnalysisTasks.techRequirements?.status === 'success' ? bidAnalysisTasks.techRequirements.content : '',
@@ -760,6 +818,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       ...tasks,
       globalFacts: loadGlobalFacts(),
       contentGenerationOptions: safeJsonParse(meta.content_generation_options_json, undefined),
+      generationSettingsSnapshot: safeJsonParse(meta.generation_settings_snapshot_json, undefined),
       contentGenerationRuntime: safeJsonParse(meta.content_generation_runtime_json, undefined),
       contentGenerationSections: loadContentSections(outlineData),
       contentGenerationPlans: loadContentPlans(),
@@ -872,6 +931,11 @@ function createTechnicalPlanStore({ app, db, fileService }) {
   }
 
   function saveContentGenerationOptions(contentGenerationOptions) {
+    const minimumWords = Math.max(0, Math.round(Number(contentGenerationOptions?.minimumWords) || 0));
+    const maximumWords = Math.max(0, Math.round(Number(contentGenerationOptions?.maximumWords) || 0));
+    if (maximumWords > 0 && minimumWords > maximumWords) {
+      throw new Error('全文参考上限不能低于最低字数');
+    }
     return updateTechnicalPlan({ contentGenerationOptions });
   }
 
@@ -1114,6 +1178,9 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     importOriginalPlanDocument,
     importOriginalPlanMarkdown,
     readTenderMarkdown,
+    readTenderMarkdownForGeneration,
+    saveSelectedBidSection,
+    saveDetectedBidSections,
     readOriginalPlanMarkdown,
     updateStep,
     switchWorkflowKind,

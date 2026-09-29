@@ -168,7 +168,7 @@ function normalizeReferenceDocumentIds(storedPlan) {
 
 function loadKnowledgeItems(knowledgeBaseService, documentIds, log) {
   if (!documentIds.length) {
-    log('未选择参考知识库，本次只基于招标文件、Step02 解析结果和目录预设关键信息。', 12);
+    log('未选择参考知识库，本次只基于招标文件、Step03 解析结果和目录预设关键信息。', 12);
     return [];
   }
   if (!knowledgeBaseService?.readItems) {
@@ -219,10 +219,16 @@ function formatBidAnalysisFactsForPrompt(storedPlan) {
     formatBidAnalysisFactForPrompt(storedPlan, 'projectInfo', '项目信息'),
     formatBidAnalysisFactForPrompt(storedPlan, 'partAInfo', '甲方信息'),
     formatBidAnalysisFactForPrompt(storedPlan, 'deliveryAndServiceRequirements', '交货和服务要求'),
-  ].filter(Boolean).join('\n\n') || '未提供 Step02 关键解析结果。';
+  ].filter(Boolean).join('\n\n') || '未提供 Step03 关键解析结果。';
 }
 
-function buildFirstRoundMessages({ tenderMarkdown, outlineData, bidAnalysisFactsText, knowledgeItems, originalPlanMarkdown }) {
+function missingFactRule(policy) {
+  if (policy === 'placeholder') return '资料未提供明确值时保留变量，值逐字写成【待填写】；不得编造姓名、日期、周期、型号、参数或业绩。';
+  if (policy === 'generic') return '资料未提供明确值时保留相关变量，写成不含具体姓名、日期、周期、型号、参数或业绩的笼统承诺；不得编造具体值。';
+  return '资料未提供明确值，但该变量对全文一致性重要时，可以按项目语境合理推断并固定具体值。';
+}
+
+function buildFirstRoundMessages({ tenderMarkdown, outlineData, bidAnalysisFactsText, knowledgeItems, originalPlanMarkdown, missingFactPolicy }) {
   const hasOriginalPlan = String(originalPlanMarkdown || '').trim();
   return [
     {
@@ -234,7 +240,7 @@ ${hasOriginalPlan ? '当前是“已有方案扩写”模式。用户提供的�
 1. 以“已生成技术方案目录”为主，判断在这些目录的正文写作时，哪些变量一旦随机生成就会导致全文前后不一致。
 2. 必须要包含的变量类别：工期、运维期或交货时间，这三个至少有一个，根据项目类型判断用哪个。其他变量类别由你自行判断，比如；人名、时间、品牌、型号、质保期等根据用户提交内容仔细分析。
 3. 招标文件、关键解析结果和知识库可以作为参考，如果里面有能用到的信息，优先使用。
-4. 如果用户提交的材料中没有可用信息，但是你分析某变量对全文一致性很重要，你需要根据你的专业能力来编辑，允许出现虚拟内容，但必须合情合理。
+4. ${missingFactRule(missingFactPolicy)}
 5. 仅编写技术方案部分，不要涉及商务部分所需要的内容。
 
 输出要求：
@@ -256,7 +262,7 @@ ${hasOriginalPlan ? '当前是“已有方案扩写”模式。用户提供的�
     {
       "id": "project_team",
       "title": "项目角色变量",
-      "content": "- 项目经理：张伟，负责总体协调。\n- 技术负责人：李明，负责方案设计和联调验收。"
+      "content": "${missingFactPolicy === 'placeholder' ? '- 项目经理：【待填写】。\\n- 技术负责人：【待填写】。' : missingFactPolicy === 'generic' ? '- 项目经理：按招标要求配备。\\n- 技术负责人：按招标要求配备。' : '- 项目经理：张伟，负责总体协调。\\n- 技术负责人：李明，负责方案设计和联调验收。'}"
     }
   ]
 }`,
@@ -264,7 +270,7 @@ ${hasOriginalPlan ? '当前是“已有方案扩写”模式。用户提供的�
   ];
 }
 
-function buildSecondRoundMessages({ tenderMarkdown, outlineData, bidAnalysisFactsText, knowledgeItems, groups, originalPlanMarkdown }) {
+function buildSecondRoundMessages({ tenderMarkdown, outlineData, bidAnalysisFactsText, knowledgeItems, groups, originalPlanMarkdown, missingFactPolicy }) {
   const hasOriginalPlan = String(originalPlanMarkdown || '').trim();
   return [
     {
@@ -280,7 +286,8 @@ ${hasOriginalPlan ? '当前是“已有方案扩写”模式。补充变量时�
 5. mode 只能是 append、prepend 或 replace；默认使用 append。只有已有大项明显不适合作为变量表时才使用 replace。
 6. 每条 content 只写短 bullet，直接给可复用的变量值，不要写分析过程、来源说明、风险提示或正文草稿。
 7. 没有可补充内容时返回 {"patches":[]}。
-8. 只返回 JSON。`,
+8. ${missingFactRule(missingFactPolicy)}
+9. 只返回 JSON。`,
     },
     { role: 'user', content: `招标文件原文：\n${tenderMarkdown}` },
     ...(hasOriginalPlan ? [{ role: 'user', content: `原方案正文（本次扩写的核心草稿，必须重点参考并保留其已有内容）：\n${originalPlanMarkdown}` }] : []),
@@ -320,7 +327,7 @@ async function runGlobalFactsTask({ aiService, workspaceStore, knowledgeBaseServ
   }
 
   const storedPlan = workspaceStore.loadTechnicalPlan() || {};
-  const tenderMarkdown = workspaceStore.readTenderMarkdown();
+  const tenderMarkdown = workspaceStore.readTenderMarkdownForGeneration();
   if (!String(tenderMarkdown || '').trim()) {
     throw new Error('请先上传招标文件，再生成全局事实');
   }
@@ -347,13 +354,14 @@ async function runGlobalFactsTask({ aiService, workspaceStore, knowledgeBaseServ
   updateTask({ status: 'running', progress: 5, logs }, technicalPlan);
 
   const referenceKnowledgeDocumentIds = normalizeReferenceDocumentIds(storedPlan);
+  const missingFactPolicy = storedPlan.contentGenerationOptions?.missingFactPolicy || 'infer';
   const bidAnalysisFactsText = formatBidAnalysisFactsForPrompt(storedPlan);
-  log('正在读取招标文件、Step02 解析结果、目录和参考知识库。', 10);
+  log('正在读取招标文件、Step03 解析结果、目录和参考知识库。', 10);
   const knowledgeItems = loadKnowledgeItems(knowledgeBaseService, referenceKnowledgeDocumentIds, log);
 
   log('正在预设后续正文会反复用到的全局事实变量。', 25);
   const firstRound = await collectJson(aiService, {
-    messages: buildFirstRoundMessages({ tenderMarkdown, outlineData, bidAnalysisFactsText, knowledgeItems, originalPlanMarkdown }),
+    messages: buildFirstRoundMessages({ tenderMarkdown, outlineData, bidAnalysisFactsText, knowledgeItems, originalPlanMarkdown, missingFactPolicy }),
     temperature: 0.2,
     logTitle: '全局事实变量',
     progressLabel: '全局事实变量',
@@ -368,7 +376,7 @@ async function runGlobalFactsTask({ aiService, workspaceStore, knowledgeBaseServ
 
   log('第二轮：正在根据第一轮大项补充遗漏的全局事实变量。', 68);
   const secondRound = await collectJson(aiService, {
-    messages: buildSecondRoundMessages({ tenderMarkdown, outlineData, bidAnalysisFactsText, knowledgeItems, groups, originalPlanMarkdown }),
+    messages: buildSecondRoundMessages({ tenderMarkdown, outlineData, bidAnalysisFactsText, knowledgeItems, groups, originalPlanMarkdown, missingFactPolicy }),
     temperature: 0.2,
     logTitle: '全局事实变量-第二轮补充',
     progressLabel: '全局事实变量第二轮',
@@ -382,9 +390,9 @@ async function runGlobalFactsTask({ aiService, workspaceStore, knowledgeBaseServ
   log(`全局事实变量合并完成：${groups.length} 个大项，补充 ${secondRound.patches?.length || 0} 条。`, 92);
   technicalPlan = workspaceStore.updateTechnicalPlan({
     globalFacts: groups,
-    globalFactsTask: updateTask({ status: 'success', progress: 100, logs: [...logs, '全局事实变量生成完成。'] }),
+    globalFactsTask: updateTask({ status: 'success', progress: 100, logs: [...logs, '全局事实变量生成完成。'], stats: { globalFactsPolicy: missingFactPolicy } }),
   });
-  updateTask({ status: 'success', progress: 100, logs: [...logs, '全局事实变量生成完成。'] }, technicalPlan);
+  updateTask({ status: 'success', progress: 100, logs: [...logs, '全局事实变量生成完成。'], stats: { globalFactsPolicy: missingFactPolicy } }, technicalPlan);
 }
 
 module.exports = {

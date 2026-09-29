@@ -176,7 +176,14 @@ function createOperationTimeout(timeoutMs, externalSignal) {
   };
 }
 
+function assertPlainApiKey(apiKey) {
+  if (typeof apiKey === 'string' && apiKey.startsWith('safeStorage:v1:')) {
+    throw new Error('API Key 仍是加密数据，无法用于模型请求；请重新打开设置并保存原始 API Key');
+  }
+}
+
 function createHeaders(apiKey) {
+  assertPlainApiKey(apiKey);
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
@@ -250,10 +257,7 @@ function normalizeImagePrompt(request) {
     throw new Error('生图提示词为空');
   }
 
-  const styleHint = request.style === 'realistic_photo'
-    ? '画面采用专业实景照片风格，真实、克制、适合投标技术方案插图。'
-    : '画面采用工程项目图示风格，结构清晰、专业克制、适合投标技术方案插图。';
-  return `${prompt}\n\n${styleHint}\n避免出现品牌标识、水印、夸张营销元素和无关文字。`;
+  return require('./aiImageStyles.cjs').buildImageStylePrompt(prompt, request.style);
 }
 
 function safeImageResponse(data) {
@@ -755,6 +759,7 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
   if (config.text_model_provider !== 'ollama' && !config.api_key) {
     throw new Error('请先在设置中配置文本模型 API Key');
   }
+  assertPlainApiKey(config.api_key);
 
   if (!config.model_name) {
     throw new Error('请先在设置中配置文本模型名称');
