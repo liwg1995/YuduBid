@@ -797,6 +797,17 @@ function createChatRequestBody(config, request, options = {}) {
   if (request.thinking && typeof request.thinking === 'object') {
     body.thinking = request.thinking;
   }
+  if (!request.chat_template_kwargs && !request.thinking
+    && ['agnes-ai-cn', 'agnes-ai-global', 'deepseek', 'longcat'].includes(config.text_model_provider)
+    && config.text_model_options?.thinking_enabled) {
+    body.thinking = { type: 'enabled' };
+    if (config.text_model_provider === 'agnes-ai-cn' || config.text_model_provider === 'agnes-ai-global') {
+      body.thinking.budget_tokens = Math.max(256, Math.min(65536, Number(config.text_model_options.thinking_budget_tokens) || 2048));
+    }
+    if (config.text_model_provider === 'deepseek' && !profile.reasoning_effort) {
+      body.reasoning_effort = config.text_model_options.thinking_effort === 'max' ? 'max' : 'high';
+    }
+  }
 
   if (request.response_format && !options.omitResponseFormat) {
     body.response_format = request.response_format;
