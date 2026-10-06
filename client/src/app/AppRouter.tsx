@@ -36,6 +36,7 @@ const ThesisTutorPage = lazy(() => import('../features/thesis-tutor/pages/Thesis
 
 interface AppRouterProps {
   activeSection: SectionId;
+  developerMode: boolean;
   featureModuleSettings?: FeatureModuleSettings | null;
   pluginNavigationTarget?: PluginNavigationTarget | null;
   onSectionChange: (section: SectionId) => void;
@@ -43,7 +44,7 @@ interface AppRouterProps {
   onFeatureModuleSettingsChange: (settings: FeatureModuleSettings) => void;
 }
 
-function AppRouteContent({ activeSection, featureModuleSettings, pluginNavigationTarget, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange }: AppRouterProps) {
+function AppRouteContent({ activeSection, developerMode, featureModuleSettings, pluginNavigationTarget, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange }: AppRouterProps) {
   switch (activeSection) {
     case 'home':
       return <HomePage featureModuleSettings={featureModuleSettings} onNavigate={onSectionChange} />;
@@ -110,7 +111,7 @@ function AppRouteContent({ activeSection, featureModuleSettings, pluginNavigatio
     case 'knowledge-base':
       return <KnowledgeLibraryPage />;
     case 'credential-library':
-      return <CredentialLibraryPage />;
+      return <CredentialLibraryPage developerMode={developerMode} />;
     case 'image-knowledge-base':
       return <KnowledgeLibraryPage initialType="image" />;
     case 'duplicate-check':

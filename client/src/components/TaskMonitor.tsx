@@ -7,6 +7,9 @@ interface TaskSnapshot {
   progress: number;
   logs: string[];
   updated_at?: string;
+  last_ai_request_at?: string;
+  last_ai_response_at?: string;
+  ai_retry_count?: number;
 }
 
 function normalizeTask(value: unknown): TaskSnapshot | null {
@@ -19,6 +22,9 @@ function normalizeTask(value: unknown): TaskSnapshot | null {
     progress: Math.max(0, Math.min(100, Number(task.progress || 0))),
     logs: Array.isArray(task.logs) ? task.logs.map(String).slice(-2) : [],
     updated_at: typeof task.updated_at === 'string' ? task.updated_at : undefined,
+    last_ai_request_at: typeof task.last_ai_request_at === 'string' ? task.last_ai_request_at : undefined,
+    last_ai_response_at: typeof task.last_ai_response_at === 'string' ? task.last_ai_response_at : undefined,
+    ai_retry_count: Number(task.ai_retry_count || 0),
   };
 }
 
@@ -31,9 +37,21 @@ function statusLabel(status: string): string {
   return '运行中';
 }
 
+function aiActivityLabel(task: TaskSnapshot, nowMs: number): string {
+  if (!['running', 'pausing', 'stopping'].includes(task.status)) return '';
+  const responseAt = task.last_ai_response_at ? Date.parse(task.last_ai_response_at) : NaN;
+  const requestAt = task.last_ai_request_at ? Date.parse(task.last_ai_request_at) : NaN;
+  const waiting = Number.isFinite(requestAt) && (!Number.isFinite(responseAt) || requestAt > responseAt);
+  const activity = waiting
+    ? `等待模型响应 ${Math.max(0, Math.floor((nowMs - requestAt) / 1000))} 秒`
+    : Number.isFinite(responseAt) ? `最近模型响应 ${Math.max(0, Math.floor((nowMs - responseAt) / 1000))} 秒前` : '';
+  return activity && task.ai_retry_count ? `${activity} · 已自动重试 ${task.ai_retry_count} 次` : activity;
+}
+
 export default function TaskMonitor() {
   const [tasks, setTasks] = useState<TaskSnapshot[]>([]);
   const [open, setOpen] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     let mounted = true;
@@ -60,6 +78,12 @@ export default function TaskMonitor() {
   }, []);
 
   const activeCount = useMemo(() => tasks.filter((task) => ['running', 'pausing', 'stopping'].includes(task.status)).length, [tasks]);
+  useEffect(() => {
+    if (!open || !activeCount) return undefined;
+    setNowMs(Date.now());
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [open, activeCount]);
   if (!tasks.length) return null;
 
   return (
@@ -76,6 +100,7 @@ export default function TaskMonitor() {
               <div className="task-monitor-item-head"><strong>{task.label}</strong><span>{statusLabel(task.status)}</span></div>
               <div className="task-monitor-progress"><i style={{ width: `${task.progress}%` }} /></div>
               <small>{task.progress}%{task.logs[task.logs.length - 1] ? ` · ${task.logs[task.logs.length - 1]}` : ''}</small>
+              {aiActivityLabel(task, nowMs) ? <small className="task-monitor-ai-activity">{aiActivityLabel(task, nowMs)}</small> : null}
             </div>
           ))}
         </div>

@@ -21,10 +21,14 @@ export interface ContentGenerationOptions {
   minimumWords: number;
   maximumWords?: number;
   sectionWords?: number;
+  wordCountRepair?: boolean;
+  layoutCheck?: boolean;
   contentConcurrency: number;
   enableConsistencyAudit: boolean;
   enableOriginalPlanCoverageAudit?: boolean;
   missingFactPolicy?: MissingFactPolicy;
+  wordExportMode?: 'basic' | 'word-optimization' | 'custom-template';
+  wordExportTemplateId?: string;
 }
 
 export interface ContentImageStats {
@@ -44,13 +48,17 @@ export interface BackgroundTaskState {
   logs: string[];
   started_at: string;
   updated_at: string;
+  last_ai_request_at?: string;
+  last_ai_response_at?: string;
+  last_ai_retry_at?: string;
+  ai_retry_count?: number;
   error?: string;
   pause_requested?: boolean;
   stop_requested?: boolean;
   stats?: {
     globalFactsPolicy?: MissingFactPolicy;
     content?: {
-      phase: 'planning' | 'generating' | 'outline-expanding' | 'expanding' | 'auditing' | 'illustrating' | 'done';
+      phase: 'planning' | 'generating' | 'outline-expanding' | 'expanding' | 'auditing' | 'illustrating' | 'layout-checking' | 'validating-images' | 'done';
       planning_total: number;
       planning_completed: number;
       generation_total: number;
@@ -64,6 +72,10 @@ export interface BackgroundTaskState {
       outline_expansion_step_label?: string;
       minimum_words?: number;
       current_words?: number;
+      word_repair_mode?: 'maximum';
+      word_repair_total?: number;
+      word_repair_completed?: number;
+      word_limit_warning?: string;
       audit_group_total?: number;
       audit_group_completed?: number;
       audit_conflict_total?: number;

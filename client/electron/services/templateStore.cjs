@@ -4,6 +4,7 @@ const path = require('node:path');
 const { Worker } = require('node:worker_threads');
 const { dialog } = require('electron');
 const { normalizeBidExportTemplate } = require('./bidTemplateFormat.cjs');
+const { SYSTEM_EXPORT_TEMPLATES } = require('./systemExportTemplates.cjs');
 
 const PORTABLE_TEMPLATE_KIND = 'yudubid-bid-template';
 const PORTABLE_TEMPLATE_VERSION = 2;
@@ -46,6 +47,19 @@ function templateFromRow(row) {
     template_name: row.template_name,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    is_system: false,
+  };
+}
+
+function systemTemplate(templateId) {
+  const preset = SYSTEM_EXPORT_TEMPLATES.find((item) => item.template_id === templateId);
+  if (!preset) return null;
+  const config = normalizeBidExportTemplate(preset.config);
+  return {
+    templateId: templateId, templateName: config.template_name, config,
+    source_manifest: null, createdAt: '', updatedAt: '',
+    template_id: templateId, template_name: config.template_name,
+    created_at: '', updated_at: '', is_system: true,
   };
 }
 
@@ -113,7 +127,7 @@ function createTemplateStore({ app, db }) {
     const config = normalizeBidExportTemplate(template.config);
     const coverLogo = portableCoverAsset(config.cover?.logo_path);
     const stored = db.prepare('SELECT config_json FROM bid_export_templates WHERE template_id = ?').get(String(templateId));
-    const sourceManifest = JSON.parse(stored.config_json).source_manifest;
+    const sourceManifest = stored ? JSON.parse(stored.config_json).source_manifest : null;
     const wordSource = sourceManifest?.source_path ? portableWordSource(sourceManifest.source_path) : null;
     config.cover.logo_path = '';
     return {
@@ -328,18 +342,24 @@ function createTemplateStore({ app, db }) {
     return { dataUrl: imageDataUrl(filePath) };
   }
   function list() {
-    return db.prepare(`
+    return [...SYSTEM_EXPORT_TEMPLATES.map((item) => systemTemplate(item.template_id)), ...db.prepare(`
       SELECT template_id, template_name, config_json, created_at, updated_at
       FROM bid_export_templates
       ORDER BY updated_at DESC, created_at DESC
-    `).all().map(templateFromRow);
+    `).all().map(templateFromRow)];
   }
 
   function get(templateId) {
-    return templateFromRow(db.prepare(`
+    return systemTemplate(String(templateId || '')) || templateFromRow(db.prepare(`
       SELECT template_id, template_name, config_json, created_at, updated_at
       FROM bid_export_templates WHERE template_id = ?
     `).get(String(templateId || '')));
+  }
+
+  function duplicate(templateId) {
+    const source = get(templateId);
+    if (!source) throw new Error('模板不存在或已被删除');
+    return create({ ...source.config, template_name: `${source.template_name} 副本` });
   }
 
   function create(config) {
@@ -355,6 +375,7 @@ function createTemplateStore({ app, db }) {
   }
 
   function update(templateId, config) {
+    if (systemTemplate(String(templateId || ''))) throw new Error('系统预设模板不可编辑，请先复制');
     const normalized = normalizeBidExportTemplate(config);
     const previous = db.prepare('SELECT config_json FROM bid_export_templates WHERE template_id = ?').get(String(templateId || ''));
     if (previous) {
@@ -371,6 +392,7 @@ function createTemplateStore({ app, db }) {
   }
 
   function remove(templateId) {
+    if (systemTemplate(String(templateId || ''))) return { success: false, message: '系统预设模板不可删除' };
     const previous = db.prepare('SELECT config_json FROM bid_export_templates WHERE template_id = ?').get(String(templateId || ''));
     const result = db.prepare('DELETE FROM bid_export_templates WHERE template_id = ?').run(String(templateId || ''));
     if (result.changes && previous) {
@@ -384,6 +406,7 @@ function createTemplateStore({ app, db }) {
     list,
     get,
     create,
+    duplicate,
     update,
     remove,
     selectCoverLogo,

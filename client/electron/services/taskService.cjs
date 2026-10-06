@@ -5,6 +5,7 @@ const { runContentGenerationTask } = require('./contentGenerationTask.cjs');
 const { runGlobalFactsTask } = require('./globalFactsTask.cjs');
 const { runOutlineGenerationTask, isMissingTechnicalScoreItems } = require('./outlineGenerationTask.cjs');
 const { runRejectionCheckTask, runRejectionItemsExtractionTask } = require('./rejectionCheckTask.cjs');
+const { runWithAiRequestActivity } = require('../utils/aiRequestActivity.cjs');
 
 const taskDefinitions = {
   'bid-section-extraction': {
@@ -203,7 +204,7 @@ function inferContentGenerationPhase(technicalPlan) {
   const minimumWords = Number(taskContent.minimum_words ?? technicalPlan?.contentGenerationOptions?.minimumWords ?? 0) || 0;
   const currentWords = Number(taskContent.current_words ?? 0) || 0;
 
-  if (leaves.length && completed >= leaves.length && minimumWords > 0 && currentWords < minimumWords) {
+  if (leaves.length && completed >= leaves.length && technicalPlan?.contentGenerationOptions?.wordCountRepair === true && minimumWords > 0 && currentWords < minimumWords) {
     return 'expanding';
   }
   if (leaves.length && completed > 0) {
@@ -234,7 +235,7 @@ function createTask(type, payload) {
   };
 }
 
-function createTaskService({ aiService, technicalDiagramService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService }) {
+function createTaskService({ aiService, technicalDiagramService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService, configStore, templateStore }) {
   const subscribers = new Set();
   const activeTasks = new Map();
   const activeTaskControls = new Map();
@@ -292,7 +293,7 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
       copyPatchFields(patch, state, ['outlineMode', 'referenceKnowledgeDocumentIds']);
       if (task.status === 'success' || state.outlineData === null || hasOwn(eventPatch, 'outlineData')) {
         copyPatchFields(patch, state, [
-          'outlineData',
+          'outlineData', 'generationSettingsSnapshot',
           'globalFactsTask',
           'globalFacts',
           'contentGenerationTask',
@@ -547,6 +548,36 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
       return currentTask;
     };
 
+    let lastActivityPersistedAt = 0;
+    const recordAiActivity = (partial, force = false) => {
+      if (!activeTasks.has(type) || activeTasks.get(type)?.task_id !== task.task_id || !isActiveTaskStatus(currentTask.status)) return;
+      const nextTask = updateTask(partial);
+      const timestamp = Date.now();
+      if (!force && timestamp - lastActivityPersistedAt < 15000) return;
+      lastActivityPersistedAt = timestamp;
+      const nextState = updateWorkspaceState(definition, { [taskField]: nextTask }, taskWorkflowKind, taskProjectId);
+      emit(nextTask, buildSnapshot(definition, nextState, nextTask));
+    };
+    const aiActivity = {
+      onRequestStart() {
+        recordAiActivity({ last_ai_request_at: now() }, !currentTask.last_ai_request_at);
+      },
+      onResponse() {
+        recordAiActivity({ last_ai_response_at: now() }, !currentTask.last_ai_response_at);
+      },
+      onRetry(error, attempt, maxAttempts) {
+        const noResponse = error?.name === 'AbortError' || /超时|timeout/i.test(String(error?.message || ''));
+        const message = noResponse
+          ? `模型请求长时间无响应，正在自动重试（${attempt + 1}/${maxAttempts}）。`
+          : `模型请求失败，正在自动重试（${attempt + 1}/${maxAttempts}）。`;
+        recordAiActivity({
+          ai_retry_count: (currentTask.ai_retry_count || 0) + 1,
+          last_ai_retry_at: now(),
+          logs: [...(currentTask.logs || []).slice(-199), message],
+        }, true);
+      },
+    };
+
     const previousState = loadWorkspaceState(definition, taskWorkflowKind, taskProjectId) || {};
     const state = updateWorkspaceState(definition, { ...initialPartial, [taskField]: currentTask }, taskWorkflowKind, taskProjectId);
     emit(currentTask, buildSnapshot(definition, state, currentTask));
@@ -556,7 +587,7 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
       : definition.stateKey === 'rejectionCheck'
         ? rejectionCheckStore
         : duplicateCheckStore;
-    runner({ aiService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, updateTask, payload, taskControl, previousState }).catch((error) => {
+    runWithAiRequestActivity(aiActivity, () => runner({ aiService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, updateTask, payload, taskControl, previousState })).catch((error) => {
       const failedTask = updateTask({ status: 'error', error: error.message || '任务执行失败' });
       const nextState = updateWorkspaceState(definition, { [taskField]: failedTask }, taskWorkflowKind, taskProjectId);
       emit(failedTask, buildSnapshot(definition, nextState, failedTask));
@@ -778,7 +809,7 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
       });
     },
     startContentGeneration(payload) {
-      return startManagedTask('content-generation', payload, (context) => runContentGenerationTask({ ...context, technicalDiagramService }));
+      return startManagedTask('content-generation', payload, (context) => runContentGenerationTask({ ...context, technicalDiagramService, configStore, templateStore }));
     },
     pauseContentGeneration(payload) {
       const task = activeTasks.get('content-generation');

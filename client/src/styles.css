@@ -4359,6 +4359,11 @@ button {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+.technical-workbench > .plan-step-body.generation-settings-page {
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .technical-workbench > .existing-plan-analysis-page {
   grid-template-rows: auto auto auto minmax(0, 1fr);
 }
@@ -9074,65 +9079,6 @@ button {
   border-color: rgba(255, 190, 92, 0.38);
 }
 
-.model-capability-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px 12px;
-  margin-top: 8px;
-  color: var(--yb-text-soft);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.model-capability-source {
-  color: var(--yb-primary);
-  font-weight: 700;
-}
-
-.thinking-settings-control {
-  grid-template-columns: minmax(130px, 1fr) minmax(150px, 190px);
-  align-items: center;
-}
-
-.thinking-budget-field {
-  position: relative;
-  min-width: 0;
-}
-
-.thinking-budget-field input {
-  padding-right: 58px;
-}
-
-.thinking-budget-field span {
-  position: absolute;
-  top: 50%;
-  right: 14px;
-  transform: translateY(-50%);
-  color: var(--yb-text-soft);
-  font-size: 13px;
-  font-weight: 700;
-  pointer-events: none;
-}
-
-.thinking-settings-note {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  padding: 0 14px;
-  color: var(--yb-text-soft);
-  font-size: 13px;
-  font-weight: 700;
-  background: rgba(33, 116, 253, 0.06);
-  border: 1px solid rgba(33, 116, 253, 0.12);
-  border-radius: 14px;
-}
-
-@media (max-width: 900px) {
-  .thinking-settings-control {
-    grid-template-columns: minmax(0, 1fr) minmax(130px, 180px);
-  }
-}
-
 .settings-action-cell {
   display: flex;
   justify-content: flex-end;
@@ -11058,6 +11004,7 @@ button {
 .task-monitor-head span, .task-monitor-item-head span, .task-monitor-item small { color: #7b879c; font-size: 12px; }
 .task-monitor-item { padding: 10px 0; border-top: 1px solid #edf1f7; }
 .task-monitor-item-head strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-monitor-item .task-monitor-ai-activity { display: block; margin-top: 4px; color: var(--yb-primary); }
 .task-monitor-progress { height: 6px; margin: 9px 0 5px; overflow: hidden; border-radius: 999px; background: #e9eef7; }
 .task-monitor-progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #407df2, #6c8af5); }
 .usage-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
@@ -13989,4 +13936,78 @@ button {
   .content-shell .settings-page-scroll {
     padding-bottom: 88px;
   }
+}
+
+/* 设置页采用桌面端紧凑密度，由 content-shell 承担页面滚动。 */
+.settings-page {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
+.settings-page .settings-page-scroll {
+  height: auto;
+  min-height: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+  gap: 12px;
+  padding-bottom: 72px;
+}
+
+.settings-page .settings-page-section { border-radius: 18px; }
+.settings-page .settings-section-title {
+  gap: 10px;
+  padding: 17px 24px;
+  font-size: 19px;
+}
+.settings-page .settings-row {
+  gap: 20px;
+  padding: 14px 24px;
+}
+.settings-page .settings-row-copy { gap: 4px; }
+.settings-page .settings-row-copy strong { font-size: 14px; }
+.settings-page .settings-row-copy span { font-size: 12px; line-height: 1.5; }
+.settings-page .settings-row input:not([type='checkbox']):not([type='range']),
+.settings-page .settings-row select {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 9px;
+}
+.settings-page .settings-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--yb-primary);
+}
+.settings-page .settings-advanced-checkbox { justify-self: end; }
+.settings-page .settings-advanced-temperature {
+  display: grid;
+  grid-template-columns: 20px minmax(100px, 1fr) 36px;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.settings-page .settings-advanced-temperature input[type='range'] { width: 100%; min-width: 0; min-height: 0; height: 24px; padding: 0; }
+.settings-page .settings-advanced-temperature output { color: var(--yb-text-soft); text-align: right; }
+.settings-page .settings-group-title { padding: 10px 24px 6px; }
+.settings-page .settings-group-title-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-page .settings-group-title-with-action .inline-action {
+  width: auto;
+  min-height: 32px;
+  padding: 5px 10px;
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+.settings-page .settings-tab { padding: 10px 14px; font-size: 13px; }
+
+@container (max-width: 1100px) {
+  .content-shell .settings-page .settings-row { gap: 9px; padding: 13px 20px; }
+  .content-shell .settings-page .settings-section-title { padding: 15px 20px; }
+  .content-shell .settings-page .settings-page-scroll { padding-bottom: 72px; }
 }

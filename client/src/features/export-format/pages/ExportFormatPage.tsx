@@ -886,6 +886,10 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
             <option value="landscape">横向</option>
           </select>
         </label>
+        <label className="settings-row">
+          <div className="settings-row-copy"><strong>双栏排版</strong><span>适用于 A3 横版图文模板。</span></div>
+          <AppSwitch checked={Boolean(config.page.two_column)} onCheckedChange={(checked) => updatePage({ two_column: checked })} />
+        </label>
         <div className="settings-row">
           <div className="settings-row-copy"><strong>页边距</strong><span>上 / 右 / 下 / 左（厘米）</span></div>
           <div className="export-format-margin-grid">
@@ -899,6 +903,13 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
           <div className="settings-row-copy"><strong>页眉</strong></div>
           <AppSwitch checked={config.page.header_enabled} onCheckedChange={(checked) => updatePage({ header_enabled: checked })} />
         </label>
+        {(config.page.header_enabled || config.page.footer_enabled) && <>
+          <label className="settings-row"><div className="settings-row-copy"><strong>页眉页脚装饰</strong></div><select value={config.page.header_footer_style || 'plain'} onChange={(event) => updatePage({ header_footer_style: event.target.value as 'plain' | 'band' | 'frame' })}><option value="plain">简洁</option><option value="band">色带</option><option value="frame">边框</option></select></label>
+          {config.page.header_footer_style !== 'plain' && <>
+            <label className="settings-row"><div className="settings-row-copy"><strong>装饰底色</strong></div><input type="color" value={config.page.chrome_bar_color || '#e8eef5'} onChange={(event) => updatePage({ chrome_bar_color: event.target.value })} /></label>
+            <label className="settings-row"><div className="settings-row-copy"><strong>装饰强调色</strong></div><input type="color" value={config.page.chrome_accent_color || '#536176'} onChange={(event) => updatePage({ chrome_accent_color: event.target.value })} /></label>
+          </>}
+        </>}
         {config.page.header_enabled && (
           <>
             <label className="settings-row">
@@ -1617,9 +1628,9 @@ export function TemplatePreview({ config, previewStyle }: { config: ExportFormat
     .replaceAll('{date}', new Date().toLocaleDateString('zh-CN')), []);
 
   const renderPageHeader = () => (
-    config.page.header_enabled && config.page.header_text.trim() ? (
-      <div className="export-template-page-header">
-        {config.page.header_text.trim()}
+    config.page.header_enabled ? (
+      <div className={`export-template-page-header is-${config.page.header_footer_style || 'plain'}`} style={{ backgroundColor: config.page.header_footer_style === 'band' ? config.page.chrome_bar_color : undefined, borderColor: config.page.header_footer_style === 'frame' ? config.page.chrome_accent_color : undefined }}>
+        {config.page.header_text.trim() || '\u00a0'}
       </div>
     ) : null
   );
@@ -1630,7 +1641,7 @@ export function TemplatePreview({ config, previewStyle }: { config: ExportFormat
     const pageNumberText = String(config.page.page_number_format || '第{page}页').replace('{page}', String(pageNo));
 
     return (
-      <div className="export-template-page-footer" style={config.page.footer_enabled ? undefined : { textAlign: 'center' }}>
+      <div className={`export-template-page-footer is-${config.page.footer_enabled ? config.page.header_footer_style || 'plain' : 'plain'}`} style={{ ...(config.page.footer_enabled ? {} : { textAlign: 'center' }), backgroundColor: config.page.footer_enabled && config.page.header_footer_style === 'band' ? config.page.chrome_accent_color : undefined, borderColor: config.page.header_footer_style === 'frame' ? config.page.chrome_accent_color : undefined }}>
         {footerText && <span>{footerText}</span>}
         {config.page.page_number_enabled && <span>{pageNumberText}</span>}
       </div>
@@ -1900,7 +1911,7 @@ export function TemplatePreview({ config, previewStyle }: { config: ExportFormat
               <div key={pageIndex} className="export-template-preview-page-shell" style={pageShellStyle}>
                 <div className="export-format-paper export-format-preview-content export-template-preview-paper" style={paperStyle}>
                   {renderPageHeader()}
-                  <div className="export-template-page-body">
+                  <div className={`export-template-page-body${config.page.two_column ? ' is-two-column' : ''}`}>
                     {page.map((block) => renderPreviewBlock(block))}
                   </div>
                   {renderPageFooter(pageIndex + (config.cover.enabled && !config.cover.hide_header_footer ? 1 : 0))}
@@ -1913,7 +1924,7 @@ export function TemplatePreview({ config, previewStyle }: { config: ExportFormat
       <div className="export-template-preview-measure" ref={measureRef} aria-hidden="true">
         <div className="export-format-paper export-format-preview-content export-template-preview-paper" style={previewStyle}>
           {renderPageHeader()}
-          <div className="export-template-page-body" data-preview-measure-body="true">
+          <div className={`export-template-page-body${config.page.two_column ? ' is-two-column' : ''}`} data-preview-measure-body="true">
             {previewBlocks.map((block) => renderPreviewBlock(block, true))}
           </div>
           {renderPageFooter(0)}

@@ -16,7 +16,7 @@ interface OutlineEditPageProps {
   referenceKnowledgeDocumentIds: string[];
   outlineData: OutlineData | null;
   task?: BackgroundTaskState;
-  onOutlineConfigChange: (mode: OutlineMode, documentIds: string[]) => void;
+  onOutlineConfigChange: (mode: OutlineMode, documentIds: string[]) => Promise<void>;
   onOutlineGenerated: (outlineData: OutlineData) => void;
   openGenerationConfigRequestId?: number;
 }
@@ -258,10 +258,14 @@ function OutlineEditPage({
     openGenerationDialog();
   }, [openGenerationConfigRequestId]);
 
-  const saveOutlineConfig = () => {
-    onOutlineConfigChange(draftOutlineMode, draftKnowledgeDocumentIds);
-    setGenerationDialogOpen(false);
-    showToast('目录生成配置已保存', 'success');
+  const saveOutlineConfig = async () => {
+    try {
+      await onOutlineConfigChange(draftOutlineMode, draftKnowledgeDocumentIds);
+      setGenerationDialogOpen(false);
+      showToast('目录生成配置已保存', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '保存目录生成配置失败', 'error');
+    }
   };
 
   const generateOutline = async () => {
@@ -279,7 +283,7 @@ function OutlineEditPage({
       setStartingOutline(true);
       setLocalStartAt(startedNow);
       setNowTick(startedNow);
-      onOutlineConfigChange(noTechnicalScoreMode ? 'free' : draftOutlineMode, draftKnowledgeDocumentIds);
+      await onOutlineConfigChange(noTechnicalScoreMode ? 'free' : draftOutlineMode, draftKnowledgeDocumentIds);
       setGenerationDialogOpen(false);
       await window.yibiao?.tasks.startOutlineGeneration({
         workflowKind,

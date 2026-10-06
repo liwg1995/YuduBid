@@ -400,6 +400,15 @@
   overflow: hidden;
 }
 
+.export-template-page-body.is-two-column {
+  column-count: 2;
+  column-gap: 12mm;
+}
+
+.export-template-page-body.is-two-column .export-template-preview-block {
+  break-inside: avoid;
+}
+
 .export-template-preview-block {
   display: flow-root;
 }
@@ -1272,6 +1281,21 @@
   border-bottom: 1px solid rgba(220, 223, 246, 0.82);
 }
 
+.export-template-page-header.is-band,
+.export-template-page-footer.is-band {
+  padding: 8px 12px;
+  border: 0;
+}
+
+.export-template-page-footer.is-band {
+  color: var(--ef-footer-color, #ffffff);
+}
+
+.export-template-page-header.is-frame,
+.export-template-page-footer.is-frame {
+  border-color: var(--ef-header-color, #536176);
+}
+
 .export-template-page-footer {
   margin-top: 24px;
   padding-top: 8px;
@@ -1619,6 +1643,31 @@
   padding: 18px;
 }
 
+.template-library-group-title {
+  margin: 8px 4px 0;
+  color: var(--yb-text-muted);
+  font-size: 14px;
+}
+
+.template-library-group-hint {
+  margin: -5px 4px 4px;
+  color: var(--yb-text-soft);
+  font-size: 12px;
+}
+
+.template-library-system-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 3px 7px;
+  color: var(--yb-primary);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.2;
+  vertical-align: middle;
+  background: color-mix(in srgb, var(--yb-primary) 12%, var(--yb-surface));
+  border-radius: var(--yb-radius-pill);
+}
+
 .template-library-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1879,3 +1928,19 @@
   width: 100%;
   line-height: 2;
 }
+
+/* 模板管理的操作区域压缩留白，Word 预览纸张样式不受影响。 */
+.template-library-page { gap: 12px; }
+.template-library-head { gap: 10px; padding: 16px 20px 14px; }
+.template-library-head h2 { margin-top: 3px; font-size: 20px; }
+.template-library-head p { margin-top: 4px; font-size: 13px; line-height: 1.5; }
+.template-library-list { gap: 8px; padding: 12px; }
+.template-library-card { gap: 8px; padding: 9px 10px; }
+.template-library-card-main { gap: 3px; }
+.template-library-card-main span { font-size: 14px; }
+.export-format-header { padding: 18px 24px 12px; }
+.export-format-header h2 { font-size: 20px; }
+.export-format-header p { font-size: 13px; line-height: 1.5; }
+.export-format-preset-list { padding-right: 24px; padding-left: 24px; }
+.export-template-subsection { gap: 10px; padding: 16px 24px 14px; }
+.export-template-subsection > strong, .export-template-subsection-head strong { font-size: 15px; }

@@ -833,7 +833,6 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
             globalFactsTask: outlineDataReset ? undefined : prev.globalFactsTask,
             globalFacts: outlineDataReset ? [] : prev.globalFacts,
             contentGenerationTask: outlineDataReset ? undefined : prev.contentGenerationTask,
-            contentGenerationOptions: outlineDataReset ? undefined : prev.contentGenerationOptions,
             contentGenerationSections: outlineDataReset ? {} : prev.contentGenerationSections,
             contentGenerationPlans: outlineDataReset ? {} : prev.contentGenerationPlans,
             contentGenerationRuntime: outlineDataReset ? undefined : prev.contentGenerationRuntime,
@@ -858,6 +857,9 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
               ? technicalPlan.referenceKnowledgeDocumentIds
               : prev.referenceKnowledgeDocumentIds,
             outlineData: nextOutlineData,
+            generationSettingsSnapshot: hasOwnField(technicalPlan, 'generationSettingsSnapshot')
+              ? technicalPlan.generationSettingsSnapshot
+              : prev.generationSettingsSnapshot,
             globalFactsTask: outlineDataChanged ? undefined : prev.globalFactsTask,
             globalFacts: outlineDataChanged ? [] : prev.globalFacts,
             contentGenerationTask: outlineDataChanged ? undefined : prev.contentGenerationTask,
@@ -1202,7 +1204,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
 
   const saveContentGenerationOptions = async (contentGenerationOptions: ContentGenerationOptions) => {
     const saved = await window.yibiao?.technicalPlan.saveContentGenerationOptions({ workflowKind, projectId, contentGenerationOptions });
-    setState((prev) => ({ ...prev, ...(saved || {}), contentGenerationOptions }));
+    if (!saved) throw new Error('生成设置未能写入当前项目，请重试');
+    setState((prev) => ({ ...prev, ...saved }));
   };
 
   const saveGlobalFacts = async (globalFacts: GlobalFactGroupState[]) => {
@@ -1327,8 +1330,24 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       showToast('请至少选择一个技术卷章节', 'info');
       return;
     }
-    setTechnicalVolumeOpen(false);
-    await exportWord('word-optimization', undefined, selectedOutline);
+    try {
+      const configuredMode = state.contentGenerationOptions?.wordExportMode;
+      const config = configuredMode ? null : await window.yibiao?.config.load();
+      const mode = configuredMode || (config?.skill_settings?.skills?.['word-optimization']?.enabled ? 'word-optimization' : 'basic');
+      let template: BidExportTemplateRecord | undefined;
+      if (mode === 'custom-template') {
+        const templateId = state.contentGenerationOptions?.wordExportTemplateId;
+        template = templateId ? await window.yibiao?.bidTemplates.get(templateId) || undefined : undefined;
+        if (!template) {
+          showToast('已选的 Word 模板不存在，请到生成设置重新选择', 'info');
+          return;
+        }
+      }
+      setTechnicalVolumeOpen(false);
+      await exportWord(mode, template, selectedOutline);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '读取 Word 导出设置失败', 'error');
+    }
   };
 
   const navigationActions = state.step === 'content-edit'
@@ -1487,11 +1506,24 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       {state.step === 'generation-settings' && (
         <GenerationSettingsPage
           options={state.contentGenerationOptions}
+          workflowKind={workflowKind}
           selectedBidSectionTitle={state.bidSections?.find((section) => section.id === state.selectedBidSectionId)?.title}
+          referenceKnowledgeDocumentIds={state.referenceKnowledgeDocumentIds}
           stale={generationSettingsStale}
-          onSave={async (options) => {
+          generationRunning={isContentGenerating || isContentPaused}
+          onOpenDocuments={() => switchStep('document-analysis')}
+          onOpenExportTemplates={onSectionChange ? () => onSectionChange('bid-template-management') : undefined}
+          onSave={async (options, referenceKnowledgeDocumentIds) => {
+            const knowledgeChanged = JSON.stringify([...referenceKnowledgeDocumentIds].sort()) !== JSON.stringify([...state.referenceKnowledgeDocumentIds].sort());
+            if (knowledgeChanged && state.outlineData && !await confirm({ title: '更改参考知识库', description: '更改参考文档会清空已生成目录、全局事实和正文，需要重新生成。是否继续？', danger: true })) return false;
             await saveContentGenerationOptions(options);
+            if (knowledgeChanged) {
+              const saved = await window.yibiao?.technicalPlan.saveOutlineConfig({ workflowKind, projectId, outlineMode: state.outlineMode, referenceKnowledgeDocumentIds });
+              if (!saved) throw new Error('参考知识库未能写入当前项目，请重试');
+              setState((prev) => ({ ...prev, ...saved }));
+            }
             showToast('生成设置已保存', 'success');
+            return true;
           }}
         />
       )}
@@ -1527,13 +1559,10 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           outlineData={state.outlineData}
           task={state.outlineGenerationTask}
           openGenerationConfigRequestId={navigationTarget?.panelId === 'outline-generation-config' ? navigationTarget.requestId : undefined}
-          onOutlineConfigChange={(outlineMode, referenceKnowledgeDocumentIds) => {
-            setState((prev) => ({ ...prev, outlineMode, referenceKnowledgeDocumentIds }));
-            window.yibiao?.technicalPlan.saveOutlineConfig({ workflowKind, projectId, outlineMode, referenceKnowledgeDocumentIds }).then((saved) => {
-              setState((prev) => ({ ...prev, ...saved }));
-            }).catch((error) => {
-              showToast(error instanceof Error ? error.message : '保存目录配置失败', 'error');
-            });
+          onOutlineConfigChange={async (outlineMode, referenceKnowledgeDocumentIds) => {
+            const saved = await window.yibiao?.technicalPlan.saveOutlineConfig({ workflowKind, projectId, outlineMode, referenceKnowledgeDocumentIds });
+            if (!saved) throw new Error('目录生成配置未能写入当前项目，请重试');
+            setState((prev) => ({ ...prev, ...saved }));
           }}
           onOutlineGenerated={(outlineData) => {
             const nextOutlineData = resetGeneratedContent(outlineData);
@@ -1819,6 +1848,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         onOpenChange={setExportChoiceOpen}
         allowOriginal={requiresOriginalPlan}
         originalAvailable={state.originalPlanFile?.sourceExt === '.docx' && Boolean(state.originalPlanFile?.sourcePath)}
+        preferredMode={state.contentGenerationOptions?.wordExportMode}
+        preferredTemplateId={state.contentGenerationOptions?.wordExportTemplateId}
         disabled={isExporting}
         onConfirm={exportWord}
         onOriginal={exportOriginalFormatWord}

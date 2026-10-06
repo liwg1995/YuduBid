@@ -1,12 +1,12 @@
 import type { ChatCompletionRequest, JsonCompletionRequest } from './ai';
 import type { DuplicateCheckWorkspaceState, FileSelectionResult } from './bid';
-import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelCapabilityInfo, ModelListResult } from './config';
+import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelCapabilityInfo, ModelInfoResult, ModelListResult } from './config';
 import type { BidExportTemplateConfig, BidExportTemplateRecord } from './exportFormat';
 import type { CodeGenerationSelectResult, CodeGenerationState } from './contracts/codeGeneration';
 import type { GrantApplicationPanel, GrantApplicationProfile, GrantApplicationProject, GrantApplicationProjectList, GrantApplicationState, GrantFormFieldMapping, GrantProposalModuleKey, GrantProposalTemplateMapping, GrantProposalVisualSettings, GrantTemplateFillReport } from './contracts/grantApplication';
 import type { FeasibilityBackgroundTaskState, FeasibilityContentGenerationOptions, FeasibilityOutlineTemplate, FeasibilityProjectInfo, FeasibilityProjectList, FeasibilityProjectPayload, FeasibilityProjectRecord, FeasibilityReportState, FeasibilityReportStep, FeasibilityTaskEvent } from './contracts/feasibilityReport';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeImage, KnowledgeImageDeleteResult, KnowledgeImageFolder, KnowledgeImageReferenceResult, KnowledgeImageUploadResult, KnowledgeItem } from './contracts/knowledgeBase';
-import type { CredentialCertificate, CredentialEmployee, CredentialImageFieldKey, CredentialLibraryMutationResult, CredentialLibraryProfile, CredentialLibrarySnapshot, CredentialOtherMaterial, CredentialProject, CredentialRecordSavePayload } from './contracts/credentialLibrary';
+import type { CredentialCertificate, CredentialEmployee, CredentialImageFieldKey, CredentialLibraryImportResult, CredentialLibraryMutationResult, CredentialLibraryProfile, CredentialLibrarySnapshot, CredentialOtherMaterial, CredentialProject, CredentialRecordSavePayload } from './contracts/credentialLibrary';
 import type { OfficialDocumentPromptInput } from '../prompts/officialDocument';
 import type { OfficialDocumentImportResult, OfficialDocumentState } from './contracts/officialDocument';
 import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentPoint, PatentRevisionResult, PatentWorkspaceProjectList } from './contracts/patentGeneration';
@@ -309,6 +309,7 @@ export interface YuDuBidBridge {
     save: (config: ClientConfig) => Promise<ConfigSaveResult>;
     listModels: (config?: ClientConfig) => Promise<ModelListResult>;
     getModelCapabilities: (config?: ClientConfig) => Promise<ModelCapabilityInfo>;
+    getModelInfo: (modelName: string) => Promise<ModelInfoResult>;
     openConfigFolder: () => Promise<{ success: boolean; path: string }>;
   };
   agent: {
@@ -338,6 +339,7 @@ export interface YuDuBidBridge {
   };
   file: {
     selectDuplicateCheckFiles: (options?: { multiple?: boolean }) => Promise<FileSelectionResult>;
+    getPathForFile: (file: File) => string;
   };
   codeGeneration: {
     loadState: () => Promise<CodeGenerationState>;
@@ -545,6 +547,7 @@ export interface YuDuBidBridge {
   credentialLibrary: {
     selectImages: () => Promise<string[]>;
     load: () => Promise<CredentialLibrarySnapshot>;
+    importTestData: () => Promise<CredentialLibraryImportResult | null>;
     saveProfile: (partial: Partial<CredentialLibraryProfile>) => Promise<CredentialLibrarySnapshot>;
     addProfileImages: (fieldKey: CredentialImageFieldKey, filePaths: string[]) => Promise<CredentialLibrarySnapshot>;
     deleteImage: (imageId: string) => Promise<CredentialLibraryMutationResult>;
@@ -744,6 +747,7 @@ export interface YuDuBidBridge {
     list: () => Promise<BidExportTemplateRecord[]>;
     get: (templateId: string) => Promise<BidExportTemplateRecord | null>;
     create: (config: BidExportTemplateConfig) => Promise<BidExportTemplateRecord>;
+    duplicate: (templateId: string) => Promise<BidExportTemplateRecord>;
     update: (templateId: string, config: BidExportTemplateConfig) => Promise<BidExportTemplateRecord>;
     delete: (templateId: string) => Promise<{ success: boolean; message: string }>;
     selectCoverLogo: () => Promise<{ canceled: boolean; path?: string; dataUrl?: string }>;
@@ -756,7 +760,7 @@ export interface YuDuBidBridge {
     list: () => Promise<string[]>;
   };
   export: {
-    previewWord: (payload: { project_name?: string; documentProfile?: 'feasibility-report'; outline: OutlineItem[] }) => Promise<Uint8Array>;
+    previewWord: (payload: { project_name?: string; documentProfile?: 'feasibility-report'; outline: OutlineItem[] }) => Promise<string>;
     exportWord: (payload: unknown) => Promise<WordExportResult>;
     showExportFile: (filePath: string) => Promise<{ success: boolean; path: string }>;
     checkWordLayout: (filePath: string) => Promise<WordLayoutAuditResult>;

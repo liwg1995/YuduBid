@@ -2,6 +2,7 @@ import type { TechnicalPlanProjectPayload, TechnicalPlanState, TechnicalPlanStep
 
 const validSteps: TechnicalPlanStep[] = [
   'document-analysis',
+  'generation-settings',
   'bid-analysis',
   'outline-generation',
   'global-facts',
@@ -20,6 +21,7 @@ export const technicalPlanStorage = {
     const state = await window.yibiao?.technicalPlan.loadState(payload);
 
     if (!isTechnicalPlanState(state || null)) {
+      if (state) console.warn('技术方案项目状态包含未知步骤，已忽略本次读取', { workflowKind, projectId, step: state.step });
       return null;
     }
 

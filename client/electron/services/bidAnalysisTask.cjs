@@ -247,7 +247,6 @@ async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, paylo
       globalFactsTask: undefined,
       globalFacts: [],
       contentGenerationTask: undefined,
-      contentGenerationOptions: undefined,
       contentGenerationSections: {},
       contentGenerationPlans: {},
       contentGenerationRuntime: undefined,
@@ -286,8 +285,12 @@ async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, paylo
     updateTask({ status: 'running', progress: technicalPlan.bidAnalysisProgress || 0, logs: [`${task.label}解析失败：${error.message || '未知错误'}`] }, technicalPlan);
   })));
 
-  technicalPlan = workspaceStore.updateTechnicalPlan({ bidAnalysisTask: updateTask({ status: 'success', progress: 100, logs: ['招标文件解析完成。'] }) });
-  updateTask({ status: 'success', progress: 100 }, technicalPlan);
+  const finalTasks = workspaceStore.loadTechnicalPlan()?.bidAnalysisTasks || {};
+  const failedCount = selectedTasks.filter((task) => finalTasks[task.id]?.status === 'error').length;
+  const finalStatus = failedCount ? 'error' : 'success';
+  const finalMessage = failedCount ? `${failedCount} 项招标文件解析失败，请查看各项错误后重试。` : '招标文件解析完成。';
+  technicalPlan = workspaceStore.updateTechnicalPlan({ bidAnalysisTask: updateTask({ status: finalStatus, progress: 100, logs: [finalMessage], error: failedCount ? finalMessage : undefined }) });
+  updateTask({ status: finalStatus, progress: 100, error: failedCount ? finalMessage : undefined }, technicalPlan);
 }
 
 module.exports = {

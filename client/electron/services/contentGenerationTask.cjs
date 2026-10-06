@@ -1,7 +1,11 @@
 const { countReadableWords } = require('../utils/wordCount.cjs');
 const fs = require('node:fs');
+const fsPromises = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
 const { createLocalImageRenderService } = require('./localImageRenderService.cjs');
 const { assertImageExportable, buildDocxResult } = require('./exportService.cjs');
+const { readWordLayout, inspectWordLayout, selectLayoutRepairTargets } = require('./contentLayoutRepair.cjs');
 const localImageRenderService = createLocalImageRenderService();
 
 const { AI_IMAGE_STYLES } = require('./aiImageStyles.cjs');
@@ -2385,9 +2389,9 @@ function withSection(sections, item, partial) {
   };
 }
 
-async function runContentGenerationTask({ aiService, technicalDiagramService, workspaceStore, knowledgeBaseService, updateTask, payload, taskControl, previousState }) {
+async function runContentGenerationTask({ aiService, technicalDiagramService, workspaceStore, knowledgeBaseService, configStore, templateStore, updateTask, payload, taskControl, previousState }) {
   const resume = Boolean(payload.resume);
-  const storedPlan = resume ? (previousState || {}) : (workspaceStore.loadTechnicalPlan() || {});
+  const storedPlan = previousState || workspaceStore.loadTechnicalPlan() || {};
   let outlineData = storedPlan.outlineData;
 
   if (!outlineData?.outline?.length) {
@@ -2454,6 +2458,8 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   let maxTables = maxTablesForRequirement(tableRequirement, leaves.length);
   const minimumWords = targetItemId ? 0 : normalizeWordCount(generationOptions.minimumWords ?? generationOptions.minimum_words);
   const maximumWords = targetItemId ? 0 : normalizeWordCount(generationOptions.maximumWords ?? generationOptions.maximum_words);
+  const wordCountRepair = generationOptions.wordCountRepair === true;
+  const layoutCheck = generationOptions.layoutCheck === true;
   const configuredSectionWords = normalizeWordCount(generationOptions.sectionWords ?? generationOptions.section_words);
   if (maximumWords > 0 && minimumWords > maximumWords) {
     throw new Error('全文参考上限不能低于最低字数，请先调整生成设置');
@@ -2648,7 +2654,9 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
       logs = [...logs, `主动扩写范围：已选择 ${expandTargetItemIds.size} 个小节。`];
     }
   } else if (minimumWords > 0) {
-    logs = [...logs, `最低字数已启用：${minimumWords} 字，将在采样预估后补目录，并在正文生成后扩写补足。`];
+    logs = [...logs, wordCountRepair
+      ? `最低字数目标：${minimumWords} 字；正文完成后将检查并修复字数差额。`
+      : `最低字数目标：${minimumWords} 字；未启用字数修复，正文完成后只统计差额。`];
   }
   logs = [...logs, mermaidImagesEnabled
     ? 'Mermaid 图片已启用，适合简单图示的小节会优先使用 Mermaid 图。'
@@ -2796,7 +2804,7 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   });
 
   if (!tasksToRun.length) {
-    logs = [...logs, '正文已全部生成，将检查最低字数要求。'];
+    logs = [...logs, '正文已全部生成，将继续执行已启用的字数、审计、配图和版式检查。'];
   }
 
   function saveSection(item, partial, contentForOutline, taskPartial = {}) {
@@ -3581,10 +3589,10 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     };
   }
 
-  async function expandOneSection(context) {
+  async function expandOneSection(context, options = {}) {
     const { item, content, words } = context;
-    const contentForPrompt = stripIllustrationsForExpansion(content) || content;
-    const targetWords = expandOnly
+    const contentForPrompt = options.layoutRepair ? content : stripIllustrationsForExpansion(content) || content;
+    const targetWords = options.layoutRepair ? words + 250 : expandOnly
       ? Math.max(EXPAND_ONLY_DEFAULT_MIN_SECTION_WORDS, words + EXPAND_ONLY_SECTION_INCREMENT)
       : Math.max(words * 2, words + MIN_SECTION_EXPANSION_INCREMENT);
     const storedContentPlan = normalizeStoredContentPlan(storedContentPlans[item.id]);
@@ -3594,18 +3602,20 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
 
     try {
+      const messages = buildContentExpansionMessages({
+        outlineData,
+        context,
+        projectOverview,
+        selectedFactsText,
+        currentContent: contentForPrompt,
+        currentWords: words,
+        targetWords,
+        expandOnly,
+        tableRequirement,
+      });
+      if (options.layoutRepair) messages.push({ role: 'user', content: `这是 Word 第 ${context.layoutPage || '相关'} 页的图片挤出留白修复。当前页末尾文字：${context.precedingText || '未取得'}。请在这处文字之后、下一张图片或图示之前补充约 250 字有实质内容的实施说明。不得放在图片之后，不得新增标题，也不得修改原图。` });
       const patch = await aiService.collectJsonResponse({
-        messages: buildContentExpansionMessages({
-          outlineData,
-          context,
-          projectOverview,
-          selectedFactsText,
-          currentContent: contentForPrompt,
-          currentWords: words,
-          targetWords,
-          expandOnly,
-          tableRequirement,
-        }),
+        messages,
         temperature: 0.7,
         logTitle: `正文扩写-${item.id}-${item.title || '未命名章节'}`,
         progressLabel: '正文扩写',
@@ -3614,6 +3624,9 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
         validator: validateContentExpansionPatch,
         repairMessagesBuilder: buildContentExpansionRepairMessages,
       });
+      if (options.layoutRepair && (/^end$/i.test(patch.anchor) || !normalizeParagraphs(content).some((paragraph) => paragraph.replace(/\s+/g, ' ').includes(String(patch.anchor).replace(/\s+/g, ' '))))) {
+        throw new Error('格式补写未定位到图片前的正文段落');
+      }
       const nextContent = applyContentExpansionPatch(content, patch);
       const nextWords = countContentWords(nextContent);
       logs = [...logs, `扩写完成：${item.id} ${item.title || '未命名章节'}（${words} -> ${nextWords} 字）。`];
@@ -3673,6 +3686,134 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     }
 
     logs = [...logs, `最低字数已达成：${currentWords}/${minimumWords} 字，准备进入后续阶段。`];
+    updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+  }
+
+  async function ensureMaximumWords() {
+    if (countTotalContentWords() <= maximumWords) return;
+    contentStats.phase = 'expanding';
+    contentStats.word_repair_mode = 'maximum';
+    logs = [...logs, `全文超过上限：当前 ${countTotalContentWords()} 字，上限 ${maximumWords} 字，开始逐节精简重复表述。`];
+    updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+    const attempted = new Set();
+    let attempts = 0;
+    const maxAttempts = Math.min(24, Math.max(4, leaves.length * 2));
+    contentStats.word_repair_total = maxAttempts;
+    while (countTotalContentWords() > maximumWords && attempts < maxAttempts) {
+      attempts += 1;
+      contentStats.word_repair_completed = attempts - 1;
+      pauseIfRequested('正文已在字数精简阶段暂停，可稍后继续。');
+      const context = leafWordStats()
+        .filter(({ item, content, words }) => sections[item.id]?.status === 'success' && words >= 350 && content.trim() && !attempted.has(item.id) && !/定稿勿动|请勿修改|不要修改/.test(content))
+        .sort((a, b) => b.words - a.words)[0];
+      if (!context) break;
+      attempted.add(context.item.id);
+      const { item, content, words } = context;
+      const selectedFactsText = resolveSelectedFactsText(normalizeStoredContentPlan(storedContentPlans[item.id])?.plan, globalFacts);
+      try {
+        const patch = await aiService.collectJsonResponse({
+          messages: [
+            { role: 'user', content: `你是投标技术方案正文精简助手。全文超过字数上限，请只精简当前小节一个重复或冗长的纯文字段落。返回 JSON：{"operation":"replace","anchor":"原段落连续摘录","content":"精简后的完整段落"}。必须保留事实、数值、承诺、范围、风险、验收要求和全局事实；不得修改标题、表格、图片、Mermaid、代码块或引用。新段落必须短于原段落，不得删除实质信息。不要返回完整正文。` },
+            { role: 'user', content: `项目概述：${projectOverview || '未提供'}\n相关全局事实：${selectedFactsText || '无'}\n小节：${item.title || '未命名章节'}\n当前字数：${words}\n全文超额：${countTotalContentWords() - maximumWords}\n当前正文：\n${content}` },
+          ],
+          temperature: 0.2,
+          logTitle: `正文精简-${item.id}-${item.title || '未命名章节'}`,
+          progressLabel: '字数不达标修复',
+          failureMessage: '模型返回的正文精简结果格式无效',
+          normalizer: normalizeContentExpansionPatch,
+          validator: (value) => { validateContentExpansionPatch(value); if (value.operation !== 'replace') throw new Error('精简只能替换纯文字段落'); },
+          repairMessagesBuilder: buildContentExpansionRepairMessages,
+        });
+        const anchor = String(patch.anchor || '').replace(/\s+/g, ' ').trim();
+        const originalParagraph = normalizeParagraphs(content).find((paragraph) => paragraph.replace(/\s+/g, ' ').includes(anchor));
+        if (!anchor || !originalParagraph || /!\[[^\]]*\]\(|```|^\s*[#|]/m.test(originalParagraph)) throw new Error('未定位到可安全精简的纯文字段落');
+        const numbers = originalParagraph.match(/\d+(?:[.,%-]\d+)*/g) || [];
+        if (numbers.some((number) => !patch.content.includes(number))) throw new Error('精简结果遗漏原段落数值，已拒绝改写');
+        const nextContent = applyContentExpansionPatch(content, patch);
+        const reduction = words - countContentWords(nextContent);
+        if (reduction < 20) throw new Error('精简后字数减少不足 20 字');
+        rememberTouchedItem(item.id);
+        saveSection(item, { status: 'success', content: nextContent, error: undefined }, nextContent, { logs });
+        logs = [...logs, `已精简 ${item.title || item.id}：减少 ${reduction} 字，全文现为 ${countTotalContentWords()} 字。`];
+        attempted.clear();
+      } catch (error) {
+        const rateLimited = Number(error?.status) === 429 || /速率限制|频率限制|rate.?limit|too many requests/i.test(String(error?.message || error));
+        logs = [...logs, rateLimited
+          ? '模型请求达到服务商速率限制，停止本轮字数精简；已保留正文，继续执行配图。'
+          : `精简 ${item.title || item.id} 未生效：${compactError(error?.message || error)}。`];
+        if (rateLimited) break;
+      }
+      contentStats.word_repair_completed = attempts;
+      updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+    }
+    if (countTotalContentWords() > maximumWords) {
+      const message = `字数修复未达标：仍超出上限 ${countTotalContentWords() - maximumWords} 字；已保留原文实质信息，请人工复核。`;
+      logs = [...logs, message];
+      contentStats.word_limit_warning = message;
+      updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+    }
+  }
+
+  async function runLayoutCheckIfEnabled() {
+    if (!layoutCheck || targetItemId) return;
+    if (leaves.some(({ item }) => sections[item.id]?.status !== 'success')) {
+      logs = [...logs, '格式自检跳过：仍有正文小节未完成，请先补齐失败小节。'];
+      updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+      return;
+    }
+    const mode = generationOptions.wordExportMode || 'basic';
+    const templateId = String(generationOptions.wordExportTemplateId || '').trim();
+    const template = mode === 'custom-template' ? templateStore?.get?.(templateId) : null;
+    if (mode === 'custom-template' && !template) throw new Error('格式自检无法读取所选 Word 模板，请到生成设置重新选择');
+    const config = configStore?.load?.() || null;
+    if (mode === 'word-optimization' && !config?.skill_settings?.skills?.['word-optimization']?.enabled) {
+      throw new Error('格式自检所选的 word-optimization 已停用，请到技能管理启用或更换导出方式');
+    }
+    contentStats.phase = 'layout-checking';
+    logs = [...logs, '开始格式自检：按本项目的 Word 导出样式试排版并检查分页留白。'];
+    updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+
+    const inspect = async () => {
+      pauseIfRequested('正文已在格式自检前暂停，可稍后继续。');
+      const directory = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'yibiao-layout-check-'));
+      try {
+        const result = await buildDocxResult({
+          documentScope: 'bid', exportMode: mode, exportFormat: template?.config,
+          project_name: outlineData.project_name || '技术方案', outline: outlineData.outline,
+        }, { config });
+        const file = path.join(directory, '格式自检.docx');
+        await fsPromises.writeFile(file, result.buffer);
+        return inspectWordLayout(await readWordLayout(file));
+      } finally {
+        await fsPromises.rm(directory, { recursive: true, force: true });
+      }
+    };
+
+    let audit = await inspect();
+    let previousIssueCount = audit.issues.length;
+    logs = [...logs, `格式自检完成：检查 ${audit.checkedPages} 页，发现 ${previousIssueCount} 处版面提示。`];
+    for (let round = 1; round <= 2; round += 1) {
+      const targets = selectLayoutRepairTargets(audit, leafWordStats())
+        .filter(({ item }) => !expandOnly || !expandTargetItemIds.size || expandTargetItemIds.has(item.id))
+        .slice(0, 4);
+      if (!targets.length) break;
+      let changed = false;
+      for (const context of targets) {
+        pauseIfRequested('正文已在格式补写阶段暂停，可稍后继续。');
+        const before = countContentWords(getLeafContentForWords(context.item));
+        await expandOneSection(context, { layoutRepair: true });
+        const after = countContentWords(getLeafContentForWords(context.item));
+        if (after > before) changed = true;
+      }
+      if (!changed) break;
+      audit = await inspect();
+      logs = [...logs, `格式补写第 ${round} 轮复查：仍有 ${audit.issues.length} 处版面提示。`];
+      updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
+      if (audit.issues.length === 0 || audit.issues.length >= previousIssueCount) break;
+      previousIssueCount = audit.issues.length;
+    }
+    if (audit.issues.length) logs = [...logs, `格式自检仍有 ${audit.issues.length} 处需人工核对：${audit.issues.slice(0, 4).map((issue) => `第 ${issue.page} 页${issue.message}`).join('；')}`];
+    else logs = [...logs, '格式自检通过，未发现明显分页留白或越界文字。'];
     updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
   }
 
@@ -4245,17 +4386,25 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     if (expandOnly) {
       // 扩写模式的配图目标已由 planExpandOnlyIllustrationsIfNeeded 设置。
     } else if (!targetItemId) {
-      await ensureMinimumWords();
-      pauseIfRequested('正文生成已在最低字数检查后暂停，可导出当前已完成内容，稍后继续。');
-      await runConsistencyAuditIfEnabled();
-      if (minimumWords > 0 && countTotalContentWords() < minimumWords) {
+      const priorLimitFailure = !tasksToRun.length && /字数修复未达标/.test(String(storedPlan.contentGenerationTask?.error || ''));
+      if (wordCountRepair && minimumWords > 0 && !priorLimitFailure) {
+        await ensureMinimumWords();
+        pauseIfRequested('正文生成已在最低字数检查后暂停，可导出当前已完成内容，稍后继续。');
+      }
+      if (!priorLimitFailure) await runConsistencyAuditIfEnabled();
+      if (wordCountRepair && minimumWords > 0 && countTotalContentWords() < minimumWords && !priorLimitFailure) {
         logs = [...logs, `一致性修复后总字数低于最低字数，准备重新扩写补足（当前 ${countTotalContentWords()}/${minimumWords} 字）。`];
         updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
         await ensureMinimumWords();
         pauseIfRequested('正文生成已在一致性审计后的最低字数补足阶段暂停，可导出当前已完成内容，稍后继续。');
         await runConsistencyAuditIfEnabled({ reaudit: true });
       }
-      refreshIllustrationTargetsFromStoredPlans(touchedItemIds);
+      if (wordCountRepair && maximumWords > 0 && !priorLimitFailure) await ensureMaximumWords();
+      if (priorLimitFailure) {
+        contentStats.word_limit_warning = `全文仍超出字数上限 ${Math.max(0, countTotalContentWords() - maximumWords)} 字，请人工复核。`;
+        logs = [...logs, '继续上次中断的任务：保留已生成正文，直接执行未完成的配图和版式检查。'];
+      }
+      refreshIllustrationTargetsFromStoredPlans(new Set(leaves.map(({ item }) => item.id)));
     } else if (!tasksToRun.length) {
       await runConsistencyAuditIfEnabled({ targetItemId });
       refreshIllustrationTargetsFromStoredPlans(new Set([targetItemId]));
@@ -4281,13 +4430,16 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
       saveSection(item, { status: 'error', content, error: message }, content, { logs });
     }
 
+    await runLayoutCheckIfEnabled();
+    pauseIfRequested('正文生成已在格式自检后暂停，可稍后继续。');
+
     const failedCount = leaves.filter(({ item }) => sections[item.id]?.status === 'error').length;
     const pendingCount = leaves.filter(({ item }) => !['success', 'error'].includes(sections[item.id]?.status)).length;
     const finalProgress = progressFor(leaves, sections);
     const finalStatus = taskStatusFor(leaves, sections);
     contentStats.phase = 'done';
-    if (maximumWords > 0 && !targetItemId && countTotalContentWords() > maximumWords) {
-      logs = [...logs, `当前正文约 ${countTotalContentWords()} 字，超过参考上限 ${maximumWords} 字；请人工核对后调整篇幅。`];
+    if (!targetItemId && ((minimumWords > 0 && countTotalContentWords() < minimumWords) || (maximumWords > 0 && countTotalContentWords() > maximumWords))) {
+      logs = [...logs, `全文字数 ${countTotalContentWords()} 字，目标范围 ${minimumWords || '不限'}—${maximumWords || '不限'} 字；${wordCountRepair ? '自动修复后仍有差额，请核对' : '未启用字数修复，请人工核对'}。`];
     }
     logs = [...logs, pendingCount
       ? `仍有 ${pendingCount} 个小节未完成，任务不能标记为成功；请继续生成正文。`

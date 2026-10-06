@@ -29,8 +29,11 @@ function MyTemplatesPage({ onCreateTemplate, onEditTemplate }: MyTemplatesPagePr
   const [importing, setImporting] = useState(false);
   const [importingWord, setImportingWord] = useState(false);
   const [exportingId, setExportingId] = useState('');
+  const [duplicatingId, setDuplicatingId] = useState('');
 
   const selectedTemplate = templates.find((template) => template.template_id === selectedId) || templates[0] || null;
+  const systemTemplates = templates.filter((template) => template.is_system);
+  const userTemplates = templates.filter((template) => !template.is_system);
   const previewConfig = useMemo(
     () => withExportFormatDefaults(selectedTemplate?.config || DEFAULT_EXPORT_FORMAT),
     [selectedTemplate],
@@ -121,6 +124,42 @@ function MyTemplatesPage({ onCreateTemplate, onEditTemplate }: MyTemplatesPagePr
     }
   };
 
+  const handleDuplicate = async (template: ExportTemplateRecord, openEditor = false) => {
+    setDuplicatingId(template.template_id);
+    try {
+      const copy = await window.yibiao?.bidTemplates.duplicate(template.template_id);
+      if (!copy) throw new Error('复制模板失败');
+      await loadTemplates();
+      setSelectedId(copy.template_id);
+      showToast(`已复制为“${copy.template_name}”`, 'success');
+      if (openEditor) onEditTemplate(copy.template_id);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '复制模板失败', 'error');
+    } finally {
+      setDuplicatingId('');
+    }
+  };
+
+  const renderTemplateCard = (template: ExportTemplateRecord) => {
+    const selected = selectedTemplate?.template_id === template.template_id;
+    return <article className={`template-library-card${selected ? ' is-active' : ''}`} key={template.template_id}>
+      <button type="button" className="template-library-card-main" onClick={() => setSelectedId(template.template_id)}>
+        <span>{template.template_name}{template.is_system ? <em className="template-library-system-badge">系统预设</em> : null}</span>
+        <small>{template.is_system ? '内置模板' : `更新于 ${formatTemplateDate(template.updated_at)}`}</small>
+      </button>
+      <div className="template-library-card-actions">
+        {template.is_system ? <>
+          <button type="button" onClick={() => setSelectedId(template.template_id)}>查看</button>
+          <button type="button" onClick={() => { void handleDuplicate(template); }} disabled={Boolean(duplicatingId)}>{duplicatingId === template.template_id ? '复制中' : '复制'}</button>
+        </> : <>
+          <button type="button" onClick={() => onEditTemplate(template.template_id)}>编辑</button>
+          <button type="button" onClick={() => { void handleExportTemplate(template); }} disabled={Boolean(exportingId)}>{exportingId === template.template_id ? '导出中' : '导出'}</button>
+          <button type="button" className="is-danger" onClick={() => setDeleteTarget(template)}>删除</button>
+        </>}
+      </div>
+    </article>;
+  };
+
   return (
     <div className="template-library-page">
       <section className="template-library-panel" aria-label="我的模板">
@@ -146,22 +185,13 @@ function MyTemplatesPage({ onCreateTemplate, onEditTemplate }: MyTemplatesPagePr
               <button type="button" className="primary-action" onClick={onCreateTemplate}>新建第一个模板</button>
             </div>
           ) : null}
-          {!loading && templates.map((template) => {
-            const selected = selectedTemplate?.template_id === template.template_id;
-            return (
-              <article className={`template-library-card${selected ? ' is-active' : ''}`} key={template.template_id}>
-                <button type="button" className="template-library-card-main" onClick={() => setSelectedId(template.template_id)}>
-                  <span>{template.template_name}</span>
-                  <small>更新于 {formatTemplateDate(template.updated_at)}</small>
-                </button>
-                <div className="template-library-card-actions">
-                  <button type="button" onClick={() => onEditTemplate(template.template_id)}>编辑</button>
-                  <button type="button" onClick={() => { void handleExportTemplate(template); }} disabled={Boolean(exportingId)}>{exportingId === template.template_id ? '导出中' : '导出'}</button>
-                  <button type="button" className="is-danger" onClick={() => setDeleteTarget(template)}>删除</button>
-                </div>
-              </article>
-            );
-          })}
+          {!loading && <>
+            <h3 className="template-library-group-title">系统预设模板</h3>
+            <p className="template-library-group-hint">不可编辑和删除，复制一份后即可自由调整。</p>
+            {systemTemplates.map(renderTemplateCard)}
+            <h3 className="template-library-group-title">我的模板</h3>
+            {userTemplates.length ? userTemplates.map(renderTemplateCard) : <div className="template-library-empty"><strong>还没有自定义模板</strong><span>可以复制系统预设，再调整为自己的样式。</span></div>}
+          </>}
         </div>
       </section>
 
@@ -173,7 +203,9 @@ function MyTemplatesPage({ onCreateTemplate, onEditTemplate }: MyTemplatesPagePr
                 <span className="section-kicker">实时预览</span>
                 <h3>{selectedTemplate.template_name}</h3>
               </div>
-              <button type="button" className="secondary-action" onClick={() => onEditTemplate(selectedTemplate.template_id)}>编辑模板</button>
+              {selectedTemplate.is_system
+                ? <button type="button" className="secondary-action" onClick={() => { void handleDuplicate(selectedTemplate, true); }} disabled={Boolean(duplicatingId)}>复制并编辑</button>
+                : <button type="button" className="secondary-action" onClick={() => onEditTemplate(selectedTemplate.template_id)}>编辑模板</button>}
             </div>
             <TemplatePreview config={previewConfig} previewStyle={previewStyle} />
             {selectedTemplate.source_manifest ? (

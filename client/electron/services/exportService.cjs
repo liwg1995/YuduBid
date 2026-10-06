@@ -5,6 +5,7 @@ const { fileURLToPath } = require('node:url');
 const { app, dialog, nativeImage, shell } = require('electron');
 const AdmZip = require('adm-zip');
 const cheerio = require('cheerio');
+const mammoth = require('mammoth');
 const { getSafeImageDimensions } = require('../utils/safeImageDimensions.cjs');
 const { createCanvas, GlobalFonts, loadImage: loadCanvasImage } = require('@napi-rs/canvas');
 const { getGeneratedImagesDir, getImportedImagesDir, getKnowledgeImageLibraryDir } = require('../utils/paths.cjs');
@@ -339,8 +340,8 @@ function markdownToPlainBlocks(content) {
   };
 
   const flushFence = () => {
-    const text = fenceLines.join('\n').trim();
-    if (text) blocks.push({ type: 'paragraph', text });
+    const text = fenceLines.join('\n').replace(/\n+$/, '');
+    if (text.trim()) blocks.push({ type: 'code', text });
     fenceLines = [];
   };
 
@@ -440,6 +441,12 @@ function originalTemplateMarkdownXml(markdown, options = {}) {
     if (block.type === 'heading') {
       const level = Math.max(1, Math.min(6, Number(block.level) || 1));
       return wordParagraphXml(block.text, { style: `Heading${level}` });
+    }
+    if (block.type === 'code') {
+      return block.text.split('\n').map((line) => wordParagraphXml(line || ' ', {
+        paragraphPropertiesXml: '<w:pPr><w:jc w:val="left"/><w:ind w:left="260" w:right="260" w:firstLine="0"/><w:spacing w:before="0" w:after="0" w:line="300" w:lineRule="auto"/><w:shd w:val="clear" w:fill="F6F9FF"/></w:pPr>',
+        runPropertiesXml: '<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="18"/><w:color w:val="243048"/></w:rPr>',
+      })).join('');
     }
     return wordParagraphXml(block.text, {
       paragraphPropertiesXml: options.paragraphPropertiesXml,
@@ -795,8 +802,11 @@ function customHeadingDecoration(context, level) {
   const frame = context?.customTemplateEnabled ? context.exportFormat?.heading_border : null;
   if (!frame?.enabled) return {};
   const border = { style: BorderStyle.SINGLE, size: 6, color: colorWithoutHash(frame.border_color, 'CFD8EE') };
+  const edgeBorder = frame.structure === '上下结构'
+    ? { top: { ...border, space: frame.heading_top_border_space_pt || 0 }, ...(frame.heading_bottom_border_enabled !== false ? { bottom: { ...border, space: frame.heading_bottom_border_space_pt || 0 } } : {}) }
+    : { left: border, right: border };
   return {
-    border: { top: border, bottom: border, left: border, right: border },
+    border: edgeBorder,
     shading: { type: ShadingType.CLEAR, fill: colorWithoutHash(frame.level_cell_colors?.[Math.min(8, Math.max(0, level - 1))], 'FFFFFF') },
   };
 }
@@ -968,7 +978,9 @@ function pageBreakParagraph() {
 }
 
 function textRunsWithBreaks(value, options = {}) {
-  const source = String(value || '');
+  // Markdown 普通文本里的软换行等同空格；不要把原始换行塞进 Word run，
+  // 否则本地预览器可能按一行测量、按多行绘制，造成上下段落重叠。
+  const source = String(value || '').replace(/\r\n?|\n/g, ' ');
   if (options.optimized) {
     // Word 优化导出不保留 Markdown/HTML 的手动换行符，让 Word 按页面宽度自然换行。
     return source.replace(/<br\s*\/?\s*>/gi, '')
@@ -1261,27 +1273,35 @@ function emptyFooter() {
 
 function customTemplateHeader(page) {
   if (!page?.header_enabled) return undefined;
+  const chrome = page.header_footer_style;
+  const accent = colorWithoutHash(page.chrome_accent_color, '536176');
+  const bar = colorWithoutHash(page.chrome_bar_color, 'E8EEF5');
   return new Header({
-    children: [paragraph([textRun(page.header_text || '', { font: page.header_font, size: pointsToHalfPoints(chineseSizeToPoints(page.header_size, 9)), color: colorWithoutHash(page.header_color, '536176') })], {
+    children: [paragraph([textRun(page.header_text || '', { font: page.header_font, size: pointsToHalfPoints(chineseSizeToPoints(page.header_size, 9)), color: chrome === 'frame' ? accent : colorWithoutHash(page.header_color, '536176') })], {
       alignment: docxAlignment(page.header_alignment, AlignmentType.CENTER),
       indent: { left: 0, right: 0, firstLine: 0 },
       before: 0,
       after: 0,
+      ...(chrome === 'band' ? { shading: { type: ShadingType.CLEAR, fill: bar } } : {}),
+      ...(chrome === 'frame' ? { border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: accent } } } : {}),
     })],
   });
 }
 
 function customTemplateFooter(page) {
   if (!page?.footer_enabled && !page?.page_number_enabled) return undefined;
+  const chrome = page.footer_enabled ? page.header_footer_style : 'plain';
+  const accent = colorWithoutHash(page.chrome_accent_color, '536176');
+  const footerColor = colorWithoutHash(page.footer_color, '536176');
   const children = [];
-  if (page.footer_enabled && page.footer_text) children.push(textRun(page.footer_text, { font: page.footer_font, size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)), color: colorWithoutHash(page.footer_color, '536176') }));
+  if (page.footer_enabled && page.footer_text) children.push(textRun(page.footer_text, { font: page.footer_font, size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)), color: footerColor }));
   if (page.footer_enabled && page.footer_text && page.page_number_enabled) children.push(textRun('  ·  ', { size: 18, color: '666666' }));
   if (page.page_number_enabled) {
     const format = page.page_number_format || '{page}';
     const [prefix, suffix] = format.split('{page}');
-    if (prefix) children.push(textRun(prefix, { font: page.footer_font, size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)) }));
-    children.push(new TextRun({ children: [PageNumber.CURRENT], font: page.footer_font || 'Times New Roman', size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)), color: colorWithoutHash(page.footer_color, '000000') }));
-    if (suffix) children.push(textRun(suffix, { font: page.footer_font, size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)) }));
+    if (prefix) children.push(textRun(prefix, { font: page.footer_font, size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)), color: footerColor }));
+    children.push(new TextRun({ children: [PageNumber.CURRENT], font: page.footer_font || 'Times New Roman', size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)), color: footerColor }));
+    if (suffix) children.push(textRun(suffix, { font: page.footer_font, size: pointsToHalfPoints(chineseSizeToPoints(page.footer_size, 9)), color: footerColor }));
   }
   return new Footer({
     children: [paragraph(children, {
@@ -1289,6 +1309,8 @@ function customTemplateFooter(page) {
       indent: { left: 0, right: 0, firstLine: 0 },
       before: 0,
       after: 0,
+      ...(chrome === 'band' ? { shading: { type: ShadingType.CLEAR, fill: accent } } : {}),
+      ...(chrome === 'frame' ? { border: { top: { style: BorderStyle.SINGLE, size: 8, color: accent } } } : {}),
     })],
   });
 }
@@ -1578,14 +1600,36 @@ function expandInlineMarkdownTableRows(line) {
 }
 
 function normalizeMarkdownTablesForDocx(content) {
+  // 代码围栏中的竖线、缩进和换行属于原文，不能作为压缩表格进行展开。
+  let fence = null;
   const expandedLines = String(content || '')
     .replace(/\r\n?/g, '\n')
     .split('\n')
-    .flatMap(expandInlineMarkdownTableRows);
+    .flatMap((line) => {
+      const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+      if (marker) {
+        if (!fence) fence = { character: marker[1][0], length: marker[1].length };
+        else if (marker[1][0] === fence.character && marker[1].length >= fence.length) fence = null;
+        return [line];
+      }
+      return fence ? [line] : expandInlineMarkdownTableRows(line);
+    });
   const lines = [];
+  fence = null;
 
   for (let index = 0; index < expandedLines.length; index += 1) {
     const line = expandedLines[index];
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (marker) {
+      if (!fence) fence = { character: marker[1][0], length: marker[1].length };
+      else if (marker[1][0] === fence.character && marker[1].length >= fence.length) fence = null;
+      lines.push(line);
+      continue;
+    }
+    if (fence) {
+      lines.push(line);
+      continue;
+    }
     const nextLine = expandedLines[index + 1] || '';
     const compressedTableRows = expandCompressedMarkdownTableRows(line, nextLine);
     const startsCompressedTable = Boolean(compressedTableRows);
@@ -2417,6 +2461,19 @@ function looksLikeTextDiagram(value) {
   return boxGlyphs >= 4 || structuralLines >= 3;
 }
 
+function codeBlockParagraphs(value) {
+  const codeLines = cleanText(value).replace(/\r\n?/g, '\n').split('\n');
+  return codeLines.map((line, index) => paragraph([
+    new TextRun({ text: line || ' ', font: 'Consolas', size: 18, color: '243048' }),
+  ], {
+    style: 'CodeBlock',
+    alignment: AlignmentType.LEFT,
+    spacing: { before: index === 0 ? 120 : 0, after: index === codeLines.length - 1 ? 120 : 0, line: 300, lineRule: LineRuleType.AUTO },
+    shading: { type: ShadingType.CLEAR, fill: 'F6F9FF' },
+    indent: { left: 260, right: 260, firstLine: 0 },
+  }));
+}
+
 function renderTextDiagramToDataUrl(value) {
   registerCanvasCjkFonts();
   const lines = String(value || '').replace(/\r\n?/g, '\n').split('\n');
@@ -2670,10 +2727,7 @@ async function htmlNodeToDocxBlocks($, node, context, options = {}) {
     })];
   }
   if (tag === 'pre') {
-    return [paragraph([new TextRun({ text: cleanText($(node).text()), font: 'Consolas', size: 21, color: '243048' })], {
-      shading: { type: ShadingType.CLEAR, fill: 'F6F9FF' },
-      indent: { left: 260, right: 260 },
-    })];
+    return codeBlockParagraphs($(node).text());
   }
   if (tag === 'br') {
     return context.wordOptimizationEnabled ? [] : [paragraph([lineBreakRun()])];
@@ -3175,10 +3229,9 @@ async function markdownNodesToDocx(nodes = [], context = {}, options = {}) {
       } else if (!options.inTable && looksLikeTextDiagram(node.value)) {
         blocks.push(await imageParagraphFromSource(renderTextDiagramToDataUrl(node.value), '文本流程图', context));
       } else {
-        blocks.push(paragraph([new TextRun({ text: cleanText(node.value), font: 'Consolas', size: 21, color: '243048' })], {
-          shading: { type: ShadingType.CLEAR, fill: 'F6F9FF' },
-          indent: { left: 260, right: 260 },
-        }));
+        // 一个 TextRun 中的 \n 在 Word 中会被折叠成空格，且两端对齐会把代码撑散。
+        // 每一行生成独立段落，保留前导空格，并让 Word 根据实际字高排版。
+        blocks.push(...codeBlockParagraphs(node.value));
       }
     } else if (node.type === 'html') {
       blocks.push(...await htmlToDocxBlocks(node.value, context, options));
@@ -3670,6 +3723,7 @@ async function buildDocxResult(payload, options = {}) {
         {
           properties: {
             type: SectionType.NEXT_PAGE,
+            ...(exportFormat.page.two_column ? { column: { count: 2, space: 480 } } : {}),
             page: {
               size: (() => { const dimensions = PAPER_DIMENSIONS_MM[exportFormat.page.paper_size] || PAPER_DIMENSIONS_MM.a4; return { width: centimetersToTwips(dimensions.width / 10), height: centimetersToTwips(dimensions.height / 10), orientation: exportFormat.page.orientation === 'landscape' ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT }; })(),
               margin: {
@@ -3689,6 +3743,7 @@ async function buildDocxResult(payload, options = {}) {
       ]
     : [{
         properties: {
+          ...(customTemplateEnabled && exportFormat.page.two_column ? { column: { count: 2, space: 480 } } : {}),
           page: {
             size: customTemplateEnabled ? (() => { const dimensions = PAPER_DIMENSIONS_MM[exportFormat.page.paper_size] || PAPER_DIMENSIONS_MM.a4; return { width: centimetersToTwips(dimensions.width / 10), height: centimetersToTwips(dimensions.height / 10), orientation: exportFormat.page.orientation === 'landscape' ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT }; })() : undefined,
             margin: customTemplateEnabled
@@ -3745,6 +3800,14 @@ async function buildDocxResult(payload, options = {}) {
         } : {}),
       },
       paragraphStyles: [
+        {
+          id: 'CodeBlock',
+          name: 'CodeBlock',
+          basedOn: 'Normal',
+          next: 'CodeBlock',
+          run: { font: 'Consolas', size: 18, color: '243048' },
+          paragraph: { alignment: AlignmentType.LEFT, spacing: { before: 0, after: 0, line: 300, lineRule: LineRuleType.AUTO }, indent: { left: 260, right: 260, firstLine: 0 } },
+        },
         ...(wordOptimizationEnabled || structuredDocumentEnabled || patentDisclosureEnabled || customTemplateEnabled ? [
           ...(customTemplateEnabled ? [7, 8, 9] : Array.from({ length: 9 }, (_item, index) => index + 1)).map((level) => ({
             id: `Heading${level}`,
@@ -3868,6 +3931,24 @@ function resolveBidTemplatePayload(payload = {}, templateStore) {
   };
 }
 
+function sanitizeWordPreviewHtml(html) {
+  const $ = cheerio.load(String(html || ''), { decodeEntities: false }, false);
+  $('script, style, iframe, object, embed, form, svg, math').remove();
+  $('*').each((_index, node) => {
+    for (const attribute of Object.keys(node.attribs || {})) {
+      const value = node.attribs[attribute];
+      const allowedImage = node.name === 'img' && attribute === 'src'
+        && /^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(value);
+      const allowedAlt = node.name === 'img' && attribute === 'alt';
+      const allowedLink = node.name === 'a' && attribute === 'href' && /^https?:\/\//i.test(value);
+      const allowedSpan = (node.name === 'td' || node.name === 'th')
+        && (attribute === 'colspan' || attribute === 'rowspan') && /^\d{1,2}$/.test(value);
+      if (!allowedImage && !allowedAlt && !allowedLink && !allowedSpan) $(node).removeAttr(attribute);
+    }
+  });
+  return $.html();
+}
+
 function createExportService({ configStore, getTemplateStore } = {}) {
   return {
     async previewWord(payload = {}) {
@@ -3885,7 +3966,12 @@ function createExportService({ configStore, getTemplateStore } = {}) {
       }, { config: configStore?.load?.() || null });
       const imageWarnings = result.warnings.filter((warning) => String(warning).startsWith('图片无法导出：'));
       if (imageWarnings.length) throw new Error(`有 ${imageWarnings.length} 张图片无法用于 Word 预览：${imageWarnings[0]}`);
-      return new Uint8Array(result.buffer);
+      // DOCX 页面渲染器在混合中英文、列表和长代码块时会发生行高测量错误。
+      // 从同一份已生成的 DOCX 提取只读 HTML，避免预览文字互相覆盖。
+      const preview = await mammoth.convertToHtml({ buffer: result.buffer }, {
+        styleMap: ["p[style-name='CodeBlock'] => pre:fresh"],
+      });
+      return sanitizeWordPreviewHtml(preview.value);
     },
     showExportFile(filePath) {
       const target = String(filePath || '').trim();

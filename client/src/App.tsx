@@ -221,6 +221,7 @@ function App() {
         <AppRouter
           key={`${activeSection}:${sectionRefreshKeys[activeSection] || 0}:${pluginNavigationTarget?.requestId || 0}`}
           activeSection={activeSection}
+          developerMode={developerMode}
           featureModuleSettings={featureModuleSettings}
           pluginNavigationTarget={pluginNavigationTarget?.sectionId === activeSection ? pluginNavigationTarget : null}
           onSectionChange={changeSection}

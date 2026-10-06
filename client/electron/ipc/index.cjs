@@ -821,7 +821,7 @@ function registerIpcHandlers({ app, mainWindow, downloadReleaseInstaller, cancel
       onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
     });
     const duplicateCheckService = createDuplicateCheckService({ app, configStore, workspaceStore: duplicateCheckStore });
-    const taskService = createTaskService({ aiService, technicalDiagramService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService });
+    const taskService = createTaskService({ aiService, technicalDiagramService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService, configStore, templateStore });
     agentServices = { technicalPlanStore: technicalPlanStoreRouter, taskService, knowledgeBaseService, presalesWorkbenchService, officialDocumentService, grantApplicationService, projectManagementService, thesisTutorService, softwareCopyrightService, patentGenerationService };
     refreshAgentHost(configStore.load());
     registerBidReviewCapabilities(pluginManager.capabilityRegistry, {

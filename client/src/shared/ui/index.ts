@@ -1,5 +1,8 @@
 export { default as FloatingToolbar } from './FloatingToolbar';
 export { default as AppSwitch } from './AppSwitch';
+export { default as AppDialog } from './AppDialog';
+export { default as EmptyState } from './EmptyState';
+export { default as InlineSpinner } from './InlineSpinner';
 export type { AppSwitchProps } from './AppSwitch';
 export { default as AgentFloatingPanel } from './AgentFloatingPanel';
 export type { AgentFloatingPanelProps } from './AgentFloatingPanel';

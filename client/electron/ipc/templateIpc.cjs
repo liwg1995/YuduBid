@@ -4,6 +4,7 @@ function registerTemplateIpc({ templateStore }) {
   ipcMain.handle('bid-templates:list', () => templateStore.list());
   ipcMain.handle('bid-templates:get', (_event, templateId) => templateStore.get(templateId));
   ipcMain.handle('bid-templates:create', (_event, config) => templateStore.create(config));
+  ipcMain.handle('bid-templates:duplicate', (_event, templateId) => templateStore.duplicate(templateId));
   ipcMain.handle('bid-templates:update', (_event, templateId, config) => templateStore.update(templateId, config));
   ipcMain.handle('bid-templates:delete', (_event, templateId) => templateStore.remove(templateId));
   ipcMain.handle('bid-templates:select-cover-logo', () => templateStore.selectCoverLogo());

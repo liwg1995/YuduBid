@@ -4,6 +4,14 @@ export interface TextModelConfig {
   api_key: string;
   base_url: string;
   model_name: string;
+  multimodal_enabled?: boolean;
+  reasoning_effort?: string;
+  context_length_limit?: number;
+  output_token_limit?: number;
+  concurrency_limit?: number;
+  temperature_enabled?: boolean;
+  temperature?: number;
+  request_mode?: 'normal' | 'stream';
 }
 
 export type TextModelProfiles = Record<TextModelProvider, TextModelConfig>;
@@ -47,6 +55,20 @@ export interface ModelCapabilityInfo {
   supportsVision?: boolean;
   supportsJsonMode?: boolean;
   modalities?: string[];
+}
+
+export interface ModelInfoResult {
+  success: boolean;
+  message: string;
+  model: null | {
+    reasoningEfforts: string[];
+    context: number;
+    output: number;
+    imageInputStatus: 'supported' | 'unsupported' | 'mixed' | 'unknown';
+    temperatureStatus: 'supported' | 'unsupported' | 'mixed' | 'unknown';
+    concurrencyLimit: number;
+    requestMode: 'normal' | 'stream';
+  };
 }
 
 export interface ImageModelTestResult {

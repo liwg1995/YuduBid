@@ -63,6 +63,9 @@ export interface HeadingBorderConfig {
   enabled: boolean;
   min_heading_left_enabled: boolean;
   border_color: string;
+  heading_top_border_space_pt?: number;
+  heading_bottom_border_space_pt?: number;
+  heading_bottom_border_enabled?: boolean;
   level_cell_colors: string[];
   structure: HeadingBorderStructure;
 }
@@ -150,6 +153,7 @@ export const PAPER_DIMENSIONS: Record<PaperSize, { width: number; height: number
 export interface PageSetupConfig {
   paper_size: PaperSize;
   orientation: 'portrait' | 'landscape';
+  two_column?: boolean;
   first_page_different: boolean;
   margin_top_cm: number;
   margin_bottom_cm: number;
@@ -161,6 +165,9 @@ export interface PageSetupConfig {
   header_size: string;
   header_alignment: string;
   header_color: string;
+  header_footer_style?: 'plain' | 'band' | 'frame';
+  chrome_bar_color?: string;
+  chrome_accent_color?: string;
   footer_enabled: boolean;
   footer_text: string;
   footer_distance_cm: number;
@@ -212,6 +219,7 @@ export interface ExportTemplateRecord {
   template_id: string;
   template_name: string;
   config: ExportFormatConfig;
+  is_system?: boolean;
   created_at: string;
   updated_at: string;
   source_manifest?: {
@@ -559,6 +567,7 @@ export type BidImageStyleConfig = ImageStyleConfig;
 export type BidExportTemplateConfig = ExportFormatConfig;
 
 export interface BidExportTemplateRecord extends ExportTemplateRecord {
+  is_system?: boolean;
   templateId: string;
   templateName: string;
   createdAt: string;

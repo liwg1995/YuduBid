@@ -1,5 +1,16 @@
-.content-word-preview { height: min(72vh, 900px); min-height: 340px; overflow: auto; background: var(--yb-bg); border: 1px solid var(--yb-border); border-radius: var(--yb-radius-md); }
-.content-word-editor { min-height: 100%; }
+.content-word-preview { height: min(72vh, 900px); min-height: 340px; overflow: auto; background: #f4f6fa; border: 1px solid var(--yb-border); border-radius: var(--yb-radius-md); }
+.content-word-page { box-sizing: border-box; width: min(794px, calc(100% - 32px)); min-height: 1123px; margin: 20px auto; padding: 68px 76px; background: #fff; color: #202a3d; box-shadow: 0 2px 14px rgba(28, 42, 67, .1); font-family: '宋体', 'SimSun', serif; font-size: 12pt; line-height: 1.65; overflow-wrap: break-word; }
+.content-word-page :is(h1, h2, h3, h4, h5, h6) { margin: 1.1em 0 .5em; line-height: 1.4; color: #182235; break-after: avoid; }
+.content-word-page :is(p, ul, ol, blockquote) { margin: 0 0 .7em; }
+.content-word-page :is(ul, ol) { padding-left: 2em; }
+.content-word-page li { margin: .25em 0; }
+.content-word-page li > p { margin-bottom: .25em; }
+.content-word-page pre { margin: 0; padding: 0 12px; overflow-x: auto; background: #f6f9ff; color: #243048; font: 9pt/1.35 Consolas, 'Courier New', monospace; white-space: pre; tab-size: 2; }
+.content-word-page pre + :not(pre) { margin-top: 12px; }
+.content-word-page code { font-family: Consolas, 'Courier New', monospace; }
+.content-word-page img { display: block; max-width: 100%; height: auto; margin: 12px auto; }
+.content-word-page table { width: 100%; margin: 1em 0; border-collapse: collapse; }
+.content-word-page th, .content-word-page td { padding: 6px 8px; border: 1px solid #cbd4e2; vertical-align: top; }
 .content-word-status { padding: 20px; color: var(--yb-text-soft); }
 .content-word-status p { white-space: pre-wrap; }
 .content-word-overlay { position: fixed; inset: 0; z-index: 120; background: rgba(12, 18, 32, .55); }
@@ -7,3 +18,4 @@
 .content-word-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .content-word-dialog-head h2 { margin: 0 0 5px; }
 .content-word-dialog-head p { margin: 0; color: var(--yb-text-soft); }
+@media (max-width: 760px) { .content-word-page { width: calc(100% - 20px); padding: 28px 24px; } }

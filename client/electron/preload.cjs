@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // Sandboxed preload scripts cannot require arbitrary local modules. Keep this
 // small formatter here so a preload failure never removes the entire bridge.
@@ -51,6 +51,7 @@ const bridge = {
     save: (config) => invoke('config:save', config),
     listModels: (config) => invoke('config:list-models', config),
     getModelCapabilities: (config) => invoke('config:get-model-capabilities', config),
+    getModelInfo: (modelName) => invoke('config:get-model-info', modelName),
     openConfigFolder: () => invoke('config:open-config-folder'),
   },
   agent: {
@@ -80,6 +81,7 @@ const bridge = {
   },
   file: {
     selectDuplicateCheckFiles: (options) => invoke('file:select-duplicate-check-files', options),
+    getPathForFile: (file) => webUtils.getPathForFile(file),
   },
   codeGeneration: {
     loadState: () => invoke('code-generation:load-state'),
@@ -304,6 +306,7 @@ const bridge = {
   credentialLibrary: {
     selectImages: () => invoke('credential-library:select-images'),
     load: () => invoke('credential-library:load'),
+    importTestData: () => invoke('credential-library:import-test-data'),
     saveProfile: (partial) => invoke('credential-library:save-profile', partial),
     addProfileImages: (fieldKey, filePaths) => invoke('credential-library:add-profile-images', fieldKey, filePaths),
     deleteImage: (imageId) => invoke('credential-library:delete-image', imageId),
@@ -528,6 +531,7 @@ const bridge = {
     list: () => invoke('bid-templates:list'),
     get: (templateId) => invoke('bid-templates:get', templateId),
     create: (config) => invoke('bid-templates:create', config),
+    duplicate: (templateId) => invoke('bid-templates:duplicate', templateId),
     update: (templateId, config) => invoke('bid-templates:update', templateId, config),
     delete: (templateId) => invoke('bid-templates:delete', templateId),
     selectCoverLogo: () => invoke('bid-templates:select-cover-logo'),

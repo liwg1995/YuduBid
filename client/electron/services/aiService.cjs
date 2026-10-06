@@ -23,12 +23,14 @@ const {
   fetchRemoteWithTimeout,
   readResponseBuffer,
 } = require('../utils/secureHttp.cjs');
+const { bindAiRequestActivity, notifyAiRequestStart, notifyAiResponse, notifyAiRetry } = require('../utils/aiRequestActivity.cjs');
 
 const AI_REQUEST_TIMEOUT_MS = 300000;
 const GENERATED_IMAGE_MAX_BYTES = 32 * 1024 * 1024;
 const MULTIMODAL_IMAGE_MAX_EDGE = 2048;
 const MAX_AI_LOG_TITLE_LENGTH = 64;
 const IMAGE_MODEL_TEST_TIMEOUT_MESSAGE = '生图模型测试超时，请检查 Base URL、API Key 或模型名称';
+const MODEL_INFO_ENDPOINT = 'https://analytics.agnet.top/model-info';
 const OPENAI_IMAGE_PROVIDER_META = {
   'agnes-ai-cn': {
     label: 'agnes-ai【中国大陆】',
@@ -63,6 +65,40 @@ const OPENAI_IMAGE_PROVIDER_META = {
 };
 const AGNES_IMAGE_PROVIDERS = new Set(['agnes-ai-cn', 'agnes-ai-global']);
 const SENSENOVA_IMAGE_PROVIDER = 'sensenova';
+const textRequestQueue = { active: 0, pending: [] };
+
+function runWithTextRequestSlot(limit, signal, runner) {
+  const maxActive = Math.max(1, Math.min(100, Number(limit) || 10));
+  return new Promise((resolve, reject) => {
+    const entry = { maxActive, signal, runner: bindAiRequestActivity(runner), resolve, reject };
+    const abort = () => {
+      const index = textRequestQueue.pending.indexOf(entry);
+      if (index >= 0) textRequestQueue.pending.splice(index, 1);
+      reject(new Error('AI 请求已取消'));
+    };
+    entry.abort = abort;
+    if (signal?.aborted) return abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    textRequestQueue.pending.push(entry);
+    pumpTextRequestQueue();
+  });
+}
+
+function pumpTextRequestQueue() {
+  while (textRequestQueue.pending.length && textRequestQueue.active < textRequestQueue.pending[0].maxActive) {
+    const entry = textRequestQueue.pending.shift();
+    entry.signal?.removeEventListener('abort', entry.abort);
+    if (entry.signal?.aborted) {
+      entry.reject(new Error('AI 请求已取消'));
+      continue;
+    }
+    textRequestQueue.active += 1;
+    Promise.resolve().then(entry.runner).then(entry.resolve, entry.reject).finally(() => {
+      textRequestQueue.active -= 1;
+      pumpTextRequestQueue();
+    });
+  }
+}
 
 function supportsAgnesImageSizeAndRatio(modelName) {
   return modelName === 'agnes-image-2.1-flash' || modelName === 'agnes-image-2.5-flash';
@@ -124,6 +160,10 @@ function isResponseFormatUnsupported(message) {
   ].some((marker) => normalized.includes(marker));
 }
 
+function isNonRecoverableQuotaError(message) {
+  return /升级\s*Token Plan|免费用户的\s*API\s*速率限制|insufficient[_ ]quota|quota exceeded/i.test(String(message || ''));
+}
+
 function writeAiLog(app, config, payload) {
   if (!config.developer_mode) {
     return;
@@ -144,10 +184,11 @@ function normalizeRequestTimeoutMs(request) {
 
 function createAbortError() {
   const error = new Error('AI 请求超时');
-  error.name = 'AbortError';
+  error.name = 'TimeoutError';
   return error;
 }
 
+// 按“连续无响应时间”计时；收到响应头或数据块后重新计时，避免长流式输出被总时长截断。
 function createOperationTimeout(timeoutMs, externalSignal) {
   const controller = new AbortController();
   const abortFromExternal = () => controller.abort();
@@ -156,20 +197,31 @@ function createOperationTimeout(timeoutMs, externalSignal) {
   } else {
     externalSignal?.addEventListener('abort', abortFromExternal, { once: true });
   }
+  let timer;
+  let rejectTimeout;
+  let timedOut = false;
   const timeoutPromise = new Promise((_resolve, reject) => {
-    const timer = setTimeout(() => {
-      controller.abort();
-      reject(createAbortError());
-    }, timeoutMs);
-    controller.signal.addEventListener('abort', () => clearTimeout(timer), { once: true });
+    rejectTimeout = reject;
   });
+  const touch = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      rejectTimeout(createAbortError());
+    }, timeoutMs);
+  };
+  touch();
 
   return {
     signal: controller.signal,
+    touch,
+    isTimedOut: () => timedOut,
     run(promise) {
       return Promise.race([promise, timeoutPromise]);
     },
     clear() {
+      clearTimeout(timer);
       externalSignal?.removeEventListener('abort', abortFromExternal);
       controller.abort();
     },
@@ -188,6 +240,28 @@ function createHeaders(apiKey) {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
   };
+}
+
+function getActiveTextProfile(config) {
+  return config.text_model_profiles?.[config.text_model_provider] || config;
+}
+
+function hasImageContent(messages) {
+  return (Array.isArray(messages) ? messages : []).some((message) => Array.isArray(message?.content)
+    && message.content.some((part) => part?.type === 'local_image' || part?.type === 'image_url'));
+}
+
+function checkTextContextLimit(messages, profile) {
+  const limit = Number(profile.context_length_limit) || 0;
+  if (!limit) return;
+  const characters = messages.reduce((sum, message) => sum + (typeof message.content === 'string'
+    ? message.content.length
+    : Array.isArray(message.content) ? message.content.reduce((length, part) => length + String(part?.text || '').length, 0) : 0), 0);
+  const estimatedTokens = Math.ceil(characters / 2) + (hasImageContent(messages) ? 1024 : 0);
+  const reservedOutput = Math.min(Number(profile.output_token_limit) || 1024, Math.floor(limit / 2));
+  if (estimatedTokens + reservedOutput > limit) {
+    throw new Error(`本次输入约 ${estimatedTokens} Token，连同预留输出已超过上下文上限 ${limit}。请缩减资料或分批处理；内容未被自动截断。`);
+  }
 }
 
 async function prepareMultimodalMessages(messages) {
@@ -309,7 +383,7 @@ async function ensureOk(response, fallbackMessage) {
 
   throw markAiRequestError(new Error(detail || fallbackMessage), {
     status: response.status,
-    retryable: isRetryableHttpStatus(response.status),
+    retryable: isRetryableHttpStatus(response.status) && !isNonRecoverableQuotaError(detail),
   });
 }
 
@@ -702,11 +776,20 @@ async function collectJsonResponseWithConfig(app, config, request, usageStatsSto
 }
 
 function createChatRequestBody(config, request, options = {}) {
+  const profile = getActiveTextProfile(config);
   const body = {
     model: config.model_name,
     messages: request.messages,
-    temperature: request.temperature ?? 0.3,
   };
+
+  if (profile.temperature_enabled) body.temperature = Number(profile.temperature ?? request.temperature ?? 0.7);
+  if (profile.reasoning_effort) body.reasoning_effort = profile.reasoning_effort;
+  const outputLimit = Number(request.output_token_limit) > 0 ? Number(request.output_token_limit) : Number(profile.output_token_limit);
+  if (outputLimit > 0) {
+    const field = config.text_model_provider === 'custom' && profile.reasoning_effort ? 'max_completion_tokens' : 'max_tokens';
+    body[field] = Math.floor(outputLimit);
+  }
+  if (profile.request_mode === 'stream') body.stream = true;
 
   if (request.chat_template_kwargs && typeof request.chat_template_kwargs === 'object') {
     body.chat_template_kwargs = request.chat_template_kwargs;
@@ -714,23 +797,57 @@ function createChatRequestBody(config, request, options = {}) {
   if (request.thinking && typeof request.thinking === 'object') {
     body.thinking = request.thinking;
   }
-  if (!request.chat_template_kwargs && !request.thinking
-    && ['agnes-ai-cn', 'agnes-ai-global', 'deepseek', 'longcat'].includes(config.text_model_provider)
-    && config.text_model_options?.thinking_enabled) {
-    body.thinking = { type: 'enabled' };
-    if (config.text_model_provider === 'agnes-ai-cn' || config.text_model_provider === 'agnes-ai-global') {
-      body.thinking.budget_tokens = Math.max(256, Math.min(65536, Number(config.text_model_options.thinking_budget_tokens) || 2048));
-    }
-    if (config.text_model_provider === 'deepseek') {
-      body.reasoning_effort = config.text_model_options.thinking_effort === 'max' ? 'max' : 'high';
-    }
-  }
 
   if (request.response_format && !options.omitResponseFormat) {
     body.response_format = request.response_format;
   }
 
   return body;
+}
+
+async function readChatResponse(response, onChunk) {
+  const contentType = response.headers.get('content-type') || '';
+  let raw = '';
+  if (response.body?.getReader) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const chunks = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value?.byteLength) {
+        onChunk?.();
+        chunks.push(decoder.decode(value, { stream: true }));
+      }
+    }
+    chunks.push(decoder.decode());
+    raw = chunks.join('');
+  } else {
+    raw = await response.text();
+    onChunk?.();
+  }
+  if (!contentType.includes('text/event-stream') && !raw.trimStart().startsWith('data:')) {
+    const data = JSON.parse(raw);
+    return { data, content: data.choices?.[0]?.message?.content || '', finishReason: data.choices?.[0]?.finish_reason };
+  }
+  let content = '';
+  let finishReason = '';
+  let usage = null;
+  let parsedChunks = 0;
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    let chunk;
+    try { chunk = JSON.parse(payload); } catch { continue; }
+    parsedChunks += 1;
+    if (chunk.error) throw new Error(chunk.error.message || '流式请求失败');
+    content += chunk.choices?.[0]?.delta?.content || '';
+    finishReason = chunk.choices?.[0]?.finish_reason || finishReason;
+    usage = chunk.usage || usage;
+  }
+  if (!parsedChunks) throw new Error('流式响应没有可解析的数据，请改用普通请求重试');
+  return { data: { choices: [{ message: { content }, finish_reason: finishReason }], usage }, content, finishReason };
 }
 
 async function fetchChatCompletion(app, config, body, options = {}) {
@@ -767,6 +884,12 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
 
   requireBaseUrl(config.base_url, '请先在设置中配置文本模型 Base URL');
 
+  const profile = getActiveTextProfile(config);
+  if (!profile.multimodal_enabled && hasImageContent(request.messages)) {
+    throw new Error('当前文本模型未开启多模态，请在设置中启用后重试');
+  }
+  checkTextContextLimit(request.messages || [], profile);
+
   const preparedRequest = { ...request, messages: await prepareMultimodalMessages(request.messages) };
   const requestId = createRequestId();
   const logTitle = resolveAiLogTitle(request, '文本请求');
@@ -774,6 +897,7 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
   let responseData = null;
   let errorMessage = '';
   const timeoutMs = normalizeRequestTimeoutMs(request);
+  const requestStartedAt = Date.now();
 
   try {
     writeAiLog(app, config, {
@@ -785,40 +909,55 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
       status: 'pending',
       created_at: new Date().toISOString(),
     });
-    const result = await runWithAiRetry(async () => {
+    const result = await runWithTextRequestSlot(profile.concurrency_limit, request.signal, () => runWithAiRetry(async () => {
       const timeout = createOperationTimeout(timeoutMs, request.signal);
+      notifyAiRequestStart();
       try {
         let response = await timeout.run(fetchChatCompletion(app, config, requestBody, { signal: timeout.signal }));
+        timeout.touch();
+        notifyAiResponse();
         if (!response.ok && request.response_format) {
           const detail = await timeout.run(response.text().catch(() => ''));
           if (isResponseFormatUnsupported(detail)) {
             requestBody = createChatRequestBody(config, preparedRequest, { omitResponseFormat: true });
+            timeout.touch();
             response = await timeout.run(fetchChatCompletion(app, config, requestBody, { signal: timeout.signal }));
+            timeout.touch();
+            notifyAiResponse();
           } else {
             throw markAiRequestError(new Error(detail || 'AI 请求失败'), {
               status: response.status,
-              retryable: isRetryableHttpStatus(response.status),
+              retryable: isRetryableHttpStatus(response.status) && !isNonRecoverableQuotaError(detail),
             });
           }
         }
 
         await timeout.run(ensureOk(response, 'AI 请求失败'));
-        const data = await timeout.run(response.json());
-        return { data, content: data.choices?.[0]?.message?.content || '' };
+        return await timeout.run(readChatResponse(response, () => {
+          timeout.touch();
+          notifyAiResponse();
+        }));
       } catch (error) {
         if (request.signal?.aborted) {
           throw markAiRequestError(error, { retryable: false });
         }
+        if (timeout.isTimedOut()) throw createAbortError();
         throw error;
       } finally {
         timeout.clear();
       }
     }, {
       maxAttempts: request.max_request_attempts ?? 3,
-      onRetry: ({ attempt }) => emitProgress(request.progressCallback, `${logTitle}第 ${attempt + 1} 次请求失败，正在重试。`),
-    });
+      onRetry: ({ error, attempt, maxAttempts }) => {
+        notifyAiRetry(error, attempt, maxAttempts);
+        return emitProgress(request.progressCallback, `${logTitle}第 ${attempt + 1} 次请求失败，正在重试。`);
+      },
+    }));
     responseData = result.data;
     const content = result.content;
+    if (request.reject_truncated_output && result.finishReason === 'length') {
+      throw new Error('模型输出达到 Token 上限被截断，本次结果未保存。请提高输出上限后重试。');
+    }
     try {
       usageStatsStore?.record({
         provider: config.text_model_provider,
@@ -843,8 +982,10 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
   } catch (error) {
     errorMessage = request.signal?.aborted
       ? request.abort_message || 'AI 请求已取消'
-      : error.name === 'AbortError'
+      : error.name === 'TimeoutError'
       ? request.timeout_message || `AI 请求超时（${timeoutMs / 1000} 秒）`
+      : error.name === 'AbortError'
+      ? 'AI 连接意外中断，请重试'
       : error.message;
     writeAiLog(app, config, {
       request_id: requestId,
@@ -854,6 +995,9 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
       request: requestBody,
       response: responseData,
       error: errorMessage,
+      error_name: error?.name || 'Error',
+      elapsed_ms: Date.now() - requestStartedAt,
+      timeout_ms: timeoutMs,
       created_at: new Date().toISOString(),
     });
     throw new Error(errorMessage || 'AI 请求失败');
@@ -934,7 +1078,7 @@ async function testOpenAICompatibleImageModel(app, config, provider) {
       mime_type: 'image/png',
     };
   } catch (error) {
-    throw new Error(error?.name === 'AbortError' ? IMAGE_MODEL_TEST_TIMEOUT_MESSAGE : error?.message || '生图模型测试失败');
+    throw new Error(timeout.isTimedOut() || error?.name === 'TimeoutError' ? IMAGE_MODEL_TEST_TIMEOUT_MESSAGE : error?.message || '生图模型测试失败');
   } finally {
     timeout.clear();
   }
@@ -989,7 +1133,7 @@ async function testGoogleImageModel(app, config) {
       mime_type: inlineData?.mimeType || inlineData?.mime_type || 'image/png',
     };
   } catch (error) {
-    throw new Error(error?.name === 'AbortError' ? IMAGE_MODEL_TEST_TIMEOUT_MESSAGE : error?.message || '生图模型测试失败');
+    throw new Error(timeout.isTimedOut() || error?.name === 'TimeoutError' ? IMAGE_MODEL_TEST_TIMEOUT_MESSAGE : error?.message || '生图模型测试失败');
   } finally {
     timeout.clear();
   }
@@ -1464,6 +1608,31 @@ function createAiService({ app, configStore, usageStatsStore }) {
           ...(knownCapability || { provider: config.text_model_provider, model }),
         };
       }
+    },
+
+    async getModelInfo(modelName) {
+      const normalizedModelName = String(modelName || '').trim();
+      if (!normalizedModelName) return { success: false, message: '请先填写文本模型名称', model: null };
+      const response = await fetchWithTimeout(`${MODEL_INFO_ENDPOINT}?modelName=${encodeURIComponent(normalizedModelName)}`, { method: 'GET', timeoutMs: 15000 });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data || data.code !== 0) {
+        throw new Error(data?.message || `获取模型信息失败：HTTP ${response.status}`);
+      }
+      if (!data.model) return { success: false, message: `未找到 ${normalizedModelName} 的模型信息，请手动录入`, model: null };
+      const model = data.model;
+      return {
+        success: true,
+        message: '模型信息已获取',
+        model: {
+          reasoningEfforts: Array.isArray(model.reasoningEfforts) ? model.reasoningEfforts.map((value) => String(value || '').trim()).filter(Boolean) : [],
+          context: Math.max(0, Math.floor(Number(model.context) || 0)),
+          output: Math.max(0, Math.floor(Number(model.output) || 0)),
+          imageInputStatus: ['supported', 'unsupported', 'mixed', 'unknown'].includes(model.imageInputStatus) ? model.imageInputStatus : 'unknown',
+          temperatureStatus: ['supported', 'unsupported', 'mixed', 'unknown'].includes(model.temperatureStatus) ? model.temperatureStatus : 'unknown',
+          concurrencyLimit: Number.isFinite(Number(model.concurrencyLimit)) && Number(model.concurrencyLimit) > 0 ? Math.floor(Number(model.concurrencyLimit)) : 10,
+          requestMode: model.requestMode === 'normal' ? 'normal' : 'stream',
+        },
+      };
     },
   };
 }

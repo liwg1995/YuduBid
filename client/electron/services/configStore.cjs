@@ -263,6 +263,14 @@ function normalizeTextModelProfile(provider, profile) {
     model_name: (provider.startsWith('agnes-ai-') || provider === 'sensenova' || provider === 'deepseek' || provider === 'longcat') && !source.model_name
       ? defaults.model_name
       : source.model_name !== undefined ? source.model_name : defaults.model_name,
+    multimodal_enabled: source.multimodal_enabled === true,
+    reasoning_effort: String(source.reasoning_effort || '').trim().slice(0, 40),
+    context_length_limit: Number.isFinite(Number(source.context_length_limit)) ? Math.max(0, Math.floor(Number(source.context_length_limit))) : 0,
+    output_token_limit: Number.isFinite(Number(source.output_token_limit)) ? Math.max(0, Math.floor(Number(source.output_token_limit))) : 0,
+    concurrency_limit: Number.isFinite(Number(source.concurrency_limit)) ? Math.max(1, Math.min(100, Math.floor(Number(source.concurrency_limit)))) : 10,
+    temperature_enabled: source.temperature_enabled === true,
+    temperature: Number.isFinite(Number(source.temperature)) ? Math.max(0, Math.min(2, Number(source.temperature))) : 0.7,
+    request_mode: source.request_mode === 'stream' ? 'stream' : 'normal',
   };
 }
 
@@ -284,6 +292,7 @@ function textProfileFromFlatConfig(source, fallback, provider) {
     ? source.base_url !== undefined ? source.base_url : fallback.base_url
     : fallback.base_url;
   return {
+    ...fallback,
     api_key: source.api_key !== undefined ? source.api_key : fallback.api_key,
     base_url: provider === 'xiaomi' && sourceBaseUrl === oldXiaomiBaseUrl ? fallback.base_url : sourceBaseUrl,
     model_name: (provider.startsWith('agnes-ai-') || provider === 'sensenova') && !source.model_name

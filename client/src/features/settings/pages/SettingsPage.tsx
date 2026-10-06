@@ -4,7 +4,7 @@ import brandProducerLogo from '../../../assets/brand-producer-logo.svg';
 import { configurableFeatureModules } from '../../../app/menuConfig';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelCapabilityInfo, ModelListCache, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
+import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelListCache, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 import { getStoredUiThemePreference, setStoredUiThemePreference, UI_THEME_CHANGE_EVENT, type UiThemePreference } from '../../../shared/uiTheme';
 import PluginManagementPanel from '../plugin-management/PluginManagementPanel';
@@ -184,10 +184,6 @@ function getBuiltInTextModels(provider: TextModelProvider): string[] {
   return [];
 }
 
-function supportsThinkingSettings(provider: TextModelProvider): boolean {
-  return provider === 'agnes-ai-cn' || provider === 'agnes-ai-global' || provider === 'deepseek' || provider === 'longcat';
-}
-
 function isAgnesPaidTextModel(provider: TextModelProvider, modelName: string): boolean {
   return (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global')
     && agnesPaidTextModelNames.has(modelName.trim().toLowerCase());
@@ -219,6 +215,14 @@ function normalizeTextModelProfile(provider: TextModelProvider, profile?: Partia
     api_key: profile?.api_key ?? defaults.api_key,
     base_url: provider === 'xiaomi' && baseUrl === oldXiaomiBaseUrl ? defaults.base_url : baseUrl,
     model_name: profile?.model_name || defaults.model_name,
+    multimodal_enabled: profile?.multimodal_enabled === true,
+    reasoning_effort: profile?.reasoning_effort || '',
+    context_length_limit: profile?.context_length_limit || 0,
+    output_token_limit: profile?.output_token_limit || 0,
+    concurrency_limit: profile?.concurrency_limit || 10,
+    temperature_enabled: profile?.temperature_enabled === true,
+    temperature: profile?.temperature ?? 0.7,
+    request_mode: profile?.request_mode === 'stream' ? 'stream' : 'normal',
   };
 }
 
@@ -276,6 +280,14 @@ function textProfileFromState(textModel: SettingsPageState['textModel']): TextMo
     api_key: textModel.api_key,
     base_url: textModel.provider === 'custom' || textModel.provider === 'ollama' ? textModel.base_url : textProviderDefaults[textModel.provider].base_url,
     model_name: textModel.model_name,
+    multimodal_enabled: textModel.multimodal_enabled,
+    reasoning_effort: textModel.reasoning_effort,
+    context_length_limit: textModel.context_length_limit,
+    output_token_limit: textModel.output_token_limit,
+    concurrency_limit: textModel.concurrency_limit,
+    temperature_enabled: textModel.temperature_enabled,
+    temperature: textModel.temperature,
+    request_mode: textModel.request_mode,
   };
 }
 
@@ -757,7 +769,8 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialSettingsTab);
   const [savedConfig, setSavedConfig] = useState<ClientConfig | null>(null);
   const [textModels, setTextModels] = useState<string[]>([]);
-  const [textModelCapabilities, setTextModelCapabilities] = useState<ModelCapabilityInfo | null>(null);
+  const [loadingModelInfo, setLoadingModelInfo] = useState(false);
+  const [reasoningEfforts, setReasoningEfforts] = useState<string[]>([]);
   const [imageModels, setImageModels] = useState<string[]>([]);
   const [modelListCache, setModelListCache] = useState<ModelListCache>({ text: {}, image: {} });
   const [loadingModels, setLoadingModels] = useState<'text' | 'image' | null>(null);
@@ -1158,7 +1171,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
 
   const updateTextModelProvider = (provider: TextModelProvider) => {
     setTextModels(modelListCache.text[provider] || []);
-    setTextModelCapabilities(null);
+    setReasoningEfforts([]);
     setState((prev) => ({
       ...prev,
       textModelProfiles: {
@@ -1181,7 +1194,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       }));
     }
     if (partial.base_url !== undefined || partial.api_key !== undefined || partial.model_name !== undefined) {
-      setTextModelCapabilities(null);
+      setReasoningEfforts([]);
     }
 
     setState((prev) => ({
@@ -1420,6 +1433,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
         }));
       }
       if (result?.success && models.length > 0) {
+        setReasoningEfforts([]);
         setState((prev) => ({
           ...prev,
           ...(() => {
@@ -1444,14 +1458,37 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     }
   };
 
-  const fetchTextModelCapabilities = async () => {
+  const fillTextModelParameters = async () => {
+    const modelName = state.textModel.model_name.trim();
+    if (!modelName) {
+      showToast('请先填写文本模型名称', 'info');
+      return;
+    }
     try {
-      setTextModelCapabilities(null);
-      const result = await window.yibiao?.config.getModelCapabilities(createClientConfig());
-      if (result) setTextModelCapabilities(result);
-      showToast(result?.message || '未获取到模型能力信息', result?.success ? 'success' : 'info');
+      setLoadingModelInfo(true);
+      const result = await window.yibiao?.config.getModelInfo(modelName);
+      if (!result?.success || !result.model) {
+        showToast(result?.message || '未获取到模型信息', 'info');
+        return;
+      }
+      const model = result.model;
+      const partial: Partial<TextModelConfig> = {
+        output_token_limit: model.output,
+        concurrency_limit: model.concurrencyLimit,
+        request_mode: model.requestMode,
+      };
+      if (model.context > 0) partial.context_length_limit = model.context;
+      if (model.imageInputStatus === 'supported' || model.imageInputStatus === 'mixed') partial.multimodal_enabled = true;
+      if (model.imageInputStatus === 'unsupported') partial.multimodal_enabled = false;
+      if (model.temperatureStatus === 'unsupported') partial.temperature_enabled = false;
+      if (state.textModel.reasoning_effort && model.reasoningEfforts.length && !model.reasoningEfforts.includes(state.textModel.reasoning_effort)) partial.reasoning_effort = '';
+      setReasoningEfforts(model.reasoningEfforts);
+      updateTextModelConfig(partial);
+      showToast('已获取并填写模型高级参数，请检查后保存', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '探测模型能力失败', 'error');
+      showToast(error instanceof Error ? error.message : '获取模型参数失败', 'error');
+    } finally {
+      setLoadingModelInfo(false);
     }
   };
 
@@ -1917,78 +1954,51 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                   {testingTextModel && <span className="inline-spinner" aria-hidden="true" />}
                   {testingTextModel ? '测试中' : '测试'}
                 </button>
-                <button type="button" className="inline-action" onClick={() => { void fetchTextModelCapabilities(); }}>
-                  探测能力
-                </button>
               </div>
-              {textModelCapabilities && (
-                <div className="model-capability-summary">
-                  <span className="model-capability-source">{textModelCapabilities.source === 'remote' ? '远程信息' : textModelCapabilities.source === 'cache' ? '本地缓存' : textModelCapabilities.known ? '官方信息' : '基础信息'}</span>
-                  {textModelCapabilities.contextLength ? <span>上下文 {textModelCapabilities.contextLength.toLocaleString()} tokens</span> : null}
-                  {textModelCapabilities.maxOutputTokens ? <span>最大输出 {textModelCapabilities.maxOutputTokens.toLocaleString()} tokens</span> : null}
-                  {textModelCapabilities.supportsVision ? <span>支持视觉</span> : null}
-                  {textModelCapabilities.supportsThinking ? <span>支持思考</span> : null}
-                  {textModelCapabilities.supportsJsonMode ? <span>支持 JSON</span> : null}
-                  {!textModelCapabilities.contextLength && !textModelCapabilities.maxOutputTokens && !textModelCapabilities.supportsVision && !textModelCapabilities.supportsThinking && !textModelCapabilities.supportsJsonMode ? <span>服务商未返回标准能力字段，现有生成逻辑不受影响</span> : null}
-                </div>
+            </label>
+            <div className="settings-group-title settings-group-title-with-action">
+              <span>高级参数</span>
+              <button type="button" className="inline-action" onClick={() => { void fillTextModelParameters(); }} disabled={loadingModelInfo}>{loadingModelInfo ? '填充中' : '自动填充高级参数'}</button>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-copy"><strong>支持多模态</strong><span>开启后允许文本模型接收图片；关闭时拦截带图片的请求。</span></div>
+              <input className="settings-advanced-checkbox" type="checkbox" checked={state.textModel.multimodal_enabled === true} onChange={(event) => updateTextModelConfig({ multimodal_enabled: event.target.checked })} aria-label="支持多模态" />
+            </div>
+            <label className="settings-row">
+              <div className="settings-row-copy"><strong>模型思考强度</strong><span>留空使用服务商默认值；自动填充后可选择模型支持的档位。</span></div>
+              {reasoningEfforts.length ? (
+                <select value={state.textModel.reasoning_effort || ''} onChange={(event) => updateTextModelConfig({ reasoning_effort: event.target.value })}>
+                  <option value="">默认</option>
+                  {reasoningEfforts.map((effort) => <option value={effort} key={effort}>{effort}</option>)}
+                </select>
+              ) : (
+                <input type="text" value={state.textModel.reasoning_effort || ''} placeholder="例如 medium" onChange={(event) => updateTextModelConfig({ reasoning_effort: event.target.value })} />
               )}
             </label>
-            {supportsThinkingSettings(state.textModel.provider) && (
-              <label className="settings-row">
-                <div className="settings-row-copy">
-                  <strong>Thinking 模式与推理设置</strong>
-                  <span>{state.textModel.provider === 'deepseek' ? 'DeepSeek 使用 High / Max 推理强度；开启后会增加推理时间和 Token 消耗。' : state.textModel.provider === 'longcat' ? 'LongCat 使用 Thinking 开关，由模型自动控制推理预算。' : 'Agnes 开启后使用更深度的推理 Token 预算，默认关闭。'}</span>
-                </div>
-                <div className="settings-control-with-action thinking-settings-control">
-                  <select
-                    value={state.textModelOptions.thinking_enabled ? 'enabled' : 'disabled'}
-                    onChange={(event) => setState((prev) => ({
-                      ...prev,
-                      textModelOptions: { ...prev.textModelOptions, thinking_enabled: event.target.value === 'enabled' },
-                    }))}
-                  >
-                    <option value="disabled">关闭</option>
-                    <option value="enabled">开启</option>
-                  </select>
-                  {state.textModel.provider === 'deepseek' ? (
-                    <select
-                      value={state.textModelOptions.thinking_effort || 'high'}
-                      onChange={(event) => setState((prev) => ({
-                        ...prev,
-                        textModelOptions: { ...prev.textModelOptions, thinking_effort: event.target.value === 'max' ? 'max' : 'high' },
-                      }))}
-                      disabled={!state.textModelOptions.thinking_enabled}
-                      aria-label="DeepSeek 推理强度"
-                    >
-                      <option value="high">High</option>
-                      <option value="max">Max</option>
-                    </select>
-                  ) : state.textModel.provider === 'longcat' ? (
-                    <span className="thinking-settings-note">模型自动控制</span>
-                  ) : (
-                    <div className="thinking-budget-field">
-                    <input
-                      type="number"
-                      min={256}
-                      max={65536}
-                      step={256}
-                      value={state.textModelOptions.thinking_budget_tokens}
-                      onChange={(event) => setState((prev) => ({
-                        ...prev,
-                        textModelOptions: {
-                          ...prev.textModelOptions,
-                          thinking_budget_tokens: Math.max(256, Math.min(65536, Number(event.target.value) || 2048)),
-                        },
-                      }))}
-                      disabled={!state.textModelOptions.thinking_enabled}
-                      aria-label="Thinking 推理 Token 预算"
-                    />
-                    <span>Token</span>
-                    </div>
-                  )}
-                </div>
-              </label>
-            )}
+            <label className="settings-row">
+              <div className="settings-row-copy"><strong>上下文长度限制</strong><span>单位 Token；超出时提示缩减或分批处理，0 表示不检查。</span></div>
+              <input type="number" min="0" step="1" value={state.textModel.context_length_limit ?? ''} onChange={(event) => updateTextModelConfig({ context_length_limit: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} />
+            </label>
+            <label className="settings-row">
+              <div className="settings-row-copy"><strong>输出 Token 上限</strong><span>0 表示由模型服务商决定。</span></div>
+              <input type="number" min="0" step="1" value={state.textModel.output_token_limit ?? ''} onChange={(event) => updateTextModelConfig({ output_token_limit: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} />
+            </label>
+            <label className="settings-row">
+              <div className="settings-row-copy"><strong>并发上限</strong><span>所有文本 AI 请求共用，超出后排队；正文任务自身的并发数仍有效。</span></div>
+              <input type="number" min="1" max="100" step="1" value={state.textModel.concurrency_limit ?? ''} onChange={(event) => updateTextModelConfig({ concurrency_limit: event.target.value === '' ? undefined : Math.max(1, Number(event.target.value)) })} />
+            </label>
+            <div className="settings-row">
+              <div className="settings-row-copy"><strong>模型温度</strong><span>默认关闭以兼容不支持温度参数的模型；开启后使用指定数值。</span></div>
+              <div className="settings-advanced-temperature">
+                <input type="checkbox" checked={state.textModel.temperature_enabled === true} onChange={(event) => updateTextModelConfig({ temperature_enabled: event.target.checked })} aria-label="启用模型温度" />
+                <input type="range" min="0" max="2" step="0.1" disabled={!state.textModel.temperature_enabled} value={state.textModel.temperature ?? 0.7} onChange={(event) => updateTextModelConfig({ temperature: Number(event.target.value) })} aria-label="模型温度数值" />
+                <output>{(state.textModel.temperature ?? 0.7).toFixed(1)}</output>
+              </div>
+            </div>
+            <label className="settings-row">
+              <div className="settings-row-copy"><strong>请求方式</strong><span>流式请求在后端接收，流程仍等待完整结果。</span></div>
+              <select value={state.textModel.request_mode || 'normal'} onChange={(event) => updateTextModelConfig({ request_mode: event.target.value === 'stream' ? 'stream' : 'normal' })}><option value="normal">普通请求</option><option value="stream">流式请求</option></select>
+            </label>
           </div>
         </section>
       )}
