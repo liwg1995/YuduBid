@@ -13990,7 +13990,17 @@ button {
 }
 .settings-page .settings-advanced-temperature input[type='range'] { width: 100%; min-width: 0; min-height: 0; height: 24px; padding: 0; }
 .settings-page .settings-advanced-temperature output { color: var(--yb-text-soft); text-align: right; }
-.settings-page .settings-group-title { padding: 10px 24px 6px; }
+.settings-page .settings-group-title {
+  margin-top: 12px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--yb-border);
+  border-bottom: 1px solid var(--yb-border-soft);
+  background: color-mix(in srgb, var(--yb-primary) 5%, var(--yb-surface));
+  color: var(--yb-text-soft);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
 .settings-page .settings-group-title-with-action {
   display: flex;
   align-items: center;
