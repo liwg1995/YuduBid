@@ -32,12 +32,17 @@ function isAbortLikeError(error) {
   return walkErrorChain(error, (item) => ['AbortError', 'TimeoutError'].includes(String(item?.name || '')));
 }
 
+function isTransientProviderConnectionMessage(message) {
+  return /APIConnectionError|Connection closed|stream (?:was )?closed|upstream connect error|remote end closed connection/i.test(String(message || ''));
+}
+
 function isRetryableNetworkError(error) {
   return walkErrorChain(error, (item) => {
     const code = String(item?.code || '').toUpperCase();
     const message = String(item?.message || '').toLowerCase();
     return RETRYABLE_NETWORK_ERROR_CODES.has(code)
-      || (item?.name === 'TypeError' && (message.includes('fetch failed') || message.includes('network') || message.includes('socket')));
+      || (item?.name === 'TypeError' && (message.includes('fetch failed') || message.includes('network') || message.includes('socket')))
+      || isTransientProviderConnectionMessage(message);
   });
 }
 
@@ -91,6 +96,7 @@ module.exports = {
   getAiRetryDelayMs,
   isRetryableAiRequestError,
   isRetryableHttpStatus,
+  isTransientProviderConnectionMessage,
   markAiRequestError,
   runWithAiRetry,
 };

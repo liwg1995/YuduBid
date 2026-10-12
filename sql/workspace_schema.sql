@@ -991,7 +991,7 @@ ON knowledge_image_folders(sort_order, created_at);
 CREATE INDEX IF NOT EXISTS idx_knowledge_images_folder_order
 ON knowledge_images(folder_id, sort_order, created_at DESC);
 
--- 单企业资信库（v28）
+-- 资信库基础表（v28）；v32 起按企业隔离。
 CREATE TABLE IF NOT EXISTS credential_library_profile (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       company_name TEXT,
@@ -1026,6 +1026,7 @@ CREATE TABLE IF NOT EXISTS credential_library_profile (
 
     CREATE TABLE IF NOT EXISTS credential_library_certificates (
       certificate_id TEXT PRIMARY KEY,
+      company_id TEXT NOT NULL DEFAULT 'legacy',
       name TEXT,
       number TEXT,
       validity_mode TEXT,
@@ -1037,6 +1038,7 @@ CREATE TABLE IF NOT EXISTS credential_library_profile (
 
     CREATE TABLE IF NOT EXISTS credential_library_employees (
       employee_id TEXT PRIMARY KEY,
+      company_id TEXT NOT NULL DEFAULT 'legacy',
       name TEXT,
       id_number TEXT,
       position TEXT,
@@ -1056,6 +1058,7 @@ CREATE TABLE IF NOT EXISTS credential_library_profile (
 
     CREATE TABLE IF NOT EXISTS credential_library_projects (
       project_id TEXT PRIMARY KEY,
+      company_id TEXT NOT NULL DEFAULT 'legacy',
       project_name TEXT,
       project_number TEXT,
       customer_name TEXT,
@@ -1072,6 +1075,7 @@ CREATE TABLE IF NOT EXISTS credential_library_profile (
 
     CREATE TABLE IF NOT EXISTS credential_library_other_materials (
       material_id TEXT PRIMARY KEY,
+      company_id TEXT NOT NULL DEFAULT 'legacy',
       name TEXT,
       note TEXT,
       created_at TEXT NOT NULL,
@@ -1080,6 +1084,7 @@ CREATE TABLE IF NOT EXISTS credential_library_profile (
 
     CREATE TABLE IF NOT EXISTS credential_library_images (
       image_id TEXT PRIMARY KEY,
+      company_id TEXT NOT NULL DEFAULT 'legacy',
       owner_type TEXT NOT NULL,
       owner_id TEXT NOT NULL,
       field_key TEXT NOT NULL,
@@ -1092,3 +1097,17 @@ CREATE TABLE IF NOT EXISTS credential_library_profile (
 
     CREATE INDEX IF NOT EXISTS idx_credential_library_images_owner
     ON credential_library_images(owner_type, owner_id, field_key, sort_order, created_at);
+
+-- v32：旧版资料迁入 company_id = 'legacy'，新增企业以独立 ID 保存。
+CREATE TABLE IF NOT EXISTS credential_library_companies (
+  company_id TEXT PRIMARY KEY,
+  profile_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+-- company_id 列在运行时由 v32 迁移加入上述五张资料表。
+CREATE INDEX IF NOT EXISTS idx_credential_library_certificates_company ON credential_library_certificates(company_id);
+CREATE INDEX IF NOT EXISTS idx_credential_library_employees_company ON credential_library_employees(company_id);
+CREATE INDEX IF NOT EXISTS idx_credential_library_projects_company ON credential_library_projects(company_id);
+CREATE INDEX IF NOT EXISTS idx_credential_library_other_materials_company ON credential_library_other_materials(company_id);
+CREATE INDEX IF NOT EXISTS idx_credential_library_images_company ON credential_library_images(company_id);

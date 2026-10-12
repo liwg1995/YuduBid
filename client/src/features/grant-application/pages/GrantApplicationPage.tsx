@@ -1466,7 +1466,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
             <button type="button" className="secondary-action" onClick={() => onNavigate?.('grant-projects')}>项目页</button>
           </div>
           <div className="grant-application-project-actions">
-            <button type="button" className="secondary-action" onClick={() => setCreateProjectOpen(true)} disabled={projectBusy}>新建</button>
+            <button type="button" className="secondary-action create-action" onClick={() => setCreateProjectOpen(true)} disabled={projectBusy}>新建</button>
             <button type="button" className="secondary-action" onClick={openProfileEditor} disabled={projectBusy}>修改档案</button>
             <button type="button" className="secondary-action" onClick={() => { setProjectNameDraft(projectList.projects.find((project) => project.id === projectList.activeProjectId)?.name || ''); setRenameProjectOpen(true); }} disabled={projectBusy}>重命名</button>
             <button type="button" className="secondary-action" onClick={() => setDeleteProjectOpen(true)} disabled={projectBusy || projectList.projects.length <= 1}>删除</button>

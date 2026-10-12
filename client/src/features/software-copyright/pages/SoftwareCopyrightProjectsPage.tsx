@@ -174,7 +174,7 @@ function SoftwareCopyrightProjectsPage({ onEnterProject }: SoftwareCopyrightProj
           <h2>软著项目管理</h2>
           <p>每个软件单独保存源码分析、登记信息、操作手册、代码材料、版本记录和导出成果。</p>
         </div>
-        <button type="button" className="primary-action" onClick={() => openEditor('create')} disabled={Boolean(busyId)}>
+        <button type="button" className="primary-action create-action" onClick={() => openEditor('create')} disabled={Boolean(busyId)}>
           新建软著项目
         </button>
       </section>
@@ -246,7 +246,7 @@ function SoftwareCopyrightProjectsPage({ onEnterProject }: SoftwareCopyrightProj
             <div className="software-copyright-project-empty">
               <strong>{keyword.trim() ? '没有匹配项目' : '还没有软著项目'}</strong>
               <span>{keyword.trim() ? '请更换搜索关键词，或查看已归档项目。' : '点击右上角新建项目，开始准备第一套软著材料。'}</span>
-              {!keyword.trim() && <button type="button" className="primary-action" onClick={() => openEditor('create')}>新建软著项目</button>}
+              {!keyword.trim() && <button type="button" className="primary-action create-action" onClick={() => openEditor('create')}>新建软著项目</button>}
             </div>
           )}
         </div>
@@ -286,7 +286,7 @@ function SoftwareCopyrightProjectsPage({ onEnterProject }: SoftwareCopyrightProj
             </div>
             <div className="software-copyright-dialog-actions">
               <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
-              <button type="button" className="primary-action" onClick={() => void submitEditor()} disabled={!projectName.trim() || Boolean(busyId)}>
+              <button type="button" className={`primary-action${editor?.mode === 'create' ? ' create-action' : ''}`} onClick={() => void submitEditor()} disabled={!projectName.trim() || Boolean(busyId)}>
                 {editor?.mode === 'create' ? '创建并进入' : '确认'}
               </button>
             </div>

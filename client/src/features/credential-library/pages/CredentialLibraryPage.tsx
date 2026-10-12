@@ -9,6 +9,7 @@ import {
   type CredentialImage,
   type CredentialImageFieldKey,
   type CredentialLibraryMutationResult,
+  type CredentialCompany,
   type CredentialLibraryProfile,
   type CredentialLibrarySnapshot,
   type CredentialOtherMaterial,
@@ -126,11 +127,19 @@ function FormField({ label, hint, wide = false, children }: { label: string; hin
   );
 }
 
-/** 单企业资信库页面。 */
+/** 按企业分别维护资信资料。 */
 function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
   const { showToast, dismissToast } = useToast();
   const profileSaveToastIdRef = useRef<number | null>(null);
+  const activeCompanyIdRef = useRef('');
+  const profileEditVersionRef = useRef(0);
   const [snapshot, setSnapshot] = useState<CredentialLibrarySnapshot | null>(null);
+  const [companies, setCompanies] = useState<CredentialCompany[]>([]);
+  const [activeCompanyId, setActiveCompanyId] = useState('');
+  const [createCompanyOpen, setCreateCompanyOpen] = useState(false);
+  const [deleteCompanyTarget, setDeleteCompanyTarget] = useState<CredentialCompany | null>(null);
+  const [companyNameDraft, setCompanyNameDraft] = useState('');
+  const [creditCodeDraft, setCreditCodeDraft] = useState('');
   const [profile, setProfile] = useState<CredentialLibraryProfile>(emptyCredentialProfile);
   const [activeTab, setActiveTab] = useState<CredentialTab>('basic');
   const [loading, setLoading] = useState(true);
@@ -142,19 +151,72 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
 
-  /** 首次进入时读取资信库快照。 */
+  /** 首次进入时读取企业列表。 */
   useEffect(() => {
     let mounted = true;
-    void window.yibiao!.credentialLibrary.load()
+    void window.yibiao!.credentialLibrary.listCompanies()
       .then((data) => {
         if (!mounted) return;
-        setSnapshot(data);
-        setProfile(data.profile);
+        setCompanies(data);
       })
       .catch((error) => showToast(error instanceof Error ? error.message : '读取资信库失败', 'error'))
       .finally(() => mounted && setLoading(false));
     return () => { mounted = false; };
   }, [showToast]);
+
+  const enterCompany = async (companyId: string) => {
+    setLoading(true);
+    try {
+      const data = await window.yibiao!.credentialLibrary.load(companyId);
+      activeCompanyIdRef.current = companyId;
+      setActiveCompanyId(companyId);
+      setSnapshot(data);
+      setProfile(data.profile);
+      setActiveTab('basic');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '读取企业资信信息失败', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createCompany = async () => {
+    const name = companyNameDraft.trim();
+    if (!name) return;
+    setBusy('create-company');
+    try {
+      const result = await window.yibiao!.credentialLibrary.createCompany({ companyName: name, unifiedSocialCreditCode: creditCodeDraft.trim() });
+      setCompanies(result.companies);
+      setCreateCompanyOpen(false);
+      setCompanyNameDraft('');
+      setCreditCodeDraft('');
+      await enterCompany(result.companyId);
+      showToast('企业已创建，可以开始填写资信信息', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '创建企业失败', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const deleteCompany = async () => {
+    if (!deleteCompanyTarget) return;
+    setBusy('delete-company');
+    try {
+      const result = await window.yibiao!.credentialLibrary.deleteCompany(deleteCompanyTarget.companyId);
+      setCompanies(result.companies);
+      setDeleteCompanyTarget(null);
+      if (result.fileDeleteFailures.length) {
+        showToast(`企业资料已删除，但有 ${result.fileDeleteFailures.length} 张原图未能从工作区清理`, 'error');
+      } else {
+        showToast('企业及其资信资料已删除', 'success');
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '删除企业失败', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const visibleEmployees = useMemo(() => {
     const keyword = employeeSearch.trim().toLowerCase();
@@ -173,39 +235,77 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
   /** 更新企业表单草稿。 */
   const updateProfile = <K extends keyof CredentialLibraryProfile>(key: K, value: CredentialLibraryProfile[K]) => {
     setProfile((current) => ({ ...current, [key]: value }));
+    profileEditVersionRef.current += 1;
+    setProfileStatus('待保存');
   };
 
   /** 保存企业单例字段，避免返回快照覆盖其他尚在输入的字段。 */
-  const saveProfile = async (partial: Partial<CredentialLibraryProfile>) => {
+  const saveProfile = async (partial: Partial<CredentialLibraryProfile>, notify = false): Promise<boolean> => {
+    if (!activeCompanyId) return false;
+    const companyId = activeCompanyId;
+    const editVersion = profileEditVersionRef.current;
     const changed = Object.entries(partial).some(([key, value]) => snapshot?.profile[key as keyof CredentialLibraryProfile] !== value);
-    if (!changed) return;
+    if (!changed) {
+      setProfileStatus((current) => notify || current !== '待保存' ? '已保存' : current);
+      if (notify) showToast('当前信息已保存', 'success');
+      return true;
+    }
     setProfileStatus('正在保存...');
     try {
-      const data = await window.yibiao!.credentialLibrary.saveProfile(partial);
-      setSnapshot(data);
-      setProfile((current) => ({ ...data.profile, ...current }));
-      setProfileStatus('已保存');
-      if (profileSaveToastIdRef.current !== null) dismissToast(profileSaveToastIdRef.current);
-      profileSaveToastIdRef.current = showToast('保存成功', 'success');
-    } catch (error) {
-      setProfileStatus('保存失败');
-      if (profileSaveToastIdRef.current !== null) {
-        dismissToast(profileSaveToastIdRef.current);
-        profileSaveToastIdRef.current = null;
+      const data = await window.yibiao!.credentialLibrary.saveProfile(companyId, partial);
+      if (activeCompanyIdRef.current === companyId) {
+        setSnapshot(data);
+        setProfile((current) => ({ ...current, createdAt: data.profile.createdAt, updatedAt: data.profile.updatedAt }));
+        setProfileStatus(profileEditVersionRef.current === editVersion ? '已保存' : '待保存');
       }
-      showToast(error instanceof Error ? error.message : '保存资信信息失败', 'error');
+      if (Object.prototype.hasOwnProperty.call(partial, 'companyName')) setCompanies(await window.yibiao!.credentialLibrary.listCompanies());
+      if (notify && activeCompanyIdRef.current === companyId) {
+        if (profileSaveToastIdRef.current !== null) dismissToast(profileSaveToastIdRef.current);
+        profileSaveToastIdRef.current = showToast('企业信息已保存', 'success');
+      }
+      return true;
+    } catch (error) {
+      if (activeCompanyIdRef.current === companyId) setProfileStatus('保存失败');
+      if (activeCompanyIdRef.current === companyId) {
+        if (profileSaveToastIdRef.current !== null) {
+          dismissToast(profileSaveToastIdRef.current);
+          profileSaveToastIdRef.current = null;
+        }
+        showToast(error instanceof Error ? error.message : '保存资信信息失败', 'error');
+      }
+      return false;
     }
+  };
+
+  const saveCurrentProfile = async (notify = true): Promise<boolean> => {
+    const { createdAt: _createdAt, updatedAt: _updatedAt, ...editableProfile } = profile;
+    return saveProfile(editableProfile, notify);
+  };
+
+  const returnToCompanies = async () => {
+    if (busy !== null) return;
+    setBusy('return-to-companies');
+    const saved = await saveCurrentProfile(false);
+    setBusy(null);
+    if (!saved) return;
+    activeCompanyIdRef.current = '';
+    setActiveCompanyId('');
+    setSnapshot(null);
+    setProfile(emptyCredentialProfile);
+    setProfileStatus('');
   };
 
   /** 选择测试目录并用其中的 JSON 和图片完整替换当前资信库。 */
   const importTestData = async () => {
+    if (!activeCompanyId) return;
     setImportConfirmOpen(false);
     setBusy('import-test-data');
     try {
-      const result = await window.yibiao!.credentialLibrary.importTestData();
+      const result = await window.yibiao!.credentialLibrary.importTestData(activeCompanyId);
       if (!result) return;
       setSnapshot(result.snapshot);
       setProfile(result.snapshot.profile);
+      setCompanies(await window.yibiao!.credentialLibrary.listCompanies());
       setProfileStatus('');
       if (profileSaveToastIdRef.current !== null) {
         dismissToast(profileSaveToastIdRef.current);
@@ -252,7 +352,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     }
     setBusy(`profile-image-${fieldKey}`);
     try {
-      const data = await window.yibiao!.credentialLibrary.addProfileImages(fieldKey, filePaths);
+      const data = await window.yibiao!.credentialLibrary.addProfileImages(activeCompanyId, fieldKey, filePaths);
       setSnapshot(data);
       showToast(`已添加 ${filePaths.length} 张图片`, 'success');
     } catch (error) {
@@ -411,13 +511,13 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     try {
       let result: CredentialLibraryMutationResult;
       if (editor.type === 'certificate') {
-        result = await window.yibiao!.credentialLibrary.saveCertificate(payload as CredentialRecordSavePayload<CredentialCertificate>);
+        result = await window.yibiao!.credentialLibrary.saveCertificate(activeCompanyId, payload as CredentialRecordSavePayload<CredentialCertificate>);
       } else if (editor.type === 'employee') {
-        result = await window.yibiao!.credentialLibrary.saveEmployee(payload as CredentialRecordSavePayload<CredentialEmployee>);
+        result = await window.yibiao!.credentialLibrary.saveEmployee(activeCompanyId, payload as CredentialRecordSavePayload<CredentialEmployee>);
       } else if (editor.type === 'project') {
-        result = await window.yibiao!.credentialLibrary.saveProject(payload as CredentialRecordSavePayload<CredentialProject>);
+        result = await window.yibiao!.credentialLibrary.saveProject(activeCompanyId, payload as CredentialRecordSavePayload<CredentialProject>);
       } else {
-        result = await window.yibiao!.credentialLibrary.saveOtherMaterial(payload as CredentialRecordSavePayload<CredentialOtherMaterial>);
+        result = await window.yibiao!.credentialLibrary.saveOtherMaterial(activeCompanyId, payload as CredentialRecordSavePayload<CredentialOtherMaterial>);
       }
       setSnapshot(result.snapshot);
       if (result.fileDeleteFailures.length) {
@@ -439,11 +539,11 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     setBusy(`delete-${pendingDelete.kind}`);
     try {
       let result: CredentialLibraryMutationResult;
-      if (pendingDelete.kind === 'image') result = await window.yibiao!.credentialLibrary.deleteImage(pendingDelete.id);
-      else if (pendingDelete.kind === 'certificate') result = await window.yibiao!.credentialLibrary.deleteCertificate(pendingDelete.id);
-      else if (pendingDelete.kind === 'employee') result = await window.yibiao!.credentialLibrary.deleteEmployee(pendingDelete.id);
-      else if (pendingDelete.kind === 'project') result = await window.yibiao!.credentialLibrary.deleteProject(pendingDelete.id);
-      else result = await window.yibiao!.credentialLibrary.deleteOtherMaterial(pendingDelete.id);
+      if (pendingDelete.kind === 'image') result = await window.yibiao!.credentialLibrary.deleteImage(activeCompanyId, pendingDelete.id);
+      else if (pendingDelete.kind === 'certificate') result = await window.yibiao!.credentialLibrary.deleteCertificate(activeCompanyId, pendingDelete.id);
+      else if (pendingDelete.kind === 'employee') result = await window.yibiao!.credentialLibrary.deleteEmployee(activeCompanyId, pendingDelete.id);
+      else if (pendingDelete.kind === 'project') result = await window.yibiao!.credentialLibrary.deleteProject(activeCompanyId, pendingDelete.id);
+      else result = await window.yibiao!.credentialLibrary.deleteOtherMaterial(activeCompanyId, pendingDelete.id);
       setSnapshot(result.snapshot);
       setPendingDelete(null);
       if (result.fileDeleteFailures.length) {
@@ -462,7 +562,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
   const renderBasicPanel = () => (
     <section className="credential-section-card">
       <div className="credential-section-head">
-        <div><strong>企业基本信息</strong><small>当前资信库固定维护一家企业，所有字段均可留空。</small></div>
+        <div><strong>企业基本信息</strong><small>资料仅属于当前企业，除企业名称外均可按需填写。</small></div>
         <span className="credential-save-status" aria-live="polite">{profileStatus}</span>
       </div>
       <div className="credential-form-grid">
@@ -749,6 +849,35 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     return <div className="credential-library-loading"><InlineSpinner /><strong>正在读取资信库...</strong></div>;
   }
 
+  if (!activeCompanyId) {
+    return <div className="credential-library-page credential-companies-page">
+      <section className="credential-library-shell credential-companies-shell">
+        <header className="bid-analysis-command-bar credential-library-command-bar">
+          <div><span className="section-kicker">知识库</span><strong>资信库</strong><p>先选择企业，再填写其基本信息、资质、员工、业绩和其他资料。</p></div>
+          <button type="button" className="primary-action create-action" onClick={() => setCreateCompanyOpen(true)}>创建企业</button>
+        </header>
+        <div className="credential-companies-content">
+          <div className="credential-companies-heading"><div><span className="section-kicker">企业档案</span><h2>我的企业</h2></div><span>共 {companies.length} 家</span></div>
+          {companies.length ? <div className="credential-company-grid">{companies.map((company) => <article className="credential-company-card" key={company.companyId}>
+            <div className="credential-company-avatar" aria-hidden="true">{company.companyName.slice(0, 1)}</div>
+            <div className="credential-company-card-body"><h3>{company.companyName}</h3><span>创建于 {new Date(company.createdAt).toLocaleString('zh-CN', { hour12: false })}</span></div>
+            <div className="credential-company-card-actions">
+              <button type="button" className="secondary-action" onClick={() => void enterCompany(company.companyId)}>进入资信信息</button>
+              <button type="button" className="danger-action" onClick={() => setDeleteCompanyTarget(company)}>删除</button>
+            </div>
+          </article>)}</div> : <div className="credential-company-empty"><strong>还没有企业档案</strong><p>创建企业后，即可进入专属资信信息填写界面。</p><button type="button" className="primary-action create-action" onClick={() => setCreateCompanyOpen(true)}>创建企业</button></div>}
+        </div>
+      </section>
+      <AppDialog open={createCompanyOpen} onOpenChange={(open) => busy === null && setCreateCompanyOpen(open)} kicker="企业档案" title="创建企业" description="填写企业名称后，将直接进入该企业的资信信息填写界面。" preventClose={busy !== null}
+        actions={<><button type="button" className="secondary-action" onClick={() => setCreateCompanyOpen(false)} disabled={busy !== null}>取消</button><button type="button" className="primary-action create-action" onClick={() => void createCompany()} disabled={!companyNameDraft.trim() || busy !== null}>{busy === 'create-company' ? '创建中...' : '创建并进入'}</button></>}>
+        <div className="credential-company-create-fields"><FormField label="企业名称"><input autoFocus maxLength={100} value={companyNameDraft} onChange={(event) => setCompanyNameDraft(event.target.value)} placeholder="请输入企业全称" /></FormField><FormField label="统一社会信用代码（选填）"><input maxLength={32} value={creditCodeDraft} onChange={(event) => setCreditCodeDraft(event.target.value)} placeholder="可稍后在基本信息中补充" /></FormField></div>
+      </AppDialog>
+      <AppDialog open={Boolean(deleteCompanyTarget)} onOpenChange={(open) => !open && busy === null && setDeleteCompanyTarget(null)} kicker="永久删除" title={`删除“${deleteCompanyTarget?.companyName || ''}”？`}
+        description="将同时删除该企业的基本信息、资质、员工、业绩、其他资料和已上传原图。此操作无法撤销。" preventClose={busy !== null}
+        actions={<><button type="button" className="secondary-action" onClick={() => setDeleteCompanyTarget(null)} disabled={busy !== null}>取消</button><button type="button" className="danger-action" onClick={() => void deleteCompany()} disabled={busy !== null}>{busy === 'delete-company' ? '删除中...' : '确认删除'}</button></>} />
+    </div>;
+  }
+
   return (
     <div className="credential-library-page">
       <section className="credential-library-shell">
@@ -756,12 +885,16 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
           <div>
             <span className="section-kicker">知识库</span>
             <strong>资信库</strong>
-            <p>集中维护一家企业的资信数据和原始图片，所有资料均可按需选择录入。</p>
+            <p>填写当前企业的资信数据和原始图片，资料与其他企业隔离。</p>
           </div>
           <div className="credential-library-summary">
-            {developerMode ? <button type="button" className="secondary-action" onClick={() => setImportConfirmOpen(true)} disabled={busy !== null}>{busy === 'import-test-data' ? '导入中...' : '导入测试数据'}</button> : null}
+            <div className="credential-library-header-actions">
+              <button type="button" className="secondary-action" onClick={() => void returnToCompanies()} disabled={busy !== null}>返回企业列表</button>
+              <button type="button" className="primary-action" onClick={() => void saveCurrentProfile()} disabled={busy !== null}>保存企业信息</button>
+              {developerMode ? <button type="button" className="secondary-action" onClick={() => setImportConfirmOpen(true)} disabled={busy !== null}>{busy === 'import-test-data' ? '导入中...' : '导入测试数据'}</button> : null}
+            </div>
             <span>{profile.companyName || '未填写公司名称'}</span>
-            <small>{snapshot?.employees.length || 0} 名员工 · {snapshot?.projects.length || 0} 项业绩 · {snapshot?.images.length || 0} 张图片</small>
+            <small>{snapshot?.employees.length || 0} 名员工 · {snapshot?.projects.length || 0} 项业绩 · {snapshot?.images.length || 0} 张图片 · <span className="credential-header-save-status" aria-live="polite">{profileStatus || '输入后离开字段自动保存'}</span></small>
           </div>
         </header>
 
@@ -788,8 +921,8 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
         open={importConfirmOpen}
         onOpenChange={(open) => busy === null && setImportConfirmOpen(open)}
         kicker="开发者工具"
-        title="完整替换当前资信库？"
-        description="继续后请选择包含 credential-library.json 的测试数据文件夹。当前资信文本、记录和工作区原图将被完整替换。"
+        title="完整替换当前企业资料？"
+        description="继续后请选择包含 credential-library.json 的测试数据文件夹。当前企业的资信文本、记录和原图将被完整替换。"
         preventClose={busy !== null}
         actions={<><button type="button" className="secondary-action" onClick={() => setImportConfirmOpen(false)} disabled={busy !== null}>取消</button><button type="button" className="danger-action" onClick={() => void importTestData()} disabled={busy !== null}>选择文件夹并导入</button></>}
       />

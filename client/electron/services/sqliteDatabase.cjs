@@ -3,7 +3,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const { getWorkspaceDatabasePath } = require('../utils/paths.cjs');
 
-const schemaVersion = 31;
+const schemaVersion = 32;
 
 function createInitialSchema(db) {
   db.exec(`
@@ -1331,6 +1331,28 @@ const migrations = [
   } },
   { version: 31, description: '保存带原文范围和证据的标段候选', up(db) {
     addColumnIfMissing(db, 'technical_plan_meta', 'bid_sections_json', 'TEXT');
+  } },
+  { version: 32, description: '资信库按企业隔离资料', up(db) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS credential_library_companies (
+        company_id TEXT PRIMARY KEY,
+        profile_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    for (const table of ['credential_library_certificates', 'credential_library_employees', 'credential_library_projects', 'credential_library_other_materials', 'credential_library_images']) {
+      addColumnIfMissing(db, table, 'company_id', "TEXT NOT NULL DEFAULT 'legacy'");
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_company ON ${table}(company_id)`);
+    }
+    const profile = db.prepare('SELECT * FROM credential_library_profile WHERE id = 1').get();
+    const hasRecords = ['credential_library_certificates', 'credential_library_employees', 'credential_library_projects', 'credential_library_other_materials', 'credential_library_images']
+      .some((table) => db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get());
+    if (profile || hasRecords) {
+      const timestamp = profile?.created_at || new Date().toISOString();
+      db.prepare('INSERT OR IGNORE INTO credential_library_companies (company_id, profile_json, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run('legacy', JSON.stringify(profile || {}), timestamp, profile?.updated_at || timestamp);
+    }
   } },
 ];
 

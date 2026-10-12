@@ -190,7 +190,7 @@ function PresalesProjectsPage({ onNavigate }: PresalesProjectsPageProps) {
           <h2>先管理项目，再进入售前工作台</h2>
           <p>这里专门负责创建、检索、修改、删除项目，并展示每个售前机会的客户、阶段、材料和输出进度。</p>
         </div>
-        <button type="button" className="primary-action" onClick={createProject} disabled={isSaving}>
+        <button type="button" className="primary-action create-action" onClick={createProject} disabled={isSaving}>
           新建售前项目
         </button>
       </section>

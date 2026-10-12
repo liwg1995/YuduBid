@@ -78,5 +78,9 @@ async function runCase(scoreContent, payload, responseFileRequirements) {
   assert.equal(responseFile.plan.outlineData.outline[0].source_requirement_title, '技术方案');
   const fallback = await runCase('实施方案 20 分', { mode: 'response-file' }, '');
   assert(fallback.calls.some((call) => call.progressLabel === '技术评分大类' && call.messages.some((message) => message.content.includes('技术评分要求'))));
+  const sparseFree = await runCase('1. 支持身份认证；2. 支持操作审计', { mode: 'free' });
+  assert.equal(sparseFree.calls.filter((call) => call.progressLabel === '完整目录').length, 2, '自由目录只有一个一级章时应检查能否合理分章');
+  assert(sparseFree.calls[0].messages.some((message) => message.content.includes('不要求一级目录与评分项一一对应')));
+  assert(sparseFree.calls.some((call) => call.messages.some((message) => message.content.includes('只有一个一级目录'))));
   console.log('目录生成模式分流与无技术评分项流程验证通过');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

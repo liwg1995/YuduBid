@@ -395,15 +395,56 @@ function createCredentialLibraryService({ app, db }) {
   const rootDir = getCredentialLibraryDir(app);
   const imagesDir = path.join(rootDir, 'images');
 
+  function companyRow(companyId) {
+    const row = db.prepare('SELECT * FROM credential_library_companies WHERE company_id = ?').get(text(companyId));
+    if (!row) throw new Error('企业不存在，请返回资信库重新选择');
+    return row;
+  }
+
+  function listCompanies() {
+    return db.prepare('SELECT * FROM credential_library_companies ORDER BY created_at DESC').all().map((row) => ({
+      companyId: row.company_id,
+      companyName: profileFromRow(JSON.parse(row.profile_json)).companyName || '未命名企业',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  }
+
+  function createCompany(input) {
+    const companyName = text(input?.companyName).trim();
+    if (!companyName) throw new Error('请填写企业名称');
+    const companyId = createId('company');
+    const timestamp = now();
+    db.prepare('INSERT INTO credential_library_companies (company_id, profile_json, created_at, updated_at) VALUES (?, ?, ?, ?)')
+      .run(companyId, JSON.stringify({ company_name: companyName, unified_social_credit_code: text(input?.unifiedSocialCreditCode).trim() }), timestamp, timestamp);
+    return { companyId, companies: listCompanies() };
+  }
+
+  /** 删除企业及其全部资信记录，数据库提交后清理工作区原图。 */
+  function deleteCompany(companyId) {
+    const company = companyRow(companyId);
+    const images = db.prepare('SELECT * FROM credential_library_images WHERE company_id = ?').all(company.company_id);
+    db.transaction(() => {
+      db.prepare('DELETE FROM credential_library_images WHERE company_id = ?').run(company.company_id);
+      for (const config of Object.values(recordConfigs)) {
+        db.prepare(`DELETE FROM ${config.table} WHERE company_id = ?`).run(company.company_id);
+      }
+      db.prepare('DELETE FROM credential_library_companies WHERE company_id = ?').run(company.company_id);
+      if (company.company_id === 'legacy') db.prepare('DELETE FROM credential_library_profile WHERE id = 1').run();
+    })();
+    return { companies: listCompanies(), fileDeleteFailures: removeStoredFiles(images) };
+  }
+
   /** 读取资信库完整快照。 */
-  function load() {
+  function load(companyId) {
+    const company = companyRow(companyId);
     return {
-      profile: profileFromRow(db.prepare('SELECT * FROM credential_library_profile WHERE id = 1').get()),
-      certificates: db.prepare('SELECT * FROM credential_library_certificates ORDER BY updated_at DESC, created_at DESC').all().map(certificateFromRow),
-      employees: db.prepare('SELECT * FROM credential_library_employees ORDER BY updated_at DESC, created_at DESC').all().map(employeeFromRow),
-      projects: db.prepare('SELECT * FROM credential_library_projects ORDER BY updated_at DESC, created_at DESC').all().map(projectFromRow),
-      otherMaterials: db.prepare('SELECT * FROM credential_library_other_materials ORDER BY updated_at DESC, created_at DESC').all().map(otherMaterialFromRow),
-      images: db.prepare('SELECT * FROM credential_library_images ORDER BY owner_type, owner_id, field_key, sort_order, created_at').all().map(imageFromRow),
+      profile: profileFromRow({ ...JSON.parse(company.profile_json), created_at: company.created_at, updated_at: company.updated_at }),
+      certificates: db.prepare('SELECT * FROM credential_library_certificates WHERE company_id = ? ORDER BY updated_at DESC, created_at DESC').all(companyId).map(certificateFromRow),
+      employees: db.prepare('SELECT * FROM credential_library_employees WHERE company_id = ? ORDER BY updated_at DESC, created_at DESC').all(companyId).map(employeeFromRow),
+      projects: db.prepare('SELECT * FROM credential_library_projects WHERE company_id = ? ORDER BY updated_at DESC, created_at DESC').all(companyId).map(projectFromRow),
+      otherMaterials: db.prepare('SELECT * FROM credential_library_other_materials WHERE company_id = ? ORDER BY updated_at DESC, created_at DESC').all(companyId).map(otherMaterialFromRow),
+      images: db.prepare('SELECT * FROM credential_library_images WHERE company_id = ? ORDER BY owner_type, owner_id, field_key, sort_order, created_at').all(companyId).map(imageFromRow),
     };
   }
 
@@ -427,7 +468,7 @@ function createCredentialLibraryService({ app, db }) {
   }
 
   /** 校验并复制一组新增原图，失败时回收已复制文件。 */
-  function copyNewImages(ownerType, ownerId, additions) {
+  function copyNewImages(companyId, ownerType, ownerId, additions) {
     const copied = [];
     fs.mkdirSync(imagesDir, { recursive: true });
 
@@ -454,11 +495,12 @@ function createCredentialLibraryService({ app, db }) {
         const nextOrder = Number(db.prepare(`
           SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order
           FROM credential_library_images
-          WHERE owner_type = ? AND owner_id = ? AND field_key = ?
-        `).get(ownerType, ownerId, fieldKey)?.next_order || 0) + copied.filter((item) => item.field_key === fieldKey).length;
+          WHERE company_id = ? AND owner_type = ? AND owner_id = ? AND field_key = ?
+        `).get(companyId, ownerType, ownerId, fieldKey)?.next_order || 0) + copied.filter((item) => item.field_key === fieldKey).length;
         fs.copyFileSync(filePath, path.join(imagesDir, storedName));
         copied.push({
           image_id: imageId,
+          company_id: companyId,
           owner_type: ownerType,
           owner_id: ownerId,
           field_key: fieldKey,
@@ -480,65 +522,64 @@ function createCredentialLibraryService({ app, db }) {
   function insertCopiedImages(copied) {
     const insert = db.prepare(`
       INSERT INTO credential_library_images (
-        image_id, owner_type, owner_id, field_key, original_name,
+        image_id, company_id, owner_type, owner_id, field_key, original_name,
         relative_path, custom_name, sort_order, created_at
       ) VALUES (
-        @image_id, @owner_type, @owner_id, @field_key, @original_name,
+        @image_id, @company_id, @owner_type, @owner_id, @field_key, @original_name,
         @relative_path, @custom_name, @sort_order, @created_at
       )
     `);
     copied.forEach((item) => insert.run(item));
   }
 
-  /** 写入企业单例字段，供普通保存和测试数据导入共用。 */
-  function writeProfile(partial, timestamp = now()) {
-    db.prepare(`
-      INSERT OR IGNORE INTO credential_library_profile (id, created_at, updated_at)
-      VALUES (1, ?, ?)
-    `).run(timestamp, timestamp);
-
+  /** 更新所选企业资料，供普通保存和测试数据导入共用。 */
+  function writeProfile(companyId, partial, timestamp = now()) {
+    const company = companyRow(companyId);
+    const profile = JSON.parse(company.profile_json);
+    if (Object.prototype.hasOwnProperty.call(partial || {}, 'companyName') && !text(partial.companyName).trim()) {
+      throw new Error('企业名称不能为空');
+    }
     const entries = Object.entries(profileFieldColumns).filter(([property]) => Object.prototype.hasOwnProperty.call(partial || {}, property));
     if (entries.length) {
-      const values = { updated_at: timestamp };
-      const assignments = entries.map(([property, column]) => {
-        values[column] = property === 'watermarkEnabled' ? (partial[property] ? 1 : 0) : text(partial[property]);
-        return `${column} = @${column}`;
-      });
-      db.prepare(`UPDATE credential_library_profile SET ${assignments.join(', ')}, updated_at = @updated_at WHERE id = 1`).run(values);
+      for (const [property, column] of entries) profile[column] = property === 'watermarkEnabled' ? (partial[property] ? 1 : 0) : text(partial[property]);
+      db.prepare('UPDATE credential_library_companies SET profile_json = ?, updated_at = ? WHERE company_id = ?')
+        .run(JSON.stringify(profile), timestamp, companyId);
     }
   }
 
-  /** 按 patch 保存企业单例字段。 */
-  function saveProfile(partial) {
-    writeProfile(partial);
-    return load();
+  /** 按 patch 保存所选企业字段。 */
+  function saveProfile(companyId, partial) {
+    writeProfile(companyId, partial);
+    return load(companyId);
   }
 
-  /** 为企业单例资料追加多张原图。 */
-  function addProfileImages(fieldKey, filePaths) {
+  /** 为所选企业资料追加多张原图。 */
+  function addProfileImages(companyId, fieldKey, filePaths) {
+    companyRow(companyId);
     const additions = (Array.isArray(filePaths) ? filePaths : []).map((filePath) => ({ fieldKey, filePath }));
-    const copied = copyNewImages('profile', PROFILE_ID, additions);
+    const copied = copyNewImages(companyId, 'profile', PROFILE_ID, additions);
     try {
       db.transaction(() => insertCopiedImages(copied))();
     } catch (error) {
       removeStoredFiles(copied);
       throw error;
     }
-    return load();
+    return load(companyId);
   }
 
   /** 将一条已规范化的测试记录写入对应业务表。 */
-  function insertImportedRecord(ownerType, record, recordId, timestamp) {
+  function insertImportedRecord(companyId, ownerType, record, recordId, timestamp) {
     const config = recordConfigs[ownerType];
     const values = {
       [config.idColumn]: recordId,
+      company_id: companyId,
       created_at: timestamp,
       updated_at: timestamp,
     };
     for (const [property, column] of Object.entries(config.fields)) {
       values[column] = text(record[property]);
     }
-    const columns = [config.idColumn, ...Object.values(config.fields), 'created_at', 'updated_at'];
+    const columns = [config.idColumn, 'company_id', ...Object.values(config.fields), 'created_at', 'updated_at'];
     db.prepare(`
       INSERT INTO ${config.table} (${columns.join(', ')})
       VALUES (${columns.map((column) => `@${column}`).join(', ')})
@@ -546,9 +587,13 @@ function createCredentialLibraryService({ app, db }) {
   }
 
   /** 从开发者测试目录完整替换资信库文本、记录和原图。 */
-  function importTestData(folderPath) {
+  function importTestData(companyId, folderPath) {
+    const existingCompany = companyRow(companyId);
     const { folderPath: normalizedFolderPath, config } = readTestImportConfig(folderPath);
     const data = normalizeTestImportData(normalizedFolderPath, config);
+    if (!text(data.profile.companyName).trim()) {
+      data.profile.companyName = profileFromRow(JSON.parse(existingCompany.profile_json)).companyName || '未命名企业';
+    }
     const importedRecords = [
       ...data.certificates.map((item) => ({ ...item, ownerType: 'certificate', recordId: createId(recordConfigs.certificate.prefix) })),
       ...data.employees.map((item) => ({ ...item, ownerType: 'employee', recordId: createId(recordConfigs.employee.prefix) })),
@@ -557,27 +602,27 @@ function createCredentialLibraryService({ app, db }) {
     ];
     const copied = [];
     try {
-      copied.push(...copyNewImages('profile', PROFILE_ID, data.profileImages));
+      copied.push(...copyNewImages(companyId, 'profile', PROFILE_ID, data.profileImages));
       for (const item of importedRecords) {
-        copied.push(...copyNewImages(item.ownerType, item.recordId, item.images));
+        copied.push(...copyNewImages(companyId, item.ownerType, item.recordId, item.images));
       }
     } catch (error) {
       removeStoredFiles(copied);
       throw error;
     }
 
-    const oldImageRows = db.prepare('SELECT * FROM credential_library_images').all();
+    const oldImageRows = db.prepare('SELECT * FROM credential_library_images WHERE company_id = ?').all(companyId);
     const timestamp = now();
     try {
       db.transaction(() => {
-        db.prepare('DELETE FROM credential_library_images').run();
-        db.prepare('DELETE FROM credential_library_certificates').run();
-        db.prepare('DELETE FROM credential_library_employees').run();
-        db.prepare('DELETE FROM credential_library_projects').run();
-        db.prepare('DELETE FROM credential_library_other_materials').run();
-        db.prepare('DELETE FROM credential_library_profile').run();
-        writeProfile(data.profile, timestamp);
-        importedRecords.forEach((item) => insertImportedRecord(item.ownerType, item.record, item.recordId, timestamp));
+        db.prepare('DELETE FROM credential_library_images WHERE company_id = ?').run(companyId);
+        db.prepare('DELETE FROM credential_library_certificates WHERE company_id = ?').run(companyId);
+        db.prepare('DELETE FROM credential_library_employees WHERE company_id = ?').run(companyId);
+        db.prepare('DELETE FROM credential_library_projects WHERE company_id = ?').run(companyId);
+        db.prepare('DELETE FROM credential_library_other_materials WHERE company_id = ?').run(companyId);
+        db.prepare('UPDATE credential_library_companies SET profile_json = ? WHERE company_id = ?').run('{}', companyId);
+        writeProfile(companyId, data.profile, timestamp);
+        importedRecords.forEach((item) => insertImportedRecord(companyId, item.ownerType, item.record, item.recordId, timestamp));
         insertCopiedImages(copied);
       })();
     } catch (error) {
@@ -586,7 +631,7 @@ function createCredentialLibraryService({ app, db }) {
     }
 
     return {
-      snapshot: load(),
+      snapshot: load(companyId),
       fileDeleteFailures: removeStoredFiles(oldImageRows),
       counts: {
         certificates: data.certificates.length,
@@ -599,26 +644,31 @@ function createCredentialLibraryService({ app, db }) {
   }
 
   /** 新增或更新一条列表记录，并一次提交其图片变更。 */
-  function saveRecord(ownerType, payload) {
+  function saveRecord(companyId, ownerType, payload) {
+    companyRow(companyId);
     const config = recordConfigs[ownerType];
     const record = payload?.record || {};
     const recordId = text(record[config.idProperty]).trim() || createId(config.prefix);
+    if (text(record[config.idProperty]).trim() && !db.prepare(`SELECT 1 FROM ${config.table} WHERE ${config.idColumn} = ? AND company_id = ?`).get(recordId, companyId)) {
+      throw new Error('所选企业中不存在该记录');
+    }
     const timestamp = now();
     const removedIds = [...new Set((payload?.removedImageIds || []).map((item) => text(item).trim()).filter(Boolean))];
     const removedRows = removedIds.length
-      ? db.prepare(`SELECT * FROM credential_library_images WHERE owner_type = ? AND owner_id = ? AND image_id IN (${removedIds.map(() => '?').join(', ')})`).all(ownerType, recordId, ...removedIds)
+      ? db.prepare(`SELECT * FROM credential_library_images WHERE company_id = ? AND owner_type = ? AND owner_id = ? AND image_id IN (${removedIds.map(() => '?').join(', ')})`).all(companyId, ownerType, recordId, ...removedIds)
       : [];
-    const copied = copyNewImages(ownerType, recordId, payload?.newImages);
+    const copied = copyNewImages(companyId, ownerType, recordId, payload?.newImages);
 
     const values = {
       [config.idColumn]: recordId,
+      company_id: companyId,
       created_at: timestamp,
       updated_at: timestamp,
     };
     for (const [property, column] of Object.entries(config.fields)) {
       values[column] = text(record[property]);
     }
-    const columns = [config.idColumn, ...Object.values(config.fields), 'created_at', 'updated_at'];
+    const columns = [config.idColumn, 'company_id', ...Object.values(config.fields), 'created_at', 'updated_at'];
     const updates = [...Object.values(config.fields), 'updated_at'].map((column) => `${column} = excluded.${column}`);
 
     try {
@@ -630,15 +680,15 @@ function createCredentialLibraryService({ app, db }) {
         `).run(values);
 
         if (removedRows.length) {
-          db.prepare(`DELETE FROM credential_library_images WHERE owner_type = ? AND owner_id = ? AND image_id IN (${removedRows.map(() => '?').join(', ')})`)
-            .run(ownerType, recordId, ...removedRows.map((item) => item.image_id));
+          db.prepare(`DELETE FROM credential_library_images WHERE company_id = ? AND owner_type = ? AND owner_id = ? AND image_id IN (${removedRows.map(() => '?').join(', ')})`)
+            .run(companyId, ownerType, recordId, ...removedRows.map((item) => item.image_id));
         }
         for (const update of Array.isArray(payload?.imageNameUpdates) ? payload.imageNameUpdates : []) {
           db.prepare(`
             UPDATE credential_library_images
             SET custom_name = ?
-            WHERE image_id = ? AND owner_type = ? AND owner_id = ?
-          `).run(text(update?.customName), text(update?.imageId), ownerType, recordId);
+            WHERE image_id = ? AND company_id = ? AND owner_type = ? AND owner_id = ?
+          `).run(text(update?.customName), text(update?.imageId), companyId, ownerType, recordId);
         }
         insertCopiedImages(copied);
       })();
@@ -648,54 +698,59 @@ function createCredentialLibraryService({ app, db }) {
     }
 
     return {
-      snapshot: load(),
+      snapshot: load(companyId),
       fileDeleteFailures: removeStoredFiles(removedRows),
     };
   }
 
   /** 删除一条列表记录及其全部原图。 */
-  function deleteRecord(ownerType, recordId) {
+  function deleteRecord(companyId, ownerType, recordId) {
+    companyRow(companyId);
     const config = recordConfigs[ownerType];
     const normalizedId = text(recordId).trim();
-    const imageRows = db.prepare('SELECT * FROM credential_library_images WHERE owner_type = ? AND owner_id = ?').all(ownerType, normalizedId);
+    const imageRows = db.prepare('SELECT * FROM credential_library_images WHERE company_id = ? AND owner_type = ? AND owner_id = ?').all(companyId, ownerType, normalizedId);
     db.transaction(() => {
-      db.prepare('DELETE FROM credential_library_images WHERE owner_type = ? AND owner_id = ?').run(ownerType, normalizedId);
-      db.prepare(`DELETE FROM ${config.table} WHERE ${config.idColumn} = ?`).run(normalizedId);
+      db.prepare('DELETE FROM credential_library_images WHERE company_id = ? AND owner_type = ? AND owner_id = ?').run(companyId, ownerType, normalizedId);
+      db.prepare(`DELETE FROM ${config.table} WHERE ${config.idColumn} = ? AND company_id = ?`).run(normalizedId, companyId);
     })();
     return {
-      snapshot: load(),
+      snapshot: load(companyId),
       fileDeleteFailures: removeStoredFiles(imageRows),
     };
   }
 
   /** 删除单张图片及其数据库索引。 */
-  function deleteImage(imageId) {
-    const row = db.prepare('SELECT * FROM credential_library_images WHERE image_id = ?').get(text(imageId));
+  function deleteImage(companyId, imageId) {
+    companyRow(companyId);
+    const row = db.prepare('SELECT * FROM credential_library_images WHERE image_id = ? AND company_id = ?').get(text(imageId), companyId);
     let fileDeleteFailures = [];
     if (row) {
-      db.prepare('DELETE FROM credential_library_images WHERE image_id = ?').run(row.image_id);
+      db.prepare('DELETE FROM credential_library_images WHERE image_id = ? AND company_id = ?').run(row.image_id, companyId);
       fileDeleteFailures = removeStoredFiles([row]);
     }
     return {
-      snapshot: load(),
+      snapshot: load(companyId),
       fileDeleteFailures,
     };
   }
 
   return {
+    listCompanies,
+    createCompany,
+    deleteCompany,
     load,
     importTestData,
     saveProfile,
     addProfileImages,
     deleteImage,
-    saveCertificate: (payload) => saveRecord('certificate', payload),
-    deleteCertificate: (recordId) => deleteRecord('certificate', recordId),
-    saveEmployee: (payload) => saveRecord('employee', payload),
-    deleteEmployee: (recordId) => deleteRecord('employee', recordId),
-    saveProject: (payload) => saveRecord('project', payload),
-    deleteProject: (recordId) => deleteRecord('project', recordId),
-    saveOtherMaterial: (payload) => saveRecord('other', payload),
-    deleteOtherMaterial: (recordId) => deleteRecord('other', recordId),
+    saveCertificate: (companyId, payload) => saveRecord(companyId, 'certificate', payload),
+    deleteCertificate: (companyId, recordId) => deleteRecord(companyId, 'certificate', recordId),
+    saveEmployee: (companyId, payload) => saveRecord(companyId, 'employee', payload),
+    deleteEmployee: (companyId, recordId) => deleteRecord(companyId, 'employee', recordId),
+    saveProject: (companyId, payload) => saveRecord(companyId, 'project', payload),
+    deleteProject: (companyId, recordId) => deleteRecord(companyId, 'project', recordId),
+    saveOtherMaterial: (companyId, payload) => saveRecord(companyId, 'other', payload),
+    deleteOtherMaterial: (companyId, recordId) => deleteRecord(companyId, 'other', recordId),
   };
 }
 

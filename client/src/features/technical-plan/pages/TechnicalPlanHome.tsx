@@ -1,3 +1,4 @@
+import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import DocumentAnalysisPage from './DocumentAnalysisPage';
@@ -241,6 +242,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const [expandConsistencyAudit, setExpandConsistencyAudit] = useState(true);
   const [expandTableRequirement, setExpandTableRequirement] = useState<ContentTableRequirement>('none');
   const [expandUseMermaidImages, setExpandUseMermaidImages] = useState(false);
+  const [expandUseHtmlImages, setExpandUseHtmlImages] = useState(false);
+  const [expandMaxHtmlImages, setExpandMaxHtmlImages] = useState(10);
   const [expandUseTechnicalDiagrams, setExpandUseTechnicalDiagrams] = useState(false);
   const [expandUseAiImages, setExpandUseAiImages] = useState(false);
   const [expandMaxAiImages, setExpandMaxAiImages] = useState(2);
@@ -276,10 +279,6 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     [outlineLeaves, state.contentGenerationSections],
   );
   const generatedLeafIdSet = useMemo(() => new Set(generatedLeaves.map((item) => item.id)), [generatedLeaves]);
-  const totalContentWords = useMemo(
-    () => outlineLeaves.reduce((sum, item) => sum + countReadableWords(getLeafContent(item, state.contentGenerationSections)), 0),
-    [outlineLeaves, state.contentGenerationSections],
-  );
   const selectedExpandLeaves = useMemo(
     () => generatedLeaves.filter((item) => expandSelectedItemIds.has(item.id)),
     [expandSelectedItemIds, generatedLeaves],
@@ -425,16 +424,12 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     setExpandConsistencyAudit(savedOptions?.enableConsistencyAudit ?? true);
     setExpandTableRequirement(savedOptions?.tableRequirement || 'none');
     setExpandUseMermaidImages(Boolean(savedOptions?.useMermaidImages ?? false));
+    setExpandUseHtmlImages(Boolean(savedOptions?.useHtmlImages ?? false));
+    setExpandMaxHtmlImages(Math.max(0, Math.min(30, Math.round(Number(savedOptions?.maxHtmlImages ?? 10) || 0))));
     setExpandUseTechnicalDiagrams(Boolean(savedOptions?.useTechnicalDiagrams ?? false));
     setExpandUseAiImages(Boolean(savedOptions?.useAiImages ?? false));
     setExpandMaxAiImages(Math.max(0, Math.round(Number(savedOptions?.maxAiImages || 2))));
-    setExpandTargetWords((prev) => {
-      if (prev > totalContentWords) {
-        return prev;
-      }
-      return totalContentWords > 0 ? totalContentWords + 3000 : 0;
-    });
-  }, [state.contentGenerationOptions, state.step, totalContentWords]);
+  }, [state.contentGenerationOptions, state.step]);
 
   useEffect(() => {
     if (state.step !== 'expand') {
@@ -675,6 +670,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
             aiImageStyle: savedOptions?.aiImageStyle ?? 'auto',
             maxAiImages: Math.max(0, Math.min(savedOptions?.maxAiImages ?? 0, outlineLeaves.length)),
             useMermaidImages: savedOptions?.useMermaidImages ?? true,
+            useHtmlImages: savedOptions?.useHtmlImages ?? false,
+            maxHtmlImages: savedOptions?.maxHtmlImages ?? 10,
             useTechnicalDiagrams: diagramAvailable && (savedOptions?.useTechnicalDiagrams ?? true),
             tableRequirement: savedOptions?.tableRequirement ?? 'heavy',
             minimumWords: Math.max(0, savedOptions?.minimumWords ?? 0),
@@ -731,6 +728,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       aiImageStyle: state.contentGenerationOptions?.aiImageStyle ?? 'auto',
       maxAiImages: expandUseAiImages ? Math.max(0, Math.min(Math.round(Number(expandMaxAiImages) || 0), selectedExpandLeaves.length)) : 0,
       useMermaidImages: expandUseMermaidImages,
+      useHtmlImages: expandUseHtmlImages,
+      maxHtmlImages: expandUseHtmlImages ? Math.max(0, Math.min(Math.round(Number(expandMaxHtmlImages) || 0), selectedExpandLeaves.length)) : 0,
       useTechnicalDiagrams: expandUseTechnicalDiagrams && expandTechnicalDiagramAvailable,
       tableRequirement: expandTableRequirement,
       minimumWords: normalizedTargetWords,
@@ -1649,12 +1648,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                 </div>
               </div>
 
-              <div className="content-expand-meta">
-                <p className="content-generation-config-note content-expand-note">
-                  扩写会跳过占位、纯表格、图片、Mermaid 和标注“定稿勿动”的内容；不会新增目录、不会重新生成整篇正文，也不会编造未提供的业绩、参数或承诺。
-                </p>
-
-                <div className="content-expand-status-strip">
+              <div className="content-expand-status-strip">
                   <span className={`content-expand-status-badge is-${expandStatusClass}`}>
                     {taskStatusLabels[expandTaskStatus] || '未开始'}
                   </span>
@@ -1670,7 +1664,6 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                       返回上一步查看
                     </button>
                   )}
-                </div>
               </div>
 
               <div className="content-expand-body">
@@ -1695,10 +1688,10 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                 <div className="content-generation-config-list content-expand-options">
                   <label className="content-generation-config-row">
                     <span>
-                      <strong>目标总字数</strong>
-                      <small>设为 0 时不追求总字数，只对所选章节跑一轮段落加厚。</small>
+                      <strong>所选小节目标字数</strong>
+                      <small>默认 0：对所选小节各扩写一轮；填写数字时按所选小节的合计字数计算。</small>
                     </span>
-                    <input
+                    <BufferedNumberInput
                       type="number"
                       min="0"
                       step="500"
@@ -1725,7 +1718,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                       <strong>扩写并发速度</strong>
                       <small>接口限流较严格时建议设为 1-3。</small>
                     </span>
-                    <input
+                    <BufferedNumberInput
                       type="number"
                       min="1"
                       step="1"
@@ -1748,6 +1741,24 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                       aria-label="是否在扩写后生成 Mermaid 图"
                     />
                   </label>
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>生成 HTML 配图</strong>
+                      <small>扩写完成后，在所选小节中择优生成甘特图、WBS、拓扑图或组织架构图。</small>
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="content-expand-checkbox"
+                      checked={expandUseHtmlImages}
+                      disabled={isContentGenerating || isContentPaused}
+                      onChange={(event) => setExpandUseHtmlImages(event.target.checked)}
+                      aria-label="是否在扩写后生成 HTML 配图"
+                    />
+                  </label>
+                  {expandUseHtmlImages && <label className="content-generation-config-row">
+                    <span><strong>HTML 配图上限</strong><small>只在本次所选小节中分配。</small></span>
+                    <BufferedNumberInput type="number" min="0" max={Math.max(1, selectedExpandLeaves.length)} value={expandMaxHtmlImages} disabled={isContentGenerating || isContentPaused} onChange={(event) => setExpandMaxHtmlImages(Math.max(0, Math.min(Math.round(Number(event.target.value) || 0), Math.max(1, selectedExpandLeaves.length))))} />
+                  </label>}
                   <label className="content-generation-config-row">
                     <span>
                       <strong>生成技术图谱</strong>
@@ -1781,7 +1792,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                       <strong>AI 图最大数量</strong>
                       <small>只在开启 AI 生图时生效，按所选章节择优分配。</small>
                     </span>
-                    <input
+                    <BufferedNumberInput
                       type="number"
                       min="0"
                       max={Math.max(1, selectedExpandLeaves.length)}
@@ -1900,14 +1911,37 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
               )}
               {!exportProgress.running && exportProgress.filePath && (
                 <div className="word-layout-audit">
-                  <button type="button" className="secondary-action" disabled={exportProgress.layoutChecking} onClick={() => exportProgress.filePath && void auditExportedWordLayout(exportProgress.filePath)}>{exportProgress.layoutChecking ? '正在检查分页…' : '重新检查 Word 版式'}</button>
-                  <small>使用本地 LibreOffice 渲染分页；Word/WPS 的实际分页可能略有差异。</small>
+                  <div className="word-layout-audit-toolbar">
+                    <small>自动预检导出文档的分页和结构</small>
+                    <button type="button" className="word-layout-audit-action" aria-label="重新检查 Word 文档" disabled={exportProgress.layoutChecking} onClick={() => exportProgress.filePath && void auditExportedWordLayout(exportProgress.filePath)}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20 11a8 8 0 1 0-2.3 6.1" />
+                        <path d="M20 4v7h-7" />
+                      </svg>
+                      <span>{exportProgress.layoutChecking ? '检查中…' : '重新检查'}</span>
+                    </button>
+                  </div>
                   {exportProgress.layoutError && <p role="alert">{exportProgress.layoutError}</p>}
                   {exportProgress.layoutAudit && <div className="word-layout-audit-result" role="status">
-                    <strong>已检查 {exportProgress.layoutAudit.checkedPages}/{exportProgress.layoutAudit.pageCount} 页，发现 {exportProgress.layoutAudit.issues.length} 处需复核</strong>
-                    {exportProgress.layoutAudit.issues.length === 0 && <span>未发现明显空白页、大块留白或越界文字。请仍在 Word/WPS 中核对表格跨页和图片位置。</span>}
-                    {exportProgress.layoutAudit.issues.map((issue, index) => <span key={`${issue.page}-${issue.code}-${index}`}>第 {issue.page} 页：{issue.message}</span>)}
-                    {exportProgress.layoutAudit.truncated && <span>文档页数或提示数量超过本次检查上限，剩余页面请手动核对。</span>}
+                    <div className="word-layout-audit-summary">
+                      <strong>{exportProgress.layoutAudit.issues.length > 0
+                        ? `发现 ${exportProgress.layoutAudit.issues.length} 处需要复核`
+                        : '检查完成'}</strong>
+                      <span>{exportProgress.layoutAudit.renderer === '内置分页预检'
+                        ? `已预检 ${exportProgress.layoutAudit.checkedPages}/${exportProgress.layoutAudit.pageCount} 页`
+                        : '已检查文档结构'}</span>
+                    </div>
+                    {exportProgress.layoutAudit.note && <p className="word-layout-audit-note">{exportProgress.layoutAudit.note}</p>}
+                    {exportProgress.layoutAudit.issues.length === 0 && <p className="word-layout-audit-empty">{exportProgress.layoutAudit.renderer === '内置分页预检'
+                      ? '未发现明显空白页或大块留白。请仍在 Word/WPS 中核对表格跨页和图片位置。'
+                      : '未发现明显的结构问题。实际分页和页面留白请在 Word/WPS 中核对。'}</p>}
+                    {exportProgress.layoutAudit.issues.length > 0 && <ol className="word-layout-audit-issues">
+                      {exportProgress.layoutAudit.issues.map((issue, index) => <li key={`${issue.page}-${issue.code}-${index}`}>
+                        {issue.page && <span className="word-layout-audit-page">第 {issue.page} 页</span>}
+                        <span>{issue.message}</span>
+                      </li>)}
+                    </ol>}
+                    {exportProgress.layoutAudit.truncated && <p className="word-layout-audit-truncated">提示数量或文档页数超过检查上限，其余内容请手动核对。</p>}
                   </div>}
                 </div>
               )}
@@ -2122,29 +2156,11 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
             <strong>{projects.length ? `当前已有 ${projects.length} 个项目` : '还没有可用项目'}</strong>
             <p>
               {projects.length
-                ? '每个项目都是独立工作区。旧版单项目数据会自动识别成一个历史项目并保留名称，新项目建议按真实招投标项目命名。'
-                : '创建项目后，会进入独立的技术方案工作流，项目数据会单独保存。'}
+                ? '每个项目独立保存，旧版数据已作为历史项目保留。'
+                : '创建项目后进入独立的技术方案工作区。'}
             </p>
-            <div className="technical-project-guide-actions">
-              <button type="button" className="primary-action" onClick={() => setCreateDialogOpen(true)}>
-                创建新项目
-              </button>
-            </div>
           </div>
-          <div className="technical-project-guide-grid">
-            <article>
-              <strong>项目隔离</strong>
-              <span>每个项目独立保存招标文件、原方案、解析结果和正文。</span>
-            </article>
-            <article>
-              <strong>旧数据保留</strong>
-              <span>升级前的单项目数据会自动形成历史项目，可继续编辑和导出。</span>
-            </article>
-            <article>
-              <strong>建议用法</strong>
-              <span>一个招投标项目对应一个项目工作区，后续查找更清楚。</span>
-            </article>
-          </div>
+          <button type="button" className="primary-action create-action" onClick={() => setCreateDialogOpen(true)}>创建新项目</button>
         </section>
       )}
 
@@ -2241,7 +2257,7 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
                 <Dialog.Close className="secondary-action" type="button" onClick={() => setNewProjectName('')}>
                   取消
                 </Dialog.Close>
-                <button type="submit" className="primary-action">
+              <button type="submit" className="primary-action create-action">
                   确认创建
                 </button>
               </div>

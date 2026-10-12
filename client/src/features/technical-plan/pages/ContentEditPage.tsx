@@ -1,3 +1,4 @@
+import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Popover from '@radix-ui/react-popover';
 import * as Switch from '@radix-ui/react-switch';
@@ -71,6 +72,8 @@ const defaultContentGenerationOptions: ContentGenerationOptions = {
   aiImageStyle: 'auto',
   maxAiImages: 6,
   useMermaidImages: true,
+  useHtmlImages: true,
+  maxHtmlImages: 10,
   useTechnicalDiagrams: true,
   tableRequirement: 'heavy',
   minimumWords: 0,
@@ -111,6 +114,8 @@ function normalizeGenerationOptions(options: ContentGenerationOptions | undefine
     aiImageStyle: options?.aiImageStyle ?? 'auto',
     maxAiImages: Math.max(0, Math.min(Number.isFinite(requestedMaxAiImages) ? Math.round(requestedMaxAiImages) : fallback.maxAiImages, maxAiImagesLimit)),
     useMermaidImages: Boolean(options?.useMermaidImages ?? fallback.useMermaidImages),
+    useHtmlImages: Boolean(options?.useHtmlImages ?? fallback.useHtmlImages),
+    maxHtmlImages: Math.max(0, Math.min(30, Math.round(Number(options?.maxHtmlImages ?? fallback.maxHtmlImages) || 0))),
     useTechnicalDiagrams: Boolean(options?.useTechnicalDiagrams ?? fallback.useTechnicalDiagrams) && technicalDiagramAvailable,
     tableRequirement: isContentTableRequirement(tableRequirement) ? tableRequirement : fallback.tableRequirement,
     minimumWords: Math.max(0, Number.isFinite(requestedMinimumWords) ? Math.round(requestedMinimumWords) : fallback.minimumWords),
@@ -519,6 +524,7 @@ function ContentEditPage({
   const imageStats = task?.stats?.images;
   const aiImageStats = normalizeImageStats(imageStats?.ai);
   const mermaidImageStats = normalizeImageStats(imageStats?.mermaid);
+  const htmlImageStats = normalizeImageStats(imageStats?.html);
   const technicalDiagramStats = normalizeImageStats(imageStats?.diagram);
   const imageModelAvailable = imageModelStatus === 'available';
   const technicalDiagramStatusLabel = technicalDiagramAvailable ? '已启用' : '未启用';
@@ -982,6 +988,7 @@ function ContentEditPage({
           <span>AI 生图 计划 {aiImageStats.planned} / 尝试 {aiImageStats.attempted} / 成功 {aiImageStats.success} / 失败 {aiImageStats.failed} / 跳过 {aiImageStats.skipped}</span>
           <span>技术图谱 计划 {technicalDiagramStats.planned} / 尝试 {technicalDiagramStats.attempted} / 成功 {technicalDiagramStats.success} / 失败 {technicalDiagramStats.failed} / 跳过 {technicalDiagramStats.skipped}</span>
           <span>Mermaid 计划 {mermaidImageStats.planned} / 尝试 {mermaidImageStats.attempted} / 成功 {mermaidImageStats.success} / 失败 {mermaidImageStats.failed}</span>
+          <span>HTML 图 计划 {htmlImageStats.planned} / 尝试 {htmlImageStats.attempted} / 成功 {htmlImageStats.success} / 失败 {htmlImageStats.failed}</span>
         </aside>
       )}
 
@@ -1140,7 +1147,7 @@ function ContentEditPage({
                   <strong>最低字数</strong>
                   <small>低于最低字数时会自动补充目录或扩写正文。</small>
                 </span>
-                <input
+                <BufferedNumberInput
                   type="number"
                   min="0"
                   step="1000"
@@ -1154,11 +1161,11 @@ function ContentEditPage({
               </label>
               <label className="content-generation-config-row">
                 <span><strong>全文参考上限</strong><small>0 表示不限制；超出时提示复核，不自动删减已生成内容。</small></span>
-                <input type="number" min="0" step="1000" value={draftGenerationOptions.maximumWords || 0} disabled={generationStrategyLocked} onChange={(event) => setDraftGenerationOptions((prev) => ({ ...prev, maximumWords: Math.max(0, Math.round(Number(event.target.value) || 0)) }))} />
+                <BufferedNumberInput type="number" min="0" step="1000" value={draftGenerationOptions.maximumWords || 0} disabled={generationStrategyLocked} onChange={(event) => setDraftGenerationOptions((prev) => ({ ...prev, maximumWords: Math.max(0, Math.round(Number(event.target.value) || 0)) }))} />
               </label>
               <label className="content-generation-config-row">
                 <span><strong>每节参考字数</strong><small>0 表示按全文目标和目录数量分配。</small></span>
-                <input type="number" min="0" step="100" value={draftGenerationOptions.sectionWords || 0} disabled={generationStrategyLocked} onChange={(event) => setDraftGenerationOptions((prev) => ({ ...prev, sectionWords: Math.max(0, Math.round(Number(event.target.value) || 0)) }))} />
+                <BufferedNumberInput type="number" min="0" step="100" value={draftGenerationOptions.sectionWords || 0} disabled={generationStrategyLocked} onChange={(event) => setDraftGenerationOptions((prev) => ({ ...prev, sectionWords: Math.max(0, Math.round(Number(event.target.value) || 0)) }))} />
               </label>
               <label className="content-generation-config-row">
                 <span>
@@ -1186,7 +1193,7 @@ function ContentEditPage({
                     </DetailHelpLink>
                   </small>
                 </span>
-                <input
+                <BufferedNumberInput
                   aria-label="正文生成并发速度"
                   type="number"
                   min="1"
@@ -1221,7 +1228,7 @@ function ContentEditPage({
                   <strong>全文图片最大数量</strong>
                   <small>AI 生图会在整体决策后择优分布，不再按先后顺序抢占名额。</small>
                 </span>
-                <input
+                <BufferedNumberInput
                   type="number"
                   min="0"
                   max={Math.max(1, leaves.length)}
@@ -1249,6 +1256,11 @@ function ContentEditPage({
                   <option value="flat_illustration">扁平插画</option>
                 </select>
               </label>
+              <label className="content-generation-config-row">
+                <span><strong>生成 HTML 配图</strong><small>应用于本次全文配图；适合甘特图、WBS、拓扑图和组织架构图。</small></span>
+                <Switch.Root className="content-generation-switch" checked={Boolean(draftGenerationOptions.useHtmlImages)} disabled={generationStrategyLocked} onCheckedChange={(checked) => setDraftGenerationOptions((prev) => ({ ...prev, useHtmlImages: checked }))} aria-label="是否生成 HTML 图片"><Switch.Thumb className="content-generation-switch-thumb" /></Switch.Root>
+              </label>
+              {draftGenerationOptions.useHtmlImages && <label className="content-generation-config-row"><span><strong>全文 HTML 配图上限</strong><small>从适合的小节中选择，不代表每节都配一张。</small></span><BufferedNumberInput type="number" min="0" max="30" value={draftGenerationOptions.maxHtmlImages ?? 10} disabled={generationStrategyLocked} onChange={(event) => setDraftGenerationOptions((prev) => ({ ...prev, maxHtmlImages: Math.max(0, Math.min(30, Math.round(Number(event.target.value) || 0))) }))} /></label>}
               <label className="content-generation-config-row">
                 <span>
                   <strong>生成技术图谱</strong>

@@ -8,7 +8,7 @@ const { createSqliteDatabase } = require('../electron/services/sqliteDatabase.cj
 const { createTechnicalPlanStore } = require('../electron/services/technicalPlanStore.cjs');
 const { runBidSectionExtractionTask } = require('../electron/services/bidSectionExtractionTask.cjs');
 const { selectBidSectionMarkdown } = require('../electron/services/bidSectionSelection.cjs');
-const { checkWordLayout } = require('../electron/services/wordLayoutAudit.cjs');
+const { checkWordLayout, inspectDocxStructure } = require('../electron/services/wordLayoutAudit.cjs');
 const { normalizeWordCount, resolveSectionWordTarget, wordBudgetGuidance } = require('../electron/services/generationWordBudget.cjs');
 
 async function main() {
@@ -82,11 +82,19 @@ async function main() {
         new Paragraph(`第三页正文 ${'实施方案'.repeat(60)}`),
       ],
     }] });
-    await fs.writeFile(filePath, await Packer.toBuffer(document));
+    const documentBuffer = await Packer.toBuffer(document);
+    await fs.writeFile(filePath, documentBuffer);
+    const structure = inspectDocxStructure(documentBuffer);
+    assert(structure.issues.some((issue) => issue.code === 'consecutive-page-breaks'));
     const audit = await checkWordLayout(filePath);
-    assert.equal(audit.pageCount, 3);
-    assert(audit.issues.some((issue) => issue.page === 2 && issue.code === 'blank-page'));
-    assert(!audit.issues.some((issue) => issue.page === 1 && issue.code === 'blank-page'));
+    if (audit.renderer === '内置分页预检') {
+      assert.equal(audit.pageCount, 3);
+      assert(audit.issues.some((issue) => issue.page === 2 && issue.code === 'blank-page'));
+      assert(!audit.issues.some((issue) => issue.page === 1 && issue.code === 'blank-page'));
+    } else {
+      assert.equal(audit.pageCount, null);
+      assert(audit.issues.some((issue) => issue.code === 'consecutive-page-breaks'));
+    }
     console.log('多标段提取、切换、篇幅规则和 Word 分页自检验收通过');
   } finally {
     database.close();

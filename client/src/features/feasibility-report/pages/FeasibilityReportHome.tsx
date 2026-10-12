@@ -573,17 +573,13 @@ function FeasibilityReportHome() {
           <strong>可研报告</strong>
           <p>围绕项目资料、论证目录、关键参数和正文编制建立独立工作区。</p>
         </div>
-        <button type="button" className="primary-action" disabled={busy} onClick={() => setCreateDialogOpen(true)}>新建可研项目</button>
+        <button type="button" className="primary-action create-action" disabled={busy} onClick={() => setCreateDialogOpen(true)}>新建可研项目</button>
       </section>
 
       <section className="feasibility-project-guide">
         <div className="feasibility-project-guide-copy">
           <strong>{loading ? '正在读取本地项目...' : projectList.projects.length ? `已建立 ${projectList.projects.length} 个可研项目` : '从一个清晰的项目工作区开始'}</strong>
-          <p>一个真实项目对应一个可研工作区。资料、分析、目录、参数和正文按项目隔离保存。</p>
-          <small>项目数据保存在本机，可在关闭或刷新客户端后继续编制。</small>
-        </div>
-        <div className="feasibility-project-guide-flow" aria-label="可研报告工作流摘要">
-          {FEASIBILITY_STEPS.map((step) => <span key={step.id}>{step.label}</span>)}
+          <p>项目资料、分析、目录和正文分别保存在独立工作区。</p>
         </div>
       </section>
 
@@ -597,7 +593,7 @@ function FeasibilityReportHome() {
           <div className="feasibility-project-empty">
             <strong>{searchText.trim() ? '没有匹配的可研项目' : '还没有可研项目'}</strong>
             <p>{searchText.trim() ? '请调整搜索关键词后重试。' : '创建项目后，编制进度与成果会保存在独立的本地工作区。'}</p>
-            {!searchText.trim() ? <button type="button" className="secondary-action" onClick={() => setCreateDialogOpen(true)}>创建可研项目</button> : null}
+            {!searchText.trim() ? <button type="button" className="secondary-action create-action" onClick={() => setCreateDialogOpen(true)}>创建可研项目</button> : null}
           </div>
         ) : filteredProjects.map((project) => (
           <article className={`feasibility-project-card${project.isActive ? ' is-active' : ''}`} key={project.id}>
@@ -633,7 +629,7 @@ function FeasibilityReportHome() {
                 <Dialog.Close type="button" className="detail-help-close" aria-label="关闭新建可研项目">×</Dialog.Close>
               </div>
               <label className="feasibility-create-field"><span>项目名称</span><input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="例如：某某产业园建设项目" autoFocus /></label>
-              <div className="content-regenerate-actions"><Dialog.Close type="button" className="secondary-action" onClick={() => setProjectName('')}>取消</Dialog.Close><button type="submit" className="primary-action" disabled={busy}>{busy ? '正在创建...' : '创建并进入'}</button></div>
+              <div className="content-regenerate-actions"><Dialog.Close type="button" className="secondary-action" onClick={() => setProjectName('')}>取消</Dialog.Close><button type="submit" className="primary-action create-action" disabled={busy}>{busy ? '正在创建...' : '创建并进入'}</button></div>
             </form>
           </Dialog.Content>
         </Dialog.Portal>

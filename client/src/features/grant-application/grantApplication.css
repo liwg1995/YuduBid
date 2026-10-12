@@ -848,31 +848,6 @@
   border-color: rgba(245, 158, 11, 0.22);
 }
 
-.grant-project-create-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-top: 14px;
-}
-
-.grant-project-create-row input {
-  flex: 1;
-  min-width: 0;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid rgba(27, 50, 92, 0.12);
-  border-radius: 12px;
-  background: #ffffff;
-  color: #172033;
-  font: inherit;
-  outline: none;
-}
-
-.grant-project-create-row input:focus {
-  border-color: rgba(37, 99, 235, 0.42);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
 .grant-application-mode-switch {
   display: inline-flex;
   flex-direction: row;

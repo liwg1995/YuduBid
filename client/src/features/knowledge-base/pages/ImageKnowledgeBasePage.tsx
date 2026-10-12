@@ -151,7 +151,7 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
     </section>
     <section className="image-library-layout">
       <aside className="image-library-sidebar">
-        <div className="image-library-heading"><strong>文件夹</strong><span>{folders.length} 个</span>{!embedded && <button className="secondary-action" onClick={() => void createFolder()}>新建</button>}</div>
+        <div className="image-library-heading"><strong>文件夹</strong><span>{folders.length} 个</span>{!embedded && <button className="secondary-action create-action" onClick={() => void createFolder()}>新建</button>}</div>
         <div className="image-folder-list">{folders.map((folder) => <article className={`image-folder-row ${folder.id === activeFolderId ? 'active' : ''}`} key={folder.id}>
           <button className="image-folder-name" onClick={() => setActiveFolderId(folder.id)}>
             <span aria-hidden="true">F</span><strong>{folder.name}</strong><small>{folder.id === activeFolderId ? `${images.length} 张图片` : '图片文件夹'}</small>

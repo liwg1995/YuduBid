@@ -33,7 +33,7 @@ export default function KnowledgeLibraryPage({ initialType = 'document' }: Knowl
             <button type="button" role="tab" aria-selected={activeType === 'document'} className={activeType === 'document' ? 'is-active' : ''} onClick={() => setActiveType('document')}>文档资料</button>
             <button type="button" role="tab" aria-selected={activeType === 'image'} className={activeType === 'image' ? 'is-active' : ''} onClick={() => setActiveType('image')}>图片素材</button>
           </div>
-          <button type="button" className="primary-action" onClick={() => setCreateDialogOpen(true)}>创建知识库</button>
+          <button type="button" className="primary-action create-action" onClick={() => setCreateDialogOpen(true)}>创建知识库</button>
         </div>
       </header>
 

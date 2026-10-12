@@ -113,7 +113,7 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
               </button>
               <button
                 type="button"
-                className={request?.danger ? 'danger-action' : 'primary-action'}
+                className={`${request?.danger ? 'danger-action' : 'primary-action'}${/^(?:创建|新建|确认创建)/.test((request?.confirmLabel || '').trim()) ? ' create-action' : ''}`}
                 disabled={confirmDisabled}
                 onClick={() => finishRequest(isPrompt ? inputValue.trim() : true)}
               >

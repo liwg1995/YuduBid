@@ -778,7 +778,7 @@ function ProjectManagementPage() {
             </div>
             <div className="project-management-help-actions">
               <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
-              <button type="button" className="primary-action" onClick={() => void createProject()}>创建并进入</button>
+              <button type="button" className="primary-action create-action" onClick={() => void createProject()}>创建并进入</button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>

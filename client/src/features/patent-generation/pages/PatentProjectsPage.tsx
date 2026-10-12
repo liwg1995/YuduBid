@@ -107,7 +107,7 @@ function PatentProjectsPage({ onNavigate }: Props) {
   return <main className="patent-projects-page">
     <header className="patent-projects-header">
       <div><span>专利生成</span><h1>专利项目</h1><p>每个项目独立保存案件资料、候选专利点、交底书和修订版本。</p></div>
-      <button className="patent-projects-primary" onClick={() => { setName(''); setTopic(''); setApplicationType('invention'); setEditor({ mode: 'create' }); }}>＋ 创建专利项目</button>
+      <button className="patent-projects-primary create-action" onClick={() => { setName(''); setTopic(''); setApplicationType('invention'); setEditor({ mode: 'create' }); }}>创建专利项目</button>
     </header>
     <section className="patent-projects-toolbar">
       <div className="patent-projects-stats"><strong>{activeCount}</strong><span>进行中的项目</span><strong>{draftCount}</strong><span>交底书草稿</span></div>
@@ -128,7 +128,7 @@ function PatentProjectsPage({ onNavigate }: Props) {
           <button className="is-danger" onClick={() => setDeleteTarget(project)}>删除</button>
         </div>
       </article>)}
-      {!loading && visible.length === 0 && <div className="patent-projects-empty"><strong>{data.projects.length ? '没有符合条件的项目' : '从一个专利项目开始'}</strong><span>创建后，专利挖掘到交底书修订的全部资料都会归入该项目。</span><button onClick={() => { setName(''); setTopic(''); setApplicationType('invention'); setEditor({ mode: 'create' }); }}>创建专利项目</button></div>}
+      {!loading && visible.length === 0 && <div className="patent-projects-empty"><strong>{data.projects.length ? '没有符合条件的项目' : '从一个专利项目开始'}</strong><span>创建后，专利挖掘到交底书修订的全部资料都会归入该项目。</span><button className="create-action" onClick={() => { setName(''); setTopic(''); setApplicationType('invention'); setEditor({ mode: 'create' }); }}>创建专利项目</button></div>}
     </section>
 
     <Dialog.Root open={Boolean(editor)} onOpenChange={(open) => !open && setEditor(null)}><Dialog.Portal><Dialog.Overlay className="patent-project-dialog-overlay" /><Dialog.Content className="patent-project-dialog">
@@ -136,7 +136,7 @@ function PatentProjectsPage({ onNavigate }: Props) {
       <Dialog.Description>{editor?.mode === 'rename' ? '项目内的案件资料不会改变。' : '先建立项目，再进入专利挖掘及后续步骤。'}</Dialog.Description>
       <label>项目名称<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：无限画布并行生成专利" /></label>
       {editor?.mode === 'create' && <><label>技术主题（可稍后填写）<input value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="用一句话描述核心技术" /></label><label>申请类型<select value={applicationType} onChange={(event) => setApplicationType(event.target.value as PatentApplicationType)}><option value="invention">发明</option><option value="utility-model">实用新型</option><option value="design">外观设计</option></select></label></>}
-      <div className="patent-project-dialog-actions"><Dialog.Close asChild><button>取消</button></Dialog.Close><button className="is-primary" disabled={!name.trim() || Boolean(busy)} onClick={submit}>{editor?.mode === 'rename' ? '保存名称' : '创建并进入'}</button></div>
+      <div className="patent-project-dialog-actions"><Dialog.Close asChild><button>取消</button></Dialog.Close><button className={`is-primary${editor?.mode === 'create' ? ' create-action' : ''}`} disabled={!name.trim() || Boolean(busy)} onClick={submit}>{editor?.mode === 'rename' ? '保存名称' : '创建并进入'}</button></div>
     </Dialog.Content></Dialog.Portal></Dialog.Root>
 
     <Dialog.Root open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}><Dialog.Portal><Dialog.Overlay className="patent-project-dialog-overlay" /><Dialog.Content className="patent-project-dialog">

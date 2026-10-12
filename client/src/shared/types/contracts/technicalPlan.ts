@@ -16,6 +16,8 @@ export interface ContentGenerationOptions {
   aiImageStyle?: ContentAiImageStyle;
   maxAiImages: number;
   useMermaidImages: boolean;
+  useHtmlImages?: boolean;
+  maxHtmlImages?: number;
   useTechnicalDiagrams: boolean;
   tableRequirement: ContentTableRequirement;
   minimumWords: number;
@@ -92,6 +94,7 @@ export interface BackgroundTaskState {
       total?: ContentImageStats;
       ai?: ContentImageStats;
       mermaid?: ContentImageStats;
+      html?: ContentImageStats;
       diagram?: ContentImageStats;
     };
   };

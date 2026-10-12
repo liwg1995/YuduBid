@@ -134,7 +134,7 @@ export function SoftwareCopyrightCaseManager({ blocked, onWorkspaceChanged }: So
                 <input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />
                 显示已归档
               </label>
-              <button type="button" className="primary-action" disabled={blocked} onClick={() => openEditor('create')}>新建项目</button>
+              <button type="button" className="primary-action create-action" disabled={blocked} onClick={() => openEditor('create')}>新建项目</button>
             </div>
             {blocked && <div className="software-copyright-case-blocked">请先保存当前草稿或等待任务结束，再切换、复制或新建项目。</div>}
             <div className="software-copyright-case-list" aria-label="软著项目列表">
@@ -181,7 +181,7 @@ export function SoftwareCopyrightCaseManager({ blocked, onWorkspaceChanged }: So
             </label>
             <div className="software-copyright-dialog-actions">
               <button type="button" className="secondary-action" onClick={() => setEditor(null)}>取消</button>
-              <button type="button" className="primary-action" disabled={!name.trim() || Boolean(busyId)} onClick={() => void submitEditor()}>确认</button>
+              <button type="button" className={`primary-action${editor?.mode === 'create' ? ' create-action' : ''}`} disabled={!name.trim() || Boolean(busyId)} onClick={() => void submitEditor()}>确认</button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>

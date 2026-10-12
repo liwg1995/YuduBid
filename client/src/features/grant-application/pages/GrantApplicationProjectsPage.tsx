@@ -149,25 +149,9 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
         <div className="technical-project-guide-main">
           <span className="section-kicker">创建课题项目</span>
           <strong>{projectList.projects.length ? `当前已有 ${projectList.projects.length} 个课题项目` : '还没有课题项目'}</strong>
-          <p>建议一个申报题目对应一个课题项目。后续生成的申报书模块、图示建议、八维检测报告都会跟随项目保存。</p>
-          <div className="grant-project-create-row">
-            <button type="button" className="primary-action" onClick={() => setCreateDialogOpen(true)} disabled={busy}>新建课题项目</button>
-          </div>
+          <p>一个申报题目对应一个项目，材料和成果独立保存。</p>
         </div>
-        <div className="technical-project-guide-grid">
-          <article>
-            <strong>独立工作区</strong>
-            <span>每个课题单独保存材料、草稿、模块和导出结果。</span>
-          </article>
-          <article>
-            <strong>图示增强</strong>
-            <span>申报书可按需加入研究框架图、技术路线图和 Mermaid 图。</span>
-          </article>
-          <article>
-            <strong>质量闭环</strong>
-            <span>模块生成后可继续做事实缺口、空泛表达和评审风险检查。</span>
-          </article>
-        </div>
+        <button type="button" className="primary-action create-action" onClick={() => setCreateDialogOpen(true)} disabled={busy}>新建课题项目</button>
       </section>
 
       {!loading && projectList.projects.length > 0 && (
@@ -275,7 +259,7 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
             </div>
             <div className="grant-application-dialog-actions">
               <Dialog.Close className="secondary-action" type="button" disabled={busy}>取消</Dialog.Close>
-              <button type="button" className="primary-action" onClick={() => void createProject()} disabled={busy || !projectName.trim()}>
+              <button type="button" className="primary-action create-action" onClick={() => void createProject()} disabled={busy || !projectName.trim()}>
                 {busy ? '创建中...' : '创建并进入'}
               </button>
             </div>

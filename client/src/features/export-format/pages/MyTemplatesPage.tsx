@@ -170,9 +170,18 @@ function MyTemplatesPage({ onCreateTemplate, onEditTemplate }: MyTemplatesPagePr
             <p>查看、编辑、导入和导出已保存的标书模板。</p>
           </div>
           <div className="template-library-head-actions">
-            <button type="button" className="secondary-action" onClick={() => { void handleImportTemplate(); }} disabled={importing}>{importing ? '导入中' : '导入模板'}</button>
-            <button type="button" className="secondary-action" onClick={() => { void handleImportWord(); }} disabled={importingWord} title="从 DOCX 提取部分排版设置和字段候选，导出时不会沿用原文件全部版式">{importingWord ? '提取中' : '从 Word 提取'}</button>
-            <button type="button" className="primary-action" onClick={onCreateTemplate}>新建模板</button>
+            <button type="button" className="template-library-head-action" onClick={() => { void handleImportTemplate(); }} disabled={importing}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4" /><path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5" /></svg>
+              <span>{importing ? '导入中' : '导入模板'}</span>
+            </button>
+            <button type="button" className="template-library-head-action" onClick={() => { void handleImportWord(); }} disabled={importingWord} title="从 DOCX 提取部分排版设置和字段候选，导出时不会沿用原文件全部版式">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M14 3v5h4M8 13h8m-8 4h6" /></svg>
+              <span>{importingWord ? '提取中' : '从 Word 提取'}</span>
+            </button>
+            <button type="button" className="template-library-head-action is-primary" onClick={onCreateTemplate}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+              <span>新建模板</span>
+            </button>
           </div>
         </div>
 
@@ -182,7 +191,7 @@ function MyTemplatesPage({ onCreateTemplate, onEditTemplate }: MyTemplatesPagePr
             <div className="template-library-empty">
               <strong>还没有保存模板</strong>
               <span>新建模板，或导入其他设备导出的模板文件。</span>
-              <button type="button" className="primary-action" onClick={onCreateTemplate}>新建第一个模板</button>
+              <button type="button" className="primary-action create-action" onClick={onCreateTemplate}>新建第一个模板</button>
             </div>
           ) : null}
           {!loading && <>

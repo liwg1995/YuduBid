@@ -6,7 +6,7 @@ import type { CodeGenerationSelectResult, CodeGenerationState } from './contract
 import type { GrantApplicationPanel, GrantApplicationProfile, GrantApplicationProject, GrantApplicationProjectList, GrantApplicationState, GrantFormFieldMapping, GrantProposalModuleKey, GrantProposalTemplateMapping, GrantProposalVisualSettings, GrantTemplateFillReport } from './contracts/grantApplication';
 import type { FeasibilityBackgroundTaskState, FeasibilityContentGenerationOptions, FeasibilityOutlineTemplate, FeasibilityProjectInfo, FeasibilityProjectList, FeasibilityProjectPayload, FeasibilityProjectRecord, FeasibilityReportState, FeasibilityReportStep, FeasibilityTaskEvent } from './contracts/feasibilityReport';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeImage, KnowledgeImageDeleteResult, KnowledgeImageFolder, KnowledgeImageReferenceResult, KnowledgeImageUploadResult, KnowledgeItem } from './contracts/knowledgeBase';
-import type { CredentialCertificate, CredentialEmployee, CredentialImageFieldKey, CredentialLibraryImportResult, CredentialLibraryMutationResult, CredentialLibraryProfile, CredentialLibrarySnapshot, CredentialOtherMaterial, CredentialProject, CredentialRecordSavePayload } from './contracts/credentialLibrary';
+import type { CredentialCertificate, CredentialCompany, CredentialEmployee, CredentialImageFieldKey, CredentialLibraryImportResult, CredentialLibraryMutationResult, CredentialLibraryProfile, CredentialLibrarySnapshot, CredentialOtherMaterial, CredentialProject, CredentialRecordSavePayload } from './contracts/credentialLibrary';
 import type { OfficialDocumentPromptInput } from '../prompts/officialDocument';
 import type { OfficialDocumentImportResult, OfficialDocumentState } from './contracts/officialDocument';
 import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentPoint, PatentRevisionResult, PatentWorkspaceProjectList } from './contracts/patentGeneration';
@@ -51,11 +51,12 @@ export interface WordExportResult {
 }
 
 export interface WordLayoutAuditResult {
-  renderer: 'LibreOffice';
-  pageCount: number;
+  renderer: '内置分页预检' | '内置结构检查';
+  pageCount: number | null;
   checkedPages: number;
   truncated: boolean;
-  issues: Array<{ page: number; severity: 'warning' | 'review'; code: string; message: string }>;
+  note?: string;
+  issues: Array<{ page: number | null; severity: 'warning' | 'review'; code: string; message: string }>;
 }
 
 export interface LatestReleaseInfo {
@@ -546,19 +547,22 @@ export interface YuDuBidBridge {
   };
   credentialLibrary: {
     selectImages: () => Promise<string[]>;
-    load: () => Promise<CredentialLibrarySnapshot>;
-    importTestData: () => Promise<CredentialLibraryImportResult | null>;
-    saveProfile: (partial: Partial<CredentialLibraryProfile>) => Promise<CredentialLibrarySnapshot>;
-    addProfileImages: (fieldKey: CredentialImageFieldKey, filePaths: string[]) => Promise<CredentialLibrarySnapshot>;
-    deleteImage: (imageId: string) => Promise<CredentialLibraryMutationResult>;
-    saveCertificate: (payload: CredentialRecordSavePayload<CredentialCertificate>) => Promise<CredentialLibraryMutationResult>;
-    deleteCertificate: (recordId: string) => Promise<CredentialLibraryMutationResult>;
-    saveEmployee: (payload: CredentialRecordSavePayload<CredentialEmployee>) => Promise<CredentialLibraryMutationResult>;
-    deleteEmployee: (recordId: string) => Promise<CredentialLibraryMutationResult>;
-    saveProject: (payload: CredentialRecordSavePayload<CredentialProject>) => Promise<CredentialLibraryMutationResult>;
-    deleteProject: (recordId: string) => Promise<CredentialLibraryMutationResult>;
-    saveOtherMaterial: (payload: CredentialRecordSavePayload<CredentialOtherMaterial>) => Promise<CredentialLibraryMutationResult>;
-    deleteOtherMaterial: (recordId: string) => Promise<CredentialLibraryMutationResult>;
+    listCompanies: () => Promise<CredentialCompany[]>;
+    createCompany: (input: { companyName: string; unifiedSocialCreditCode: string }) => Promise<{ companyId: string; companies: CredentialCompany[] }>;
+    deleteCompany: (companyId: string) => Promise<{ companies: CredentialCompany[]; fileDeleteFailures: string[] }>;
+    load: (companyId: string) => Promise<CredentialLibrarySnapshot>;
+    importTestData: (companyId: string) => Promise<CredentialLibraryImportResult | null>;
+    saveProfile: (companyId: string, partial: Partial<CredentialLibraryProfile>) => Promise<CredentialLibrarySnapshot>;
+    addProfileImages: (companyId: string, fieldKey: CredentialImageFieldKey, filePaths: string[]) => Promise<CredentialLibrarySnapshot>;
+    deleteImage: (companyId: string, imageId: string) => Promise<CredentialLibraryMutationResult>;
+    saveCertificate: (companyId: string, payload: CredentialRecordSavePayload<CredentialCertificate>) => Promise<CredentialLibraryMutationResult>;
+    deleteCertificate: (companyId: string, recordId: string) => Promise<CredentialLibraryMutationResult>;
+    saveEmployee: (companyId: string, payload: CredentialRecordSavePayload<CredentialEmployee>) => Promise<CredentialLibraryMutationResult>;
+    deleteEmployee: (companyId: string, recordId: string) => Promise<CredentialLibraryMutationResult>;
+    saveProject: (companyId: string, payload: CredentialRecordSavePayload<CredentialProject>) => Promise<CredentialLibraryMutationResult>;
+    deleteProject: (companyId: string, recordId: string) => Promise<CredentialLibraryMutationResult>;
+    saveOtherMaterial: (companyId: string, payload: CredentialRecordSavePayload<CredentialOtherMaterial>) => Promise<CredentialLibraryMutationResult>;
+    deleteOtherMaterial: (companyId: string, recordId: string) => Promise<CredentialLibraryMutationResult>;
   };
   knowledgeImage: {
     listFolders: () => Promise<KnowledgeImageFolder[]>;

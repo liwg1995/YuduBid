@@ -235,7 +235,7 @@ function createTask(type, payload) {
   };
 }
 
-function createTaskService({ aiService, technicalDiagramService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService, configStore, templateStore }) {
+function createTaskService({ app, aiService, technicalDiagramService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService, configStore, templateStore }) {
   const subscribers = new Set();
   const activeTasks = new Map();
   const activeTaskControls = new Map();
@@ -809,7 +809,7 @@ function createTaskService({ aiService, technicalDiagramService, technicalPlanSt
       });
     },
     startContentGeneration(payload) {
-      return startManagedTask('content-generation', payload, (context) => runContentGenerationTask({ ...context, technicalDiagramService, configStore, templateStore }));
+      return startManagedTask('content-generation', payload, (context) => runContentGenerationTask({ ...context, app, technicalDiagramService, configStore, templateStore }));
     },
     pauseContentGeneration(payload) {
       const task = activeTasks.get('content-generation');

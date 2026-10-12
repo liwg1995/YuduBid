@@ -1,3 +1,4 @@
+import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { AppSwitch, FloatingToolbar, ProgressBar, useToast } from '../../../shared/ui';
@@ -257,7 +258,7 @@ function MeasurementInput({ label, value, unit, onChange }: MeasurementInputProp
   const automatic = unit === 'auto';
   return (
     <div className="export-measurement-control">
-      <input
+      <BufferedNumberInput
         type="number"
         min={0}
         max={1000}
@@ -306,7 +307,7 @@ function LineSpacingControl({ value, mode, unit, onChange }: LineSpacingControlP
         {LINE_SPACING_MODE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
       <div className="export-measurement-control">
-        <input
+        <BufferedNumberInput
           type="number"
           min={0.1}
           max={1000}
@@ -893,10 +894,10 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
         <div className="settings-row">
           <div className="settings-row-copy"><strong>页边距</strong><span>上 / 右 / 下 / 左（厘米）</span></div>
           <div className="export-format-margin-grid">
-            <input type="number" min={0} max={10} step={0.1} value={config.page.margin_top_cm} onChange={(event) => updatePage({ margin_top_cm: Number(event.target.value) })} placeholder="上" />
-            <input type="number" min={0} max={10} step={0.1} value={config.page.margin_right_cm} onChange={(event) => updatePage({ margin_right_cm: Number(event.target.value) })} placeholder="右" />
-            <input type="number" min={0} max={10} step={0.1} value={config.page.margin_bottom_cm} onChange={(event) => updatePage({ margin_bottom_cm: Number(event.target.value) })} placeholder="下" />
-            <input type="number" min={0} max={10} step={0.1} value={config.page.margin_left_cm} onChange={(event) => updatePage({ margin_left_cm: Number(event.target.value) })} placeholder="左" />
+            <BufferedNumberInput type="number" min={0} max={10} step={0.1} value={config.page.margin_top_cm} onChange={(event) => updatePage({ margin_top_cm: Number(event.target.value) })} placeholder="上" />
+            <BufferedNumberInput type="number" min={0} max={10} step={0.1} value={config.page.margin_right_cm} onChange={(event) => updatePage({ margin_right_cm: Number(event.target.value) })} placeholder="右" />
+            <BufferedNumberInput type="number" min={0} max={10} step={0.1} value={config.page.margin_bottom_cm} onChange={(event) => updatePage({ margin_bottom_cm: Number(event.target.value) })} placeholder="下" />
+            <BufferedNumberInput type="number" min={0} max={10} step={0.1} value={config.page.margin_left_cm} onChange={(event) => updatePage({ margin_left_cm: Number(event.target.value) })} placeholder="左" />
           </div>
         </div>
         <label className="settings-row">
@@ -973,7 +974,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
         {(config.page.footer_enabled || config.page.page_number_enabled) && (
           <label className="settings-row">
             <div className="settings-row-copy"><strong>距底边距离</strong><span>页脚或页码距页面底边，单位：厘米</span></div>
-            <input type="number" min={0} max={5} step={0.1} value={config.page.footer_distance_cm} onChange={(event) => updatePage({ footer_distance_cm: Number(event.target.value) })} />
+            <BufferedNumberInput type="number" min={0} max={5} step={0.1} value={config.page.footer_distance_cm} onChange={(event) => updatePage({ footer_distance_cm: Number(event.target.value) })} />
           </label>
         )}
         <label className="settings-row">
@@ -988,7 +989,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
             </label>
             <label className="settings-row">
               <div className="settings-row-copy"><strong>页码起始值</strong></div>
-              <input type="number" min={1} max={9999} step={1} value={config.page.page_number_start} onChange={(event) => updatePage({ page_number_start: Number(event.target.value) })} />
+              <BufferedNumberInput type="number" min={1} max={9999} step={1} value={config.page.page_number_start} onChange={(event) => updatePage({ page_number_start: Number(event.target.value) })} />
             </label>
           </>
         )}
@@ -1205,7 +1206,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
         </div>
         <label className="settings-row">
           <div className="settings-row-copy"><strong>首行缩进（字符）</strong></div>
-          <input type="number" min={0} max={10} step={0.5} value={config.body_text.first_line_indent_chars} onChange={(event) => updateBodyText({ first_line_indent_chars: Number(event.target.value) })} />
+          <BufferedNumberInput type="number" min={0} max={10} step={0.5} value={config.body_text.first_line_indent_chars} onChange={(event) => updateBodyText({ first_line_indent_chars: Number(event.target.value) })} />
         </label>
         <div className="settings-row">
           <div className="settings-row-copy"><strong>行距</strong><span>最小值和固定值默认 28 磅，多倍行距自动使用“倍”。</span></div>
@@ -1240,7 +1241,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
         </label>
         <label className="settings-row">
           <div className="settings-row-copy"><strong>列表缩进（字符）</strong></div>
-          <input type="number" min={0} max={10} step={0.5} value={config.body_text.list_indent_chars} onChange={(event) => updateBodyText({ list_indent_chars: Number(event.target.value) })} />
+          <BufferedNumberInput type="number" min={0} max={10} step={0.5} value={config.body_text.list_indent_chars} onChange={(event) => updateBodyText({ list_indent_chars: Number(event.target.value) })} />
         </label>
       </div>
     </>
@@ -1286,7 +1287,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
       <div className="settings-list">
         <label className="settings-row">
           <div className="settings-row-copy"><strong>线框宽度</strong></div>
-          <input type="number" min={0} max={10} step={0.5} value={config.table.border_width} onChange={(event) => updateTable({ border_width: Number(event.target.value) })} />
+          <BufferedNumberInput type="number" min={0} max={10} step={0.5} value={config.table.border_width} onChange={(event) => updateTable({ border_width: Number(event.target.value) })} />
         </label>
         <label className="settings-row">
           <div className="settings-row-copy"><strong>线框颜色</strong></div>
@@ -1294,7 +1295,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
         </label>
         <label className="settings-row">
           <div className="settings-row-copy"><strong>单元格内边距</strong></div>
-          <input type="number" min={0} max={50} step={1} value={config.table.cell_padding_pt} onChange={(event) => updateTable({ cell_padding_pt: Number(event.target.value) })} />
+          <BufferedNumberInput type="number" min={0} max={50} step={1} value={config.table.cell_padding_pt} onChange={(event) => updateTable({ cell_padding_pt: Number(event.target.value) })} />
         </label>
         <label className="settings-row">
           <div className="settings-row-copy"><strong>表格铺满页面</strong></div>
@@ -1352,7 +1353,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
       <div className="settings-list">
         <label className="settings-row">
           <div className="settings-row-copy"><strong>图片最大宽度（%）</strong></div>
-          <input type="number" min={10} max={100} step={1} value={config.image.max_width_percent} onChange={(event) => updateImage({ max_width_percent: Number(event.target.value) })} />
+          <BufferedNumberInput type="number" min={10} max={100} step={1} value={config.image.max_width_percent} onChange={(event) => updateImage({ max_width_percent: Number(event.target.value) })} />
         </label>
         <label className="settings-row">
           <div className="settings-row-copy"><strong>图片对齐方式</strong></div>
@@ -1408,7 +1409,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
         </div>
         <label className="settings-row">
           <div className="settings-row-copy"><strong>Logo 宽度</strong><span>导出宽度，范围 1～12 厘米。</span></div>
-          <div className="number-unit-control"><input type="number" min="1" max="12" step="0.1" value={config.cover.logo_width_cm} onChange={(event) => updateCover({ logo_width_cm: Number(event.target.value) })} /><span>厘米</span></div>
+          <div className="number-unit-control"><BufferedNumberInput type="number" min="1" max="12" step="0.1" value={config.cover.logo_width_cm} onChange={(event) => updateCover({ logo_width_cm: Number(event.target.value) })} /><span>厘米</span></div>
         </label>
         <label className="settings-row">
           <div className="settings-row-copy"><strong>项目名称</strong><span>使用 {'{project_name}'} 可在导出时自动替换实际项目名。</span></div>

@@ -49,7 +49,7 @@ export function ProjectManagementListView({
           <h3>选择一个项目继续推进，或创建新的项目</h3>
           <p>项目管理负责创建、进入、删除和继续编辑；项目历史只做归档查看和阶段预览。</p>
         </div>
-        <button type="button" className="primary-action" onClick={onCreateProject} disabled={isRunning}>创建项目</button>
+        <button type="button" className="primary-action create-action" onClick={onCreateProject} disabled={isRunning}>创建项目</button>
       </div>
       <div className="project-management-searchbar">
         <label>
@@ -77,7 +77,7 @@ export function ProjectManagementListView({
           {hasKeyword ? (
             <button type="button" className="secondary-action" onClick={() => setKeyword('')}>清空检索</button>
           ) : (
-            <button type="button" className="secondary-action" onClick={onCreateProject}>创建项目</button>
+            <button type="button" className="secondary-action create-action" onClick={onCreateProject}>创建项目</button>
           )}
         </div>
       ) : (

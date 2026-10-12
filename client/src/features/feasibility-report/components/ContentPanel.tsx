@@ -1,3 +1,4 @@
+import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Switch from '@radix-ui/react-switch';
 import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react';
@@ -214,7 +215,7 @@ export default function ContentPanel({ projectId, state, onStateChange }: { proj
             </label>
             <label className="content-generation-config-row">
               <span><strong>全文 AI 图片最大数量</strong><small>模型会按章节价值择优编排，不会要求每个小节都插图。</small></span>
-              <input type="number" min="0" max={Math.max(1, leaves.length)} value={draftGenerationOptions.maxAiImages} disabled={!draftGenerationOptions.useAiImages || imageModelStatus !== 'available'} onChange={(event) => setDraftGenerationOptions((current) => ({ ...current, maxAiImages: Math.max(0, Math.min(Math.round(Number(event.target.value) || 0), Math.max(1, leaves.length))) }))} />
+              <BufferedNumberInput type="number" min="0" max={Math.max(1, leaves.length)} value={draftGenerationOptions.maxAiImages} disabled={!draftGenerationOptions.useAiImages || imageModelStatus !== 'available'} onChange={(event) => setDraftGenerationOptions((current) => ({ ...current, maxAiImages: Math.max(0, Math.min(Math.round(Number(event.target.value) || 0), Math.max(1, leaves.length))) }))} />
             </label>
             <label className="content-generation-config-row">
               <span><strong>生成技术图谱</strong><small>{technicalDiagramAvailable ? '适合架构、拓扑、数据流、复杂流程和模块关系图。' : '请先到 设置 > 技能管理 启用 technical-diagram。'}</small></span>

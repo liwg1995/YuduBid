@@ -8,6 +8,7 @@ const { normalizeChatMessages } = require('../utils/normalizeChatMessages.cjs');
 const { getAiLogsDir, getGeneratedImagesDir } = require('../utils/paths.cjs');
 const {
   isRetryableHttpStatus,
+  isTransientProviderConnectionMessage,
   markAiRequestError,
   runWithAiRetry,
 } = require('../utils/aiRetry.cjs');
@@ -383,7 +384,7 @@ async function ensureOk(response, fallbackMessage) {
 
   throw markAiRequestError(new Error(detail || fallbackMessage), {
     status: response.status,
-    retryable: isRetryableHttpStatus(response.status) && !isNonRecoverableQuotaError(detail),
+    retryable: (isRetryableHttpStatus(response.status) || isTransientProviderConnectionMessage(detail)) && !isNonRecoverableQuotaError(detail),
   });
 }
 
@@ -729,6 +730,8 @@ async function collectJsonResponseWithConfig(app, config, request, usageStatsSto
       response_format: responseFormat,
       timeout_ms: request.timeout_ms,
       timeout_message: request.timeout_message,
+      max_request_attempts: request.max_request_attempts,
+      progressCallback: request.progressCallback,
       logTitle,
       signal: request.signal,
       abort_message: request.abort_message,
@@ -839,6 +842,7 @@ async function readChatResponse(response, onChunk) {
   }
   if (!contentType.includes('text/event-stream') && !raw.trimStart().startsWith('data:')) {
     const data = JSON.parse(raw);
+    if (data.error) throw new Error(data.error.message || String(data.error));
     return { data, content: data.choices?.[0]?.message?.content || '', finishReason: data.choices?.[0]?.finish_reason };
   }
   let content = '';
@@ -938,7 +942,7 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
           } else {
             throw markAiRequestError(new Error(detail || 'AI 请求失败'), {
               status: response.status,
-              retryable: isRetryableHttpStatus(response.status) && !isNonRecoverableQuotaError(detail),
+              retryable: (isRetryableHttpStatus(response.status) || isTransientProviderConnectionMessage(detail)) && !isNonRecoverableQuotaError(detail),
             });
           }
         }

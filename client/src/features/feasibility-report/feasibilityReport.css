@@ -40,42 +40,13 @@
 }
 
 .feasibility-project-guide {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
-  gap: 28px;
-  padding: 24px;
+  padding: 16px 20px;
 }
 
 .feasibility-project-guide-copy strong {
   display: block;
   color: var(--yb-text);
   font-size: 18px;
-}
-
-.feasibility-project-guide-copy small {
-  display: block;
-  margin-top: 12px;
-  color: var(--yb-text-muted);
-  line-height: 1.6;
-}
-
-.feasibility-project-guide-flow {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.feasibility-project-guide-flow span {
-  display: flex;
-  min-height: 42px;
-  align-items: center;
-  padding: 8px 12px;
-  color: var(--yb-text-soft);
-  font-size: 13px;
-  font-weight: 700;
-  background: rgba(33, 116, 253, 0.06);
-  border: 1px solid rgba(33, 116, 253, 0.1);
-  border-radius: 10px;
 }
 
 .feasibility-project-list {
@@ -674,10 +645,6 @@
 }
 
 @media (max-width: 980px) {
-  .feasibility-project-guide {
-    grid-template-columns: 1fr;
-  }
-
   .feasibility-source-workspace {
     grid-template-columns: 1fr;
   }
@@ -699,10 +666,6 @@
 
   .feasibility-project-actions {
     justify-content: flex-start;
-  }
-
-  .feasibility-project-guide-flow {
-    grid-template-columns: 1fr;
   }
 
   .feasibility-step-command-bar {
@@ -920,7 +883,6 @@
 
 @container (max-width: 900px) {
   .feasibility-project-hero { align-items: flex-start; flex-direction: column; }
-  .feasibility-project-guide { grid-template-columns: minmax(0, 1fr); }
   .feasibility-analysis-layout, .feasibility-outline-layout, .feasibility-parameters-layout, .feasibility-content-layout { overflow: auto; }
   .feasibility-three-pane-workspace, .feasibility-outline-workspace { grid-template-columns: minmax(0, 1fr); overflow: visible; }
   .feasibility-task-card { min-height: 280px; border-right: 0; border-bottom: 1px solid var(--yb-border-soft); }

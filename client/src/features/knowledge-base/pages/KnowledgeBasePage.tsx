@@ -1,3 +1,4 @@
+import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import { Profiler, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import '../knowledgeBase.css';
@@ -861,7 +862,7 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
           <small>{index.folders.length} 个文件夹 / {index.documents.length} 个文档</small>
         </div>
         <div className="knowledge-toolbar-actions">
-          {!embedded && <button type="button" className="secondary-action" onClick={() => setShowCreateFolder((value) => !value)} disabled={migrationRunning || listLoading}>新建文件夹</button>}
+          {!embedded && <button type="button" className="secondary-action create-action" onClick={() => setShowCreateFolder((value) => !value)} disabled={migrationRunning || listLoading}>新建文件夹</button>}
           <button type="button" className="primary-action" onClick={uploadDocuments} disabled={loading || migrationRunning || !activeFolder}>
             {migrationRunning ? '迁移中...' : loading ? '处理中...' : '上传文档'}
           </button>
@@ -883,7 +884,7 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
             placeholder="输入文件夹名称"
             disabled={migrationRunning}
           />
-          <button type="submit" className="primary-action" disabled={creatingFolder || migrationRunning}>{creatingFolder ? '创建中...' : '创建'}</button>
+          <button type="submit" className="primary-action create-action" disabled={creatingFolder || migrationRunning}>{creatingFolder ? '创建中...' : '创建'}</button>
           <button
             type="button"
             className="secondary-action"
@@ -1378,7 +1379,7 @@ function KnowledgeAnalysisView({ document, snapshot, batchSize, startingMatching
         </div>
         <label>
           <span>每批条目数</span>
-          <input
+          <BufferedNumberInput
             type="number"
             min={1}
             max={100}

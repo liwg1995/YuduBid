@@ -4,6 +4,7 @@ const fsPromises = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { createLocalImageRenderService } = require('./localImageRenderService.cjs');
+const { planHtmlChart, insertHtmlChart, generateHtmlIllustration } = require('./htmlIllustrationService.cjs');
 const { assertImageExportable, buildDocxResult } = require('./exportService.cjs');
 const { readWordLayout, inspectWordLayout, selectLayoutRepairTargets } = require('./contentLayoutRepair.cjs');
 const localImageRenderService = createLocalImageRenderService();
@@ -1898,10 +1899,10 @@ function hasExistingIllustration(content, illustrationType) {
 
   const hasMarkdownImage = /!\[[^\]]*\]\([^)]*\)/.test(text) || /<img\b[^>]*>/i.test(text);
   const hasMermaidBlock = /```\s*mermaid[\s\S]*?```/i.test(text);
-  const hasIllustrationMarkers = /<!--\s*yibiao-illustration:(?:ai|mermaid|diagram)\s*-->/i.test(text);
+  const hasIllustrationMarkers = /<!--\s*yibiao-illustration:(?:ai|mermaid|diagram|html)\s*-->/i.test(text);
   const marker = new RegExp(`<!--\\s*yibiao-illustration:${illustrationType}\\s*-->`, 'i');
 
-  if (illustrationType === 'ai' || illustrationType === 'mermaid' || illustrationType === 'diagram') {
+  if (illustrationType === 'ai' || illustrationType === 'mermaid' || illustrationType === 'diagram' || illustrationType === 'html') {
     if (hasIllustrationMarkers) return marker.test(text);
     return hasMarkdownImage || hasMermaidBlock;
   }
@@ -1910,7 +1911,7 @@ function hasExistingIllustration(content, illustrationType) {
 
 function stripIllustrationsForExpansion(content) {
   return String(content || '')
-    .replace(/<!--\s*yibiao-illustration:(?:ai|mermaid|diagram)\s*-->/gi, '\n')
+    .replace(/<!--\s*yibiao-illustration:(?:ai|mermaid|diagram|html)\s*-->/gi, '\n')
     .replace(/```\s*mermaid[\s\S]*?```/gi, '\n')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/^\s*\*?图[:：][^\n]*\*?\s*$/gm, ' ')
@@ -2228,13 +2229,13 @@ function createImageStat() {
   return { planned: 0, attempted: 0, success: 0, failed: 0, skipped: 0 };
 }
 
-function sumImageStats(ai, mermaid, diagram = createImageStat()) {
+function sumImageStats(...stats) {
   return {
-    planned: ai.planned + mermaid.planned + diagram.planned,
-    attempted: ai.attempted + mermaid.attempted + diagram.attempted,
-    success: ai.success + mermaid.success + diagram.success,
-    failed: ai.failed + mermaid.failed + diagram.failed,
-    skipped: ai.skipped + mermaid.skipped + diagram.skipped,
+    planned: stats.reduce((sum, item) => sum + item.planned, 0),
+    attempted: stats.reduce((sum, item) => sum + item.attempted, 0),
+    success: stats.reduce((sum, item) => sum + item.success, 0),
+    failed: stats.reduce((sum, item) => sum + item.failed, 0),
+    skipped: stats.reduce((sum, item) => sum + item.skipped, 0),
   };
 }
 
@@ -2254,6 +2255,9 @@ function normalizeContentGenerationRuntime(value) {
     target_item_id: String(source.target_item_id || source.targetItemId || '').trim(),
     regenerate_requirement: String(source.regenerate_requirement || source.regenerateRequirement || '').trim(),
     expand_only: Boolean(source.expand_only || source.expandOnly),
+    expand_target_item_ids: normalizeStringArray(source.expand_target_item_ids || source.expandTargetItemIds),
+    generation_options: source.generation_options && typeof source.generation_options === 'object' && !Array.isArray(source.generation_options)
+      ? source.generation_options : undefined,
     updated_at: source.updated_at || source.updatedAt || now(),
   };
 }
@@ -2389,7 +2393,7 @@ function withSection(sections, item, partial) {
   };
 }
 
-async function runContentGenerationTask({ aiService, technicalDiagramService, workspaceStore, knowledgeBaseService, configStore, templateStore, updateTask, payload, taskControl, previousState }) {
+async function runContentGenerationTask({ app, aiService, technicalDiagramService, workspaceStore, knowledgeBaseService, configStore, templateStore, updateTask, payload, taskControl, previousState }) {
   const resume = Boolean(payload.resume);
   const storedPlan = previousState || workspaceStore.loadTechnicalPlan() || {};
   let outlineData = storedPlan.outlineData;
@@ -2426,9 +2430,14 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   }
   let contentRuntime = normalizeContentGenerationRuntime(resume ? storedPlan.contentGenerationRuntime : {});
   const regenerate = !resume && Boolean(payload.regenerate);
-  const expandOnly = !resume && Boolean(payload.expandOnly || payload.expand_only);
+  const expandOnly = resume ? contentRuntime.expand_only : Boolean(payload.expandOnly || payload.expand_only);
   const targetItemId = resume ? contentRuntime.target_item_id : String(payload.targetItemId || '').trim();
-  const expandTargetItemIds = new Set(normalizeStringArray(payload.targetItemIds || payload.target_item_ids));
+  const expandTargetItemIds = new Set(resume
+    ? contentRuntime.expand_target_item_ids
+    : normalizeStringArray(payload.targetItemIds || payload.target_item_ids));
+  if (expandOnly && !expandTargetItemIds.size) {
+    throw new Error('继续扩写缺少已选择的小节范围，请重新选择小节后启动任务');
+  }
   const fullRegenerate = regenerate && !targetItemId;
   if (fullRegenerate) {
     outlineData = { ...outlineData, outline: clearOutlineContent(outlineData.outline) };
@@ -2439,7 +2448,9 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     throw new Error('当前目录没有可生成正文的小节');
   }
   const regenerateRequirement = resume ? contentRuntime.regenerate_requirement : String(payload.requirement || '').trim();
-  const generationOptions = payload.generationOptions || payload.generation_options || storedPlan.contentGenerationOptions || {};
+  const generationOptions = resume && expandOnly
+    ? contentRuntime.generation_options || {}
+    : payload.generationOptions || payload.generation_options || storedPlan.contentGenerationOptions || {};
   const factPolicy = storedPlan.contentGenerationOptions?.missingFactPolicy || 'infer';
   const generatedFactPolicy = storedPlan.globalFactsTask?.stats?.globalFactsPolicy;
   if (generatedFactPolicy && generatedFactPolicy !== factPolicy) {
@@ -2486,6 +2497,8 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   }
   const aiImagesEnabled = Boolean(generationOptions.useAiImages ?? generationOptions.use_ai_images ?? imageAvailability.available) && imageAvailability.available;
   const mermaidImagesEnabled = Boolean(generationOptions.useMermaidImages ?? generationOptions.use_mermaid_images ?? Boolean(targetItemId));
+  const htmlImagesEnabled = Boolean(generationOptions.useHtmlImages);
+  const maxHtmlImages = htmlImagesEnabled ? Math.max(0, Math.min(30, Math.round(Number(generationOptions.maxHtmlImages ?? 10) || 0))) : 0;
   const technicalDiagramEnabled = Boolean(
     technicalDiagramService?.generateDiagram
     && aiService.isSkillEnabled?.('technical-diagram')
@@ -2502,7 +2515,7 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   const configuredMaxMermaidImages = mermaidImagesEnabled
     ? Math.max(0, Math.min(DEFAULT_MAX_MERMAID_IMAGES, targetItemId ? 1 : leaves.length))
     : 0;
-  const imageStats = { ai: createImageStat(), mermaid: createImageStat(), diagram: createImageStat() };
+  const imageStats = { ai: createImageStat(), mermaid: createImageStat(), diagram: createImageStat(), html: createImageStat() };
   const expansionCompletedItemIds = new Set();
   const expansionFailedItemIds = new Set();
   const contentStats = {
@@ -2537,6 +2550,8 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     target_item_id: targetItemId,
     regenerate_requirement: regenerateRequirement,
     expand_only: expandOnly,
+    expand_target_item_ids: [...expandTargetItemIds],
+    generation_options: expandOnly ? generationOptions : undefined,
   });
   const contentPlans = new Map();
   let storedContentPlans = pruneContentGenerationPlans(fullRegenerate ? {} : storedPlan.contentGenerationPlans, leaves);
@@ -2715,7 +2730,7 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
     contentStats.generation_completed = leaves.filter(({ item }) => ['success', 'error'].includes(sections[item.id]?.status)).length;
     contentStats.current_words = countTotalContentWords();
     contentStats.minimum_words = minimumWords;
-    return { images: { total: sumImageStats(imageStats.ai, imageStats.mermaid, imageStats.diagram), ai: { ...imageStats.ai }, mermaid: { ...imageStats.mermaid }, diagram: { ...imageStats.diagram } }, content: { ...contentStats } };
+    return { images: { total: sumImageStats(imageStats.ai, imageStats.mermaid, imageStats.diagram, imageStats.html), ai: { ...imageStats.ai }, mermaid: { ...imageStats.mermaid }, diagram: { ...imageStats.diagram }, html: { ...imageStats.html } }, content: { ...contentStats } };
   }
 
   function syncRuntime(partial = {}) {
@@ -4336,12 +4351,39 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
   }
 
   async function runIllustrations() {
-    const illustrationTotal = aiImageTargets.length + technicalDiagramTargets.length + mermaidImageTargets.length;
+    const htmlCandidates = maxHtmlImages ? leaves
+      .map(({ item }) => {
+        const content = getCurrentSuccessfulContent(item);
+        if (!((!targetItemId || item.id === targetItemId)
+          && (!expandOnly || !expandTargetItemIds.size || expandTargetItemIds.has(item.id))
+          && content && !/<!--\s*yibiao-illustration:html\s*-->/i.test(content))) return null;
+        const plan = planHtmlChart(item.title, content);
+        return plan ? { item, plan } : null;
+      }).filter(Boolean) : [];
+    const htmlTargetIds = new Set([...htmlCandidates]
+      .sort((left, right) => right.plan.score - left.plan.score)
+      .slice(0, targetItemId ? 1 : maxHtmlImages)
+      .map(({ item }) => item.id));
+    const htmlTargets = htmlCandidates.filter(({ item }) => htmlTargetIds.has(item.id));
+    const htmlIds = new Set(htmlTargets.map(({ item }) => item.id));
+    const fallbackTargets = {
+      ai: aiImageTargets.filter(({ item }) => htmlIds.has(item.id)),
+      diagram: technicalDiagramTargets.filter(({ item }) => htmlIds.has(item.id)),
+      mermaid: mermaidImageTargets.filter(({ item }) => htmlIds.has(item.id)),
+    };
+    aiImageTargets = aiImageTargets.filter(({ item }) => !htmlIds.has(item.id));
+    technicalDiagramTargets = technicalDiagramTargets.filter(({ item }) => !htmlIds.has(item.id));
+    mermaidImageTargets = mermaidImageTargets.filter(({ item }) => !htmlIds.has(item.id));
+    imageStats.html.planned = htmlTargets.length;
+    imageStats.ai.planned = aiImageTargets.length;
+    imageStats.diagram.planned = technicalDiagramTargets.length;
+    imageStats.mermaid.planned = mermaidImageTargets.length;
+    const illustrationTotal = aiImageTargets.length + technicalDiagramTargets.length + mermaidImageTargets.length + htmlTargets.length;
     contentStats.phase = 'illustrating';
     contentStats.illustration_total = illustrationTotal;
     contentStats.illustration_completed = 0;
     logs = [...logs, illustrationTotal
-      ? `开始配图：AI 生图 ${aiImageTargets.length} 张（并发 ${AI_IMAGE_CONCURRENCY}），技术图谱 ${technicalDiagramTargets.length} 张（并发 ${TECHNICAL_DIAGRAM_CONCURRENCY}），Mermaid 图 ${mermaidImageTargets.length} 张（并发 ${MERMAID_IMAGE_CONCURRENCY}）。`
+      ? `开始配图：HTML 图 ${htmlTargets.length} 张，AI 生图 ${aiImageTargets.length} 张，技术图谱 ${technicalDiagramTargets.length} 张，Mermaid 图 ${mermaidImageTargets.length} 张。`
       : '本次没有需要执行的配图。'];
     updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
 
@@ -4349,7 +4391,40 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
       return;
     }
 
-    // 同一章节现在允许生成三种配图；按类型串行执行，确保后一种配图读取前一种已经写回的正文，避免并发覆盖内容。
+    for (const { item, plan } of htmlTargets) {
+      if (isPauseRequested()) break;
+      const baseContent = getCurrentSuccessfulContent(item);
+      const chartType = plan.type;
+      imageStats.html.attempted += 1;
+      try {
+        const result = await generateHtmlIllustration({ app, aiService, title: item.title, content: baseContent, chartType, itemId: item.id, focusText: plan.anchor });
+        await assertGeneratedImageSaved(result, 'HTML 配图');
+        const caption = result.fallback
+          ? `${singleLine(item.title)}正文要点图`
+          : singleLine(item.title).includes(chartType) ? singleLine(item.title) : `${singleLine(item.title)}${chartType}`;
+        const content = insertHtmlChart(baseContent, plan, result.asset_url, caption);
+        imageStats.html.success += 1;
+        logs = [...logs, result.fallback
+          ? `HTML 原图多次生成失败，已自动改用正文摘录信息图：${item.id}（原因：${result.fallback_reason}；仅呈现原文要点，插在相关段落后）。`
+          : `HTML 配图完成：${item.id} ${chartType}（依据：${plan.evidence.join('、')}；插在相关段落后）${result.layout_warnings?.length ? `；排版提示：${result.layout_warnings.join('；')}` : ''}`];
+        saveSection(item, { status: 'success', content, error: undefined }, content, { logs });
+      } catch (error) {
+        imageStats.html.failed += 1;
+        logs = [...logs, `HTML 配图失败：${item.id} ${error.message || '生成失败'}，已保留正文。`];
+        saveSection(item, { status: 'success', content: baseContent, error: undefined }, baseContent, { logs });
+        for (const [kind, targets] of Object.entries(fallbackTargets)) {
+          const original = targets.find((target) => target.item.id === item.id);
+          if (!original) continue;
+          if (kind === 'ai') aiImageTargets.push(original);
+          if (kind === 'diagram') technicalDiagramTargets.push(original);
+          if (kind === 'mermaid') mermaidImageTargets.push(original);
+          imageStats[kind].planned += 1;
+          contentStats.illustration_total += 1;
+        }
+      }
+      contentStats.illustration_completed += 1;
+    }
+    // 不同类型按顺序执行，避免同一章节的正文更新互相覆盖。
     await runItemsWithWorkerPool(aiImageTargets, AI_IMAGE_CONCURRENCY, runAiIllustration, isPauseRequested);
     await runItemsWithWorkerPool(technicalDiagramTargets, TECHNICAL_DIAGRAM_CONCURRENCY, runTechnicalDiagramIllustration, isPauseRequested);
     await runItemsWithWorkerPool(mermaidImageTargets, MERMAID_IMAGE_CONCURRENCY, runMermaidIllustration, isPauseRequested);
@@ -4412,7 +4487,7 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
       await runConsistencyAuditIfEnabled({ targetItemId });
     }
 
-    if (!expandOnly || aiImageTargets.length || technicalDiagramTargets.length || mermaidImageTargets.length) {
+    if (!expandOnly || aiImageTargets.length || technicalDiagramTargets.length || mermaidImageTargets.length || htmlImagesEnabled) {
       pauseIfRequested(expandOnly ? '继续扩写已在配图前暂停，可导出当前已完成内容，稍后继续。' : '正文生成已在配图前暂停，可导出当前已完成内容，稍后继续。');
       await runIllustrations();
       pauseIfRequested(expandOnly ? '继续扩写已在完成前暂停，可导出当前已完成内容，稍后继续。' : '正文生成已在完成前暂停，可导出当前已完成内容，稍后继续。');
@@ -4420,6 +4495,7 @@ async function runContentGenerationTask({ aiService, technicalDiagramService, wo
 
     contentStats.phase = 'validating-images';
     for (const { item } of leaves) {
+      if (expandOnly && !expandTargetItemIds.has(item.id)) continue;
       const section = sections[item.id];
       if (section?.status !== 'success') continue;
       const content = section.content || item.content || '';

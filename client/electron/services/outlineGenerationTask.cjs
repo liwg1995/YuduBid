@@ -100,10 +100,12 @@ function outlineSystemPrompt() {
 要求：
 1. 目录结构要全面覆盖技术标的所有必要章节
 2. 章节名称要专业、准确，符合投标文件规范
-3. 一级目录名称要与技术评分要求中的章节名称一致；如果技术评分要求中没有明确章节名称，则结合内容总结一级目录名称
+3. 自由生成不要求一级目录与评分项一一对应；评分项是必须覆盖的内容依据，不是限制目录数量的模板。只有招标文件明确规定技术文件章节名称时才优先沿用
 4. 一共包括三级目录
-5. 返回标准 JSON 格式，包含章节编号、标题、描述和子章节
-6. 除了 JSON 结果外，不要输出任何其他内容
+5. 即使技术要求只有一两条，也要按实际写作需要组织总体方案、核心功能实现、实施与验证等有实质内容的章节；可将两条独立功能分章，不要把整篇文件压成一个“功能要求”章节
+6. 目录规模应与篇幅目标和可证实的需求相称；不得为凑章节编造性能数值、技术选型、交付承诺或重复空泛内容
+7. 返回标准 JSON 格式，包含章节编号、标题、描述和子章节
+8. 除了 JSON 结果外，不要输出任何其他内容
 
 JSON 格式要求：
 {
@@ -138,9 +140,10 @@ function topLevelOutlineSystemPrompt() {
 要求：
 1. 只生成一级目录，不要生成二级和三级目录
 2. 一级目录名称要专业、准确，符合投标文件规范
-3. 一级目录名称要尽量与技术评分要求中的章节名称一致；如果技术评分要求中没有明确章节名称，则结合内容总结一级目录名称
-4. 返回标准 JSON 格式，使用 outline 字段，每个一级目录必须包含 id、title、description
-5. 除了 JSON 结果外，不要输出任何其他内容
+3. 自由生成不要求一级目录与评分项一一对应；即使评分项只有一两条，也要按技术方案的实际写作主题合理分章，不要机械地只生成一个“功能要求”章节
+4. 核心功能、总体方案、实施与验证等章节须有明确的需求依据；不得虚构参数、技术选型、交付承诺或增加空泛重复章节
+5. 返回标准 JSON 格式，使用 outline 字段，每个一级目录必须包含 id、title、description
+6. 除了 JSON 结果外，不要输出任何其他内容
 
 JSON 格式要求：
 {
@@ -266,11 +269,12 @@ function reviewOutlineMessages({ overview, requirements, outline, noTechnicalSco
 
 要求：
 1. 重点检查目录是否完整覆盖技术评分要点
-2. 检查一级目录名称是否专业、准确，是否尽量与评分项原文保持一致
-3. 检查目录层级是否清晰，是否达到三级目录要求，是否存在明显遗漏、错位、重复或不合理章节
-4. 只返回 JSON，格式为：{"passed": true, "suggestions": []}
-5. 若不通过，suggestions 中必须给出具体、可执行的修改建议
-6. 除了 JSON 外，不要输出任何其他内容`;
+2. 自由生成允许按技术方案的写作主题分章，不要求一级目录与评分项一一对应；检查章节名称是否专业、准确
+3. 当技术要求只有几条时，仍须检查是否把所有内容压入单个宽泛章节；如果已有事实支持，应按总体方案、核心功能及实施验证形成实质性写作单元，同时避免空泛凑数
+4. 检查目录层级是否清晰，是否达到三级目录要求，是否存在明显遗漏、错位、重复或不合理章节
+5. 只返回 JSON，格式为：{"passed": true, "suggestions": []}
+6. 若不通过，suggestions 中必须给出具体、可执行的修改建议
+7. 除了 JSON 外，不要输出任何其他内容`;
   return [
     { role: 'system', content: noTechnicalScoreMode ? `你是技术文件目录审核专家。招标文件没有技术评分项。检查目录是否覆盖已有技术要求、结构是否合理、是否编造具体事实或评分项。只返回 {"passed": true, "suggestions": []} 格式的 JSON。` : systemPrompt },
     { role: 'user', content: `项目概述：\n${overview}` },
@@ -852,13 +856,19 @@ async function freeWorkflow(aiService, payload, log) {
   const [first, generationMode] = await generateByMode(aiService, payload, 'auto', undefined, log);
   log('首次目录生成完成，开始审核目录质量。', 82);
   const firstReview = await reviewOutline(aiService, payload, first, log, '首次审核', 82);
-  if (firstReview.passed) {
+  const singleRoot = (first.outline || []).length === 1;
+  if (firstReview.passed && !singleRoot) {
     log('目录审核通过，准备返回结果。', 96);
     return first;
   }
 
-  const suggestions = firstReview.suggestions?.length ? firstReview.suggestions : [payload.noTechnicalScoreMode ? '请根据项目概述与技术要求修正目录，不得编造项目事实或评分项。' : '请根据项目概述和技术评分要求补全目录覆盖范围，并修正不合理章节。'];
-  log('目录审核未通过，正在根据修改建议重新生成。', 88);
+  const suggestions = [
+    ...(firstReview.suggestions?.length ? firstReview.suggestions : []),
+    ...(singleRoot ? ['当前自由生成目录只有一个一级目录。请检查已有技术要求能否按总体方案、不同核心功能及实施验证等实质主题分章；如材料确实只支持一个主题，可以保留单章，但不得编造参数、技术选型或重复空泛章节。'] : []),
+  ];
+  if (!suggestions.length) suggestions.push(payload.noTechnicalScoreMode ? '请根据项目概述与技术要求修正目录，不得编造项目事实或评分项。' : '请根据项目概述和技术评分要求补全目录覆盖范围，并修正不合理章节。');
+  if (singleRoot) log('自由生成目录仅有一个一级章节，正在检查是否可以按已有技术要求合理分章。', 87);
+  log('目录结构需要复核，正在根据修改建议重新生成。', 88);
   let second;
   try {
     [second] = await generateByMode(aiService, payload, generationMode, suggestions, log, {

@@ -1,5 +1,12 @@
 export type CredentialOwnerType = 'profile' | 'certificate' | 'employee' | 'project' | 'other';
 
+export interface CredentialCompany {
+  companyId: string;
+  companyName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type CredentialImageFieldKey =
   | 'officeEnvironment'
   | 'businessLicense'

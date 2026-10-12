@@ -1,3 +1,4 @@
+import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import { useEffect, useRef, useState } from 'react';
 import { AppSwitch, useToast } from '../../../shared/ui';
 import type { KnowledgeBaseIndex } from '../../knowledge-base/types';
@@ -38,7 +39,7 @@ interface GenerationSettingsPageProps {
 
 const defaults: ContentGenerationOptions = {
   useAiImages: false, aiImageStyle: 'auto', maxAiImages: 6,
-  useMermaidImages: true, useTechnicalDiagrams: false,
+  useMermaidImages: true, useHtmlImages: true, maxHtmlImages: 10, useTechnicalDiagrams: false,
   tableRequirement: 'heavy', minimumWords: 0, maximumWords: 0, sectionWords: 0, wordCountRepair: false, layoutCheck: false, contentConcurrency: 5,
   enableConsistencyAudit: true, enableOriginalPlanCoverageAudit: false,
   missingFactPolicy: 'infer',
@@ -286,10 +287,12 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
         {activeTab === 'illustration' && <section className="generation-settings-section generation-settings-illustration">
           <div className="generation-settings-row"><span><strong>使用 AI 生图</strong><small>{imageModelStatus === 'available' ? '已配置可用生图模型。' : '请先在设置中配置并测试生图模型。'}</small></span><AppSwitch checked={draft.useAiImages} disabled={imageModelStatus !== 'available'} onCheckedChange={(checked) => setDraft((current) => ({ ...current, useAiImages: checked }))} aria-label="使用 AI 生图" /></div>
           <div className="generation-settings-row"><span><strong>生成 Mermaid 图</strong><small>适合简单流程、层级和关系图；预览与 Word 图片转换在本地完成。</small></span><AppSwitch checked={draft.useMermaidImages} onCheckedChange={(checked) => setDraft((current) => ({ ...current, useMermaidImages: checked }))} aria-label="生成 Mermaid 图" /></div>
+          <div className="generation-settings-row"><span><strong>生成 HTML 图</strong><small>小节正文同时具备图型所需的两组线索时，匹配甘特、WBS、拓扑、组织、矩阵等图型；优先选择匹配度高的小节，插在相关段落后。</small></span><AppSwitch checked={Boolean(draft.useHtmlImages)} onCheckedChange={(checked) => setDraft((current) => ({ ...current, useHtmlImages: checked }))} aria-label="生成 HTML 图" /></div>
+          {draft.useHtmlImages && <div className="generation-settings-row"><span><strong>HTML 配图上限</strong><small>每次生成最多使用的 HTML 图片张数；没有足够事实的小节不会凑数。</small></span><BufferedNumberInput type="number" min="0" max="30" step="1" value={draft.maxHtmlImages ?? 10} onChange={(event) => setDraft((current) => ({ ...current, maxHtmlImages: Math.max(0, Math.min(30, Math.round(Number(event.target.value) || 0))) }))} /></div>}
           <div className="generation-settings-row"><span><strong>生成技术图谱</strong><small>{technicalDiagramAvailable ? '适合架构、拓扑、数据流和复杂流程。' : '请先在设置 > 技能管理中启用 technical-diagram。'}</small></span><AppSwitch checked={draft.useTechnicalDiagrams} disabled={!technicalDiagramAvailable} onCheckedChange={(checked) => setDraft((current) => ({ ...current, useTechnicalDiagrams: checked }))} aria-label="生成技术图谱" /></div>
           <div className="generation-settings-subsection">
             <div className="generation-settings-section-head"><strong>本项目配图参数</strong><span>控制 AI 生图数量与表现形式。</span></div>
-            <div className="generation-settings-row"><span><strong>AI 配图上限</strong><small>本次生成最多使用的 AI 图片张数。</small></span><input type="number" min="0" step="1" value={draft.maxAiImages} disabled={!draft.useAiImages || imageModelStatus !== 'available'} onChange={(event) => setDraft((current) => ({ ...current, maxAiImages: Math.max(0, Math.round(Number(event.target.value) || 0)) }))} /></div>
+            <div className="generation-settings-row"><span><strong>AI 配图上限</strong><small>本次生成最多使用的 AI 图片张数。</small></span><BufferedNumberInput type="number" min="0" step="1" value={draft.maxAiImages} disabled={!draft.useAiImages || imageModelStatus !== 'available'} onChange={(event) => setDraft((current) => ({ ...current, maxAiImages: Math.max(0, Math.round(Number(event.target.value) || 0)) }))} /></div>
             <div className="generation-settings-row"><span><strong>AI 配图风格</strong><small>自动模式由生成流程选择。</small></span><select value={draft.aiImageStyle || 'auto'} disabled={!draft.useAiImages || imageModelStatus !== 'available'} onChange={(event) => setDraft((current) => ({ ...current, aiImageStyle: event.target.value as ContentGenerationOptions['aiImageStyle'] }))}><option value="auto">自动</option><option value="engineering_diagram">工程示意图</option><option value="realistic_photo">真实照片</option><option value="product_shot">产品展示图</option><option value="architectural_render">建筑场地效果图</option><option value="3d_render">三维模型</option><option value="isometric_illustration">轴测插画</option><option value="cutaway_illustration">剖视插画</option><option value="exploded_view">爆炸分解图</option><option value="line_drawing">技术线稿</option><option value="flat_illustration">扁平插画</option></select></div>
           </div>
         </section>}
@@ -306,7 +309,7 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
           <div className="generation-settings-subsection">
             <div className="generation-settings-section-head"><strong>本项目正文参数</strong></div>
             <div className="generation-settings-row"><span><strong>全文一致性审计</strong><small>正文完成后检查与全局事实冲突的内容。</small></span><AppSwitch checked={draft.enableConsistencyAudit} onCheckedChange={(checked) => setDraft((current) => ({ ...current, enableConsistencyAudit: checked }))} aria-label="全文一致性审计" /></div>
-            <div className="generation-settings-row"><span><strong>正文并发数</strong><small>受所配置模型服务的速率限制影响。</small></span><input type="number" min="1" step="1" value={draft.contentConcurrency} onChange={(event) => setDraft((current) => ({ ...current, contentConcurrency: Math.max(1, Math.round(Number(event.target.value) || 1)) }))} /></div>
+            <div className="generation-settings-row"><span><strong>正文并发数</strong><small>受所配置模型服务的速率限制影响。</small></span><BufferedNumberInput type="number" min="1" step="1" value={draft.contentConcurrency} onChange={(event) => setDraft((current) => ({ ...current, contentConcurrency: Math.max(1, Math.round(Number(event.target.value) || 1)) }))} /></div>
           </div>
         </section>}
 

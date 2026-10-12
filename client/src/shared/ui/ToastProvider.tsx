@@ -1,5 +1,5 @@
 import * as Toast from '@radix-ui/react-toast';
-import { createContext, useCallback, useContext, useMemo, useReducer, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from 'react';
 import { toChineseErrorMessage } from '../utils/userFacingError';
 
 export type ToastType = 'success' | 'error' | 'info';
@@ -24,6 +24,7 @@ interface ToastItem {
   message: string;
   type: ToastType;
   duration: number;
+  persistent: boolean;
   actions?: ToastAction[];
 }
 
@@ -51,7 +52,7 @@ const toastTitleMap: Record<ToastType, string> = {
   info: '提示',
 };
 
-const getToastDuration = (type: ToastType) => (type === 'error' ? 5000 : 2000);
+const defaultToastDuration = 8000;
 const persistentToastDuration = 2147483647;
 
 const initialToastState: ToastState = { items: [], sessionId: 0 };
@@ -70,6 +71,7 @@ function toastReducer(state: ToastState, action: ToastActionEvent): ToastState {
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [{ items: toasts, sessionId }, dispatch] = useReducer(toastReducer, initialToastState);
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
   const dismissToast = useCallback((id: number) => {
     dispatch({ type: 'dismiss', id });
@@ -84,11 +86,30 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         title: options.title,
         message: type === 'error' ? toChineseErrorMessage(message) : message,
         type,
-        duration: options.persistent ? persistentToastDuration : options.duration || getToastDuration(type),
+        duration: options.persistent ? persistentToastDuration : options.duration ?? defaultToastDuration,
+        persistent: options.persistent === true,
         actions: options.actions,
       },
     });
     return id;
+  }, []);
+
+  useEffect(() => {
+    const activeIds = new Set(toasts.map((item) => item.id));
+    for (const [id, timer] of timers.current) {
+      if (activeIds.has(id)) continue;
+      clearTimeout(timer);
+      timers.current.delete(id);
+    }
+    for (const item of toasts) {
+      if (item.persistent || timers.current.has(item.id)) continue;
+      timers.current.set(item.id, setTimeout(() => dismissToast(item.id), item.duration));
+    }
+  }, [toasts, dismissToast]);
+
+  useEffect(() => () => {
+    for (const timer of timers.current.values()) clearTimeout(timer);
+    timers.current.clear();
   }, []);
 
   const handleActionClick = useCallback((item: ToastItem, action: ToastAction) => {
