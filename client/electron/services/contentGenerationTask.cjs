@@ -38,6 +38,18 @@ const TABLE_REQUIREMENT_LABELS = {
   heavy: '大量',
 };
 
+function assertGenerationSettingsMatch(snapshot, options = {}) {
+  if (!snapshot) return;
+  const current = {
+    minimumWords: normalizeWordCount(options.minimumWords ?? options.minimum_words),
+    maximumWords: normalizeWordCount(options.maximumWords ?? options.maximum_words),
+    sectionWords: normalizeWordCount(options.sectionWords ?? options.section_words),
+  };
+  if (Object.keys(current).some((key) => (Number(snapshot[key]) || 0) !== current[key])) {
+    throw new Error('篇幅设置已与当前目录生成时不同，请重新生成目录后再生成正文');
+  }
+}
+
 function singleLine(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
@@ -2476,15 +2488,7 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
     throw new Error('全文参考上限不能低于最低字数，请先调整生成设置');
   }
   if (!resume && !expandOnly && !targetItemId && storedPlan.generationSettingsSnapshot) {
-    const snapshot = storedPlan.generationSettingsSnapshot;
-    const current = {
-      minimumWords,
-      maximumWords,
-      sectionWords: configuredSectionWords,
-    };
-    if (Object.keys(current).some((key) => (Number(snapshot[key]) || 0) !== current[key])) {
-      throw new Error('篇幅设置已与当前目录生成时不同，请重新生成目录后再生成正文');
-    }
+    assertGenerationSettingsMatch(storedPlan.generationSettingsSnapshot, generationOptions);
   }
   const sectionWordTarget = resolveSectionWordTarget(configuredSectionWords, maximumWords, leaves.length);
   const referenceKnowledgeDocumentIds = normalizeReferenceDocumentIds(storedPlan);
@@ -4543,4 +4547,4 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
   }
 }
 
-module.exports = { runContentGenerationTask, stripRepeatedChapterTitle };
+module.exports = { runContentGenerationTask, stripRepeatedChapterTitle, assertGenerationSettingsMatch };

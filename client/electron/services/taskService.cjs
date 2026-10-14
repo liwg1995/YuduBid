@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const { runBidAnalysisTask } = require('./bidAnalysisTask.cjs');
 const { runBidSectionExtractionTask } = require('./bidSectionExtractionTask.cjs');
-const { runContentGenerationTask } = require('./contentGenerationTask.cjs');
+const { runContentGenerationTask, assertGenerationSettingsMatch } = require('./contentGenerationTask.cjs');
 const { runGlobalFactsTask } = require('./globalFactsTask.cjs');
 const { runOutlineGenerationTask, isMissingTechnicalScoreItems } = require('./outlineGenerationTask.cjs');
 const { runRejectionCheckTask, runRejectionItemsExtractionTask } = require('./rejectionCheckTask.cjs');
@@ -809,6 +809,11 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
       });
     },
     startContentGeneration(payload) {
+      if (!payload?.resume && !payload?.expandOnly && !payload?.expand_only && !payload?.targetItemId) {
+        const plan = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
+        const options = payload?.generationOptions || payload?.generation_options || plan.contentGenerationOptions || {};
+        assertGenerationSettingsMatch(plan.generationSettingsSnapshot, options);
+      }
       return startManagedTask('content-generation', payload, (context) => runContentGenerationTask({ ...context, app, technicalDiagramService, configStore, templateStore }));
     },
     pauseContentGeneration(payload) {

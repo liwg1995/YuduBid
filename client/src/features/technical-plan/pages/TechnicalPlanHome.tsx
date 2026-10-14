@@ -223,6 +223,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const { hydrated, state, setState } = useTechnicalPlanWorkflow(workflowKind, projectId);
   const { showToast } = useToast();
   const { confirm } = useAppDialog();
+  const generationSettingsSaveRef = useRef<(() => Promise<boolean>) | null>(null);
+  const stepTransitionPendingRef = useRef(false);
 
   useEffect(() => {
     if (!hydrated || !navigationTarget?.viewId || navigationTarget.projectId !== projectId) return;
@@ -362,7 +364,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       : state.step === 'bid-analysis' && !bidAnalysisReady
       ? '招标文件解析完成后才能进入目录生成'
       : state.step === 'outline-generation' && (!state.outlineData || generationSettingsStale)
-        ? generationSettingsStale ? '生成设置已变更，请重新生成目录' : '目录生成完成后才能进入全局事实设定'
+        ? generationSettingsStale ? '生成设置已变更，请保存后继续' : '目录生成完成后才能进入全局事实设定'
         : state.step === 'global-facts' && !globalFactsReady
           ? pendingGlobalFacts.length ? `请先补齐 ${pendingGlobalFacts.length} 个事实大项中的【待填写】` : globalFactsPolicyStale ? '事实处理方式已变更，请重新解析全局事实' : '全局事实设定完成后才能进入正文生成'
           : activeIndex >= steps.length - 1
@@ -476,10 +478,20 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   }, [contentEditSelectedItemId, generatedLeafIdSet, generatedLeaves, state.outlineData, state.step]);
 
   const switchStep = (step: TechnicalPlanStep) => {
-    setState((prev) => ({ ...prev, step }));
-    window.yibiao?.technicalPlan.updateStep({ workflowKind, projectId, step }).catch((error) => {
-      showToast(error instanceof Error ? error.message : '保存技术方案步骤失败', 'error');
-    });
+    if (step === state.step || stepTransitionPendingRef.current) return;
+    const applyStep = () => {
+      setState((prev) => ({ ...prev, step }));
+      window.yibiao?.technicalPlan.updateStep({ workflowKind, projectId, step }).catch((error) => {
+        showToast(error instanceof Error ? error.message : '保存技术方案步骤失败', 'error');
+      });
+    };
+    if (state.step === 'generation-settings' && generationSettingsSaveRef.current) {
+      stepTransitionPendingRef.current = true;
+      void generationSettingsSaveRef.current().then((saved) => { if (saved) applyStep(); })
+        .finally(() => { stepTransitionPendingRef.current = false; });
+      return;
+    }
+    applyStep();
   };
 
   const goToOffset = (offset: number) => {
@@ -578,7 +590,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     }
     if (!state.contentGenerationOptions || generationSettingsStale) {
       switchStep('generation-settings');
-      showToast(generationSettingsStale ? '生成设置已变更，请重新生成目录后再继续' : '请先保存本次生成设置', 'info');
+      showToast(generationSettingsStale ? '生成设置已变更，请保存后再继续' : '请先保存本次生成设置', 'info');
       return;
     }
     const confirmed = await confirm({
@@ -1524,6 +1536,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
             showToast('生成设置已保存', 'success');
             return true;
           }}
+          onRegisterAutoSave={(save) => { generationSettingsSaveRef.current = save; }}
         />
       )}
 
