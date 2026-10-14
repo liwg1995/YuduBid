@@ -36,6 +36,7 @@ const bridge = {
   platform: process.platform,
   getVersion: () => invoke('app:get-version'),
   getLatestVersion: () => invoke('app:get-latest-version'),
+  openLogDirectory: () => invoke('app:open-log-directory'),
   openExternal: (url) => invoke('app:open-external', url),
   downloadReleaseInstaller: () => invoke('app:download-release-installer'),
   cancelReleaseInstallerDownload: () => invoke('app:cancel-release-installer-download'),

@@ -65,6 +65,7 @@ const { createUsageStatsStore } = require('../services/usageStatsStore.cjs');
 const { createAgentHost } = require('../agents/agentHost.cjs');
 const { registerUsageStatsIpc } = require('./usageStatsIpc.cjs');
 const { isOfficialReleaseDownloadUrl } = require('../utils/updateIntegrity.cjs');
+const { createAppLogger } = require('../utils/appLogger.cjs');
 
 const latestReleaseApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases/latest';
 const releasesApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases';
@@ -579,9 +580,12 @@ function shouldIncludePrerelease(app) {
 async function fetchLatestReleaseInfo(options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
+  const startedAt = Date.now();
+  const logger = options.logger;
 
   try {
     const includePrerelease = Boolean(options.includePrerelease);
+    logger?.info('update-check-started', { includePrerelease });
     const payload = await fetchReleaseJson(includePrerelease ? `${releasesApiUrl}?per_page=20` : latestReleaseApiUrl, controller.signal);
     let release = Array.isArray(payload)
       ? payload.find((item) => item && !item.draft && (includePrerelease || !item.prerelease))
@@ -600,7 +604,9 @@ async function fetchLatestReleaseInfo(options = {}) {
         downloadAsset = pickReleaseDownloadAsset(assets);
       }
     }
+    if (!downloadAsset) logger?.warning('update-asset-unavailable', { version: normalizeVersion(release.tag_name || ''), platform: process.platform, arch: process.arch });
 
+    logger?.info('update-check-succeeded', { version: normalizeVersion(release.tag_name || release.name || ''), assetAvailable: Boolean(downloadAsset), durationMs: Date.now() - startedAt });
     return {
       version: normalizeVersion(release.tag_name || release.name || ''),
       name: String(release.name || release.tag_name || ''),
@@ -613,6 +619,14 @@ async function fetchLatestReleaseInfo(options = {}) {
       arch: process.arch,
       assets: assets.map(normalizeReleaseAsset),
     };
+  } catch (error) {
+    logger?.error('update-check-failed', {
+      errorName: error?.name || 'Error',
+      message: error?.message || String(error),
+      causeCode: error?.cause?.code || '',
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
   } finally {
     clearTimeout(timer);
   }
@@ -731,7 +745,7 @@ function registerUnavailableTechnicalPlanIpc(error) {
   ipcMain.on('tasks:subscribe', () => {});
 }
 
-function registerIpcHandlers({ app, mainWindow, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath }) {
+function registerIpcHandlers({ app, mainWindow, appLogger = createAppLogger(app), downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath }) {
   const configStore = createConfigStore(app);
   let agentEnabled = false;
   try {
@@ -871,10 +885,15 @@ function registerIpcHandlers({ app, mainWindow, downloadReleaseInstaller, cancel
     }
   });
 
-  ipcMain.handle('app:get-latest-version', () => fetchLatestReleaseInfo({ includePrerelease: shouldIncludePrerelease(app) }));
+  ipcMain.handle('app:get-latest-version', () => fetchLatestReleaseInfo({ includePrerelease: shouldIncludePrerelease(app), logger: appLogger }));
+  ipcMain.handle('app:open-log-directory', async () => {
+    fs.mkdirSync(appLogger.directory, { recursive: true });
+    const error = await shell.openPath(appLogger.directory);
+    return error ? { success: false, message: error } : { success: true };
+  });
   ipcMain.handle('app:download-release-installer', async (event) => {
     const webContents = event.sender;
-    const release = await fetchLatestReleaseInfo({ includePrerelease: shouldIncludePrerelease(app) });
+    const release = await fetchLatestReleaseInfo({ includePrerelease: shouldIncludePrerelease(app), logger: appLogger });
     const asset = release.assets.find((item) => item.browser_download_url === release.download_url && item.name === release.download_name);
     if (!asset) return { success: false, downloaded: false, message: '未找到当前系统的官方安装包' };
     return downloadReleaseInstaller({
@@ -885,6 +904,7 @@ function registerIpcHandlers({ app, mainWindow, downloadReleaseInstaller, cancel
       version: release.version,
       size: asset.size,
       digest: asset.digest,
+      logger: appLogger,
       onProgress: (progress) => {
         webContents.send('app:update-progress', progress);
       },
