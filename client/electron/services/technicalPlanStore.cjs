@@ -939,10 +939,15 @@ function createTechnicalPlanStore({ app, db, fileService }) {
   function saveContentGenerationOptions(contentGenerationOptions) {
     const minimumWords = Math.max(0, Math.round(Number(contentGenerationOptions?.minimumWords) || 0));
     const maximumWords = Math.max(0, Math.round(Number(contentGenerationOptions?.maximumWords) || 0));
+    const sectionWords = Math.max(0, Math.round(Number(contentGenerationOptions?.sectionWords) || 0));
     if (maximumWords > 0 && minimumWords > maximumWords) {
       throw new Error('全文参考上限不能低于最低字数');
     }
-    return updateTechnicalPlan({ contentGenerationOptions });
+    const hasOutline = Boolean(loadTechnicalPlan().outlineData?.outline?.length);
+    return updateTechnicalPlan({
+      contentGenerationOptions,
+      ...(hasOutline ? { generationSettingsSnapshot: { minimumWords, maximumWords, sectionWords } } : {}),
+    });
   }
 
   function saveChapterContent({ nodeId, content }) {
