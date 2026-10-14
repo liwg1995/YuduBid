@@ -1,5 +1,6 @@
 import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import { useEffect, useRef, useState } from 'react';
+import type { FocusEvent } from 'react';
 import { AppSwitch, useToast } from '../../../shared/ui';
 import type { KnowledgeBaseIndex } from '../../knowledge-base/types';
 import type { ImageModelStatus } from '../../../shared/types';
@@ -35,6 +36,7 @@ interface GenerationSettingsPageProps {
   onOpenDocuments: () => void;
   onOpenExportTemplates?: () => void;
   onSave: (options: ContentGenerationOptions, referenceKnowledgeDocumentIds: string[]) => Promise<boolean>;
+  onRegisterAutoSave?: (save: (() => Promise<boolean>) | null) => void;
 }
 
 const defaults: ContentGenerationOptions = {
@@ -45,7 +47,7 @@ const defaults: ContentGenerationOptions = {
   missingFactPolicy: 'infer',
 };
 
-export default function GenerationSettingsPage({ options, workflowKind, selectedBidSectionTitle, referenceKnowledgeDocumentIds, stale, generationRunning = false, onOpenDocuments, onOpenExportTemplates, onSave }: GenerationSettingsPageProps) {
+export default function GenerationSettingsPage({ options, workflowKind, selectedBidSectionTitle, referenceKnowledgeDocumentIds, stale, generationRunning = false, onOpenDocuments, onOpenExportTemplates, onSave, onRegisterAutoSave }: GenerationSettingsPageProps) {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<SettingsTab>('content');
   const pageRef = useRef<HTMLDivElement>(null);
@@ -64,6 +66,10 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
   const [exportSettingsError, setExportSettingsError] = useState(false);
   const [exportSettingsRevision, setExportSettingsRevision] = useState(0);
   const [busy, setBusy] = useState(false);
+  const savePromiseRef = useRef<Promise<boolean> | null>(null);
+  const savedSignatureRef = useRef('');
+  const draftSignature = JSON.stringify({ draft, draftKnowledgeIds });
+  const changed = JSON.stringify({ draft: { ...defaults, ...options }, draftKnowledgeIds: referenceKnowledgeDocumentIds }) !== draftSignature;
   useEffect(() => {
     setDraft({ ...defaults, ...options });
     setWordCountInputs(wordCountInputsFromOptions(options));
@@ -103,6 +109,18 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
   }, [activeTab]);
 
   const save = async () => {
+    if (savePromiseRef.current) return savePromiseRef.current;
+    if (!changed || draftSignature === savedSignatureRef.current) return true;
+    const pending = persistDraft();
+    savePromiseRef.current = pending;
+    try {
+      const saved = await pending;
+      if (saved) savedSignatureRef.current = draftSignature;
+      return saved;
+    } finally { savePromiseRef.current = null; }
+  };
+
+  const persistDraft = async () => {
     if (exportSettingsLoading) {
       showToast('正在读取导出模板，请稍后保存', 'info');
       return false;
@@ -133,6 +151,17 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
     try { return await onSave({ ...draft, wordExportMode, wordExportTemplateId }, draftKnowledgeIds); }
     catch (error) { showToast(error instanceof Error ? error.message : '保存生成设置失败', 'error'); return false; }
     finally { setBusy(false); }
+  };
+
+  useEffect(() => {
+    onRegisterAutoSave?.(save);
+    return () => onRegisterAutoSave?.(null);
+  });
+
+  const saveOnBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (changed && event.target.matches('input, select, textarea, button[role="radio"], button[role="switch"]')) {
+      void save();
+    }
   };
 
   const openRelatedStep = async (open: () => void) => {
@@ -172,14 +201,14 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
   const selectFolder = (documentIds: string[]) => setDraftKnowledgeIds((current) => [...new Set([...current, ...documentIds])]);
   const clearFolder = (documentIds: string[]) => setDraftKnowledgeIds((current) => current.filter((id) => !documentIds.includes(id)));
 
-  return <div className="plan-step-body generation-settings-page">
+  return <div className="plan-step-body generation-settings-page" onBlurCapture={saveOnBlur}>
     <section className="generation-settings-shell">
       <header className="bid-analysis-command-bar generation-settings-command-bar">
         <div className="generation-settings-header-copy">
           <span className="section-kicker">STEP 02 · 生成设置</span>
           <strong>确定本次生成目标</strong>
           <p>确认生成范围、参考资料与正文要求，保存后用于当前项目。</p>
-          {stale && <small className="generation-settings-warning">篇幅目标已变化，需要重新生成目录后再生成正文。</small>}
+          {stale && <small className="generation-settings-warning">篇幅目标尚未同步，保存生成设置后即可继续。</small>}
         </div>
         <button type="button" className="primary-action generation-settings-save" disabled={busy || exportSettingsLoading || exportSettingsError} onClick={() => void save()}>{busy ? '保存中...' : '保存生成设置'}</button>
       </header>
@@ -281,7 +310,7 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
             <select value={draft.tableRequirement} onChange={(event) => setDraft((current) => ({ ...current, tableRequirement: event.target.value as ContentTableRequirement }))}><option value="none">不要</option><option value="light">少量</option><option value="moderate">适中</option><option value="heavy">大量</option></select>
           </div>
           <div className="generation-settings-row"><span><strong>字数不达标修复</strong><small>开启后，正文完成时按全文字数范围扩写或精简；关闭时只统计并提示差额。</small></span><AppSwitch checked={Boolean(draft.wordCountRepair)} disabled={generationRunning} onCheckedChange={(checked) => setDraft((current) => ({ ...current, wordCountRepair: checked }))} aria-label="字数不达标修复" /></div>
-          {stale && <p className="generation-settings-inline-note">修改篇幅目标后请重新生成目录。</p>}
+          {stale && <p className="generation-settings-inline-note">篇幅目标修改后会在失焦或离开本页时自动保存。</p>}
         </section>}
 
         {activeTab === 'illustration' && <section className="generation-settings-section generation-settings-illustration">
