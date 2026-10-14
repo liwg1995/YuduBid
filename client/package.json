@@ -20,6 +20,7 @@
     "build": "tsc --noEmit && vite build",
     "verify:model-capabilities": "node scripts/verify-model-capabilities.cjs",
     "verify:agent-foundation": "node scripts/verify-agent-foundation.cjs",
+    "verify:window-lifecycle": "node scripts/verify-main-window-lifecycle.cjs",
     "verify:offline": "npm run verify:ipc-contract && npm run verify:update-integrity && npm run verify:secure-http && npm run verify:config-secrets && npm run verify:plugin-compatibility && npm run verify:task-recovery && npm run verify:thesis-tutor && npm run verify:project-management && npm run verify:model-capabilities && npm run verify:agent-foundation && npm run verify:mermaid-packaging && npm run verify:renderer-packaging && npm run verify:asset-packaging && npm run verify:document-security && npm run verify:code-generation && npm run verify:patent-generation && npm run verify:software-copyright",
     "verify:config-secrets": "node scripts/verify-config-secrets.cjs",
     "verify:secure-http": "node scripts/verify-secure-http.cjs",

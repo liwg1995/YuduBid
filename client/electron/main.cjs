@@ -16,6 +16,7 @@ const windowIconPath = process.platform === 'win32'
 const packagedIndexUrl = pathToFileURL(path.join(__dirname, '../dist/index.html')).toString();
 const legacyUserDataNames = ['禹都AI投标助手', 'yudubid-client'];
 let mainWindow = null;
+let isQuitting = false;
 
 if (userDataDir) {
   app.setPath('userData', path.resolve(userDataDir));
@@ -23,11 +24,34 @@ if (userDataDir) {
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
+function logLifecycle(event, details = {}) {
+  try {
+    const logPath = path.join(app.getPath('userData'), 'logs', 'app-lifecycle.log');
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    fs.appendFileSync(logPath, `${JSON.stringify({ at: new Date().toISOString(), pid: process.pid, event, ...details })}\n`, 'utf8');
+  } catch (error) {
+    console.warn('[electron] 写入应用生命周期日志失败', error);
+  }
+}
+
+logLifecycle('launch', { singleInstanceLock: gotSingleInstanceLock });
+
+app.on('before-quit', () => {
+  isQuitting = true;
+  logLifecycle('before-quit', { remainingWindows: BrowserWindow.getAllWindows().length });
+});
+
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (!mainWindow) return;
+    logLifecycle('second-instance', { hasMainWindow: Boolean(mainWindow && !mainWindow.isDestroyed()), isQuitting, remainingWindows: BrowserWindow.getAllWindows().length });
+    if (isQuitting || !app.isReady()) return;
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      mainWindow = createMainWindow();
+      logLifecycle('main-window-restored');
+      return;
+    }
     if (mainWindow.isMinimized()) {
       mainWindow.restore();
     }
@@ -197,6 +221,12 @@ function createMainWindow() {
   appWindow.on('closed', () => {
     if (mainWindow === appWindow) {
       mainWindow = null;
+      const remainingWindows = BrowserWindow.getAllWindows().length;
+      logLifecycle('main-window-closed', { remainingWindows });
+      if (process.platform !== 'darwin' && !isQuitting) {
+        // Hidden export/diagram windows can keep window-all-closed from firing.
+        app.quit();
+      }
     }
   });
 
