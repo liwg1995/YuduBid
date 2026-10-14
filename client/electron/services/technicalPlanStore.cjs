@@ -897,8 +897,14 @@ function createTechnicalPlanStore({ app, db, fileService }) {
 
   function saveOutline(outlineData) {
     const transaction = db.transaction(() => {
+      const options = loadTechnicalPlan().contentGenerationOptions || {};
       saveOutlineData(clearOutlineDataContent(outlineData));
       clearGlobalFactsAndContentState();
+      updateMeta({ generation_settings_snapshot_json: JSON.stringify({
+        minimumWords: Math.max(0, Math.round(Number(options.minimumWords) || 0)),
+        maximumWords: Math.max(0, Math.round(Number(options.maximumWords) || 0)),
+        sectionWords: Math.max(0, Math.round(Number(options.sectionWords) || 0)),
+      }) });
     });
     transaction();
     return loadTechnicalPlan();
