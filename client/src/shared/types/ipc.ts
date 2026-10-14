@@ -299,6 +299,7 @@ export interface YuDuBidBridge {
   platform: string;
   getVersion: () => Promise<string>;
   getLatestVersion: () => Promise<LatestReleaseInfo>;
+  openLogDirectory: () => Promise<{ success: boolean; message?: string }>;
   openExternal: (url: string) => Promise<{ success: boolean; message?: string }>;
   downloadReleaseInstaller: () => Promise<ReleaseInstallerDownloadResult>;
   cancelReleaseInstallerDownload: () => Promise<{ success: boolean; canceled?: boolean; message?: string }>;

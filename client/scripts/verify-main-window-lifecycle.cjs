@@ -62,6 +62,7 @@ async function main() {
     './ipc/index.cjs': { registerIpcHandlers: () => { registeredIpc = true; } },
     './services/updateService.cjs': {},
     './utils/paths.cjs': {},
+    './utils/appLogger.cjs': require('../electron/utils/appLogger.cjs'),
   };
   const requireMock = (name) => mocks[name] || require(name);
 
@@ -88,7 +89,9 @@ async function main() {
     assert.equal(windows.length, 1, '隐藏窗口仍然存在，window-all-closed 不会触发');
     assert.equal(quitCount, 1, '关闭 Windows 主窗口时应主动退出进程并释放单实例锁');
 
-    const log = fs.readFileSync(path.join(userDataDir, 'logs', 'app-lifecycle.log'), 'utf8');
+    const dayDirectory = fs.readdirSync(path.join(userDataDir, 'logs')).find((name) => /^\d{4}-\d{2}-\d{2}$/.test(name));
+    assert.ok(dayDirectory);
+    const log = fs.readFileSync(path.join(userDataDir, 'logs', dayDirectory, 'info.log'), 'utf8');
     assert.match(log, /"event":"main-window-closed","remainingWindows":1/);
     assert.match(log, /"event":"before-quit","remainingWindows":1/);
     console.log('Windows 主窗口关闭与单实例生命周期验证通过');

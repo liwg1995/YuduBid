@@ -109,6 +109,7 @@ async function downloadReleaseInstaller(options = {}) {
   }
 
   updateState.releaseDownloadPromise = (async () => {
+    options.logger?.info('update-download-started', { version, fileName: installerName });
     const updateDir = getManualUpdateDir(app, version);
     const installerPath = path.join(updateDir, installerName);
     const tempPath = `${installerPath}.download`;
@@ -141,11 +142,13 @@ async function downloadReleaseInstaller(options = {}) {
       console.warn('[update] 下载安装包请求失败', {
         message: getErrorMessage(error, '下载安装包失败'),
       });
+      options.logger?.error('update-download-request-failed', { version, message: getErrorMessage(error, '下载安装包失败') });
       return { success: false, downloaded: false, message: normalizeUpdateErrorMessage(getErrorMessage(error, '下载安装包失败')) };
     }
 
     if (!response.ok || !response.body) {
       setProgressBar(options.mainWindow, -1);
+      options.logger?.error('update-download-http-failed', { version, status: response.status });
       return { success: false, downloaded: false, message: `下载安装包失败：服务器返回 ${response.status}` };
     }
 
@@ -205,6 +208,7 @@ async function downloadReleaseInstaller(options = {}) {
       console.warn('[update] 安装包下载中断', {
         message: getErrorMessage(error, '安装包下载中断'),
       });
+      options.logger?.error('update-download-interrupted', { version, message: getErrorMessage(error, '安装包下载中断') });
       return { success: false, downloaded: false, message: normalizeUpdateErrorMessage(getErrorMessage(error, '安装包下载中断')) };
     }
 
@@ -234,6 +238,7 @@ async function downloadReleaseInstaller(options = {}) {
     updateState.releaseInstallerVersion = version;
     updateState.releaseInstallerName = installerName;
     updateState.releaseInstallerDigest = expectedDigest;
+    options.logger?.info('update-download-succeeded', { version, fileName: installerName, bytes: transferred });
 
     setProgressBar(options.mainWindow, -1);
     emitReleaseDownloadProgress(options, {

@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { registerIpcHandlers } = require('./ipc/index.cjs');
 const { downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath } = require('./services/updateService.cjs');
 const { getCredentialLibraryDir, getGeneratedImagesDir, getImportedImagesDir, getKnowledgeImageLibraryDir, getSoftwareCopyrightDir } = require('./utils/paths.cjs');
+const { createAppLogger } = require('./utils/appLogger.cjs');
 
 const rendererUrl = process.env.ELECTRON_RENDERER_URL;
 const userDataDir = process.env.YIBIAO_USER_DATA_DIR;
@@ -23,15 +24,10 @@ if (userDataDir) {
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
+const appLogger = createAppLogger(app);
 
 function logLifecycle(event, details = {}) {
-  try {
-    const logPath = path.join(app.getPath('userData'), 'logs', 'app-lifecycle.log');
-    fs.mkdirSync(path.dirname(logPath), { recursive: true });
-    fs.appendFileSync(logPath, `${JSON.stringify({ at: new Date().toISOString(), pid: process.pid, event, ...details })}\n`, 'utf8');
-  } catch (error) {
-    console.warn('[electron] 写入应用生命周期日志失败', error);
-  }
+  appLogger.info(event, details);
 }
 
 logLifecycle('launch', { singleInstanceLock: gotSingleInstanceLock });
@@ -239,7 +235,7 @@ if (gotSingleInstanceLock) {
     migrateLegacyUserData();
     registerAssetProtocol();
     mainWindow = createMainWindow();
-    registerIpcHandlers({ app, mainWindow, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath });
+    registerIpcHandlers({ app, mainWindow, appLogger, downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath });
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {

@@ -1415,6 +1415,17 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     }
   };
 
+  const openLogDirectory = async () => {
+    try {
+      const result = await window.yibiao?.openLogDirectory();
+      if (!result?.success) {
+        showToast(result?.message || '打开日志目录失败', 'error');
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '打开日志目录失败', 'error');
+    }
+  };
+
   const fetchTextModels = async () => {
     try {
       setLoadingModels('text');
@@ -1828,6 +1839,19 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 <div className="settings-action-cell">
                   <button type="button" className="inline-action" onClick={openConfigFolder}>
                     打开配置文件夹
+                  </button>
+                </div>
+              </div>
+            )}
+            {state.general.developer_mode && (
+              <div className="settings-row">
+                <div className="settings-row-copy">
+                  <strong>应用日志</strong>
+                  <span>按日期和级别保存；普通与警告日志保留 3 天，错误日志长期保留</span>
+                </div>
+                <div className="settings-action-cell">
+                  <button type="button" className="inline-action" onClick={() => { void openLogDirectory(); }}>
+                    打开日志目录
                   </button>
                 </div>
               </div>
