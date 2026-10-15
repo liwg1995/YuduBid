@@ -318,4 +318,4 @@ jobs:
           node .github/scripts/sync-gitcode-release.mjs release-assets
       - name: Remove downloaded release assets
         if: always()
-        run: rm -rf -- "$GITHUB_WORKSPACE/release-assets"
+        run: python3 .github/scripts/cleanup-release-assets.py
