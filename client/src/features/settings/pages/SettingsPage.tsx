@@ -4,7 +4,7 @@ import brandProducerLogo from '../../../assets/brand-producer-logo.svg';
 import { configurableFeatureModules } from '../../../app/menuConfig';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelListCache, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
+import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelListCache, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UpdateSource, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 import { getStoredUiThemePreference, setStoredUiThemePreference, UI_THEME_CHANGE_EVENT, type UiThemePreference } from '../../../shared/uiTheme';
 import PluginManagementPanel from '../plugin-management/PluginManagementPanel';
@@ -15,6 +15,7 @@ type LocalModelHelpKind = 'ollama-text' | 'ollama-image' | 'comfyui';
 
 interface ReleaseDownloadState {
   status: ReleaseDownloadStatus;
+  source?: Exclude<UpdateSource, 'auto'>;
   percent: number;
   transferred: number;
   total: number;
@@ -26,8 +27,15 @@ interface ReleaseDownloadState {
 }
 
 const SETTINGS_ACTIVE_TAB_KEY = 'yibiao-settings-active-tab';
+const UPDATE_SOURCE_KEY = 'yibiao-update-source';
 const DEFAULT_SETTINGS_TAB: SettingsTab = 'text-model';
 const githubReleaseDownloadPattern = /^https:\/\/github\.com\/liwg1995\/YuduBid\/releases\/download\/[^/]+\/[^/?#]+$/i;
+const gitcodeReleaseDownloadPattern = /^https:\/\/gitcode\.com\/oleime\/YuduBid\/releases\/download\/[^/]+\/[^/?#]+$/i;
+
+function getStoredUpdateSource(): UpdateSource {
+  const value = localStorage.getItem(UPDATE_SOURCE_KEY);
+  return value === 'github' || value === 'gitcode' ? value : 'auto';
+}
 
 const localModelHelp: Record<LocalModelHelpKind, { title: string; description: string; sections: Array<{ title: string; content: string }> }> = {
   'ollama-text': {
@@ -227,7 +235,8 @@ function normalizeTextModelProfile(provider: TextModelProvider, profile?: Partia
 }
 
 function isDirectReleaseDownloadUrl(url?: string): boolean {
-  return githubReleaseDownloadPattern.test(String(url || ''));
+  const value = String(url || '');
+  return githubReleaseDownloadPattern.test(value) || gitcodeReleaseDownloadPattern.test(value);
 }
 
 function createInitialReleaseDownloadState(partial: Partial<ReleaseDownloadState> = {}): ReleaseDownloadState {
@@ -778,6 +787,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const [testingImageModel, setTestingImageModel] = useState(false);
   const [imageTestPreview, setImageTestPreview] = useState<{ src: string; title: string } | null>(null);
   const [appVersion, setAppVersion] = useState('');
+  const [updateSource, setUpdateSource] = useState<UpdateSource>(getStoredUpdateSource);
   const [checkingLatestRelease, setCheckingLatestRelease] = useState(false);
   const [latestRelease, setLatestRelease] = useState<LatestReleaseInfo | null>(null);
   const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
@@ -933,7 +943,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
 
     try {
       setCheckingLatestRelease(true);
-      const release = await window.yibiao?.getLatestVersion();
+      const release = await window.yibiao?.getLatestVersion(updateSource);
       if (!release?.version) {
         showToast('未获取到最新版本号', 'error');
         return;
@@ -942,10 +952,12 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       setLatestRelease(release);
       setReleaseDownloadState((prev) => {
         const sameDownloadedPackage = prev.status === 'downloaded'
+          && !release.syncPending
           && prev.version === release.version
           && Boolean(prev.filePath || prev.fileName);
         return createInitialReleaseDownloadState({
           status: sameDownloadedPackage ? 'downloaded' : 'idle',
+          source: sameDownloadedPackage ? prev.source : undefined,
           percent: sameDownloadedPackage ? 100 : 0,
           fileName: release.download_name || prev.fileName || '',
           filePath: sameDownloadedPackage ? prev.filePath : '',
@@ -955,6 +967,10 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           message: sameDownloadedPackage ? prev.message || '安装包已下载完成' : '',
         });
       });
+      if (release.syncPending) {
+        showToast(release.syncMessage || '更新渠道尚未同步完成，请稍后刷新。', 'info');
+        return;
+      }
       if (compareVersions(release.version, appVersion) > 0) {
         if (!isDirectReleaseDownloadUrl(release.download_url)) {
           showToast(`发现新版本 ${release.version}，安装包仍在构建或上传，请稍后重新检测`, 'info');
@@ -979,7 +995,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       return;
     }
 
-    const targetUrl = options.accelerated
+    const targetUrl = options.accelerated && githubReleaseDownloadPattern.test(downloadUrl)
       ? `https://gh-proxy.com/${downloadUrl}`
       : downloadUrl;
 
@@ -1010,7 +1026,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     }));
 
     try {
-      const result = await window.yibiao?.downloadReleaseInstaller();
+      const result = await window.yibiao?.downloadReleaseInstaller(updateSource);
       if (result?.canceled) {
         setReleaseDownloadState(createInitialReleaseDownloadState({
           fileName: latestRelease.download_name || '',
@@ -1029,13 +1045,14 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       setReleaseDownloadState((prev) => ({
         ...prev,
         status: 'downloaded',
+        source: result.source,
         percent: 100,
         version: result.version || latestRelease.version,
         fileName: result.fileName || latestRelease.download_name || prev.fileName,
         filePath: result.path || prev.filePath,
         message: result.message || '安装包已下载完成',
       }));
-      showToast('安装包已下载完成，可立即安装', 'success');
+      showToast(`安装包已通过 ${result.source === 'gitcode' ? 'GitCode' : 'GitHub'} 下载完成，可立即安装`, 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '下载安装包失败';
       setReleaseDownloadState((prev) => ({ ...prev, status: 'error', message }));
@@ -2438,6 +2455,25 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
             <span />
             <strong>关于</strong>
           </div>
+          <div className="about-update-source">
+            <label htmlFor="about-update-source">更新渠道</label>
+            <select
+              id="about-update-source"
+              value={updateSource}
+              disabled={checkingLatestRelease || releaseDownloading || releaseInstalling}
+              onChange={(event) => {
+                const source = event.target.value as UpdateSource;
+                localStorage.setItem(UPDATE_SOURCE_KEY, source);
+                setUpdateSource(source);
+                setLatestRelease(null);
+                setReleaseDownloadState(createInitialReleaseDownloadState());
+              }}
+            >
+              <option value="auto">自动</option>
+              <option value="gitcode">GitCode（AtomGit）</option>
+              <option value="github">GitHub</option>
+            </select>
+          </div>
           <div className="about-grid">
             <div className="about-version-card">
               <button
@@ -2456,15 +2492,15 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                     type="button"
                     className="version-new-badge"
                     onClick={() => setReleaseDialogOpen(true)}
-                    aria-label="查看新版更新详情"
+                    aria-label={latestRelease?.syncPending ? '查看更新渠道同步状态' : '查看新版更新详情'}
                   >
-                    NEW
+                    {latestRelease?.syncPending ? '等待同步' : 'NEW'}
                   </button>
                 )}
               </strong>
               {latestRelease?.version && (
                 <small className={`about-version-state ${hasNewRelease ? 'has-update' : 'is-latest'}`}>
-                  {hasNewRelease ? `最新版本为：${latestRelease.version}` : '已是最新版'}
+                  {latestRelease.syncPending ? (latestRelease.syncMessage || '更新渠道正在同步') : `${hasNewRelease ? `最新版本为：${latestRelease.version}` : '已是最新版'} · 来源：${latestRelease.source === 'gitcode' ? 'GitCode' : 'GitHub'}`}
                 </small>
               )}
             </div>
@@ -2488,12 +2524,14 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                   <span>NEW</span>
                   <Dialog.Title>{latestRelease?.name || `新版 ${latestRelease?.version || ''}`}</Dialog.Title>
                   <Dialog.Description>
-                    当前版本 {appVersion || '...'}，最新版本 {latestRelease?.version || '...'}
+                    当前版本 {appVersion || '...'}，最新版本 {latestRelease?.version || '...'} · {releaseDownloaded ? (releaseDownloadState.source === 'gitcode' ? 'GitCode' : 'GitHub') : (latestRelease?.source === 'gitcode' ? 'GitCode' : 'GitHub')}
                   </Dialog.Description>
                   <Dialog.Close className="release-detail-close" type="button" aria-label="关闭更新详情">×</Dialog.Close>
                 </div>
                 <div className="release-detail-body">
-                  {latestRelease?.body ? (
+                  {latestRelease?.syncPending ? (
+                    <p>{latestRelease.syncMessage || '更新渠道正在同步，请稍后刷新。'}</p>
+                  ) : latestRelease?.body ? (
                     <MarkdownRenderer allowRawHtml={false}>{latestRelease.body}</MarkdownRenderer>
                   ) : (
                     <p>该版本暂未填写更新详情。</p>
@@ -2504,7 +2542,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 )}
                 {latestRelease && !latestDownloadUrl && (
                   <div className="release-detail-download-name release-detail-build-state">
-                    <span>当前系统安装包正在构建或上传，请稍后刷新状态。</span>
+                    <span>{latestRelease.syncPending ? latestRelease.syncMessage : '当前系统安装包正在构建或上传，请稍后刷新状态。'}</span>
                     <button type="button" onClick={() => { void checkLatestRelease(); }} disabled={checkingLatestRelease}>
                       {checkingLatestRelease ? '刷新中...' : '刷新状态'}
                     </button>
@@ -2555,10 +2593,10 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                     type="button"
                     className="secondary-action"
                     disabled={!latestDownloadUrl || releaseDownloading || releaseInstalling}
-                    title={latestDownloadUrl ? '通过下载加速服务获取当前系统安装包' : '当前系统安装包仍在构建或上传'}
+                    title={latestDownloadUrl ? (latestRelease?.source === 'gitcode' ? '在浏览器中通过 GitCode 下载安装包' : '通过下载加速服务获取当前系统安装包') : '当前系统安装包仍在构建或上传'}
                     onClick={() => { void openLatestDownload({ accelerated: true }); }}
                   >
-                    加速更新下载
+                    {latestRelease?.source === 'gitcode' ? '浏览器下载' : '加速更新下载'}
                   </button>
                   {releaseDownloading && (
                     <button

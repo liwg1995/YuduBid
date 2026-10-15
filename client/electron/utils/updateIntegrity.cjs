@@ -9,11 +9,15 @@ function isOfficialReleaseDownloadUrl(value) {
   try {
     const url = new URL(raw);
     const parts = url.pathname.split('/').filter(Boolean);
-    return url.origin === 'https://github.com'
+    const officialRepository = (url.origin === 'https://github.com'
+      && parts[0]?.toLowerCase() === 'liwg1995'
+      && parts[1]?.toLowerCase() === 'yudubid')
+      || (url.origin === 'https://gitcode.com'
+      && parts[0]?.toLowerCase() === 'oleime'
+      && parts[1]?.toLowerCase() === 'yudubid');
+    return officialRepository
       && !url.username && !url.password && !url.search && !url.hash
       && parts.length === 6
-      && parts[0].toLowerCase() === 'liwg1995'
-      && parts[1].toLowerCase() === 'yudubid'
       && parts[2] === 'releases' && parts[3] === 'download'
       && parts[4] !== '.' && parts[4] !== '..'
       && parts[5] !== '.' && parts[5] !== '..'

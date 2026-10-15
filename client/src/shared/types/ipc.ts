@@ -59,6 +59,8 @@ export interface WordLayoutAuditResult {
   issues: Array<{ page: number | null; severity: 'warning' | 'review'; code: string; message: string }>;
 }
 
+export type UpdateSource = 'auto' | 'github' | 'gitcode';
+
 export interface LatestReleaseInfo {
   version: string;
   name: string;
@@ -69,6 +71,9 @@ export interface LatestReleaseInfo {
   download_name?: string;
   platform?: string;
   arch?: string;
+  source?: Exclude<UpdateSource, 'auto'>;
+  syncPending?: boolean;
+  syncMessage?: string;
   assets?: Array<{
     name: string;
     browser_download_url: string;
@@ -79,6 +84,7 @@ export interface LatestReleaseInfo {
 
 export interface ReleaseInstallerDownloadResult {
   success: boolean;
+  source?: Exclude<UpdateSource, 'auto'>;
   downloaded?: boolean;
   canceled?: boolean;
   version?: string;
@@ -298,10 +304,10 @@ export interface YuDuBidBridge {
   appName: string;
   platform: string;
   getVersion: () => Promise<string>;
-  getLatestVersion: () => Promise<LatestReleaseInfo>;
+  getLatestVersion: (source?: UpdateSource) => Promise<LatestReleaseInfo>;
   openLogDirectory: () => Promise<{ success: boolean; message?: string }>;
   openExternal: (url: string) => Promise<{ success: boolean; message?: string }>;
-  downloadReleaseInstaller: () => Promise<ReleaseInstallerDownloadResult>;
+  downloadReleaseInstaller: (source?: UpdateSource) => Promise<ReleaseInstallerDownloadResult>;
   cancelReleaseInstallerDownload: () => Promise<{ success: boolean; canceled?: boolean; message?: string }>;
   installDownloadedRelease: () => Promise<{ success: boolean; message?: string }>;
   showDownloadedRelease: () => Promise<{ success: boolean; path?: string; fileName?: string; version?: string; message?: string }>;
