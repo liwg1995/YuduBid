@@ -1,4 +1,3 @@
-import { createReadStream } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -54,13 +53,15 @@ async function uploadAsset(file) {
   const name = basename(file);
   const upload = await request(`/releases/${encodeURIComponent(tag)}/upload_url?file_name=${encodeURIComponent(name)}`);
   if (!upload?.url) throw new Error(`GitCode did not provide an upload URL for ${name}`);
-  const response = await fetch(upload.url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/octet-stream', ...upload.headers },
-    body: createReadStream(file),
-    duplex: 'half',
+  await new Promise((resolve, reject) => {
+    const headers = { 'Content-Type': 'application/octet-stream', ...upload.headers };
+    const args = ['--fail', '--silent', '--show-error', '--location', '--connect-timeout', '30', '--max-time', '1800', '--request', 'PUT'];
+    for (const [key, value] of Object.entries(headers)) args.push('--header', `${key}: ${value}`);
+    args.push('--upload-file', file, '--output', '/dev/null', upload.url);
+    const child = spawn('curl', args, { stdio: ['ignore', 'inherit', 'inherit'] });
+    child.on('error', reject);
+    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`GitCode asset upload failed for ${name}: curl exited ${code}`)));
   });
-  if (!response.ok) throw new Error(`GitCode asset upload failed for ${name}: HTTP ${response.status}`);
 }
 
 async function main() {
