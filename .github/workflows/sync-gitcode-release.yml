@@ -36,3 +36,6 @@ jobs:
           ATOMGIT_REPO: ${{ vars.ATOMGIT_REPO }}
           TAG_NAME: ${{ inputs.tag_name }}
         run: node .github/scripts/sync-gitcode-release.mjs release-assets
+      - name: Remove downloaded release assets
+        if: always()
+        run: rm -rf -- "$GITHUB_WORKSPACE/release-assets"
