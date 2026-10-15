@@ -8,9 +8,12 @@ const owner = process.env.ATOMGIT_OWNER;
 const repo = process.env.ATOMGIT_REPO;
 const tag = process.env.TAG_NAME;
 const directory = process.argv[2];
+const githubRepository = process.env.GITHUB_REPOSITORY;
+const githubToken = process.env.GITHUB_TOKEN;
+const notesOnly = directory === '--notes-only';
 
-if (![token, owner, repo, tag, directory].every(Boolean)) {
-  throw new Error('ATOMGIT_ACCESS_TOKEN, ATOMGIT_OWNER, ATOMGIT_REPO, TAG_NAME and asset directory are required');
+if (![token, owner, repo, tag, githubRepository, githubToken].every(Boolean) || (!notesOnly && !directory)) {
+  throw new Error('GitCode credentials, GitHub release credentials, tag and asset directory are required');
 }
 
 const repoPath = `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
@@ -69,16 +72,42 @@ function knownAssetSize(asset) {
   return Number.isFinite(size) && size > 0 ? size : null;
 }
 
+async function fetchGithubRelease() {
+  const response = await fetch(`https://api.github.com/repos/${githubRepository}/releases/tags/${encodeURIComponent(tag)}`, {
+    headers: {
+      Authorization: `Bearer ${githubToken}`,
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'YuDuBid-Release-Sync',
+    },
+  });
+  if (!response.ok) throw new Error(`GitHub Release ${tag}: HTTP ${response.status}`);
+  const release = await response.json();
+  if (!release?.tag_name || !String(release.body || '').trim()) {
+    throw new Error(`GitHub Release ${tag} is missing its tag or release notes`);
+  }
+  return release;
+}
+
 async function main() {
+  const githubRelease = await fetchGithubRelease();
+  if (githubRelease.tag_name !== tag) throw new Error(`GitHub Release tag does not match ${tag}`);
+  const releasePath = `/releases/${encodeURIComponent(tag)}`;
+  const releaseInfo = { name: githubRelease.name || tag, body: githubRelease.body };
+  if (notesOnly) {
+    const release = await request(releasePath, { allow404: true });
+    if (!release) throw new Error(`GitCode Release ${tag} does not exist`);
+    await request(releasePath, { method: 'PATCH', body: JSON.stringify({ ...releaseInfo, release_status: release.release_status || 'latest' }) });
+    console.log(`GitCode Release notes synchronized: ${tag}`);
+    return;
+  }
+
   const files = (await readdir(directory)).sort().map((name) => join(directory, name));
   if (!files.length) throw new Error('No release assets found');
 
   await runGit(['push', `https://gitcode.com/${repoPath}.git`, `refs/tags/${tag}:refs/tags/${tag}`]);
-  const releasePath = `/releases/${encodeURIComponent(tag)}`;
   let release = await request(releasePath, { allow404: true });
-  const releaseInfo = { name: tag, body: `GitHub Release: https://github.com/${process.env.GITHUB_REPOSITORY}/releases/tag/${encodeURIComponent(tag)}`, release_status: 'pre' };
   if (!release) {
-    await request('/releases', { method: 'POST', body: JSON.stringify({ tag_name: tag, ...releaseInfo }) });
+    await request('/releases', { method: 'POST', body: JSON.stringify({ tag_name: tag, ...releaseInfo, release_status: 'pre' }) });
     release = await request(releasePath);
   }
 

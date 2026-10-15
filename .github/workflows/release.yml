@@ -313,6 +313,7 @@ jobs:
           ATOMGIT_OWNER: ${{ vars.ATOMGIT_OWNER }}
           ATOMGIT_REPO: ${{ vars.ATOMGIT_REPO }}
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           (cd release-assets && shasum -a 256 -c *-sha256.txt)
           node .github/scripts/sync-gitcode-release.mjs release-assets
