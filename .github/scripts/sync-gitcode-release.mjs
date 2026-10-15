@@ -64,6 +64,11 @@ async function uploadAsset(file) {
   });
 }
 
+function knownAssetSize(asset) {
+  const size = Number(asset?.size ?? asset?.file_size ?? asset?.filesize);
+  return Number.isFinite(size) && size > 0 ? size : null;
+}
+
 async function main() {
   const files = (await readdir(directory)).sort().map((name) => join(directory, name));
   if (!files.length) throw new Error('No release assets found');
@@ -78,11 +83,14 @@ async function main() {
   }
 
   const existing = new Map((release.assets || []).filter((asset) => asset.type !== 'source').map((asset) => [asset.name, asset]));
+  if ([...existing.values()].some((asset) => knownAssetSize(asset) === null)) {
+    console.warn('GitCode did not return asset sizes; existing attachments will be checked by name');
+  }
   for (const file of files) {
     const size = (await stat(file)).size;
     const asset = existing.get(basename(file));
-    if (asset && Number(asset.size) === size) continue;
-    if (asset) throw new Error(`Existing GitCode asset differs in size: ${basename(file)}`);
+    if (asset && (knownAssetSize(asset) === null || knownAssetSize(asset) === size)) continue;
+    if (asset) throw new Error(`Existing GitCode asset differs in size: ${basename(file)} (local=${size}, remote=${knownAssetSize(asset)})`);
     console.log(`Uploading ${basename(file)} (${size} bytes)`);
     await uploadAsset(file);
   }
@@ -91,7 +99,7 @@ async function main() {
   const uploaded = new Map((release.assets || []).filter((asset) => asset.type !== 'source').map((asset) => [asset.name, asset]));
   for (const file of files) {
     const asset = uploaded.get(basename(file));
-    if (!asset || Number(asset.size) !== (await stat(file)).size) {
+    if (!asset || (knownAssetSize(asset) !== null && knownAssetSize(asset) !== (await stat(file)).size)) {
       throw new Error(`GitCode asset is missing or has the wrong size: ${basename(file)}`);
     }
   }
