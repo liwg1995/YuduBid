@@ -287,3 +287,32 @@ jobs:
           fi
           gh release upload "$TAG_NAME" release-assets/* --clobber
           gh release edit "$TAG_NAME" --draft=false
+
+  sync-gitcode-release:
+    name: Sync release to GitCode
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag_name || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Verify and sync GitCode Release
+        env:
+          ATOMGIT_ACCESS_TOKEN: ${{ secrets.ATOMGIT_ACCESS_TOKEN }}
+          ATOMGIT_OWNER: ${{ vars.ATOMGIT_OWNER }}
+          ATOMGIT_REPO: ${{ vars.ATOMGIT_REPO }}
+          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          (cd release-assets && sha256sum -c *-sha256.txt)
+          node .github/scripts/sync-gitcode-release.mjs release-assets
