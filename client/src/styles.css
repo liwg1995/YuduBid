@@ -9702,6 +9702,25 @@ button {
   transform: translateY(-1px);
 }
 
+.about-update-source {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 36px 16px;
+  color: var(--yb-text-soft);
+}
+
+.about-update-source select {
+  max-width: 100%;
+  min-height: 36px;
+  padding: 6px 12px;
+  color: var(--yb-text);
+  background: var(--yb-surface, transparent);
+  border: 1px solid var(--yb-border);
+  border-radius: 10px;
+}
+
 .release-detail-card {
   position: fixed;
   top: 50%;

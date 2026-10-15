@@ -59,7 +59,7 @@ function normalizeUpdateErrorMessage(value) {
   const message = String(value || '').trim();
   if (!message) return '更新失败，请稍后重试；也可以在关于页面手动下载安装。';
   if (/timeout|timed out|etimedout|econnreset|econnaborted|enotfound|eai_again|fetch failed|network|socket hang up/i.test(message)) {
-    return '连接 GitHub 更新服务器超时或网络中断，请稍后重试，或在关于页面手动下载安装。';
+    return '连接更新服务器超时或网络中断，请稍后重试，或在关于页面切换更新渠道。';
   }
   return message;
 }
