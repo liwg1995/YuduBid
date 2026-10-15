@@ -291,7 +291,7 @@ jobs:
   sync-gitcode-release:
     name: Sync release to GitCode
     needs: release
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, atomgit-upload]
     permissions:
       contents: read
     steps:
@@ -314,5 +314,5 @@ jobs:
           ATOMGIT_REPO: ${{ vars.ATOMGIT_REPO }}
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
         run: |
-          (cd release-assets && sha256sum -c *-sha256.txt)
+          (cd release-assets && shasum -a 256 -c *-sha256.txt)
           node .github/scripts/sync-gitcode-release.mjs release-assets

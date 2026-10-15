@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, atomgit-upload]
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
           TAG_NAME: ${{ inputs.tag_name }}
         run: |
           gh release download "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --dir release-assets
-          (cd release-assets && sha256sum -c *-sha256.txt)
+          (cd release-assets && shasum -a 256 -c *-sha256.txt)
       - name: Sync GitCode Release
         env:
           ATOMGIT_ACCESS_TOKEN: ${{ secrets.ATOMGIT_ACCESS_TOKEN }}
