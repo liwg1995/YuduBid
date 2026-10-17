@@ -918,6 +918,10 @@ function createTechnicalPlanStore({ app, db, fileService }) {
   }
 
   function saveGlobalFacts(globalFacts) {
+    const contentStatus = loadTechnicalPlan().contentGenerationTask?.status;
+    if (['running', 'pausing', 'stopping'].includes(contentStatus)) {
+      throw new Error('正文正在生成，请先暂停任务，再修改全局事实');
+    }
     const transaction = db.transaction(() => {
       replaceGlobalFacts(globalFacts);
       clearContentGenerationState();
@@ -943,11 +947,28 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     if (maximumWords > 0 && minimumWords > maximumWords) {
       throw new Error('全文参考上限不能低于最低字数');
     }
-    const hasOutline = Boolean(loadTechnicalPlan().outlineData?.outline?.length);
-    return updateTechnicalPlan({
-      contentGenerationOptions,
-      ...(hasOutline ? { generationSettingsSnapshot: { minimumWords, maximumWords, sectionWords } } : {}),
+    const current = loadTechnicalPlan();
+    const contentSettings = (options) => {
+      const { wordExportMode: _wordExportMode, wordExportTemplateId: _wordExportTemplateId, layoutCheck: _layoutCheck, ...generationSettings } = options || {};
+      return generationSettings;
+    };
+    const contentSettingsChanged = Boolean(current.contentGenerationOptions)
+      && JSON.stringify(contentSettings(current.contentGenerationOptions)) !== JSON.stringify(contentSettings(contentGenerationOptions));
+    const policyChanged = (current.contentGenerationOptions?.missingFactPolicy || 'infer') !== (contentGenerationOptions?.missingFactPolicy || 'infer');
+    const factsPolicyStale = Boolean(current.globalFactsTask?.stats?.globalFactsPolicy
+      && current.globalFactsTask.stats.globalFactsPolicy !== (contentGenerationOptions?.missingFactPolicy || 'infer'));
+    if (contentSettingsChanged && ['running', 'pausing', 'stopping'].includes(current.contentGenerationTask?.status)) {
+      throw new Error('正文正在生成，请先暂停任务，再修改生成设置');
+    }
+    const transaction = db.transaction(() => {
+      if (contentSettingsChanged || policyChanged || (factsPolicyStale && current.contentGenerationTask?.status === 'paused')) clearContentGenerationState();
+      applyPartial({
+        contentGenerationOptions,
+        ...(current.outlineData?.outline?.length ? { generationSettingsSnapshot: { minimumWords, maximumWords, sectionWords } } : {}),
+      });
     });
+    transaction();
+    return loadTechnicalPlan();
   }
 
   function saveChapterContent({ nodeId, content }) {

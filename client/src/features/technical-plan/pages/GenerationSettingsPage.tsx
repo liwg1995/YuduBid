@@ -108,9 +108,9 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
     return () => { active = false; };
   }, [activeTab]);
 
-  const save = async () => {
+  const save = async (force = false) => {
     if (savePromiseRef.current) return savePromiseRef.current;
-    if (!changed || draftSignature === savedSignatureRef.current) return true;
+    if (!force && !stale && (!changed || draftSignature === savedSignatureRef.current)) return true;
     const pending = persistDraft();
     savePromiseRef.current = pending;
     try {
@@ -121,13 +121,9 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
   };
 
   const persistDraft = async () => {
-    if (exportSettingsLoading) {
-      showToast('正在读取导出模板，请稍后保存', 'info');
-      return false;
-    }
-    if (exportSettingsError) {
+    if (exportSettingsError && draft.wordExportMode && draft.wordExportMode !== 'basic') {
       setActiveTab('appearance');
-      showToast('导出设置读取失败，请重试后保存', 'info');
+      showToast('导出设置读取失败，请重新读取或改用基础格式', 'info');
       return false;
     }
     if (draft.maximumWords && draft.minimumWords > draft.maximumWords) {
@@ -135,7 +131,7 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
       showToast('全文参考上限不能低于最低字数', 'info');
       return false;
     }
-    const wordExportMode = draft.wordExportMode || (wordOptimizationEnabled ? 'word-optimization' : exportTemplates.length ? 'custom-template' : 'basic');
+    const wordExportMode = draft.wordExportMode || (exportSettingsError || exportSettingsLoading ? 'basic' : wordOptimizationEnabled ? 'word-optimization' : exportTemplates.length ? 'custom-template' : 'basic');
     const wordExportTemplateId = wordExportMode === 'custom-template' ? draft.wordExportTemplateId || exportTemplates[0]?.templateId : '';
     if (wordExportMode === 'word-optimization' && !wordOptimizationEnabled) {
       setActiveTab('appearance');
@@ -210,7 +206,7 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
           <p>确认生成范围、参考资料与正文要求，保存后用于当前项目。</p>
           {stale && <small className="generation-settings-warning">篇幅目标尚未同步，保存生成设置后即可继续。</small>}
         </div>
-        <button type="button" className="primary-action generation-settings-save" disabled={busy || exportSettingsLoading || exportSettingsError} onClick={() => void save()}>{busy ? '保存中...' : '保存生成设置'}</button>
+        <button type="button" className="primary-action generation-settings-save" disabled={busy} onClick={() => void save(true)}>{busy ? '保存中...' : '保存生成设置'}</button>
       </header>
 
       <div className="generation-settings-tabs" role="tablist" aria-label="生成设置分类">
