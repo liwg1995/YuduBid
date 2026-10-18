@@ -1,0 +1,29 @@
+name: Sync GitCode Release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Published GitHub release tag to mirror notes for'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sync-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sync GitHub release notes to GitCode
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ATOMGIT_ACCESS_TOKEN: ${{ secrets.ATOMGIT_ACCESS_TOKEN }}
+          ATOMGIT_OWNER: ${{ vars.ATOMGIT_OWNER }}
+          ATOMGIT_REPO: ${{ vars.ATOMGIT_REPO }}
+          TAG_NAME: ${{ inputs.tag_name }}
+        run: node .github/scripts/sync-gitcode-release.mjs --notes-only

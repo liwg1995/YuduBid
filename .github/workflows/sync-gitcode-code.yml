@@ -1,0 +1,32 @@
+name: Sync code to GitCode
+
+on:
+  push:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitcode-code-mirror
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sync GitHub branches and tags
+        env:
+          ATOMGIT_ACCESS_TOKEN: ${{ secrets.ATOMGIT_ACCESS_TOKEN }}
+          ATOMGIT_OWNER: ${{ vars.ATOMGIT_OWNER }}
+          ATOMGIT_REPO: ${{ vars.ATOMGIT_REPO }}
+        run: node .github/scripts/sync-gitcode-code.mjs

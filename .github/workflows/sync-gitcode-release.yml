@@ -1,0 +1,42 @@
+name: Retry GitCode Release sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Published GitHub release tag to mirror'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: [self-hosted, atomgit-upload]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download published GitHub assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ inputs.tag_name }}
+        run: |
+          gh release download "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --dir release-assets
+          (cd release-assets && shasum -a 256 -c *-sha256.txt)
+      - name: Sync GitCode Release
+        env:
+          ATOMGIT_ACCESS_TOKEN: ${{ secrets.ATOMGIT_ACCESS_TOKEN }}
+          ATOMGIT_OWNER: ${{ vars.ATOMGIT_OWNER }}
+          ATOMGIT_REPO: ${{ vars.ATOMGIT_REPO }}
+          TAG_NAME: ${{ inputs.tag_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/sync-gitcode-release.mjs release-assets
+      - name: Remove downloaded release assets
+        if: always()
+        run: python3 .github/scripts/cleanup-release-assets.py
