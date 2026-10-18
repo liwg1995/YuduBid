@@ -2,6 +2,9 @@ import * as Dialog from '@radix-ui/react-dialog';
 import * as Switch from '@radix-ui/react-switch';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import '../rejectionCheck.css';
+import './modernRejectionCheck.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
 import { FloatingToolbar, isLibreOfficeRequiredMessage, MarkdownEditor, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type {
@@ -200,6 +203,36 @@ function getCheckResultTabProgress(status: RejectionCheckTabStatus, progressMess
   if (progressMessage?.includes('第二轮')) return 60;
   if (progressMessage?.includes('识别') || progressMessage?.includes('逻辑')) return 55;
   return 30;
+}
+
+function getRejectionCheckRound(progressMessage?: string) {
+  if (progressMessage?.includes('第三轮')) return 3;
+  if (progressMessage?.includes('第二轮')) return 2;
+  return 1;
+}
+
+function CheckRunningCard({ title, message, description, stages, activeStage = 1 }: {
+  title: string;
+  message: string;
+  description: string;
+  stages?: readonly string[];
+  activeStage?: number;
+}) {
+  return (
+    <div className="rejection-check-running" role="status" aria-live="polite">
+      <div className="rejection-check-running-visual" aria-hidden="true"><span /><span /><span /></div>
+      <span className="rejection-check-running-kicker">{title}</span>
+      <strong>{message}</strong>
+      <p>{description}</p>
+      {stages && <div className="rejection-check-running-stages">
+        {stages.map((label, index) => <div className={index + 1 < activeStage ? 'is-complete' : index + 1 === activeStage ? 'is-current' : ''} key={label}>
+          <span>{index + 1 < activeStage ? '✓' : String(index + 1).padStart(2, '0')}</span>
+          <small>{label}</small>
+        </div>)}
+      </div>}
+      <div className="rejection-check-running-track" aria-hidden="true"><span /></div>
+    </div>
+  );
 }
 
 function normalizeExtractionState(state?: Partial<RejectionExtractionState> | null): RejectionExtractionState {
@@ -465,6 +498,13 @@ function DocumentFilePill({ document, onRemove }: { document: RejectionDocumentC
       </button>
     </article>
   );
+}
+
+function ModernDocumentRow({ document, onRemove }: { document: RejectionDocumentContent; onRemove: () => void }) {
+  const source = document.source === 'technical-plan' && document.sourceProjectName
+    ? `${document.sourceWorkflowKind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案'} · ${document.sourceProjectName}`
+    : sourceLabels[document.source];
+  return <div className="modern-rejection-document-row"><span>{getFileBadge(document)}</span><div><strong title={document.fileName}>{document.fileName}</strong><small>{source} · {formatContentLength(document.content)} · {formatImportedAt(document.importedAt)}</small></div><button type="button" onClick={onRemove}>移除</button></div>;
 }
 
 function FindingDetailBlock({ label, content }: { label: string; content: string }) {
@@ -1570,10 +1610,7 @@ function RejectionCheckPage() {
         </div>
 
         {visibleTypoCheckStatus === 'running' ? (
-          <div className="markdown-empty-state rejection-finding-empty">
-            <strong>AI 正在检查错别字</strong>
-            <p>{typoCheckResult.progressMessage || '正在识别候选并校验原文位置。'}</p>
-          </div>
+          <CheckRunningCard title="错别字检查进行中" message={typoCheckResult.progressMessage || '正在识别候选并校验原文位置。'} description="检查结束后将在这里显示定位结果。" />
         ) : visibleTypoCheckStatus === 'error' ? (
           <div className="markdown-empty-state rejection-finding-empty is-error">
             <strong>{typoCheckResult.error || '错别字检查失败'}</strong>
@@ -1626,10 +1663,7 @@ function RejectionCheckPage() {
         </div>
 
         {visibleLogicCheckStatus === 'running' ? (
-          <div className="markdown-empty-state rejection-finding-empty">
-            <strong>AI 正在检查逻辑谬误</strong>
-            <p>{logicCheckResult.progressMessage || '正在检查句子逻辑漏洞和全文前后不一致。'}</p>
-          </div>
+          <CheckRunningCard title="逻辑谬误检查进行中" message={logicCheckResult.progressMessage || '正在检查句子逻辑漏洞和全文前后不一致。'} description="检查结束后将在这里显示定位结果。" />
         ) : visibleLogicCheckStatus === 'error' ? (
           <div className="markdown-empty-state rejection-finding-empty is-error">
             <strong>{logicCheckResult.error || '逻辑谬误检查失败'}</strong>
@@ -1786,6 +1820,271 @@ function RejectionCheckPage() {
       ],
     },
   ];
+
+  const checkResultContent = (
+    <>
+              {activeCheckResult.id === 'facts' ? (
+                <>
+                  <div className="rejection-finding-summary"><div><span className="section-kicker">全文一致性</span><h3>关键事实检查</h3><p>列出同一事实的不同取值和出现位置，便于统一修改。</p></div><div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}><span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span><small>{visibleFactConsistencyChecks.filter((item) => item.status === 'conflict').length} 个事实冲突</small></div></div>
+                  {visibleRejectionCheckStatus === 'running' ? <CheckRunningCard title="关键事实检查进行中" message={rejectionCheckResult.progressMessage || '正在比对项目、金额、日期、人员和设备参数。'} description="检查将依次分析范围、逐项核查，并整理最终结果。" stages={['分析检查范围', '逐项核查文件', '补充去重并定稿']} activeStage={getRejectionCheckRound(rejectionCheckResult.progressMessage)} /> : filteredFactConsistencyChecks.length ? <div className="rejection-fact-list">{filteredFactConsistencyChecks.map((item) => <article className={`rejection-fact-item is-${item.status}`} key={item.id}><header><div><span>{item.category}</span><strong>{item.label}</strong></div><em>{item.status === 'consistent' ? '一致' : item.status === 'conflict' ? '存在冲突' : '待复核'}</em></header>{item.canonicalValue && <p className="rejection-fact-canonical">建议统一值：<strong>{item.canonicalValue}</strong></p>}<div className="rejection-fact-occurrences">{item.occurrences.map((entry, index) => <div key={`${entry.location}-${index}`}><strong>{entry.value}</strong><small>{entry.sourceFile ? `${entry.sourceFile} · ` : ''}{entry.location}</small></div>)}</div>{(item.risk || item.suggestion) && <p className="rejection-fact-advice">{item.risk}{item.suggestion ? `；${item.suggestion}` : ''}</p>}<select className={`rejection-resolution-select is-${visibleResolutions[item.id]?.status || 'pending'}`} value={visibleResolutions[item.id]?.status || 'pending'} onChange={(event) => updateResolution(item.id, { status: event.target.value as RejectionResolutionStatus })} aria-label={`${item.label}处理状态`}><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已解决</option><option value="accepted">接受风险</option></select><details className="rejection-remediation-details"><summary>整改任务详情</summary><ResolutionTaskEditor value={visibleResolutions[item.id] || { status: 'pending' }} onChange={(patch) => updateResolution(item.id, patch)} /></details></article>)}</div> : <div className="markdown-empty-state rejection-finding-empty"><strong>{visibleRejectionCheckStatus === 'success' && resolutionFilter === 'all' ? '未识别到可比较的关键事实' : resolutionFilter !== 'all' ? '当前筛选条件下没有任务' : '等待关键事实检查'}</strong><p>运行废标项检查后，将同步生成全文事实一致性结果。</p></div>}
+                </>
+              ) : activeCheckResult.id === 'qualification' ? (
+                <>
+                  <div className="rejection-finding-summary"><div><span className="section-kicker">资格专项核验</span><h3>资格条件检查</h3><p>证书图片或扫描件正文不可读时保留为人工核验，不直接判定缺失。</p></div><div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}><span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span><small>{visibleQualificationChecks.filter((item) => item.status === 'missing' || item.status === 'partial').length} 个资格风险</small></div></div>
+                  {visibleRejectionCheckStatus === 'running' ? <CheckRunningCard title="资格条件检查进行中" message={rejectionCheckResult.progressMessage || '正在对照资质、人员、业绩与财务材料。'} description="检查将依次分析范围、逐项核查，并整理最终结果。" stages={['分析检查范围', '逐项核查文件', '补充去重并定稿']} activeStage={getRejectionCheckRound(rejectionCheckResult.progressMessage)} /> : filteredQualificationChecks.length ? <div className="rejection-qualification-list">{filteredQualificationChecks.map((item) => <article className={`rejection-qualification-item is-${item.status}`} key={item.id}><header><div><span>{item.category}</span><strong>{item.requirement}</strong></div><em>{({ met: '满足', partial: '部分满足', missing: '缺失', manual: '人工核验' } as const)[item.status]}</em></header><dl><div><dt>主体 / 材料</dt><dd>{[item.subject, item.certificate].filter(Boolean).join(' · ') || '未明确'}</dd></div><div><dt>有效期</dt><dd>{item.validity || '未从解析文本确认'}</dd></div><div><dt>投标证据</dt><dd>{item.evidence}</dd></div><div><dt>风险与建议</dt><dd>{item.risk || '—'}{item.suggestion && <small>{item.suggestion}</small>}</dd></div></dl><select className={`rejection-resolution-select is-${visibleResolutions[item.id]?.status || 'pending'}`} value={visibleResolutions[item.id]?.status || 'pending'} onChange={(event) => updateResolution(item.id, { status: event.target.value as RejectionResolutionStatus })} aria-label={`${item.requirement}处理状态`}><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已解决</option><option value="accepted">接受风险</option></select><details className="rejection-remediation-details"><summary>整改任务详情</summary><ResolutionTaskEditor value={visibleResolutions[item.id] || { status: 'pending' }} onChange={(patch) => updateResolution(item.id, patch)} /></details></article>)}</div> : <div className="markdown-empty-state rejection-finding-empty"><strong>{visibleRejectionCheckStatus === 'success' && resolutionFilter === 'all' ? '未识别到明确资格条件' : resolutionFilter !== 'all' ? '当前筛选条件下没有任务' : '等待资格条件检查'}</strong><p>运行废标项检查后，将同步生成资格专项核验结果。</p></div>}
+                </>
+              ) : activeCheckResult.id === 'scoring' ? (
+                <>
+                  <div className="rejection-finding-summary">
+                    <div>
+                      <span className="section-kicker">评分矩阵</span>
+                      <h3>得分点覆盖检查</h3>
+                      <p>预计得分仅用于内部编标复核，不代表真实评标结果。</p>
+                    </div>
+                    <div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}>
+                      <span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span>
+                      <small>{visibleScoringMatrix.length} 个评分项</small>
+                    </div>
+                  </div>
+                  {visibleRejectionCheckStatus === 'running' ? (
+                    <CheckRunningCard title="评分覆盖检查进行中" message={rejectionCheckResult.progressMessage || '正在对照招标评分规则和投标响应。'} description="检查将依次分析范围、逐项核查，并整理最终结果。" stages={['分析检查范围', '逐项核查文件', '补充去重并定稿']} activeStage={getRejectionCheckRound(rejectionCheckResult.progressMessage)} />
+                  ) : filteredScoringMatrix.length ? (
+                    <div className="rejection-scoring-table-wrap">
+                      <table className="rejection-scoring-table">
+                        <thead><tr><th>类别 / 评分项</th><th>分值</th><th>评分规则</th><th>投标响应与证据</th><th>覆盖</th><th>潜在失分与补强建议</th></tr></thead>
+                        <tbody>{filteredScoringMatrix.map((item) => (
+                          <tr key={item.id}>
+                            <td><small>{item.category}</small><strong>{item.scoringItem}</strong></td>
+                            <td>{item.estimatedScore !== undefined ? `${item.estimatedScore} / ` : ''}{item.maxScore ?? '—'}</td>
+                            <td>{item.scoringRule}</td>
+                            <td><strong>{item.response || '未识别到明确响应'}</strong><small>{item.evidence || '暂无证据位置'}</small></td>
+                            <td><span className={`rejection-scoring-status is-${item.status}`}>{({ covered: '已覆盖', partial: '部分覆盖', missing: '未覆盖', unclear: '待复核' } as const)[item.status]}</span></td>
+                            <td>{item.gap || '—'}{item.suggestion && <small>{item.suggestion}</small>}<select className={`rejection-resolution-select is-${visibleResolutions[item.id]?.status || 'pending'}`} value={visibleResolutions[item.id]?.status || 'pending'} onChange={(event) => updateResolution(item.id, { status: event.target.value as RejectionResolutionStatus })} aria-label={`${item.scoringItem}处理状态`}><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已解决</option><option value="accepted">接受风险</option></select><details className="rejection-remediation-details"><summary>整改任务详情</summary><ResolutionTaskEditor value={visibleResolutions[item.id] || { status: 'pending' }} onChange={(patch) => updateResolution(item.id, patch)} /></details></td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="markdown-empty-state rejection-finding-empty"><strong>{visibleRejectionCheckStatus === 'success' && resolutionFilter === 'all' ? '未从招标文件识别到明确评分规则' : resolutionFilter !== 'all' ? '当前筛选条件下没有任务' : '等待评分项覆盖检查'}</strong><p>运行废标项检查后，将同步生成评分矩阵。</p></div>
+                  )}
+                </>
+              ) : activeCheckResult.id === 'rejection' ? (
+                <>
+                  <div className="rejection-finding-summary">
+                    <div>
+                      <span className="section-kicker">废标项检查</span>
+                      <h3>{visibleRejectionCheckStatus === 'running' ? '正在检查投标文件' : '废标项检查结果'}</h3>
+                      <p>{rejectionCheckSummaryText}</p>
+                    </div>
+                    <div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}>
+                      <span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span>
+                      <small>{visibleRejectionCheckStatus === 'success' ? `${visibleRejectionFindings.length} 个风险项` : rejectionCheckResult.progressMessage || '等待执行'}</small>
+                    </div>
+                  </div>
+
+                  {visibleRejectionCheckStatus === 'running' ? (
+                    <CheckRunningCard title="投标文件检查进行中" message={rejectionCheckResult.progressMessage || '正在分析检查范围。'} description="检查将依次分析范围、逐项核查，并整理最终结果。" stages={['分析检查范围', '逐项核查文件', '补充去重并定稿']} activeStage={getRejectionCheckRound(rejectionCheckResult.progressMessage)} />
+                  ) : visibleRejectionCheckStatus === 'error' ? (
+                    <div className="markdown-empty-state rejection-finding-empty is-error">
+                      <strong>{rejectionCheckResult.error || '废标项检查失败'}</strong>
+                      <p>请确认模型配置可用，或重新检查当前投标文件。</p>
+                      <button type="button" className="secondary-action" onClick={() => retrySingleCheck('rejection')} disabled={checkRunning || extractionRunning || !bidDocument || visibleExtractionStatus !== 'success' || !currentRejectionCheckInputSignature}>
+                        重新检查废标项
+                      </button>
+                    </div>
+                  ) : visibleRejectionFindings.length || visibleComplianceMatrix.length ? (
+                    <>
+                      {visibleComplianceMatrix.length > 0 && (
+                        <div className="rejection-compliance-section">
+                          <div className="section-kicker">符合性矩阵</div>
+                          <div className="rejection-compliance-table-wrap">
+                            <table className="rejection-compliance-table">
+                              <thead><tr><th>招标要求</th><th>投标响应</th><th>证据位置</th><th>状态</th><th>风险</th></tr></thead>
+                              <tbody>{visibleComplianceMatrix.map((item) => (
+                                <tr key={item.id}>
+                                  <td>{item.requirement}</td><td>{item.response || '未明确响应'}</td><td>{item.sourceFile ? `${item.sourceFile}：` : ''}{item.evidence}</td>
+                                  <td><span className={`rejection-compliance-status is-${item.status}`}>{({ met: '满足', partial: '部分满足', missing: '缺失', unclear: '待复核' } as Record<RejectionComplianceStatus, string>)[item.status]}</span></td>
+                                  <td>{item.risk || '—'}</td>
+                                </tr>
+                              ))}</tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                      {filteredRejectionFindings.length > 0 && <div className="rejection-finding-list">
+                        {filteredRejectionFindings.map((finding) => (
+                          <RejectionFindingItem
+                            key={finding.id}
+                            finding={finding}
+                            expanded={rejectionCheckResult.activeFindingId === finding.id}
+                            resolution={visibleResolutions[finding.id] || { status: 'pending' }}
+                            onResolutionChange={(patch) => updateResolution(finding.id, patch)}
+                            onToggle={() => toggleFinding(finding.id)}
+                            onDelete={() => deleteFinding(finding.id)}
+                          />
+                        ))}
+                      </div>}
+                      {visibleRejectionFindings.length > 0 && filteredRejectionFindings.length === 0 && resolutionFilter !== 'all' && <div className="markdown-empty-state rejection-finding-empty"><strong>当前筛选条件下没有任务</strong><p>可切换为“全部”或“仅看未处理”查看其他整改项。</p></div>}
+                    </>
+                  ) : (
+                    <div className="markdown-empty-state rejection-finding-empty">
+                      <strong>{visibleRejectionCheckStatus === 'success' ? '暂未发现废标项风险' : hasStaleRejectionCheckResult ? '检查输入已变化' : '等待废标项检查'}</strong>
+                      <p>{rejectionCheckSummaryText}</p>
+                    </div>
+                  )}
+                </>
+              ) : activeCheckResult.id === 'typo' ? renderTypoCheckContent() : activeCheckResult.id === 'logic' ? renderLogicCheckContent() : renderSubmissionChecklist()}
+    </>
+  );
+
+  const checkConfigDialog = (
+    <>
+          <Dialog.Root open={checkConfigDialogOpen} onOpenChange={setCheckConfigDialogOpen}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="content-regenerate-modal" />
+              <Dialog.Content className="content-generation-config-card rejection-check-config-card">
+                <div className="content-regenerate-card-head">
+                  <span className="section-kicker">检查配置</span>
+                  <Dialog.Title>检查结果配置</Dialog.Title>
+                </div>
+
+                <div className="rejection-check-presets" aria-label="检查套餐">
+                  <button type="button" className={!draftCheckOptions.typoCheck && !draftCheckOptions.logicCheck ? 'is-active' : ''} onClick={() => setDraftCheckOptions({ rejectionCheck: true, typoCheck: false, logicCheck: false })}>
+                    <strong>核心检查</strong><small>仅废标与实质性响应</small>
+                  </button>
+                  <button type="button" className={draftCheckOptions.typoCheck && draftCheckOptions.logicCheck ? 'is-active' : ''} onClick={() => setDraftCheckOptions({ rejectionCheck: true, typoCheck: true, logicCheck: true })}>
+                    <strong>完整检查</strong><small>废标、错别字与逻辑问题</small>
+                  </button>
+                </div>
+
+                <div className="content-generation-config-list">
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>废标项检查</strong>
+                      <small>基于招标文件无效与废标项检查投标文件响应风险，默认必选。</small>
+                    </span>
+                    <Switch.Root className="content-generation-switch" checked disabled aria-label="废标项检查">
+                      <Switch.Thumb className="content-generation-switch-thumb" />
+                    </Switch.Root>
+                  </label>
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>错别字检查</strong>
+                      <small>检查投标文件中的错别字、明显别字和文字疏漏。</small>
+                    </span>
+                    <Switch.Root
+                      className="content-generation-switch"
+                      checked={draftCheckOptions.typoCheck}
+                      onCheckedChange={(checked) => setDraftCheckOptions((prev) => ({ ...prev, typoCheck: checked }))}
+                      aria-label="错别字检查"
+                    >
+                      <Switch.Thumb className="content-generation-switch-thumb" />
+                    </Switch.Root>
+                  </label>
+                  <label className="content-generation-config-row">
+                    <span>
+                      <strong>逻辑谬误检查</strong>
+                      <small>检查前后矛盾、逻辑不一致和表述漏洞。</small>
+                    </span>
+                    <Switch.Root
+                      className="content-generation-switch"
+                      checked={draftCheckOptions.logicCheck}
+                      onCheckedChange={(checked) => setDraftCheckOptions((prev) => ({ ...prev, logicCheck: checked }))}
+                      aria-label="逻辑谬误检查"
+                    >
+                      <Switch.Thumb className="content-generation-switch-thumb" />
+                    </Switch.Root>
+                  </label>
+                </div>
+
+                <div className="content-regenerate-actions">
+                  <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
+                  <button type="button" className="secondary-action" onClick={saveCheckOptions}>
+                    保存配置
+                  </button>
+                  <button type="button" className="primary-action" onClick={startCheckWithOptions} disabled={checkRunning || extractionRunning || !bidDocument || (draftCheckOptions.rejectionCheck && (visibleExtractionStatus !== 'success' || !currentRejectionCheckInputSignature))}>
+                    {checkActionLabel}
+                  </button>
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+    </>
+  );
+
+  const technicalPlanDialog = (
+    <>
+      <Dialog.Root open={technicalPlanDialogOpen} onOpenChange={setTechnicalPlanDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="content-generation-config-card rejection-check-config-card">
+            <div className="content-regenerate-card-head">
+              <span className="section-kicker">招投标项目来源</span>
+              <Dialog.Title>选择读取来源</Dialog.Title>
+              <Dialog.Description>
+                先选择具体项目，再读取招标文件中的技术要求或该项目生成的技术方案正文。
+              </Dialog.Description>
+            </div>
+            <div className="content-generation-config-list">
+              {technicalPlanProjectsLoading ? <p>正在读取技术方案和已有方案扩写项目...</p> : null}
+              {!technicalPlanProjectsLoading && technicalPlanProjects.length === 0 ? <p>暂无可读取的招投标项目。</p> : null}
+              {technicalPlanProjects.map((project) => (
+                <label className="content-generation-config-row" key={`${project.workflowKind}:${project.id}`}>
+                  <span>
+                    <strong>{project.name || '未命名项目'}</strong>
+                    <small>{project.workflowKind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案'}{project.isActive ? ' · 当前活动项目' : ''}</small>
+                  </span>
+                  <input
+                    type="radio"
+                    name="technical-plan-project"
+                    checked={selectedTechnicalPlanProjectId === `${project.workflowKind}:${project.id}`}
+                    onChange={() => setSelectedTechnicalPlanProjectId(`${project.workflowKind}:${project.id}`)}
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="content-regenerate-actions">
+              <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
+              <button type="button" className="primary-action" onClick={() => void importFromSelectedTechnicalPlan()} disabled={technicalPlanProjectsLoading || !selectedTechnicalPlanProjectId || busy !== null}>
+                {busy === 'technical-plan' ? '读取中...' : technicalPlanImportTarget === 'tender' ? '读取技术要求' : '读取生成方案'}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
+  );
+
+  if (getStoredUiAppearance() === 'modern') {
+    return <div className="modern-rejection-page">
+      <nav className="modern-rejection-steps" aria-label="废标项检查步骤">{steps.map((item, index) => <button type="button" key={item} className={step === item ? 'is-active' : ''} aria-current={step === item ? 'step' : undefined} disabled={(item !== 'documents' && !canGoNext) || extractionRunning || checkRunning} onClick={() => switchStep(item)}><span>{String(index + 1).padStart(2, '0')}</span>{stepLabels[item]}</button>)}<strong role="status">{extractionRunning ? '条款解析中' : checkRunning ? '检查进行中' : '本地项目检查'}</strong></nav>
+      <div className="modern-rejection-body">
+        {step === 'documents' && <div className="modern-rejection-documents">
+          <header className="modern-rejection-page-head"><div><span>DOCUMENT INPUT / 01</span><h2>选择标书</h2><p>准备招标文件与投标文件，检查所需资料会保存在当前工作区。</p></div><div><strong>{Number(Boolean(tenderDocument)) + Number(Boolean(bidDocument))}/2</strong><small>已准备文件</small></div></header>
+          <div className="modern-rejection-documents-grid">
+            <section className="modern-rejection-sources">
+              <article><header><div><span>01 / CHECK BASIS</span><h3>招标文件</h3><p>识别无效投标条款、响应格式与强制性要求。</p></div></header>{tenderDocument ? <ModernDocumentRow document={tenderDocument} onRemove={() => removeDocument('tender')} /> : <div className="modern-rejection-source-empty">尚未准备招标文件</div>}<div className="modern-rejection-source-actions"><button type="button" onClick={() => void openTechnicalPlanImportDialog('tender')} disabled={busy !== null}>从技术方案读取</button><button type="button" className="is-primary" onClick={() => void importParsedDocument('tender')} disabled={busy !== null}>{busy === 'tender-upload' ? '解析中…' : tenderDocument ? '替换文件' : '上传文件'}</button></div></article>
+              <article><header><div><span>02 / TO BE CHECKED</span><h3>投标文件</h3><p>可读取已生成方案，也可上传一份或合并多份文件。</p></div></header>{bidDocument ? <><ModernDocumentRow document={bidDocument} onRemove={() => removeDocument('bid')} />{bidDocuments.length > 1 && <small className="modern-rejection-combined">已合并 {bidDocuments.length} 份文件，结果会保留证据来源。</small>}</> : <div className="modern-rejection-source-empty">尚未准备投标文件</div>}<div className="modern-rejection-source-actions"><button type="button" onClick={() => void importGeneratedPlanForCurrentTender()} disabled={busy !== null}>{busy === 'technical-plan' ? '读取中…' : '读取生成方案'}</button><button type="button" className="is-primary" onClick={() => void importParsedDocument('bid')} disabled={busy !== null}>{busy === 'bid-upload' ? '解析中…' : bidDocument ? '替换文件' : '上传文件'}</button><button type="button" onClick={() => void importMultipleBidDocuments()} disabled={busy !== null}>{busy === 'bid-multi-upload' ? '解析中…' : '多文件导入'}</button></div></article>
+            </section>
+            <section className="modern-rejection-reader"><div className="modern-rejection-reader-head"><div><span>DOCUMENT PREVIEW</span><h3>{documentLabels[activeDocumentTab]}正文</h3><small>{activeDocument ? `${activeDocument.fileName} · ${sourceLabels[activeDocument.source]}` : '等待导入'}</small></div><div role="tablist" aria-label="文档预览" onKeyDown={handleTabListKeyDown}>{documentTabs.map((tab) => <button type="button" role="tab" key={tab} id={`modern-rejection-document-tab-${tab}`} aria-controls="modern-rejection-document-panel" aria-selected={activeDocumentTab === tab} tabIndex={activeDocumentTab === tab ? 0 : -1} className={activeDocumentTab === tab ? 'is-active' : ''} onClick={() => setActiveDocumentTab(tab)}>{documentLabels[tab]}</button>)}</div></div><div className="modern-rejection-reader-content" id="modern-rejection-document-panel" role="tabpanel" aria-labelledby={`modern-rejection-document-tab-${activeDocumentTab}`}>{activeDocument ? <div className="markdown-viewer"><MarkdownRenderer>{activeDocument.content}</MarkdownRenderer></div> : <div className="modern-rejection-empty"><strong>等待{documentLabels[activeDocumentTab]}</strong><p>文件准备完成后可在这里阅读解析后的正文。</p></div>}</div></section>
+          </div>
+        </div>}
+        {step === 'items' && <div className="modern-rejection-items">
+          <header className="modern-rejection-page-head"><div><span>CLAUSE EXTRACTION / 02</span><h2>无效与废标项</h2><p>从招标文件提取检查依据，并补充项目自己的检查口径。</p></div><button type="button" className="modern-rejection-head-action" onClick={() => void prepareInvalidBidAndRejectionItems(Boolean(visibleExtractionContent.trim()) || visibleExtractionStatus === 'error')} disabled={!tenderDocument || extractionRunning}>{extractionRunning ? '解析中…' : visibleExtractionContent.trim() ? '重新解析' : '开始解析'}</button></header>
+          <div className="modern-rejection-items-workspace"><aside className="modern-rejection-items-context"><span>提取状态</span><strong className={`is-${visibleExtractionStatus}`}>{extractionStatusLabels[visibleExtractionStatus]}</strong><p>{resultSourceLabel}</p><div><span>检查依据</span><strong>{tenderDocument?.fileName || '尚未选择招标文件'}</strong></div><div><span>补充内容</span><strong>{customCheckItems.trim() ? '已填写自定义检查项' : '可选'}</strong></div></aside><main className="modern-rejection-items-main"><div className="modern-rejection-items-tabs" role="tablist" aria-label="条款内容" onKeyDown={handleTabListKeyDown}>{resultTabs.map((tab) => <button type="button" role="tab" key={tab.id} id={`modern-rejection-items-tab-${tab.id}`} aria-controls="modern-rejection-items-panel" aria-selected={activeResultTab === tab.id} tabIndex={activeResultTab === tab.id ? 0 : -1} className={activeResultTab === tab.id ? 'is-active' : ''} onClick={() => setActiveResultTab(tab.id)}>{tab.label}</button>)}</div><div className="modern-rejection-items-content" id="modern-rejection-items-panel" role="tabpanel" aria-labelledby={`modern-rejection-items-tab-${activeResultTab}`}>{activeResultTab === 'analysis' ? extractionRunning || visibleExtractionStatus === 'running' ? <CheckRunningCard title="条款解析进行中" message="正在提取无效投标、废标项和潜在风险。" description="解析完成后将在这里显示检查依据。" /> : visibleExtractionContent.trim() ? <div className="markdown-viewer"><MarkdownRenderer>{visibleExtractionContent}</MarkdownRenderer></div> : <div className="modern-rejection-empty"><strong>{visibleExtractionStatus === 'error' ? invalidBidAndRejectionItems.error || '解析失败' : '等待条款解析'}</strong><p>点击“开始解析”后可在这里查看结果。</p></div> : <MarkdownEditor className="rejection-custom-editor" value={customCheckItems} onChange={setCustomCheckItems} disabled={customCheckItemsDisabled} placeholder="输入自定义检查项，例如：\n- 关注资格证明材料有效期\n- 关注技术偏离表的关键参数响应" />}</div></main></div>
+        </div>}
+        {step === 'results' && <div className="modern-rejection-results">
+          <header className="modern-rejection-page-head"><div><span>RISK REVIEW / 03</span><h2>检查结果</h2><p>{bidDocument?.sourceProjectName || bidDocument?.fileName || '尚未选择投标文件'} · {tenderDocument?.fileName || '缺少招标文件'}</p></div><div className="modern-rejection-result-actions"><button type="button" onClick={() => switchStep('documents')} disabled={checkRunning || extractionRunning}>更换文件</button><button type="button" onClick={openCheckConfigDialog}>检查配置</button><button type="button" className="is-primary" onClick={openCheckConfigDialog} disabled={checkRunning || extractionRunning}>{checkActionLabel}</button></div></header>
+          <div className="modern-rejection-riskbar"><div><span>提交判断</span><strong className={canSubmit ? 'is-ready' : 'is-blocked'}>{canSubmit ? '检查已完成' : '存在待处理事项'}</strong></div><div><span>高风险</span><strong>{highRiskCount}</strong></div><div><span>中风险</span><strong>{mediumRiskCount}</strong></div><div><span>人工风险</span><strong>{submissionRisks}</strong></div><div><span>待确认</span><strong>{submissionPending}</strong></div><button type="button" onClick={() => setActiveCheckResultTab(primaryBlockerTab)}>{canSubmit ? '查看提交自查' : '查看首要阻断项'} →</button></div>
+          {gateBlockers.length > 0 && <div className="modern-rejection-blockers"><strong>当前阻断：</strong>{gateBlockers.join(' · ')}</div>}
+          <div className="modern-rejection-results-workspace"><nav className="modern-rejection-result-nav" role="tablist" aria-label="检查结果分类" onKeyDown={handleTabListKeyDown}>{checkResultTabs.map((tab, index) => { const enabled = isCheckResultTabEnabled(tab.id, checkOptions); const status: RejectionCheckTabStatus = !enabled ? 'disabled' : tab.id === 'submission' ? submissionRisks ? 'error' : submissionPending ? 'idle' : 'success' : ['rejection', 'qualification', 'scoring', 'facts'].includes(tab.id) ? visibleRejectionCheckStatus : tab.id === 'typo' ? visibleTypoCheckStatus : visibleLogicCheckStatus; return <button type="button" role="tab" key={tab.id} id={`modern-rejection-result-tab-${tab.id}`} aria-controls="modern-rejection-result-panel" aria-selected={activeCheckResultTab === tab.id} tabIndex={activeCheckResultTab === tab.id ? 0 : -1} className={activeCheckResultTab === tab.id ? 'is-active' : ''} onClick={() => setActiveCheckResultTab(tab.id)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{tab.label}</strong><small className={`is-${status}`}>{checkTabStatusLabels[status]}</small></button>; })}</nav><section className="modern-rejection-result-detail" id="modern-rejection-result-panel" role="tabpanel" aria-labelledby={`modern-rejection-result-tab-${activeCheckResultTab}`}><header><span>当前检查维度</span><h3>{activeCheckResult.label}</h3><p>{activeCheckResult.description}</p></header><div className="modern-rejection-result-content">{checkResultContent}</div></section></div>
+          {checkConfigDialog}
+        </div>}
+      </div>
+      <footer className="modern-rejection-footer"><div><button type="button" className="is-danger" onClick={resetWorkspace} disabled={(!hasAnyWorkspaceData && step === 'documents') || busy !== null || extractionRunning || checkRunning}>重置</button><button type="button" onClick={() => switchStep('documents')}>选择标书</button><button type="button" onClick={() => void exportExcel()} disabled={extractionRunning || checkRunning}>导出 Excel</button></div><div><button type="button" onClick={() => goToOffset(-1)} disabled={activeIndex <= 0 || extractionRunning || checkRunning}>← 上一步</button><button type="button" className="is-primary" onClick={() => goToOffset(1)} disabled={activeIndex >= steps.length - 1 || (step === 'documents' && !canGoNext) || extractionRunning || checkRunning}>下一步 →</button></div></footer>
+      {technicalPlanDialog}
+    </div>;
+  }
 
   return (
     <div className={`rejection-check-page is-${step}`}>
@@ -2091,235 +2390,16 @@ function RejectionCheckPage() {
               id={`rejection-check-result-panel-${activeCheckResult.id}`}
               aria-labelledby={`rejection-check-result-tab-${activeCheckResult.id}`}
             >
-              {activeCheckResult.id === 'facts' ? (
-                <>
-                  <div className="rejection-finding-summary"><div><span className="section-kicker">全文一致性</span><h3>关键事实检查</h3><p>列出同一事实的不同取值和出现位置，便于统一修改。</p></div><div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}><span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span><small>{visibleFactConsistencyChecks.filter((item) => item.status === 'conflict').length} 个事实冲突</small></div></div>
-                  {visibleRejectionCheckStatus === 'running' ? <div className="markdown-empty-state rejection-finding-empty"><strong>正在核对关键事实</strong><p>{rejectionCheckResult.progressMessage || '正在比对项目、金额、日期、人员和设备参数。'}</p></div> : filteredFactConsistencyChecks.length ? <div className="rejection-fact-list">{filteredFactConsistencyChecks.map((item) => <article className={`rejection-fact-item is-${item.status}`} key={item.id}><header><div><span>{item.category}</span><strong>{item.label}</strong></div><em>{item.status === 'consistent' ? '一致' : item.status === 'conflict' ? '存在冲突' : '待复核'}</em></header>{item.canonicalValue && <p className="rejection-fact-canonical">建议统一值：<strong>{item.canonicalValue}</strong></p>}<div className="rejection-fact-occurrences">{item.occurrences.map((entry, index) => <div key={`${entry.location}-${index}`}><strong>{entry.value}</strong><small>{entry.sourceFile ? `${entry.sourceFile} · ` : ''}{entry.location}</small></div>)}</div>{(item.risk || item.suggestion) && <p className="rejection-fact-advice">{item.risk}{item.suggestion ? `；${item.suggestion}` : ''}</p>}<select className={`rejection-resolution-select is-${visibleResolutions[item.id]?.status || 'pending'}`} value={visibleResolutions[item.id]?.status || 'pending'} onChange={(event) => updateResolution(item.id, { status: event.target.value as RejectionResolutionStatus })} aria-label={`${item.label}处理状态`}><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已解决</option><option value="accepted">接受风险</option></select><details className="rejection-remediation-details"><summary>整改任务详情</summary><ResolutionTaskEditor value={visibleResolutions[item.id] || { status: 'pending' }} onChange={(patch) => updateResolution(item.id, patch)} /></details></article>)}</div> : <div className="markdown-empty-state rejection-finding-empty"><strong>{visibleRejectionCheckStatus === 'success' && resolutionFilter === 'all' ? '未识别到可比较的关键事实' : resolutionFilter !== 'all' ? '当前筛选条件下没有任务' : '等待关键事实检查'}</strong><p>运行废标项检查后，将同步生成全文事实一致性结果。</p></div>}
-                </>
-              ) : activeCheckResult.id === 'qualification' ? (
-                <>
-                  <div className="rejection-finding-summary"><div><span className="section-kicker">资格专项核验</span><h3>资格条件检查</h3><p>证书图片或扫描件正文不可读时保留为人工核验，不直接判定缺失。</p></div><div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}><span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span><small>{visibleQualificationChecks.filter((item) => item.status === 'missing' || item.status === 'partial').length} 个资格风险</small></div></div>
-                  {visibleRejectionCheckStatus === 'running' ? <div className="markdown-empty-state rejection-finding-empty"><strong>正在核验资格条件</strong><p>{rejectionCheckResult.progressMessage || '正在对照资质、人员、业绩与财务材料。'}</p></div> : filteredQualificationChecks.length ? <div className="rejection-qualification-list">{filteredQualificationChecks.map((item) => <article className={`rejection-qualification-item is-${item.status}`} key={item.id}><header><div><span>{item.category}</span><strong>{item.requirement}</strong></div><em>{({ met: '满足', partial: '部分满足', missing: '缺失', manual: '人工核验' } as const)[item.status]}</em></header><dl><div><dt>主体 / 材料</dt><dd>{[item.subject, item.certificate].filter(Boolean).join(' · ') || '未明确'}</dd></div><div><dt>有效期</dt><dd>{item.validity || '未从解析文本确认'}</dd></div><div><dt>投标证据</dt><dd>{item.evidence}</dd></div><div><dt>风险与建议</dt><dd>{item.risk || '—'}{item.suggestion && <small>{item.suggestion}</small>}</dd></div></dl><select className={`rejection-resolution-select is-${visibleResolutions[item.id]?.status || 'pending'}`} value={visibleResolutions[item.id]?.status || 'pending'} onChange={(event) => updateResolution(item.id, { status: event.target.value as RejectionResolutionStatus })} aria-label={`${item.requirement}处理状态`}><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已解决</option><option value="accepted">接受风险</option></select><details className="rejection-remediation-details"><summary>整改任务详情</summary><ResolutionTaskEditor value={visibleResolutions[item.id] || { status: 'pending' }} onChange={(patch) => updateResolution(item.id, patch)} /></details></article>)}</div> : <div className="markdown-empty-state rejection-finding-empty"><strong>{visibleRejectionCheckStatus === 'success' && resolutionFilter === 'all' ? '未识别到明确资格条件' : resolutionFilter !== 'all' ? '当前筛选条件下没有任务' : '等待资格条件检查'}</strong><p>运行废标项检查后，将同步生成资格专项核验结果。</p></div>}
-                </>
-              ) : activeCheckResult.id === 'scoring' ? (
-                <>
-                  <div className="rejection-finding-summary">
-                    <div>
-                      <span className="section-kicker">评分矩阵</span>
-                      <h3>得分点覆盖检查</h3>
-                      <p>预计得分仅用于内部编标复核，不代表真实评标结果。</p>
-                    </div>
-                    <div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}>
-                      <span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span>
-                      <small>{visibleScoringMatrix.length} 个评分项</small>
-                    </div>
-                  </div>
-                  {visibleRejectionCheckStatus === 'running' ? (
-                    <div className="markdown-empty-state rejection-finding-empty"><strong>正在提取并核对评分项</strong><p>{rejectionCheckResult.progressMessage || '正在对照招标评分规则和投标响应。'}</p></div>
-                  ) : filteredScoringMatrix.length ? (
-                    <div className="rejection-scoring-table-wrap">
-                      <table className="rejection-scoring-table">
-                        <thead><tr><th>类别 / 评分项</th><th>分值</th><th>评分规则</th><th>投标响应与证据</th><th>覆盖</th><th>潜在失分与补强建议</th></tr></thead>
-                        <tbody>{filteredScoringMatrix.map((item) => (
-                          <tr key={item.id}>
-                            <td><small>{item.category}</small><strong>{item.scoringItem}</strong></td>
-                            <td>{item.estimatedScore !== undefined ? `${item.estimatedScore} / ` : ''}{item.maxScore ?? '—'}</td>
-                            <td>{item.scoringRule}</td>
-                            <td><strong>{item.response || '未识别到明确响应'}</strong><small>{item.evidence || '暂无证据位置'}</small></td>
-                            <td><span className={`rejection-scoring-status is-${item.status}`}>{({ covered: '已覆盖', partial: '部分覆盖', missing: '未覆盖', unclear: '待复核' } as const)[item.status]}</span></td>
-                            <td>{item.gap || '—'}{item.suggestion && <small>{item.suggestion}</small>}<select className={`rejection-resolution-select is-${visibleResolutions[item.id]?.status || 'pending'}`} value={visibleResolutions[item.id]?.status || 'pending'} onChange={(event) => updateResolution(item.id, { status: event.target.value as RejectionResolutionStatus })} aria-label={`${item.scoringItem}处理状态`}><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已解决</option><option value="accepted">接受风险</option></select><details className="rejection-remediation-details"><summary>整改任务详情</summary><ResolutionTaskEditor value={visibleResolutions[item.id] || { status: 'pending' }} onChange={(patch) => updateResolution(item.id, patch)} /></details></td>
-                          </tr>
-                        ))}</tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="markdown-empty-state rejection-finding-empty"><strong>{visibleRejectionCheckStatus === 'success' && resolutionFilter === 'all' ? '未从招标文件识别到明确评分规则' : resolutionFilter !== 'all' ? '当前筛选条件下没有任务' : '等待评分项覆盖检查'}</strong><p>运行废标项检查后，将同步生成评分矩阵。</p></div>
-                  )}
-                </>
-              ) : activeCheckResult.id === 'rejection' ? (
-                <>
-                  <div className="rejection-finding-summary">
-                    <div>
-                      <span className="section-kicker">废标项检查</span>
-                      <h3>{visibleRejectionCheckStatus === 'running' ? '正在检查投标文件' : '废标项检查结果'}</h3>
-                      <p>{rejectionCheckSummaryText}</p>
-                    </div>
-                    <div className={`rejection-result-status is-${visibleRejectionCheckStatus}`}>
-                      <span>{checkRunStatusLabels[visibleRejectionCheckStatus]}</span>
-                      <small>{visibleRejectionCheckStatus === 'success' ? `${visibleRejectionFindings.length} 个风险项` : rejectionCheckResult.progressMessage || '等待执行'}</small>
-                    </div>
-                  </div>
-
-                  {visibleRejectionCheckStatus === 'running' ? (
-                    <div className="markdown-empty-state rejection-finding-empty">
-                      <strong>AI 正在执行三轮检查</strong>
-                      <p>{rejectionCheckResult.progressMessage || '正在分析检查范围、逐项核查投标文件并补充定稿。'}</p>
-                    </div>
-                  ) : visibleRejectionCheckStatus === 'error' ? (
-                    <div className="markdown-empty-state rejection-finding-empty is-error">
-                      <strong>{rejectionCheckResult.error || '废标项检查失败'}</strong>
-                      <p>请确认模型配置可用，或重新检查当前投标文件。</p>
-                      <button type="button" className="secondary-action" onClick={() => retrySingleCheck('rejection')} disabled={checkRunning || extractionRunning || !bidDocument || visibleExtractionStatus !== 'success' || !currentRejectionCheckInputSignature}>
-                        重新检查废标项
-                      </button>
-                    </div>
-                  ) : visibleRejectionFindings.length || visibleComplianceMatrix.length ? (
-                    <>
-                      {visibleComplianceMatrix.length > 0 && (
-                        <div className="rejection-compliance-section">
-                          <div className="section-kicker">符合性矩阵</div>
-                          <div className="rejection-compliance-table-wrap">
-                            <table className="rejection-compliance-table">
-                              <thead><tr><th>招标要求</th><th>投标响应</th><th>证据位置</th><th>状态</th><th>风险</th></tr></thead>
-                              <tbody>{visibleComplianceMatrix.map((item) => (
-                                <tr key={item.id}>
-                                  <td>{item.requirement}</td><td>{item.response || '未明确响应'}</td><td>{item.sourceFile ? `${item.sourceFile}：` : ''}{item.evidence}</td>
-                                  <td><span className={`rejection-compliance-status is-${item.status}`}>{({ met: '满足', partial: '部分满足', missing: '缺失', unclear: '待复核' } as Record<RejectionComplianceStatus, string>)[item.status]}</span></td>
-                                  <td>{item.risk || '—'}</td>
-                                </tr>
-                              ))}</tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                      {filteredRejectionFindings.length > 0 && <div className="rejection-finding-list">
-                        {filteredRejectionFindings.map((finding) => (
-                          <RejectionFindingItem
-                            key={finding.id}
-                            finding={finding}
-                            expanded={rejectionCheckResult.activeFindingId === finding.id}
-                            resolution={visibleResolutions[finding.id] || { status: 'pending' }}
-                            onResolutionChange={(patch) => updateResolution(finding.id, patch)}
-                            onToggle={() => toggleFinding(finding.id)}
-                            onDelete={() => deleteFinding(finding.id)}
-                          />
-                        ))}
-                      </div>}
-                      {visibleRejectionFindings.length > 0 && filteredRejectionFindings.length === 0 && resolutionFilter !== 'all' && <div className="markdown-empty-state rejection-finding-empty"><strong>当前筛选条件下没有任务</strong><p>可切换为“全部”或“仅看未处理”查看其他整改项。</p></div>}
-                    </>
-                  ) : (
-                    <div className="markdown-empty-state rejection-finding-empty">
-                      <strong>{visibleRejectionCheckStatus === 'success' ? '暂未发现废标项风险' : hasStaleRejectionCheckResult ? '检查输入已变化' : '等待废标项检查'}</strong>
-                      <p>{rejectionCheckSummaryText}</p>
-                    </div>
-                  )}
-                </>
-              ) : activeCheckResult.id === 'typo' ? renderTypoCheckContent() : activeCheckResult.id === 'logic' ? renderLogicCheckContent() : renderSubmissionChecklist()}
+              {checkResultContent}
             </div>
           </section>
 
-          <Dialog.Root open={checkConfigDialogOpen} onOpenChange={setCheckConfigDialogOpen}>
-            <Dialog.Portal>
-              <Dialog.Overlay className="content-regenerate-modal" />
-              <Dialog.Content className="content-generation-config-card rejection-check-config-card">
-                <div className="content-regenerate-card-head">
-                  <span className="section-kicker">检查配置</span>
-                  <Dialog.Title>检查结果配置</Dialog.Title>
-                </div>
-
-                <div className="rejection-check-presets" aria-label="检查套餐">
-                  <button type="button" className={!draftCheckOptions.typoCheck && !draftCheckOptions.logicCheck ? 'is-active' : ''} onClick={() => setDraftCheckOptions({ rejectionCheck: true, typoCheck: false, logicCheck: false })}>
-                    <strong>核心检查</strong><small>仅废标与实质性响应</small>
-                  </button>
-                  <button type="button" className={draftCheckOptions.typoCheck && draftCheckOptions.logicCheck ? 'is-active' : ''} onClick={() => setDraftCheckOptions({ rejectionCheck: true, typoCheck: true, logicCheck: true })}>
-                    <strong>完整检查</strong><small>废标、错别字与逻辑问题</small>
-                  </button>
-                </div>
-
-                <div className="content-generation-config-list">
-                  <label className="content-generation-config-row">
-                    <span>
-                      <strong>废标项检查</strong>
-                      <small>基于招标文件无效与废标项检查投标文件响应风险，默认必选。</small>
-                    </span>
-                    <Switch.Root className="content-generation-switch" checked disabled aria-label="废标项检查">
-                      <Switch.Thumb className="content-generation-switch-thumb" />
-                    </Switch.Root>
-                  </label>
-                  <label className="content-generation-config-row">
-                    <span>
-                      <strong>错别字检查</strong>
-                      <small>检查投标文件中的错别字、明显别字和文字疏漏。</small>
-                    </span>
-                    <Switch.Root
-                      className="content-generation-switch"
-                      checked={draftCheckOptions.typoCheck}
-                      onCheckedChange={(checked) => setDraftCheckOptions((prev) => ({ ...prev, typoCheck: checked }))}
-                      aria-label="错别字检查"
-                    >
-                      <Switch.Thumb className="content-generation-switch-thumb" />
-                    </Switch.Root>
-                  </label>
-                  <label className="content-generation-config-row">
-                    <span>
-                      <strong>逻辑谬误检查</strong>
-                      <small>检查前后矛盾、逻辑不一致和表述漏洞。</small>
-                    </span>
-                    <Switch.Root
-                      className="content-generation-switch"
-                      checked={draftCheckOptions.logicCheck}
-                      onCheckedChange={(checked) => setDraftCheckOptions((prev) => ({ ...prev, logicCheck: checked }))}
-                      aria-label="逻辑谬误检查"
-                    >
-                      <Switch.Thumb className="content-generation-switch-thumb" />
-                    </Switch.Root>
-                  </label>
-                </div>
-
-                <div className="content-regenerate-actions">
-                  <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
-                  <button type="button" className="secondary-action" onClick={saveCheckOptions}>
-                    保存配置
-                  </button>
-                  <button type="button" className="primary-action" onClick={startCheckWithOptions} disabled={checkRunning || extractionRunning || !bidDocument || (draftCheckOptions.rejectionCheck && (visibleExtractionStatus !== 'success' || !currentRejectionCheckInputSignature))}>
-                    {checkActionLabel}
-                  </button>
-                </div>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
+          {checkConfigDialog}
 
         </>
       )}
 
-      <Dialog.Root open={technicalPlanDialogOpen} onOpenChange={setTechnicalPlanDialogOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="content-generation-config-card rejection-check-config-card">
-            <div className="content-regenerate-card-head">
-              <span className="section-kicker">招投标项目来源</span>
-              <Dialog.Title>选择读取来源</Dialog.Title>
-              <Dialog.Description>
-                先选择具体项目，再读取招标文件中的技术要求或该项目生成的技术方案正文。
-              </Dialog.Description>
-            </div>
-            <div className="content-generation-config-list">
-              {technicalPlanProjectsLoading ? <p>正在读取技术方案和已有方案扩写项目...</p> : null}
-              {!technicalPlanProjectsLoading && technicalPlanProjects.length === 0 ? <p>暂无可读取的招投标项目。</p> : null}
-              {technicalPlanProjects.map((project) => (
-                <label className="content-generation-config-row" key={`${project.workflowKind}:${project.id}`}>
-                  <span>
-                    <strong>{project.name || '未命名项目'}</strong>
-                    <small>{project.workflowKind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案'}{project.isActive ? ' · 当前活动项目' : ''}</small>
-                  </span>
-                  <input
-                    type="radio"
-                    name="technical-plan-project"
-                    checked={selectedTechnicalPlanProjectId === `${project.workflowKind}:${project.id}`}
-                    onChange={() => setSelectedTechnicalPlanProjectId(`${project.workflowKind}:${project.id}`)}
-                  />
-                </label>
-              ))}
-            </div>
-            <div className="content-regenerate-actions">
-              <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
-              <button type="button" className="primary-action" onClick={() => void importFromSelectedTechnicalPlan()} disabled={technicalPlanProjectsLoading || !selectedTechnicalPlanProjectId || busy !== null}>
-                {busy === 'technical-plan' ? '读取中...' : technicalPlanImportTarget === 'tender' ? '读取技术要求' : '读取生成方案'}
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      {technicalPlanDialog}
 
       <FloatingToolbar groups={toolbarGroups} label="废标项检查工具条" />
     </div>

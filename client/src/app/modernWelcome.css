@@ -1,0 +1,103 @@
+.modern-welcome-page {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
+  place-items: center;
+  color: #eef1fb;
+  background: radial-gradient(ellipse at 79% 43%, #303262 0%, transparent 42%), linear-gradient(135deg, #0b1220 3%, #111b2c 57%, #0d1524);
+  isolation: isolate;
+}
+.modern-welcome-page.is-leaving { animation: modern-welcome-exit .52s cubic-bezier(.4, 0, .55, 1) forwards; }
+
+.modern-welcome-window-drag { position: absolute; z-index: 4; top: 0; right: 0; left: 0; height: 32px; -webkit-app-region: drag; }
+.modern-welcome-ambient { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.modern-welcome-ambient::before { position: absolute; inset: -64px; background-image: linear-gradient(#afb7ee09 1px, transparent 1px), linear-gradient(90deg, #afb7ee09 1px, transparent 1px); background-size: 64px 64px; content: ''; mask-image: radial-gradient(ellipse at 65% 50%, #000 0, transparent 73%); animation: modern-welcome-grid-drift 28s ease-in-out infinite alternate; }
+.modern-welcome-ambient::after { position: absolute; inset: -18%; background: radial-gradient(circle at 72% 43%, #9a8bf51c 0, transparent 26%), radial-gradient(circle at 16% 83%, #57cbb60e 0, transparent 29%); content: ''; animation: modern-welcome-ambient-glow 17s ease-in-out infinite alternate; }
+.modern-welcome-ambient span { position: absolute; width: 38vw; max-width: 650px; aspect-ratio: 1; border: 1px solid #a69bf024; border-radius: 50%; }
+.modern-welcome-ambient span:first-child { top: -24%; right: -5%; box-shadow: 0 0 0 72px #a69bf006, 0 0 0 150px #a69bf004; animation: modern-welcome-orbit-top 24s ease-in-out infinite alternate; }
+.modern-welcome-ambient span:last-child { bottom: -44%; left: -12%; border-color: #57cbb619; box-shadow: 0 0 0 90px #57cbb607; animation: modern-welcome-orbit-bottom 30s ease-in-out infinite alternate; }
+.modern-welcome-layout { position: relative; z-index: 1; display: grid; width: min(1120px, calc(100% - 96px)); grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); align-items: center; gap: clamp(42px, 7vw, 110px); padding: 70px 0; }
+.modern-welcome-copy { min-width: 0; animation: modern-welcome-reveal .65s cubic-bezier(.2,.72,.2,1) both; }
+.modern-welcome-brand { display: flex; align-items: center; gap: 11px; margin-bottom: clamp(58px, 9vh, 104px); color: #dce3f8; font-size: 13px; font-weight: 750; letter-spacing: .08em; }
+.modern-welcome-brand img { width: 39px; height: 39px; border-radius: 10px; object-fit: contain; }
+.modern-welcome-brand b { margin-left: 7px; color: #9daac4; font-size: 12px; font-weight: 550; letter-spacing: 0; }
+.modern-welcome-kicker { display: inline-flex; align-items: center; gap: 9px; color: #a9ded1; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+.modern-welcome-kicker::before { width: 7px; height: 7px; border-radius: 50%; background: #65d5b9; box-shadow: 0 0 0 5px #65d5b91b; content: ''; }
+.modern-welcome-copy h1 { margin: 22px 0 18px; font-size: clamp(42px, 4.6vw, 72px); font-weight: 750; line-height: 1.18; letter-spacing: -.05em; }
+.modern-welcome-copy h1 em { color: #b7acff; font-style: normal; }
+.modern-welcome-copy p { max-width: 440px; margin: 0; color: #aebbd2; font-size: clamp(14px, 1.22vw, 17px); line-height: 1.8; }
+.modern-welcome-start { display: inline-flex; min-width: 176px; min-height: 52px; align-items: center; justify-content: space-between; gap: 30px; margin-top: 46px; border: 1px solid #c0b8ff; border-radius: 11px; padding: 0 17px 0 21px; color: #fff; background: linear-gradient(120deg, #7568d4, #9284ee); box-shadow: 0 14px 38px #473e9c4d, inset 0 1px #ffffff45; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease, background .2s ease; -webkit-app-region: no-drag; }
+.modern-welcome-start:hover { transform: translateY(-2px); box-shadow: 0 18px 42px #584abb73, inset 0 1px #ffffff55; }
+.modern-welcome-start:focus-visible { outline: 3px solid #c9c1ff; outline-offset: 4px; }
+.modern-welcome-start span:last-child { font-size: 20px; font-weight: 400; line-height: 1; }
+.modern-welcome-copy > small { display: block; margin-top: 19px; color: #8292ad; font-size: 11px; }
+
+.modern-welcome-art { position: relative; display: grid; min-height: 440px; place-items: center; animation: modern-welcome-reveal .8s .12s cubic-bezier(.2,.72,.2,1) both; }
+.modern-welcome-art-grid { position: absolute; inset: 0; border: 1px solid #8f8fcd12; border-radius: 50%; background: repeating-radial-gradient(circle, transparent 0 54px, #aba1f213 55px 56px); transform: scale(1.15); }
+.modern-welcome-art-halo { position: absolute; width: 72%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #9a8bf538 0%, #6c6cb116 42%, transparent 72%); filter: blur(18px); animation: modern-welcome-halo 6s ease-in-out infinite alternate; }
+.modern-welcome-art-board { position: relative; width: min(100%, 510px); height: 325px; overflow: hidden; border: 1px solid #8086bd8a; border-radius: 16px; background: linear-gradient(145deg, #25344e, #19263c 66%); box-shadow: 0 36px 85px #0207139e, 0 0 0 1px #d9d4ff14 inset; transform: perspective(1000px) rotateY(-9deg) rotateX(3deg); animation: modern-welcome-board 7s ease-in-out infinite alternate; }
+.modern-welcome-art-board-head { display: flex; height: 40px; align-items: center; gap: 6px; border-bottom: 1px solid #4956738c; padding: 0 15px; background: #17243a; }
+.modern-welcome-art-board-head span { width: 6px; height: 6px; border-radius: 50%; background: #687895; }
+.modern-welcome-art-board-head span:first-child { background: #a79bef; }
+.modern-welcome-art-board-head i { width: 100px; height: 6px; margin-left: auto; border-radius: 3px; background: #3c4d69; }
+.modern-welcome-art-board-body { display: flex; height: calc(100% - 40px); }
+.modern-welcome-art-rail { display: flex; width: 55px; flex: 0 0 55px; flex-direction: column; align-items: center; gap: 21px; border-right: 1px solid #40516d88; padding-top: 23px; background: #18263a; }
+.modern-welcome-art-rail i { width: 17px; height: 17px; border: 1px solid #6f7b9e; border-radius: 5px; }
+.modern-welcome-art-rail i:first-child { border-color: #a49aff; background: #8176d84d; box-shadow: 0 0 0 7px #9587fb15; }
+.modern-welcome-art-canvas { flex: 1; padding: 29px 30px; }
+.modern-welcome-art-line { height: 8px; border-radius: 5px; background: #657491; }
+.modern-welcome-art-line.is-short { width: 28%; height: 6px; background: #a29bea; }
+.modern-welcome-art-line.is-title { width: 55%; height: 15px; margin-top: 16px; background: #c9d0e4; }
+.modern-welcome-art-row { display: flex; gap: 8px; margin-top: 26px; }
+.modern-welcome-art-row span { width: 24%; height: 53px; border: 1px solid #566889; border-radius: 8px; background: #2d3f5c; }
+.modern-welcome-art-row span:first-child { border-color: #8c82d9; background: #514d81; }
+.modern-welcome-art-sheet { display: flex; height: 87px; flex-direction: column; gap: 10px; margin-top: 18px; border: 1px solid #566889; border-radius: 9px; padding: 16px; background: #17243a; }
+.modern-welcome-art-sheet i { height: 6px; border-radius: 3px; background: #596b8b; }
+.modern-welcome-art-sheet i:nth-child(1) { width: 67%; }
+.modern-welcome-art-sheet i:nth-child(2) { width: 81%; }
+.modern-welcome-art-sheet i:nth-child(3) { width: 48%; }
+.modern-welcome-art-sheet b { width: 17%; height: 5px; border-radius: 3px; background: #a99cf8; animation: modern-welcome-writing 3s ease-in-out infinite; }
+.modern-welcome-art-mark { position: absolute; right: -16px; bottom: 22px; display: flex; align-items: center; gap: 10px; border: 1px solid #766fb4; border-radius: 999px; padding: 11px 15px; color: #dddafa; background: #252e4b; box-shadow: 0 15px 30px #03071680; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.modern-welcome-art-mark i { width: 15px; height: 1px; background: #9288db; }
+
+@keyframes modern-welcome-reveal { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes modern-welcome-exit { to { opacity: 0; transform: scale(1.025); } }
+@keyframes modern-welcome-grid-drift { to { transform: translate3d(32px, -24px, 0); } }
+@keyframes modern-welcome-ambient-glow { to { opacity: .55; transform: translate3d(-42px, 26px, 0) scale(1.08); } }
+@keyframes modern-welcome-orbit-top { from { transform: translate3d(0, 0, 0) rotate(-24deg); } to { transform: translate3d(-34px, 36px, 0) rotate(-16deg); } }
+@keyframes modern-welcome-orbit-bottom { from { transform: translate3d(0, 0, 0) rotate(-24deg); } to { transform: translate3d(30px, -28px, 0) rotate(-32deg); } }
+@keyframes modern-welcome-halo { to { opacity: .65; transform: scale(1.12); } }
+@keyframes modern-welcome-board { to { transform: perspective(1000px) rotateY(-5deg) rotateX(1deg) translateY(-8px); } }
+@keyframes modern-welcome-writing { 50% { width: 30%; opacity: .7; } }
+
+@media (max-width: 840px) {
+  .modern-welcome-layout { width: min(620px, calc(100% - 48px)); grid-template-columns: 1fr; gap: 12px; padding: 64px 0 30px; }
+  .modern-welcome-brand { margin-bottom: 35px; }
+  .modern-welcome-copy h1 { font-size: clamp(36px, 7vw, 54px); }
+  .modern-welcome-start { margin-top: 30px; }
+  .modern-welcome-art { min-height: 270px; }
+  .modern-welcome-art-board { width: min(78%, 430px); height: 260px; }
+  .modern-welcome-art-mark { right: 3%; bottom: 4px; }
+}
+
+@media (max-height: 700px) {
+  .modern-welcome-layout { padding-top: 42px; padding-bottom: 24px; }
+  .modern-welcome-brand { margin-bottom: 34px; }
+  .modern-welcome-art { min-height: 315px; }
+}
+
+@media (max-width: 560px), (max-height: 560px) {
+  .modern-welcome-page { overflow-y: auto; }
+  .modern-welcome-layout { width: calc(100% - 40px); }
+  .modern-welcome-art { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modern-welcome-copy, .modern-welcome-art, .modern-welcome-ambient::before, .modern-welcome-ambient::after, .modern-welcome-ambient span, .modern-welcome-art-halo, .modern-welcome-art-board, .modern-welcome-art-sheet b { animation: none; }
+  .modern-welcome-start { transition: none; }
+}

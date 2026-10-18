@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AppRouter from './app/AppRouter';
 import StartupSplash from './app/StartupSplash';
+import ModernWelcomePage from './app/ModernWelcomePage';
 import { isSectionVisible } from './app/menuConfig';
 import AppShell from './components/AppShell';
 import type { FeatureModuleSettings } from './shared/types';
 import type { SectionId } from './shared/types/navigation';
 import type { PluginNavigationTarget } from './shared/types/plugin';
+import { canNavigateToSection } from './shared/navigationBlocker';
+import { shouldReduceMotion } from './shared/motionPreference';
+import { getStoredUiAppearance, UI_APPEARANCE_CHANGE_EVENT, type UiAppearance } from './shared/uiAppearance';
+
+const MODERN_WELCOME_STORAGE_KEY = 'yudubid-modern-welcome-v2';
 
 const sectionIds = new Set<SectionId>([
   'home',
@@ -57,6 +63,15 @@ function initialSectionFromUrl(): SectionId {
 }
 
 function App() {
+  const [uiAppearance, setUiAppearance] = useState<UiAppearance>(getStoredUiAppearance);
+  const [modernWelcomeOpen, setModernWelcomeOpen] = useState(() => window.localStorage.getItem(MODERN_WELCOME_STORAGE_KEY) !== 'seen');
+  const [modernWelcomeExiting, setModernWelcomeExiting] = useState(false);
+  const welcomeExitTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    const syncAppearance = (event: Event) => setUiAppearance((event as CustomEvent<UiAppearance>).detail);
+    window.addEventListener(UI_APPEARANCE_CHANGE_EVENT, syncAppearance);
+    return () => window.removeEventListener(UI_APPEARANCE_CHANGE_EVENT, syncAppearance);
+  }, []);
   const [activeSection, setActiveSection] = useState<SectionId>(initialSectionFromUrl);
   const [developerMode, setDeveloperMode] = useState(false);
   const [featureModuleSettings, setFeatureModuleSettings] = useState<FeatureModuleSettings | null>(null);
@@ -171,15 +186,18 @@ function App() {
         const section = event.sectionId as SectionId;
         const visibility = sectionVisibilityRef.current;
         if (sectionIds.has(section) && isSectionVisible(section, visibility.developerMode, visibility.featureModuleSettings)) {
-          setPluginNavigationTarget({
-            requestId: Date.now(),
-            sectionId: section,
-            ...(event.workflowKind ? { workflowKind: event.workflowKind } : {}),
-            ...(event.projectId ? { projectId: event.projectId } : {}),
-            ...(event.viewId ? { viewId: event.viewId } : {}),
-            ...(event.panelId ? { panelId: event.panelId } : {}),
+          void canNavigateToSection(section).then((allowed) => {
+            if (!alive || !allowed) return;
+            setPluginNavigationTarget({
+              requestId: Date.now(),
+              sectionId: section,
+              ...(event.workflowKind ? { workflowKind: event.workflowKind } : {}),
+              ...(event.projectId ? { projectId: event.projectId } : {}),
+              ...(event.viewId ? { viewId: event.viewId } : {}),
+              ...(event.panelId ? { panelId: event.panelId } : {}),
+            });
+            setActiveSection(section);
           });
-          setActiveSection(section);
         }
         return;
       }
@@ -199,8 +217,32 @@ function App() {
   }, []);
 
   const changeSection = useCallback((section: SectionId) => {
-    setActiveSection(isSectionVisible(section, developerMode, featureModuleSettings) ? section : 'home');
+    const destination = isSectionVisible(section, developerMode, featureModuleSettings) ? section : 'home';
+    void canNavigateToSection(destination).then((allowed) => {
+      if (allowed) setActiveSection(destination);
+    });
   }, [developerMode, featureModuleSettings]);
+
+  const startExploring = () => {
+    if (modernWelcomeExiting) return;
+    window.localStorage.setItem(MODERN_WELCOME_STORAGE_KEY, 'seen');
+    setPluginNavigationTarget(null);
+    setActiveSection('home');
+    if (shouldReduceMotion()) {
+      setModernWelcomeOpen(false);
+      return;
+    }
+    setModernWelcomeExiting(true);
+    welcomeExitTimerRef.current = window.setTimeout(() => {
+      setModernWelcomeOpen(false);
+      setModernWelcomeExiting(false);
+      welcomeExitTimerRef.current = null;
+    }, 560);
+  };
+
+  useEffect(() => () => {
+    if (welcomeExitTimerRef.current !== null) window.clearTimeout(welcomeExitTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!isSectionVisible(activeSection, developerMode, featureModuleSettings)) {
@@ -208,27 +250,33 @@ function App() {
     }
   }, [activeSection, developerMode, featureModuleSettings]);
 
+  if (!startupDone) return <StartupSplash progress={startupProgress} message={startupMessage} />;
+  const showModernWelcome = uiAppearance === 'modern' && modernWelcomeOpen;
+
   return (
     <>
-      {!startupDone && <StartupSplash progress={startupProgress} message={startupMessage} />}
-      <AppShell
-        activeSection={activeSection}
-        developerMode={developerMode}
-        featureModuleSettings={featureModuleSettings}
-        assistantPluginEnabled={assistantPluginEnabled}
-        onSectionChange={changeSection}
-      >
-        <AppRouter
-          key={`${activeSection}:${sectionRefreshKeys[activeSection] || 0}:${pluginNavigationTarget?.requestId || 0}`}
+      {(!showModernWelcome || modernWelcomeExiting) && (
+        <AppShell
+          appearance={uiAppearance}
           activeSection={activeSection}
           developerMode={developerMode}
           featureModuleSettings={featureModuleSettings}
-          pluginNavigationTarget={pluginNavigationTarget?.sectionId === activeSection ? pluginNavigationTarget : null}
+          assistantPluginEnabled={assistantPluginEnabled}
           onSectionChange={changeSection}
-          onDeveloperModeChange={setDeveloperMode}
-          onFeatureModuleSettingsChange={setFeatureModuleSettings}
-        />
-      </AppShell>
+        >
+          <AppRouter
+            key={`${uiAppearance}:${activeSection}:${sectionRefreshKeys[activeSection] || 0}:${pluginNavigationTarget?.requestId || 0}`}
+            activeSection={activeSection}
+            developerMode={developerMode}
+            featureModuleSettings={featureModuleSettings}
+            pluginNavigationTarget={pluginNavigationTarget?.sectionId === activeSection ? pluginNavigationTarget : null}
+            onSectionChange={changeSection}
+            onDeveloperModeChange={setDeveloperMode}
+            onFeatureModuleSettingsChange={setFeatureModuleSettings}
+          />
+        </AppShell>
+      )}
+      {showModernWelcome && <ModernWelcomePage exiting={modernWelcomeExiting} onStart={startExploring} />}
     </>
   );
 }

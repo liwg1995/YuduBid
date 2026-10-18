@@ -1,21 +1,99 @@
-.content-word-preview { height: min(72vh, 900px); min-height: 340px; overflow: auto; background: #f4f6fa; border: 1px solid var(--yb-border); border-radius: var(--yb-radius-md); }
-.content-word-page { box-sizing: border-box; width: min(794px, calc(100% - 32px)); min-height: 1123px; margin: 20px auto; padding: 68px 76px; background: #fff; color: #202a3d; box-shadow: 0 2px 14px rgba(28, 42, 67, .1); font-family: '宋体', 'SimSun', serif; font-size: 12pt; line-height: 1.65; overflow-wrap: break-word; }
-.content-word-page :is(h1, h2, h3, h4, h5, h6) { margin: 1.1em 0 .5em; line-height: 1.4; color: #182235; break-after: avoid; }
-.content-word-page :is(p, ul, ol, blockquote) { margin: 0 0 .7em; }
-.content-word-page :is(ul, ol) { padding-left: 2em; }
-.content-word-page li { margin: .25em 0; }
-.content-word-page li > p { margin-bottom: .25em; }
-.content-word-page pre { margin: 0; padding: 0 12px; overflow-x: auto; background: #f6f9ff; color: #243048; font: 9pt/1.35 Consolas, 'Courier New', monospace; white-space: pre; tab-size: 2; }
-.content-word-page pre + :not(pre) { margin-top: 12px; }
-.content-word-page code { font-family: Consolas, 'Courier New', monospace; }
-.content-word-page img { display: block; max-width: 100%; height: auto; margin: 12px auto; }
-.content-word-page table { width: 100%; margin: 1em 0; border-collapse: collapse; }
-.content-word-page th, .content-word-page td { padding: 6px 8px; border: 1px solid #cbd4e2; vertical-align: top; }
+.content-word-preview {
+  height: min(72vh, 900px);
+  min-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--yb-border);
+  border-radius: var(--yb-radius-md);
+  background: #e9edf3 !important;
+  scrollbar-width: thin;
+}
+
+/* Keep the reading sheet's palette intact inside dark Radix dialogs. */
+.content-word-dialog .content-word-page {
+  box-sizing: border-box;
+  width: min(760px, calc(100% - 40px));
+  min-height: 980px;
+  margin: 24px auto;
+  padding: 52px 62px 72px;
+  border: 1px solid #dfe4eb;
+  border-radius: 3px;
+  color: #273245 !important;
+  background: #fffefa !important;
+  box-shadow: 0 12px 36px #2636501f, 0 2px 5px #26365016;
+  font-family: 'Songti SC', 'Noto Serif CJK SC', 'SimSun', serif;
+  font-size: 14px;
+  line-height: 1.78;
+  letter-spacing: .01em;
+  overflow-wrap: break-word;
+}
+.content-word-dialog .content-word-page > :first-child { margin-top: 0; }
+.content-word-dialog .content-word-page :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.25em 0 .55em;
+  color: #1b2940 !important;
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-weight: 700;
+  line-height: 1.42;
+  break-after: avoid;
+}
+.content-word-dialog .content-word-page h1 { font-size: 25px; }
+.content-word-dialog .content-word-page h2 { font-size: 20px; }
+.content-word-dialog .content-word-page h3 { font-size: 17px; }
+.content-word-dialog .content-word-page :is(h4, h5, h6) { font-size: 15px; }
+.content-word-dialog .content-word-page :is(p, ul, ol, blockquote) {
+  margin: 0 0 .85em;
+  color: #354158 !important;
+  font-size: 14px;
+  line-height: 1.78;
+}
+.content-word-dialog .content-word-page :is(ul, ol) { padding-left: 1.75em; }
+.content-word-dialog .content-word-page li { margin: .3em 0; padding-left: .1em; }
+.content-word-dialog .content-word-page li > p { margin-bottom: .3em; }
+.content-word-dialog .content-word-page blockquote { border-left: 3px solid #b5a9e7; padding: 4px 0 4px 16px; color: #58677d; }
+.content-word-dialog .content-word-page :is(strong, b) { color: #24334a; }
+.content-word-dialog .content-word-page pre {
+  overflow-x: auto;
+  margin: 12px 0;
+  border: 1px solid #dbe3ed;
+  border-radius: 5px;
+  padding: 12px 14px;
+  color: #25334b;
+  background: #f4f7fb;
+  font: 12px/1.55 Consolas, 'Courier New', monospace;
+  white-space: pre;
+  tab-size: 2;
+}
+.content-word-dialog .content-word-page pre + :not(pre) { margin-top: 12px; }
+.content-word-dialog .content-word-page code { color: #25334b; background: #f4f7fb; font-family: Consolas, 'Courier New', monospace; }
+.content-word-dialog .content-word-page img { display: block; max-width: 100%; height: auto; margin: 16px auto; }
+.content-word-dialog .content-word-page table { width: 100%; margin: 1em 0; border-collapse: collapse; color: #354158; font-size: 13px; }
+.content-word-dialog .content-word-page :is(th, td) { border: 1px solid #cbd4e2; padding: 7px 9px; vertical-align: top; }
+.content-word-dialog .content-word-page th { background: #f1f4f9; font-weight: 700; }
 .content-word-status { padding: 20px; color: var(--yb-text-soft); }
 .content-word-status p { white-space: pre-wrap; }
-.content-word-overlay { position: fixed; inset: 0; z-index: 120; background: rgba(12, 18, 32, .55); }
-.content-word-dialog { position: fixed; top: 50%; left: 50%; z-index: 121; width: min(1000px, calc(100vw - 32px)); max-height: calc(100vh - 32px); transform: translate(-50%, -50%); display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px; padding: 18px; background: var(--yb-surface); border: 1px solid var(--yb-border); border-radius: var(--yb-radius-lg); box-shadow: var(--yb-shadow); color: var(--yb-text); }
+.content-word-overlay { position: fixed; inset: 0; z-index: 120; background: rgba(12, 18, 32, .65); }
+.content-word-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 121;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  width: min(1000px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--yb-border);
+  border-radius: var(--yb-radius-lg);
+  padding: 18px;
+  color: var(--yb-text);
+  background: var(--yb-surface);
+  box-shadow: var(--yb-shadow);
+}
 .content-word-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-.content-word-dialog-head h2 { margin: 0 0 5px; }
-.content-word-dialog-head p { margin: 0; color: var(--yb-text-soft); }
-@media (max-width: 760px) { .content-word-page { width: calc(100% - 20px); padding: 28px 24px; } }
+.content-word-dialog-head > div { min-width: 0; }
+.content-word-dialog-head h2 { overflow: hidden; margin: 0 0 5px; font-size: 19px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.content-word-dialog-head p { margin: 0; color: var(--yb-text-soft); font-size: 12px; line-height: 1.5; }
+@media (max-width: 760px) {
+  .content-word-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); padding: 12px; }
+  .content-word-dialog .content-word-page { width: calc(100% - 16px); min-height: 680px; margin: 8px auto; padding: 28px 24px 40px; }
+}

@@ -1,0 +1,322 @@
+.appearance-page-heading { display: none; }
+.appearance-selection-content { padding: 22px 24px 26px; }
+.appearance-page-heading { padding: 14px 4px 20px; }
+.appearance-page-heading > span { color: #746ff2; font-size: 10px; font-weight: 800; letter-spacing: .25em; }
+.appearance-page-heading h1 { margin: 13px 0 5px; color: #18243c; font-size: 29px; line-height: 1.2; }
+.appearance-page-heading p { margin: 0; color: #8895aa; font-size: 12px; }
+.appearance-selection h2 { margin: 0 0 6px; color: var(--yb-text); font-size: 15px; }
+.appearance-selection-content > p { margin: 0 0 14px; color: var(--yb-text-soft); font-size: 12px; }
+.appearance-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.appearance-choice { min-width: 0; padding: 9px; border: 1px solid var(--yb-border); border-radius: 14px; background: var(--yb-card-bg); box-shadow: var(--yb-shadow); cursor: pointer; text-align: left; }
+.appearance-choice:hover { border-color: #9d9bfd; }
+.appearance-choice.is-selected { border: 2px solid var(--yb-primary); padding: 8px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--yb-primary) 15%, transparent); }
+.appearance-choice:focus-visible { outline: 3px solid #7770ed; outline-offset: 3px; }
+.appearance-preview { display: flex; width: 100%; height: clamp(175px, 16vw, 240px); overflow: hidden; border: 1px solid #dce3ed; border-radius: 9px; background: #f5f7fa; font-style: normal; }
+.appearance-preview :is(i, em, small) { font-style: normal; }
+.appearance-preview.is-classic { color: #31435e; }
+.appearance-classic-nav { display: flex; width: 22%; flex: 0 0 22%; flex-direction: column; gap: 8px; padding: 15px 9px; background: #e6ebf3; }
+.appearance-classic-nav b { margin-bottom: 10px; font-size: 10px; white-space: nowrap; }
+.appearance-classic-nav em { border-radius: 4px; padding: 6px; color: #718098; font-size: 9px; white-space: nowrap; }
+.appearance-classic-nav em.is-active { color: #374ed1; background: #cbd5f5; font-weight: 700; }
+.appearance-classic-workspace { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 10px; padding: 0 12px 12px; }
+.appearance-classic-toolbar { display: flex; justify-content: space-between; border-bottom: 1px solid #e1e6ed; padding: 10px 0; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.appearance-classic-toolbar span { color: #8895a7; font-weight: 400; }
+.appearance-classic-title { font-size: 14px; font-weight: 700; }
+.appearance-classic-tabs { display: flex; gap: 8px; border-bottom: 1px solid #dfe5ee; color: #7e8ca0; font-size: 9px; white-space: nowrap; }
+.appearance-classic-tabs i { padding: 0 2px 7px; }
+.appearance-classic-tabs i:first-child { border-bottom: 2px solid #6575d6; color: #4057bf; font-weight: 700; }
+.appearance-classic-panel { display: flex; flex: 1; flex-direction: column; gap: 8px; border: 1px solid #e1e7ef; border-radius: 5px; padding: 10px; background: white; }
+.appearance-classic-panel b { font-size: 10px; }
+.appearance-classic-panel i { height: 10px; border-radius: 3px; background: #e9edf3; }
+.appearance-classic-panel i:last-child { width: 65%; }
+.appearance-preview.is-modern { border-color: #455472; color: #eff1ff; background: #0d1524; }
+.appearance-modern-rail { display: flex; width: 10%; flex: 0 0 10%; flex-direction: column; align-items: center; gap: 9px; padding: 10px 3px; background: #090f1a; }
+.appearance-modern-rail b { display: grid; width: 23px; height: 23px; place-items: center; border-radius: 6px; color: #cec7ff; background: #313159; font-size: 11px; }
+.appearance-modern-rail i { display: grid; width: 23px; height: 23px; place-items: center; border-radius: 5px; color: #7f8da9; font-size: 14px; }
+.appearance-modern-rail i.is-active { color: #cec7ff; background: #353359; }
+.appearance-modern-nav { display: flex; width: 25%; flex: 0 0 25%; flex-direction: column; gap: 5px; border-right: 1px solid #273447; padding: 12px 8px; background: #111c2a; }
+.appearance-modern-nav b { margin-bottom: 9px; font-size: 9px; white-space: nowrap; }
+.appearance-modern-nav small { margin-bottom: 3px; color: #7e8ca5; font-size: 8px; }
+.appearance-modern-nav i { overflow: hidden; border-radius: 4px; padding: 6px 4px; color: #92a2ba; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.appearance-modern-nav i.is-active { color: #e8e4ff; background: #343452; font-weight: 700; }
+.appearance-modern-workspace { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 8px; padding: 10px; }
+.appearance-modern-breadcrumb { color: #8090a8; font-size: 8px; white-space: nowrap; }
+.appearance-modern-hero { display: flex; flex-direction: column; gap: 5px; border: 1px solid #454477; border-radius: 6px; padding: 9px 11px; background: linear-gradient(120deg, #202c4b, #39335f); }
+.appearance-modern-hero small { color: #ada6f2; font-size: 7px; letter-spacing: .1em; }
+.appearance-modern-hero b { font-size: 13px; }
+.appearance-modern-hero i { color: #abb4d2; font-size: 8px; }
+.appearance-modern-columns { display: grid; min-height: 0; flex: 1; grid-template-columns: 34% minmax(0, 1fr); gap: 7px; }
+.appearance-modern-columns > span { display: flex; min-width: 0; flex-direction: column; gap: 5px; border: 1px solid #34425a; border-radius: 5px; padding: 7px; background: #1b2a3d; }
+.appearance-modern-columns small { color: #a69cdb; font-size: 7px; letter-spacing: .08em; }
+.appearance-modern-columns b { overflow: hidden; color: #d7deef; font-size: 8px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.appearance-modern-columns i { height: 10px; border-radius: 3px; background: #344359; }
+.appearance-modern-columns i:last-child { width: 72%; }
+.appearance-choice-summary { display: flex; flex-direction: column; gap: 6px; padding: 13px 8px 7px; color: var(--yb-text); }
+.appearance-choice-name { display: flex; align-items: center; gap: 9px; }
+.appearance-choice-name strong { font-size: 13px; }
+.appearance-choice-name em { border: 1px solid #8f80ee; border-radius: 999px; padding: 2px 7px; color: #7160d3; background: #a99aff20; font-size: 10px; font-style: normal; font-weight: 700; }
+.appearance-choice-description { padding-left: 25px; color: var(--yb-text-soft); font-size: 11px; }
+.appearance-radio-dot { position: relative; width: 16px; height: 16px; flex: 0 0 16px; border: 2px solid #b9c7df; border-radius: 50%; }
+.appearance-choice.is-selected .appearance-radio-dot { border-color: var(--yb-primary); background: var(--yb-primary); }
+.appearance-choice.is-selected .appearance-radio-dot::after { position: absolute; inset: 4px; border-radius: 50%; background: white; content: ''; }
+.appearance-theme-setting { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 18px; padding: 18px 20px; border: 1px solid var(--yb-border-soft); border-radius: 12px; background: var(--yb-control-bg); }
+.appearance-theme-setting > div { display: flex; flex-direction: column; gap: 4px; }
+.appearance-theme-setting strong { color: var(--yb-text); font-size: 13px; }
+.appearance-theme-setting span { color: var(--yb-text-soft); font-size: 11px; }
+.appearance-theme-setting select { min-width: 150px; padding: 8px 10px; border: 1px solid var(--yb-control-border); border-radius: 7px; color: var(--yb-text); background: var(--yb-control-bg); }
+@media (max-width: 800px) { .settings-page.is-appearance-page { padding: 16px; } .appearance-card-grid { grid-template-columns: 1fr; } .appearance-preview { height: 210px; } }
+
+/* 现代外观的设置页独立于经典的亮色卡片和胶囊标签。 */
+.modern-shell .settings-page { color: #e9edf8; }
+.modern-shell .settings-page .settings-page-section { border: 1px solid #2b384b; border-radius: 16px; background: #151f2e; box-shadow: 0 12px 32px #050a1233; }
+.modern-shell .settings-page .settings-section-title { border-bottom: 1px solid #2b384b; color: #e9edf8; }
+.modern-shell .settings-page .settings-row { border-color: #2b384b; color: #e9edf8; background: transparent; }
+.modern-shell .settings-page .settings-row { grid-template-columns: minmax(0, 1fr); gap: 13px; padding: 22px 26px; }
+.modern-shell .settings-page .settings-developer-action-row { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; min-height: 74px; padding: 12px 26px; }
+.modern-shell .settings-page .settings-developer-action-row .settings-row-copy { gap: 3px; }
+.modern-shell .settings-page .settings-developer-action-row .settings-row-copy strong { font-size: 13px; }
+.modern-shell .settings-page .settings-developer-action-row .settings-row-copy span { font-size: 11px; }
+.modern-shell .settings-page .settings-developer-action-row .settings-action-cell { display: flex; justify-content: flex-end; }
+.modern-shell .settings-page .settings-developer-action-row .inline-action { min-height: 32px; width: auto; padding: 5px 11px; font-size: 11px; white-space: nowrap; }
+@media (max-width: 650px) { .modern-shell .settings-page .settings-developer-action-row { grid-template-columns: minmax(0, 1fr); } .modern-shell .settings-page .settings-developer-action-row .settings-action-cell { justify-content: flex-start; } }
+.modern-shell .settings-page .settings-row-copy strong, .modern-shell .settings-page .settings-section-title strong { color: #e9edf8; }
+.modern-shell .settings-page .settings-row-copy span { color: #9aa8bd; }
+.modern-shell .settings-page :is(input:not([type='checkbox']):not([type='range']), select, textarea) { border-color: #39475b; color: #e9edf8; background: #1c293a; }
+.modern-shell .settings-page :is(input, textarea)::placeholder { color: #7f90a8; }
+.modern-shell .settings-page .appearance-classic-title { display: none; }
+.modern-shell .settings-page .appearance-selection { padding: 22px 24px 26px; }
+.modern-shell .appearance-selection-content { padding: 0; }
+.modern-shell .appearance-selection h2 { color: #f0edff; }
+.modern-shell .appearance-selection-content > p { color: #9ba8bd; }
+.modern-shell .appearance-choice { border-color: #344057; background: #1b2738; box-shadow: none; }
+.modern-shell .appearance-choice.is-selected { border-color: #998cf8; box-shadow: 0 0 0 2px #998cf828; }
+.modern-shell .appearance-choice-summary { color: #e9edf8; }
+.modern-shell .appearance-choice-name em { color: #c2b7ff; background: #7364d638; }
+.modern-shell .appearance-theme-setting { border-color: #344057; background: #1b2738; }
+.modern-shell .settings-page :where(.parser-card, .parser-note, .parser-compare-card, .image-model-status, .image-test-preview, .about-card, .about-project-card, .about-version-card, .privacy-statement, .comfy-workflow-card, .skill-manager, .usage-kpi-card, .usage-trend-card, .release-detail-card) { border-color: #344157; color: #e9edf8; background: #1b2738; box-shadow: none; }
+.modern-shell .settings-page :where(.settings-list, .settings-group-title, .comfy-workflow-setting, .privacy-item) { border-color: #2b384b; }
+.modern-shell .settings-page :where(.input-with-action, .settings-control-with-action, .model-select-with-badge) { border-color: #39475b; background: #1c293a; }
+.modern-shell .settings-page :where(.settings-group-title, .parser-card-head, .comfy-workflow-title, .privacy-statement-head) { color: #e9edf8; }
+.modern-shell .settings-page :where(.secondary-action, .inline-action) { border-color: #455371; color: #d8d1ff; background: #282b49; }
+.modern-shell .settings-page :where(.secondary-action, .inline-action):hover { border-color: #9188ee; background: #323359; }
+.modern-shell .settings-page :where(input, select, textarea):focus-visible { outline: 2px solid #9b8cf6; outline-offset: 2px; }
+/* 现代设置使用独立的索引和内容层级，表单内容继续连接原配置逻辑。 */
+.modern-shell .modern-content:has(.settings-page) { overflow: hidden; }
+.modern-shell .settings-page { height: 100%; min-height: 0; overflow: hidden; }
+.modern-shell .settings-page:has(.modern-settings-board) { display:flex; flex-direction:column; }
+.modern-shell .settings-page .modern-settings-board { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 18px; min-height: 0; height:auto; flex:1; box-sizing: border-box; overflow: auto; padding: 4px 4px 12px; }
+.modern-shell .settings-page:has(.modern-settings-board) > .modern-docked-actions { flex:0 0 auto; margin-top:8px; }
+.settings-unsaved-actions { flex-wrap:wrap; }
+.modern-settings-index { align-self: start; position: sticky; top: 10px; min-width: 0; border-right: 1px solid #2b394d; padding: 8px 18px 20px 0; }
+.modern-settings-index-title { padding: 8px 12px 24px; border-bottom: 1px solid #2b394d; }
+.modern-settings-index-title span, .modern-settings-heading span { color: #a99dff; font-size: 10px; font-weight: 800; letter-spacing: .17em; }
+.modern-settings-index-title strong { display: block; margin-top: 12px; color: #f2f0ff; font-size: 19px; }
+.modern-settings-index-title p { margin: 5px 0 0; color: #8190aa; font-size: 11px; }
+.modern-settings-index nav { display: flex; flex-direction: column; gap: 3px; padding-top: 16px; }
+.modern-settings-index nav button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 42px; border: 0; border-radius: 7px; padding: 0 12px; color: #93a0b6; background: transparent; text-align: left; cursor: pointer; transition: color .2s ease, background-color .2s ease, box-shadow .2s ease; }
+.modern-settings-index nav button span { color: #66758e; font-size: 10px; font-weight: 700; }
+.modern-settings-index nav button strong { flex: 1; font-size: 12px; font-weight: 600; }
+.modern-settings-index nav button i { visibility: hidden; font-style: normal; }
+.modern-settings-index nav button:hover, .modern-settings-index nav button.is-active { color: #f1efff; background: #29324e; }
+.modern-settings-index nav button.is-active { box-shadow: inset 2px 0 #a59aff; }
+.modern-settings-index nav button.is-active span, .modern-settings-index nav button.is-active i { color: #a99dff; visibility: visible; }
+.modern-settings-main { min-width: 0; container-type: inline-size; }
+.modern-settings-heading { position: sticky; z-index: 2; top: -4px; display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; min-height: 76px; margin-bottom: 14px; padding: 4px 0 13px; border-bottom: 1px solid #2b394d; background: #0c1423; }
+.modern-settings-heading h1 { margin: 7px 0 4px; color: #f2f0ff; font-size: 23px; line-height: 1.15; }
+.modern-settings-heading p { margin: 0; color: #91a0b7; font-size: 12px; }
+.modern-settings-heading b { color: #687790; font-size: 10px; letter-spacing: .15em; white-space: nowrap; }
+.modern-settings-heading { animation: modern-settings-enter .24s ease-out both; }
+.modern-settings-body { animation: modern-settings-enter .3s .035s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes modern-settings-enter { from { opacity: .45; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .modern-settings-heading, .modern-settings-body { animation: none; }
+  .modern-settings-index nav button { transition: none; }
+}
+.modern-settings-save-control { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; padding-bottom: 2px; }
+.modern-settings-save-control span { color: #8e9db3; font-size: 11px; font-weight: 500; letter-spacing: normal; white-space: nowrap; }
+.modern-settings-save-control span.is-dirty { color: #c7bbff; }
+.modern-settings-save-control button { min-height: 34px; border: 1px solid #9384ec; border-radius: 7px; padding: 0 14px; color: #fff; background: #7365c8; font-size: 11px; font-weight: 700; cursor: pointer; }
+.modern-settings-save-control button:hover:not(:disabled) { border-color: #b5a8ff; background: #8577de; }
+.modern-settings-save-control button:disabled { border-color: #3a4960; color: #8d9bb0; background: #253248; cursor: default; }
+.modern-settings-save-control button:focus-visible { outline: 2px solid #b5a8ff; outline-offset: 2px; }
+.modern-shell .settings-page .image-model-status { min-height: 56px; margin: 0; border: 0; border-bottom: 1px solid #2b384b; border-radius: 0; padding: 12px 24px; background: #172435; box-shadow: none; }
+.modern-shell .settings-page .image-model-status div { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 13px; }
+.modern-shell .settings-page .image-model-status strong { color: #dce5f3; font-size: 12px; }
+.modern-shell .settings-page .image-model-status span { color: #a9b8ca; font-size: 11px; }
+.modern-shell .settings-page .image-model-status small { color: #8092ab; font-size: 10px; }
+.modern-shell .settings-page .image-model-status em { border-radius: 5px; padding: 4px 9px; font-size: 11px; font-weight: 700; }
+.modern-settings-body { min-width: 0; }
+.modern-shell .modern-settings-body > .settings-page-section { display: block; width: 100%; border-radius: 10px; }
+.modern-shell .settings-page .feature-manager-note { margin: 0 20px 10px; border-color: #30415d; border-radius: 9px; padding: 10px 13px; background: #1b2a40; font-size: 11px; line-height: 1.55; }
+.modern-shell .settings-page .feature-module-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px; min-height: 76px; padding: 14px 20px; cursor: pointer; transition: background-color .16s ease; }
+.modern-shell .settings-page .feature-module-row:hover { background: #1c2a3d; }
+.modern-shell .settings-page .feature-module-row .settings-row-copy { gap: 3px; }
+.modern-shell .settings-page .feature-module-row .settings-row-copy strong { font-size: 13px; }
+.modern-shell .settings-page .feature-module-row .settings-row-copy span { font-size: 11px; line-height: 1.45; }
+.modern-shell .settings-page .skill-manager { padding: 2px 20px 20px; border-top: 0; }
+.modern-shell .settings-page .skill-card { gap: 14px; align-items: start; margin-top: 12px; border: 1px solid #344157; border-radius: 11px; padding: 16px 18px; background: #172335; box-shadow: none; }
+.modern-shell .settings-page .skill-card.is-enabled { border-color: #514f81; }
+.modern-shell .settings-page .skill-card-main { gap: 10px; }
+.modern-shell .settings-page .skill-card-head { gap: 10px; }
+.modern-shell .settings-page .skill-card-head div { gap: 3px; }
+.modern-shell .settings-page .skill-card-head strong { font-size: 15px; line-height: 1.25; }
+.modern-shell .settings-page .skill-card-head span, .modern-shell .settings-page .skill-card p { font-size: 11px; line-height: 1.5; }
+.modern-shell .settings-page .skill-card-head em { border-radius: 6px; padding: 4px 7px; font-size: 10px; white-space: nowrap; }
+.modern-shell .settings-page .skill-card p { margin: 0; }
+.modern-shell .settings-page .skill-capability-grid { gap: 6px; }
+.modern-shell .settings-page .skill-capability-grid span { border-color: #33435a; border-radius: 7px; padding: 7px 9px; color: #b6c4d9; background: #202d40; font-size: 10px; line-height: 1.4; }
+.modern-shell .settings-page :is(.feature-module-row, .skill-card) .settings-switch-control { width: 46px; height: 26px; }
+.modern-shell .settings-page :is(.feature-module-row, .skill-card) .settings-switch-track { width: 46px; height: 26px; padding: 3px; }
+.modern-shell .settings-page :is(.feature-module-row, .skill-card) .settings-switch-thumb { width: 18px; height: 18px; }
+.modern-shell .settings-page :is(.feature-module-row, .skill-card) .settings-switch-control input:checked + .settings-switch-track .settings-switch-thumb { transform: translateX(20px); }
+@media (max-width: 640px) { .modern-shell .settings-page .skill-capability-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1050px) { .modern-shell .settings-page .modern-settings-board { grid-template-columns: 1fr; gap: 12px; } .modern-settings-index { position: static; border-right: 0; padding: 0; } .modern-settings-index-title { display: none; } .modern-settings-index nav { flex-direction: row; overflow-x: auto; border-bottom: 1px solid #2b394d; padding: 2px 0 10px; } .modern-settings-index nav button { width: auto; min-width: max-content; } .modern-settings-heading { min-height: 0; } }
+@container (max-width: 600px) { .modern-settings-heading { align-items: flex-start; flex-wrap: wrap; } .modern-settings-save-control { margin-left: auto; } }
+
+/* 设置中的开关保持紧凑，并与标题处于同一行。 */
+.modern-shell .settings-page .settings-row:has(> .settings-switch-control) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 78px;
+  gap: 18px;
+  padding: 16px 22px;
+}
+.modern-shell .settings-page .settings-switch-control { width: 42px; height: 24px; flex: 0 0 42px; }
+.modern-shell .settings-page .settings-switch-track { width: 42px; height: 24px; padding: 2px; border-color: #4a5a72; background: #38465b; box-shadow: none; }
+.modern-shell .settings-page .settings-switch-thumb { width: 18px; height: 18px; box-shadow: 0 1px 5px #050b1655; }
+.modern-shell .settings-page .settings-switch-control input:checked + .settings-switch-track .settings-switch-thumb { transform: translateX(18px); }
+.modern-shell .settings-page .settings-switch-control input:checked + .settings-switch-track { border-color: #9389e6; background: #8376d7; box-shadow: none; }
+.modern-shell .settings-page .settings-row-copy > strong { font-size: 13px; }
+.modern-shell .settings-page .settings-row-copy > span { font-size: 11px; line-height: 1.55; }
+
+/* 文件解析：信息密度高的并排比较，不使用大块表格卡。 */
+.modern-shell .settings-page .parser-compare { gap: 10px; padding: 14px 18px 0; }
+.modern-shell .settings-page .parser-card { min-height: 0; gap: 11px; padding: 14px; border-radius: 10px; background: #19283a; }
+.modern-shell .settings-page .parser-card-primary { border-color: #716bb2; background: linear-gradient(150deg, #242b49, #19283a 60%); }
+.modern-shell .settings-page .parser-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.modern-shell .settings-page .parser-card-head strong { color: #f1efff; font-size: 14px; line-height: 1.3; letter-spacing: 0; }
+.modern-shell .settings-page .parser-card-head p { margin-top: 5px; color: #9cadc3; font-size: 10px; line-height: 1.5; }
+.modern-shell .settings-page .parser-card-head > span { flex: 0 0 auto; padding: 3px 6px; border-color: #585886; border-radius: 5px; color: #bcb2ff; background: #2a3150; font-size: 9px; white-space: nowrap; }
+.modern-shell .settings-page .parser-metrics { gap: 0; border: 0; border-radius: 0; }
+.modern-shell .settings-page .parser-metrics div { grid-template-columns: 66px minmax(0,1fr); gap: 6px; min-height: 26px; padding: 4px 0; border-top: 1px solid #35445a; background: transparent; }
+.modern-shell .settings-page .parser-metrics div + div { border-top: 1px solid #35445a; }
+.modern-shell .settings-page .parser-metrics dt { color: #8596ae; font-size: 10px; }
+.modern-shell .settings-page .parser-metrics dd { color: #dce4f3; font-size: 10px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.modern-shell .settings-page .parser-note { margin: 12px 18px 18px; padding: 9px 12px; border-radius: 7px; color: #abbad0; font-size: 10px; line-height: 1.5; background: #1a2b41; }
+
+/* 用量统计：清空是低频危险操作，放在标题右侧的紧凑次级按钮。 */
+.modern-shell .settings-page .usage-stats-section { overflow: hidden; }
+.modern-shell .settings-page .usage-section-title { padding: 13px 18px; }
+.modern-shell .settings-page .usage-clear-action { min-height: 28px; margin-left: auto; border-color: #735663; border-radius: 6px; padding: 0 10px; color: #e4aeb8; background: #342934; font-size: 10px; font-weight: 650; white-space: nowrap; }
+.modern-shell .settings-page .usage-clear-action:hover:not(:disabled) { border-color: #b07682; color: #ffd6dc; background: #45303c; }
+.modern-shell .settings-page .usage-kpi-grid { gap: 8px; margin: 10px 18px 14px; }
+.modern-shell .settings-page .usage-kpi-card { min-height: 82px; border-radius: 8px; padding: 11px 13px; background: linear-gradient(145deg, #1e2d43, #192638); }
+.modern-shell .settings-page .usage-kpi-card:first-child { border-color: #69629e; background: linear-gradient(145deg, #2b3154, #1c2940); }
+.modern-shell .settings-page .usage-kpi-card span { color: #a9b6cc; font-size: 11px; }
+.modern-shell .settings-page .usage-kpi-card strong { margin: 4px 0 2px; color: #f2efff; font-size: clamp(18px, 1.8vw, 25px); font-variant-numeric: tabular-nums; }
+.modern-shell .settings-page .usage-kpi-card small { color: #8497b0; font-size: 10px; }
+.modern-shell .settings-page .usage-detail-layout { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(250px,1fr); gap: 12px; margin: 0 18px 18px; }
+.modern-shell .settings-page .usage-chart-column, .modern-shell .settings-page .usage-model-column { min-width: 0; border: 1px solid #344157; border-radius: 9px; background: #192638; }
+.modern-shell .settings-page .usage-range-control { margin: 12px 14px 8px; }
+.modern-shell .settings-page .usage-trend-card { margin: 0 12px 10px; border-radius: 8px; padding: 13px 14px 8px; background: #141f30; }
+.modern-shell .settings-page .usage-trend-head strong { color: #eae9f7; font-size: 13px; }
+.modern-shell .settings-page .usage-trend-head em { color: #a99df2; }
+.modern-shell .settings-page .usage-trend-grid { stroke: #2b3c54; }
+.modern-shell .settings-page .usage-trend-point { fill: #172439; stroke: #9b8def; }
+.modern-shell .settings-page .usage-trend-line { stroke: #9b8def; }
+.modern-shell .settings-page .usage-thinking-note { margin: 4px 14px; color: #97a8bf; font-size: 10px; }
+.modern-shell .settings-page .usage-thinking-note:last-child { margin-bottom: 13px; }
+.modern-shell .settings-page .usage-model-heading { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #344157; padding: 14px; }
+.modern-shell .settings-page .usage-model-heading strong { color: #eceaf8; font-size: 13px; }
+.modern-shell .settings-page .usage-model-heading span { color: #8d9eb6; font-size: 10px; }
+.modern-shell .settings-page .usage-model-column > .settings-list { max-height: 280px; overflow: auto; }
+.modern-shell .settings-page .usage-model-column .settings-row { grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 10px 13px; }
+.modern-shell .settings-page .usage-model-column .settings-row > strong { color: #b7abf4; font-size: 11px; white-space: nowrap; }
+.modern-shell .settings-page .usage-model-column > .parser-note { margin: 12px; }
+
+/* 关于：独立品牌横幅、版本状态和简洁的隐私条目。 */
+.modern-shell .settings-page .about-section { overflow: hidden; }
+.modern-shell .settings-page .modern-about-hero { position: relative; display: grid; grid-template-columns: minmax(0,1fr) 280px; min-height: 194px; margin: 14px 18px 11px; overflow: hidden; border: 1px solid #514c88; border-radius: 11px; background: radial-gradient(circle at 76% 15%, #51488777, transparent 43%), linear-gradient(115deg, #202d4e, #29294e 80%); }
+.modern-shell .settings-page .modern-about-hero-copy { position: relative; z-index: 1; align-self: center; padding: 20px 30px; }
+.modern-shell .settings-page .modern-about-hero-copy > span { color: #ada6eb; font-size: 9px; font-weight: 750; letter-spacing: .16em; }
+.modern-shell .settings-page .modern-about-hero-copy h2 { margin: 12px 0 8px; color: #f7f5ff; font-size: clamp(22px, 2.4vw, 31px); line-height: 1.24; letter-spacing: -.04em; }
+.modern-shell .settings-page .modern-about-hero-copy h2 em { color: #b4a9ff; font-style: normal; }
+.modern-shell .settings-page .modern-about-hero-copy p { margin: 0; color: #aebbd4; font-size: 11px; }
+.modern-shell .settings-page .modern-about-hero-art { position: relative; display: grid; align-content: center; justify-items: center; gap: 4px; color: #e8e5ff; isolation: isolate; }
+.modern-shell .settings-page .modern-about-hero-art::before { position: absolute; z-index: -1; width: 155px; height: 155px; border: 1px solid #a49aef66; border-radius: 32px; background: #8880de24; box-shadow: 0 0 40px #8176da20, inset 0 0 50px #aaa0ff17; content: ''; transform: rotate(-14deg); }
+.modern-shell .settings-page .modern-about-hero-art b { font-size: 27px; letter-spacing: .16em; }
+.modern-shell .settings-page .modern-about-hero-art > span { color: #b6adeb; font-size: 8px; letter-spacing: .13em; }
+.modern-shell .settings-page .modern-about-orbit { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #b9adff; box-shadow: 0 0 0 5px #b9adff20; }
+.modern-shell .settings-page .modern-about-orbit-one { top: 25%; left: 19%; }
+.modern-shell .settings-page .modern-about-orbit-two { right: 19%; bottom: 24%; }
+.modern-shell .settings-page .about-grid { gap: 10px; padding: 0 18px 12px; }
+.modern-shell .settings-page .about-grid > div { min-height: 82px; gap: 5px; border-radius: 9px; padding: 13px 16px; background: #1a293c; }
+.modern-shell .settings-page .about-grid > div > span:first-of-type { color: #8fa1ba; font-size: 10px; }
+.modern-shell .settings-page .about-version-card strong { min-height: 0; color: #f1efff; font-size: 23px; }
+.modern-shell .settings-page .about-version-check { top: 13px; right: 13px; min-width: 0; height: 28px; border-radius: 6px; padding: 0 9px; font-size: 10px; }
+.modern-shell .settings-page .about-version-card .version-new-badge { display: inline-flex; min-height: 26px; align-items: center; gap: 6px; border: 1px solid #a99cff; border-radius: 6px; padding: 0 9px; color: #fff; background: #7366d5; box-shadow: 0 3px 10px #594eb342; font-size: 11px; font-weight: 750; line-height: 1; letter-spacing: 0; white-space: nowrap; }
+.modern-shell .settings-page .about-version-card .version-new-badge::before { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #e9e4ff; content: ''; }
+.modern-shell .settings-page .about-version-card .version-new-badge:hover { border-color: #c6bbff; color: #fff; background: #877aeb; box-shadow: 0 4px 12px #6558bc55; transform: none; }
+.modern-shell .settings-page .about-version-state.has-update { color: #bcb1ff; font-weight: 700; }
+
+/* 更新弹窗经 Radix Portal 挂在页面外，通过模式类应用启象样式。 */
+.release-detail-card.is-modern { display: flex; width: min(800px, calc(100vw - 40px)); max-height: min(760px, calc(100vh - 40px)); flex-direction: column; gap: 0; border: 1px solid #605b94; border-radius: 18px; padding: 0; color: #e9edf8; background: #111b2b; box-shadow: 0 0 0 1px #a79aff24, 0 34px 100px #020713dd, 0 0 70px #6650c133; }
+.release-detail-card.is-modern .release-detail-head { isolation: isolate; flex: 0 0 auto; gap: 6px; overflow: hidden; border-bottom: 1px solid #655b9a; padding: 27px 28px 22px; background: radial-gradient(circle at 88% 8%, #8e77e475, transparent 28%), radial-gradient(circle at 64% 100%, #246ba042, transparent 45%), linear-gradient(112deg, #23284e, #192d45 58%, #272347); }
+.release-detail-card.is-modern .release-detail-head::before { position: absolute; z-index: -1; top: -124px; right: -25px; width: 390px; height: 390px; border: 1px solid #c5b8ff28; border-radius: 50%; box-shadow: 0 0 0 48px #b4a6ff0a, 0 0 0 96px #b4a6ff08, inset 0 0 55px #a288ff1a; content: ''; pointer-events: none; }
+.release-detail-card.is-modern .release-detail-head::after { position: absolute; right: 56px; bottom: -2px; left: 28px; height: 2px; background: linear-gradient(90deg, #7ed8cf, #a99aff 48%, transparent); content: ''; }
+.release-detail-card.is-modern .release-detail-head > span { border: 1px solid #b1a6ff8a; border-radius: 999px; padding: 4px 10px; color: #ebe5ff; background: #786bce70; box-shadow: 0 0 18px #9c8bff40; font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+.release-detail-card.is-modern .release-detail-head h2 { color: #fff; font-size: 25px; line-height: 1.3; text-shadow: 0 2px 18px #b7a4ff55; }
+.release-detail-card.is-modern .release-detail-head p { color: #9aaac2; font-size: 11px; line-height: 1.4; }
+.release-detail-card.is-modern .release-detail-close { top: 20px; right: 24px; display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #45536b; border-radius: 8px; color: #c6d0e0; background: #24334a; font-size: 22px; }
+.release-detail-card.is-modern .release-detail-close:hover { border-color: #9c90ed; color: #fff; background: #343c60; }
+.release-version-route { display: flex; align-items: center; gap: 12px; min-width: 0; overflow-x: auto; margin-top: 14px; padding: 2px 2px 10px; scrollbar-color: #8a7bc0 transparent; }
+.release-version-route .release-route-current, .release-version-route .release-route-step button { display: flex; min-width: 126px; flex: 0 0 auto; flex-direction: column; gap: 2px; border: 1px solid #7181a052; border-radius: 9px; padding: 10px 14px; color: #edf0fa; background: #111d35a8; backdrop-filter: blur(8px); text-align: left; }
+.release-version-route .release-route-step { display: flex; flex: 0 0 auto; align-items: center; gap: 12px; }
+.release-version-route .release-route-step button { cursor: pointer; }
+.release-version-route .release-route-step button:hover, .release-version-route .release-route-step button.is-active { border-color: #b4a5ffae; background: linear-gradient(125deg, #7760be91, #3c629585); box-shadow: 0 8px 24px #080e2e44, inset 0 1px #e5dcff35; }
+.release-version-route small { color: #a9b6d0; font-size: 10px; white-space: nowrap; }
+.release-version-route strong { color: #edf0fa; font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.release-version-route .release-route-step button.is-active strong { color: #fff; text-shadow: 0 0 16px #bdaeffa8; }
+.release-version-route i { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border: 1px solid #958ac188; border-radius: 50%; color: #d6cdff; background: #7265bd55; box-shadow: 0 0 18px #9d8ff455; font-size: 17px; font-style: normal; animation: release-arrow-pulse 2.4s ease-in-out infinite; }
+.release-version-route .release-route-step:nth-of-type(2n) i { animation-delay: .35s; }
+.release-route-note { flex: 0 0 auto; }
+@keyframes release-arrow-pulse { 0%, 100% { transform: translateX(0); box-shadow: 0 0 8px #9d8ff433; } 50% { transform: translateX(4px); box-shadow: 0 0 18px #9d8ff477; } }
+@media (prefers-reduced-motion: reduce) { .release-version-route i { animation: none; } }
+.release-detail-card.is-modern .release-detail-body { min-height: 0; flex: 1 1 auto; margin: 16px 28px 0; border: 1px solid #42516b; border-radius: 10px; padding: 18px 22px; color: #ccd5e5; background: linear-gradient(155deg, #1b2b42, #172337 62%); box-shadow: inset 0 1px #ffffff0a; scrollbar-color: #6d75a7 transparent; }
+.release-detail-card.is-modern .release-detail-body :is(h1, h2, h3) { color: #f1efff; line-height: 1.35; }
+.release-detail-card.is-modern .release-detail-body h1 { margin: 0 0 14px; font-size: 21px; }
+.release-detail-card.is-modern .release-detail-body h2 { margin: 18px 0 10px; font-size: 16px; }
+.release-detail-card.is-modern .release-detail-body h3 { font-size: 14px; }
+.release-detail-card.is-modern .release-detail-body :is(p, li) { font-size: 13px; line-height: 1.7; }
+.release-detail-card.is-modern .release-detail-download-name { flex: 0 0 auto; margin: 12px 28px 0; border: 1px solid #3e5476; border-radius: 8px; padding: 10px 13px; color: #bcb3f8; background: #1d2b46; font-size: 11px; }
+.release-detail-card.is-modern .release-detail-build-state button, .release-detail-card.is-modern .release-download-path-row button { color: #beb4ff; }
+.release-detail-card.is-modern .release-download-progress { flex: 0 0 auto; margin: 12px 28px 0; border-color: #3a4a64; border-radius: 8px; color: #d2dbea; background: #1b2a3e; }
+.release-detail-card.is-modern .release-download-progress-head strong { color: #edf0fa; }
+.release-detail-card.is-modern .release-download-progress-head span { color: #c0b5ff; }
+.release-detail-card.is-modern .release-download-progress-track { background: #33445d; }
+.release-detail-card.is-modern .release-download-progress-track span { background: #8e82e9; }
+.release-detail-card.is-modern .release-download-progress p, .release-detail-card.is-modern .release-download-path-row { color: #9eadc3; }
+.release-detail-card.is-modern .release-detail-actions { flex: 0 0 auto; justify-content: flex-end; gap: 8px; border-top: 1px solid #2d3c52; margin-top: 16px; padding: 14px 28px 18px; }
+.release-detail-card.is-modern .release-detail-actions :is(.primary-action, .secondary-action) { min-height: 34px; border-radius: 7px; padding: 7px 12px; font-size: 12px; }
+.release-detail-card.is-modern .release-detail-actions .primary-action { border: 1px solid #c1b5ff; color: #fff; background: linear-gradient(125deg, #7165d2, #8a72e2); box-shadow: 0 6px 20px #7869d554, inset 0 1px #ffffff38; }
+.release-detail-card.is-modern .release-detail-actions .primary-action:hover:not(:disabled) { background: linear-gradient(125deg, #8174e2, #9a85ed); box-shadow: 0 8px 24px #8070e277; }
+.release-detail-card.is-modern .release-detail-actions .secondary-action { border: 1px solid #485a73; color: #d5ddef; background: #26354a; }
+.release-detail-card.is-modern .release-detail-actions .secondary-action:hover:not(:disabled) { border-color: #8f85da; background: #333c5b; }
+@media (max-width: 620px) { .release-detail-card.is-modern .release-detail-head { padding: 18px; } .release-detail-card.is-modern .release-detail-close { top: 16px; right: 16px; } .release-detail-card.is-modern .release-detail-body, .release-detail-card.is-modern .release-detail-download-name, .release-detail-card.is-modern .release-download-progress { margin-right: 18px; margin-left: 18px; } .release-detail-card.is-modern .release-detail-actions { padding: 12px 18px; } .release-version-route { gap: 8px; } .release-version-route span { min-width: 0; } }
+.modern-shell .settings-page .about-project-card { min-height: 82px; padding-right: 170px !important; }
+.modern-shell .settings-page .about-project-card > strong { color: #f1efff; font-size: 17px; }
+.modern-shell .settings-page .about-brand-producer { right: 14px; border-color: #555a83; border-radius: 7px; padding: 6px 9px; background: #292e4f; box-shadow: none; }
+.modern-shell .settings-page .about-brand-producer img { width: 110px; }
+.modern-shell .settings-page .privacy-statement { gap: 11px; margin: 0 18px 18px; border-radius: 9px; padding: 16px; background: #182638; }
+.modern-shell .settings-page .privacy-statement-head { gap: 4px; }
+.modern-shell .settings-page .privacy-statement-head span { width: fit-content; border: 0; border-radius: 0; padding: 0; color: #a99cf5; background: transparent; font-size: 9px; }
+.modern-shell .settings-page .privacy-statement-head strong { color: #f1efff; font-size: 16px; }
+.modern-shell .settings-page .privacy-statement-head p { color: #a2b1c6; font-size: 11px; line-height: 1.5; }
+.modern-shell .settings-page .privacy-list { gap: 9px; }
+.modern-shell .settings-page .privacy-item { gap: 6px; border-color: #374660; border-radius: 8px; padding: 11px; background: #1d2c40; }
+.modern-shell .settings-page .privacy-item > span { border-radius: 4px; padding: 2px 6px; background: #655da8; font-size: 9px; }
+.modern-shell .settings-page .privacy-item strong { color: #e9ebf8; font-size: 11px; }
+.modern-shell .settings-page .privacy-item p { color: #9daec5; font-size: 10px; line-height: 1.52; }
+@container (max-width: 1050px) { .modern-shell .settings-page .parser-compare { grid-template-columns: 1fr; } .modern-shell .settings-page .parser-card { gap: 7px; } .modern-shell .settings-page .parser-metrics { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 0 10px; } .modern-shell .settings-page .parser-metrics div { grid-template-columns: 65px minmax(0,1fr); } .modern-shell .settings-page .usage-detail-layout { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .modern-shell .settings-page .usage-kpi-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .modern-shell .settings-page .privacy-list { grid-template-columns: 1fr; } }
+@media (max-width: 650px) { .modern-shell .settings-page .modern-about-hero { grid-template-columns: minmax(0,1fr); } .modern-shell .settings-page .modern-about-hero-art { display: none; } .modern-shell .settings-page .about-grid { grid-template-columns: 1fr; } .modern-shell .settings-page .parser-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }

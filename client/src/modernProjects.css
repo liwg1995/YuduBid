@@ -1,0 +1,413 @@
+/* Modern 项目入口：统一标题、筛选、项目行和操作层级。 */
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-project-workspace, .modern-feasibility-projects, .modern-grant-projects,
+  .modern-patent-projects, .modern-pm-list, .modern-presales-projects,
+  .modern-software-projects
+) { color: #e9edf8; }
+
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-project-header, .modern-feasibility-head, .modern-grant-head,
+  .modern-patent-head, .modern-pm-list-head, .modern-presales-projects-head,
+  .modern-software-projects > .software-copyright-projects-hero
+) { align-items: center; gap: 18px; padding: 7px 2px 18px; border-bottom: 1px solid #34445b; }
+
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-project-header, .modern-feasibility-head, .modern-grant-head,
+  .modern-patent-head, .modern-pm-list-head, .modern-presales-projects-head
+) h1,
+:root[data-ui-appearance='modern'] .modern-shell .modern-software-projects > .software-copyright-projects-hero h2 {
+  margin: 6px 0 5px; color: #f3f0ff; font-size: 26px; line-height: 1.25;
+}
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-project-header, .modern-feasibility-head, .modern-grant-head,
+  .modern-patent-head, .modern-pm-list-head, .modern-presales-projects-head
+) p,
+:root[data-ui-appearance='modern'] .modern-shell .modern-software-projects > .software-copyright-projects-hero p {
+  color: #a2b0c4; font-size: 12px; line-height: 1.5;
+}
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-project-header, .modern-feasibility-head, .modern-grant-head,
+  .modern-patent-head, .modern-pm-list-head, .modern-presales-projects-head
+) > button,
+:root[data-ui-appearance='modern'] .modern-shell .modern-software-projects > .software-copyright-projects-hero > button {
+  min-height: 38px; border: 1px solid #9083dd; border-radius: 7px; padding: 0 15px;
+  color: #fff; background: #7063bf; font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+
+/* 数量和搜索放在同一条紧凑工具栏，不用大型概览卡占据首屏。 */
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-overview, .modern-grant-overview, .modern-patent-overview,
+  .modern-pm-list-overview
+) {
+  min-height: 58px; gap: 16px; border: 1px solid #34465e; border-radius: 8px;
+  padding: 10px 14px; background: #172538;
+}
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-overview, .modern-grant-overview, .modern-patent-overview,
+  .modern-pm-list-overview
+) > div { gap: 7px; }
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-overview, .modern-grant-overview, .modern-patent-overview,
+  .modern-pm-list-overview
+) strong { color: #ebe7ff; font-size: 18px; line-height: 1; }
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-overview, .modern-grant-overview, .modern-patent-overview,
+  .modern-pm-list-overview
+) input:not([type='checkbox']),
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-project-list-head input,
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-filter input {
+  font-size: 12px;
+}
+
+/* 技术方案项目页改为完整宽度的可扫描列表。 */
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-workspace { padding: 4px 3px 28px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-columns { display: block; padding-top: 18px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-library-head { align-items: center; padding-bottom: 12px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-library-head h2 { margin-top: 4px; font-size: 17px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-library-head > small {
+  border: 1px solid #475577; border-radius: 999px; padding: 5px 10px;
+  color: #c7bcff; background: #292d4b; font-size: 11px;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-filter {
+  height: 42px; margin-bottom: 11px; background: #1b293c;
+  transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-filter:focus-within {
+  border-color: #a99bf0;
+  background: #202e45;
+  box-shadow: 0 0 0 3px rgb(169 155 240 / 16%);
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-tile {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 20px;
+  min-height: 96px; padding: 15px 18px; border-color: #394960; border-radius: 8px;
+  background: #1b293c;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-tile:hover { transform: none; background: #223149; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-tile-top {
+  grid-column: 1; justify-content: flex-start; gap: 14px; color: #9dacf0; letter-spacing: .08em;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-tile-content { grid-column: 1; padding: 0; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-tile-content h3 { font-size: 16px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-tile-content p { margin-top: 5px; color: #99a9be; font-size: 11px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-tile-actions {
+  grid-column: 2; grid-row: 1 / 3; align-self: center; justify-content: flex-end;
+  border: 0; padding: 0;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-tile-actions button {
+  min-height: 34px; border: 1px solid #4e5d78; border-radius: 6px; padding: 0 11px;
+  color: #cbd6e8; background: #26364d; font-size: 11px; white-space: nowrap;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-tile-actions .modern-project-enter {
+  margin: 0 8px 0 0; border-color: #8a7fd1; padding: 0 14px;
+  color: #fff; background: #665bb2;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-tile-actions .modern-project-delete {
+  border-color: transparent; color: #e8a3ae; background: transparent;
+}
+
+/* 技术方案与已有方案扩写共用可研项目页的紧凑列表节奏。 */
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-projects {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 14px;
+  overflow: auto;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid #34445b;
+  padding: 7px 2px 18px;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-head span,
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview span {
+  color: #a99bf0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-head h1 {
+  margin: 6px 0 5px;
+  color: #f3f0ff;
+  font-size: 26px;
+  line-height: 1.25;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-head p {
+  margin: 0;
+  color: #a2b0c4;
+  font-size: 12px;
+  line-height: 1.5;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-head button {
+  min-height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid #9083dd;
+  border-radius: 7px;
+  padding: 0 15px;
+  color: #fff;
+  background: #7063bf;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview {
+  display: flex;
+  min-height: 58px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid #34465e;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #172538;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview > div {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: 8px;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview strong {
+  color: #ebe7ff;
+  font-size: 18px;
+  line-height: 1;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview label {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview input {
+  min-width: 0;
+  min-height: 34px;
+  flex: 1;
+  border: 1px solid #45556d;
+  border-radius: 5px;
+  padding: 0 9px;
+  color: #edf0fb;
+  background: #26364b;
+  font-size: 12px;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview small { color: #91a3ba; font-size: 10px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-list { min-height: 0; flex: 1; overflow: auto; padding: 2px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-list > p { color: #91a3ba; font-size: 11px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-list article {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  border: 1px solid #394960;
+  border-radius: 8px;
+  padding: 13px 16px;
+  background: #1b293c;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-list article:is(:hover, .is-active) { border-color: #8579c8; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-mark {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  border-radius: 6px;
+  color: #d1c6ff;
+  background: #3b4062;
+  font-size: 12px;
+  font-weight: 700;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-body strong {
+  overflow: hidden;
+  color: #f0effb;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-body :is(span, small) { color: #91a3ba; font-size: 10px; line-height: 1.45; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-body input {
+  max-width: 500px;
+  min-height: 32px;
+  border: 1px solid #9688dd;
+  border-radius: 5px;
+  padding: 0 8px;
+  color: #edf0fb;
+  background: #293750;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-actions button {
+  min-height: 33px;
+  border: 1px solid #52617c;
+  border-radius: 6px;
+  padding: 0 11px;
+  color: #ccd7e9;
+  background: #27374e;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-actions button.is-primary { border-color: #897ed1; color: #fff; background: #665bb2; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-actions button.is-danger { border-color: transparent; color: #e9a7b1; background: transparent; }
+
+/* 其他项目列表沿用同一行高、信息密度和操作按钮。 */
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-list, .modern-grant-list, .modern-patent-list,
+  .modern-pm-project-list
+) { padding: 2px 1px 14px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-patent-list {
+  display: flex; flex-direction: column; gap: 8px; overflow: auto;
+}
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-list, .modern-grant-list, .modern-patent-list,
+  .modern-pm-project-list
+) article,
+:root[data-ui-appearance='modern'] .modern-shell .modern-software-project-row {
+  min-height: 88px; margin: 0 0 8px; border: 1px solid #394960; border-radius: 8px;
+  padding: 13px 16px; background: #1b293c;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-patent-list article {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  min-height: 92px;
+  counter-increment: none;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-patent-list article::before { content: none; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-patent-project-body { min-width: 0; padding-right: 0; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-patent-project-body strong { margin-top: 4px; font-size: 15px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-patent-project-actions {
+  grid-column: 3;
+  width: auto;
+  max-width: none;
+  border-top: 0;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-patent-project-actions button:first-child { margin-right: 0; }
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-project-body, .modern-grant-project-body,
+  .modern-pm-project-main, .modern-software-project-identity
+) strong { color: #f0effb; font-size: 15px; }
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-project-body, .modern-grant-project-body,
+  .modern-patent-project-body, .modern-pm-project-main,
+  .modern-software-project-identity
+) :is(span, small, p) { line-height: 1.45; }
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-project-actions, .modern-grant-project-actions,
+  .modern-patent-project-actions, .modern-pm-project-actions,
+  .modern-software-project-actions
+) { max-width: none; align-items: center; justify-content: flex-end; gap: 6px; margin: 0; padding: 0; border: 0; }
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-project-actions, .modern-grant-project-actions,
+  .modern-patent-project-actions, .modern-pm-project-actions,
+  .modern-software-project-actions
+) button {
+  min-height: 33px; border: 1px solid #52617c; border-radius: 6px; padding: 0 11px;
+  color: #ccd7e9; background: #27374e; font-size: 11px; white-space: nowrap;
+}
+:root[data-ui-appearance='modern'] .modern-shell :is(.modern-feasibility-project-actions, .modern-grant-project-actions) button.is-primary,
+:root[data-ui-appearance='modern'] .modern-shell .modern-software-project-actions button.primary-action,
+:root[data-ui-appearance='modern'] .modern-shell .modern-patent-project-actions button.is-primary,
+:root[data-ui-appearance='modern'] .modern-shell .modern-pm-project-actions button:first-child {
+  border-color: #897ed1; color: #fff; background: #665bb2;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-patent-project-actions button:first-child { margin-right: 0; }
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-project-actions, .modern-grant-project-actions,
+  .modern-patent-project-actions, .modern-pm-project-actions,
+  .modern-software-project-actions
+) button:is(.is-danger, .danger-action) {
+  border-color: transparent; color: #e9a7b1; background: transparent;
+}
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-feasibility-project-actions, .modern-grant-project-actions,
+  .modern-patent-project-actions, .modern-pm-project-actions,
+  .modern-software-project-actions
+) button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* 售前项目保留选择项目后编辑的双栏任务流。 */
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-projects-layout {
+  grid-template-columns: minmax(250px, 290px) minmax(0, 1fr); gap: 12px;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-project-list-head { gap: 9px; padding: 13px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-project-list-head input { min-height: 38px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-project-list-body article {
+  margin-bottom: 8px; border-color: #3b4c65; padding: 12px; background: #203047;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-project-list-body article > button strong { font-size: 14px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-project-list-body article > div { margin-top: 10px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-project-list-body article > div button {
+  min-height: 30px; border: 1px solid #51617d; border-radius: 6px;
+  padding: 0 9px; color: #cdd7e8; background: #293951; font-size: 11px;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-project-list-body article > div button:first-child {
+  border-color: #8175c8; color: #fff; background: #6258aa;
+}
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-project-list-body article > div button:last-child {
+  margin-left: auto; border-color: transparent; color: #e8a7b2; background: transparent;
+}
+
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-project-workspace, .modern-feasibility-projects, .modern-grant-projects,
+  .modern-patent-projects, .modern-pm-list, .modern-presales-projects,
+  .modern-software-projects
+) :is(button, input):focus-visible { outline: 2px solid #b5aaff; outline-offset: 2px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-workspace .modern-project-filter input:focus-visible {
+  outline: none;
+}
+
+@container (max-width: 900px) {
+  :root[data-ui-appearance='modern'] .modern-shell .modern-project-tile { grid-template-columns: minmax(0, 1fr); }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-project-tile-actions {
+    grid-column: 1; grid-row: auto; justify-content: flex-start; padding-top: 10px;
+    border-top: 1px solid #3b4b62;
+  }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-patent-list article {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 10px 13px;
+  }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-patent-project-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: flex-start;
+    padding-top: 10px;
+    border-top: 1px solid #3b4b62;
+  }
+}
+@container (max-width: 740px) {
+  :root[data-ui-appearance='modern'] .modern-shell :is(
+    .modern-feasibility-project-actions, .modern-grant-project-actions,
+    .modern-pm-project-actions
+  ) { width: 100%; justify-content: flex-start; margin-left: 0; }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-presales-projects-layout { grid-template-columns: minmax(0, 1fr); }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-presales-project-list { max-height: 330px; }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-technical-list article { flex-wrap: wrap; }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-actions {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 52px;
+  }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview { flex-wrap: wrap; }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview label { flex-basis: 65%; }
+}
+@container (max-width: 550px) {
+  :root[data-ui-appearance='modern'] .modern-shell .modern-technical-head { align-items: flex-start; flex-direction: column; }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview label { flex-basis: 100%; order: 1; }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-actions { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-ui-appearance='modern'] .modern-shell .modern-project-tile:hover { transform: none; }
+}

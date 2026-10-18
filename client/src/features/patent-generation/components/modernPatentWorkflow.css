@@ -1,0 +1,544 @@
+/* Patent workflow: a single vertical reading order and a complete step map. */
+.modern-patent-workbench.patent-demo.demo-coming-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 3px 24px;
+  scrollbar-gutter: stable;
+}
+.modern-patent-workbench > * { flex: 0 0 auto; min-width: 0; }
+.modern-patent-workbench > .patent-projects-back {
+  align-self: flex-start;
+  min-height: 30px;
+  border: 0;
+  color: #c3b6f7;
+  background: transparent;
+}
+.modern-patent-workbench.patent-demo > .demo-hero-card {
+  display: block;
+  min-height: 0;
+  overflow: visible;
+  padding: 17px 21px;
+  border: 1px solid #3a4962;
+  border-radius: 10px;
+  background: linear-gradient(110deg, #1c2a3e, #222d43 70%, #1d3a43);
+  box-shadow: none;
+}
+.modern-patent-workbench.patent-demo .demo-hero-copy h2 {
+  margin: 4px 0 5px;
+  color: #f3f0ff;
+  font-size: 22px;
+}
+.modern-patent-workbench.patent-demo .patent-hero-intro > p {
+  color: #aebbd0;
+  white-space: normal;
+}
+.modern-patent-workbench.patent-demo .patent-case-summary {
+  min-width: 0;
+  margin-top: 12px;
+  border-color: #3c4d69;
+  border-radius: 7px;
+  background: #152238;
+}
+.modern-patent-workbench.patent-demo .patent-case-summary strong { min-width: 0; }
+.modern-patent-workbench.patent-demo .demo-hero-copy.has-task-progress {
+  grid-template-columns: minmax(0, 1fr) minmax(330px, .8fr);
+}
+
+.modern-patent-flow {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  padding: 7px;
+  border: 1px solid #35445d;
+  border-radius: 9px;
+  background: #172437;
+}
+.modern-patent-flow button {
+  display: flex;
+  min-width: 0;
+  min-height: 46px;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  color: #afbed2;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.modern-patent-flow button:hover { background: #2a3a51; }
+.modern-patent-flow button.is-active {
+  color: #f4f0ff;
+  border-color: #7b70b8;
+  background: #333b59;
+}
+.modern-patent-flow button > span { color: #ab9df1; font-size: 12px; font-weight: 800; }
+.modern-patent-flow button strong { min-width: 0; flex: 1; font-size: 13px; line-height: 1.35; }
+.modern-patent-flow button small { margin-left: 5px; color: #91a2bc; font-size: 10px; }
+.modern-patent-flow button em { color: #a99bf0; font-size: 14px; font-style: normal; }
+.modern-patent-flow button.is-complete em { color: #66d4a6; }
+.modern-patent-flow button:focus-visible,
+.modern-patent-workbench .modern-patent-content :is(button, input, select, textarea):focus-visible {
+  outline: 2px solid #b3a5ff;
+  outline-offset: 2px;
+}
+.modern-patent-current-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 37px;
+  padding: 8px 12px;
+  color: #abbad0;
+  border: 1px solid #35445d;
+  border-radius: 7px;
+  background: #1b2a3e;
+  font-size: 12px;
+}
+.modern-patent-current-action strong { flex: 0 0 auto; color: #bbaaef; }
+
+.modern-patent-workbench .modern-patent-content {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  align-content: start;
+  gap: 12px;
+  margin: 0;
+  overflow: visible;
+}
+.modern-patent-workbench.patent-demo .modern-patent-content > * {
+  min-width: 0;
+  height: auto;
+  grid-column: auto;
+}
+.modern-patent-workbench .modern-patent-content .demo-panel,
+.modern-patent-workbench .modern-patent-content .demo-preview-card {
+  min-width: 0;
+  padding: 19px 21px;
+  border: 1px solid #3c4b64;
+  border-radius: 9px;
+  background: #1b293c;
+  box-shadow: none;
+}
+.modern-patent-workbench .modern-patent-content .demo-panel-head h3,
+.modern-patent-workbench .modern-patent-content .demo-preview-card h3 { color: #f3efff; }
+.modern-patent-workbench .modern-patent-content .demo-panel-head { flex-wrap: wrap; }
+.modern-patent-workbench .modern-patent-content .patent-draft-preview {
+  color: #eaf0fa;
+  border-color: #4a5a75;
+  border-radius: 6px;
+  background: #142034;
+}
+
+/* Candidate cards and the chosen point. */
+.modern-patent-workbench .modern-patent-content.is-mining .patent-result-panel { min-height: 0; }
+.modern-patent-workbench .modern-patent-content.is-mining .demo-table-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  max-height: min(620px, 64vh);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.modern-patent-workbench .modern-patent-content.is-mining .demo-table-list article {
+  gap: 8px;
+  padding: 13px 15px;
+  border-radius: 8px;
+}
+.modern-patent-workbench .modern-patent-content.is-mining .patent-result-meta { margin-top: 1px; }
+.modern-patent-workbench .modern-patent-content.is-mining .patent-result-actions { margin-top: 0; }
+.modern-patent-workbench .patent-result-actions .patent-select-point-action.is-current {
+  color: #a9efc9;
+  border-color: #357957;
+  background: #183b32;
+  opacity: 1;
+}
+.patent-select-point-action.is-current .patent-selected-check {
+  display: inline-grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  margin-right: 6px;
+  color: #123526;
+  border-radius: 50%;
+  background: #66d4a6;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+/* The draft owns the reading width; reference facts are expandable. */
+.modern-patent-workbench .modern-patent-content.is-disclosure .patent-draft-panel { min-height: 0; }
+.modern-patent-workbench .modern-patent-content.is-disclosure .patent-draft-panel .markdown-editor,
+.modern-patent-workbench .modern-patent-content.is-disclosure .patent-draft-panel .patent-draft-preview {
+  flex: 0 0 auto;
+  height: clamp(290px, 38vh, 440px);
+  min-height: 0;
+  overflow: auto;
+}
+.modern-patent-workbench .modern-patent-content.is-disclosure .markdown-editor-textarea {
+  height: 100%;
+  min-height: 0;
+}
+.modern-patent-context {
+  overflow: hidden;
+  border: 1px solid #3c4b64;
+  border-radius: 9px;
+  background: #172437;
+}
+.modern-patent-context > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 17px;
+  color: #e7e1fb;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 800;
+}
+.modern-patent-context > summary::-webkit-details-marker { display: none; }
+.modern-patent-context > summary::before { content: '›'; color: #ae9ef2; font-size: 20px; line-height: 1; }
+.modern-patent-context[open] > summary::before { transform: rotate(90deg); }
+.modern-patent-context > summary span {
+  min-width: 0;
+  overflow: hidden;
+  color: #98aac3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.modern-patent-context .patent-selected-point-panel {
+  max-height: 500px;
+  overflow: auto;
+  border: 0;
+  border-top: 1px solid #35445d;
+  border-radius: 0;
+}
+
+/* Source and analysis have independent, bounded reading areas. */
+.modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-panel,
+.modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-result-panel { min-height: 0; }
+.modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-source {
+  flex: 0 0 auto;
+  height: clamp(180px, 23vh, 270px);
+  min-height: 0;
+  color: #ecf0fa;
+  border-color: #4a5a75;
+  border-radius: 6px;
+  background: #142034;
+}
+.modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-result-panel .markdown-editor,
+.modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-result-panel .patent-draft-preview {
+  flex: 0 0 auto;
+  height: clamp(180px, 23vh, 270px);
+  min-height: 0;
+  overflow: auto;
+}
+.modern-patent-workbench .modern-patent-content.is-prior-art .markdown-editor-textarea { height: 100%; min-height: 0; }
+
+/* Revision is a short form followed by natural-height version history. */
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-panel,
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-log-panel { min-height: 0; }
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-panel .patent-prior-art-source {
+  flex: 0 0 auto;
+  height: clamp(130px, 15vh, 170px);
+  min-height: 0;
+  color: #ecf0fa;
+  border-color: #4a5a75;
+  border-radius: 6px;
+  background: #142034;
+}
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-controls :is(input, select) {
+  color: #ecf0fa;
+  border-color: #4a5a75;
+  border-radius: 6px;
+  background: #142034;
+}
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-log-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: visible;
+}
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-log-list article { border-radius: 7px; }
+
+@container (min-width: 1150px) {
+  .modern-patent-workbench .modern-patent-content.is-mining { grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); }
+  .modern-patent-workbench .modern-patent-content.is-prior-art { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (max-width: 850px) {
+  .modern-patent-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .modern-patent-flow button:nth-child(2)::after { display: none; }
+  .modern-patent-workbench.patent-demo .demo-hero-copy.has-task-progress { grid-template-columns: minmax(0, 1fr); }
+  .modern-patent-workbench .modern-patent-content.is-revision .patent-revision-log-list { grid-template-columns: minmax(0, 1fr); }
+}
+@container (max-width: 560px) {
+  .modern-patent-flow { grid-template-columns: minmax(0, 1fr); }
+  .modern-patent-current-action { align-items: flex-start; flex-direction: column; }
+  .modern-patent-workbench.patent-demo .patent-case-summary { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* 案件工作台：阶段编号、连续轨道和当前任务形成一个清晰的工作表面。 */
+.modern-patent-workbench {
+  --patent-accent: #a99cf2;
+  --patent-accent-soft: rgba(169, 156, 242, .12);
+}
+.modern-patent-workbench.modern-patent-mining { --patent-accent: #8bd4c6; --patent-accent-soft: rgba(139, 212, 198, .10); }
+.modern-patent-workbench.modern-patent-prior-art { --patent-accent: #91b8ed; --patent-accent-soft: rgba(145, 184, 237, .11); }
+.modern-patent-workbench.modern-patent-revision { --patent-accent: #e6bca3; --patent-accent-soft: rgba(230, 188, 163, .10); }
+.modern-patent-workbench.patent-demo.demo-coming-page { gap: 0; padding: 4px 13px 24px 3px; }
+.modern-patent-workbench > .patent-projects-back { margin: 0 0 5px 4px; padding: 0 3px; font-size: 12px; }
+.modern-patent-workbench.patent-demo > .demo-hero-card {
+  position: relative;
+  padding: 10px 18px 11px 63px;
+  border: 0;
+  border-bottom: 1px solid #37455f;
+  border-radius: 0;
+  background: linear-gradient(90deg, var(--patent-accent-soft), transparent 54%);
+}
+.modern-patent-workbench.patent-demo > .demo-hero-card::before {
+  position: absolute;
+  top: 13px;
+  left: 17px;
+  color: var(--patent-accent);
+  font-size: 26px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -.08em;
+  font-variant-numeric: tabular-nums;
+}
+.modern-patent-mining.patent-demo > .demo-hero-card::before { content: '01'; }
+.modern-patent-disclosure.patent-demo > .demo-hero-card::before { content: '02'; }
+.modern-patent-prior-art.patent-demo > .demo-hero-card::before { content: '03'; }
+.modern-patent-revision.patent-demo > .demo-hero-card::before { content: '04'; }
+.modern-patent-workbench.patent-demo .demo-hero-copy h2 { margin: 2px 0 3px; font-size: clamp(18px, 1.7vw, 21px); line-height: 1.3; }
+.modern-patent-workbench.patent-demo .patent-hero-intro > p { font-size: 12px; line-height: 1.45; }
+.modern-patent-workbench.patent-demo .patent-case-summary {
+  max-width: none;
+  margin-top: 7px;
+  padding: 6px 0 0;
+  border: 0;
+  border-top: 1px solid #35435a;
+  border-radius: 0;
+  background: transparent;
+}
+.modern-patent-workbench.patent-demo .patent-case-summary span { color: var(--patent-accent); }
+.modern-patent-workbench.patent-demo .patent-case-summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.modern-patent-flow {
+  gap: 14px;
+  margin: 0 0 12px;
+  padding: 8px 1px 10px;
+  border: 0;
+  border-bottom: 1px solid #34435b;
+  border-radius: 0;
+  background: transparent;
+}
+.modern-patent-flow button {
+  position: relative;
+  gap: 11px;
+  padding: 8px 10px;
+  border: 1px solid #35445d;
+  border-radius: 7px;
+  background: #172437;
+}
+.modern-patent-flow button:not(:last-child)::after {
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  width: 13px;
+  color: #7e90aa;
+  content: '›';
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.modern-patent-flow button.is-active { color: #f5f1ff; border-color: var(--patent-accent); background: var(--patent-accent-soft); }
+.modern-patent-flow button > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  color: #bbc9da;
+  border: 1px solid #63718b;
+  border-radius: 50%;
+  background: #18253a;
+  font-size: 10px;
+}
+.modern-patent-flow button.is-active > span { color: #101827; border-color: var(--patent-accent); background: var(--patent-accent); }
+.modern-patent-flow button.is-complete > span { color: #78d9af; border-color: #419876; }
+.modern-patent-flow button strong { font-size: 12px; font-weight: 700; }
+.modern-patent-flow button em { font-size: 12px; }
+.modern-patent-current-action {
+  min-height: 0;
+  margin-bottom: 10px;
+  padding: 7px 11px;
+  border: 1px solid #35465d;
+  border-radius: 6px;
+  background: var(--patent-accent-soft);
+}
+.modern-patent-current-action strong { color: var(--patent-accent); }
+
+.modern-patent-workbench .modern-patent-content { gap: 14px; }
+.modern-patent-workbench .modern-patent-content .demo-panel {
+  position: relative;
+  padding: 17px 19px 20px;
+  border-color: #3a4961;
+  border-radius: 7px;
+  background: #1b293d;
+}
+.modern-patent-workbench .modern-patent-content .demo-panel::before { content: none; }
+.modern-patent-workbench .modern-patent-content .demo-panel-head {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #35445b;
+}
+.modern-patent-workbench .modern-patent-content .demo-panel-head h3 { margin-top: 4px; font-size: 18px; }
+.modern-patent-workbench .modern-patent-content .section-kicker { color: var(--patent-accent); }
+.modern-patent-workbench .modern-patent-content .patent-case-panel .demo-soft-pill {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  color: #c5d4ed;
+  border: 1px solid #526987;
+  border-radius: 6px;
+  background: #263a54;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* 挖掘：案件信息是左侧主工作区，候选点在右侧浏览。 */
+.modern-patent-workbench .modern-patent-content.is-mining .patent-case-panel { grid-column: 1; }
+.modern-patent-workbench .modern-patent-content.is-mining .patent-result-panel { grid-column: 2; }
+.modern-patent-workbench .modern-patent-content.is-mining .demo-table-list {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 9px;
+  max-height: min(800px, 74vh);
+}
+.modern-patent-workbench .modern-patent-content.is-mining .demo-table-list article {
+  min-width: 0;
+  align-content: start;
+  border: 1px solid #3e4d66;
+  border-radius: 6px;
+  background: #152236;
+}
+.modern-patent-workbench .modern-patent-content.is-mining .demo-table-list article.is-selected { border-color: #5bb58f; background: #19342f; }
+.modern-patent-workbench .modern-patent-content.is-mining .demo-table-list article.is-expanded { grid-column: 1 / -1; }
+.modern-patent-workbench .modern-patent-content.is-mining .patent-case-actions { flex-wrap: wrap; }
+
+/* 成稿：资料收成上方索引，纸面编辑区只负责正文。 */
+.modern-patent-workbench .modern-patent-content.is-disclosure .modern-patent-context { grid-column: 1 / -1; }
+.modern-patent-workbench .modern-patent-content.is-disclosure .patent-draft-panel { grid-column: 1 / -1; }
+.modern-patent-context { border-color: #45526a; border-radius: 6px; background: #162337; }
+.modern-patent-context > summary { min-height: 42px; }
+.modern-patent-workbench .modern-patent-content.is-disclosure .patent-draft-panel { background: #182537; }
+.modern-patent-workbench .modern-patent-content.is-disclosure .patent-draft-panel .markdown-editor,
+.modern-patent-workbench .modern-patent-content.is-disclosure .patent-draft-panel .patent-draft-preview {
+  height: clamp(350px, 53vh, 660px);
+  border: 1px solid #40516c;
+  border-radius: 4px;
+  background: #101d2e;
+}
+.modern-patent-workbench .modern-patent-content.is-disclosure .patent-draft-actions { flex-wrap: wrap; }
+
+/* 查新：资料与分析是对照工作台，内部阅读区各自滚动。 */
+.modern-patent-workbench .modern-patent-content.is-prior-art { gap: 0; }
+.modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-panel { border-radius: 7px 0 0 7px; }
+.modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-result-panel { border-left: 0; border-radius: 0 7px 7px 0; }
+.modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-source,
+.modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-result-panel .markdown-editor,
+.modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-result-panel .patent-draft-preview { height: clamp(260px, 46vh, 520px); }
+.modern-patent-workbench .modern-patent-content.is-prior-art.is-awaiting-result {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.modern-patent-workbench .modern-patent-content.is-prior-art.is-awaiting-result > * { grid-column: 1 / -1; }
+.modern-patent-workbench .modern-patent-content.is-prior-art.is-awaiting-result .patent-prior-art-panel,
+.modern-patent-workbench .modern-patent-content.is-prior-art.is-awaiting-result .patent-prior-art-result-panel {
+  border: 1px solid #3a4961;
+  border-radius: 7px;
+}
+.modern-patent-workbench .modern-patent-content.is-prior-art.is-awaiting-result .patent-prior-art-source { height: clamp(160px, 20vh, 230px); }
+.modern-patent-workbench .modern-patent-content.is-prior-art.is-awaiting-result .patent-prior-art-result-panel .patent-draft-actions { display: none; }
+.modern-patent-analysis-empty,
+.modern-patent-revision-empty {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 62px;
+  padding: 13px 0 0;
+  color: #aebdd0;
+}
+.modern-patent-empty-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  color: var(--patent-accent);
+  border: 1px solid color-mix(in srgb, var(--patent-accent) 52%, transparent);
+  border-radius: 9px;
+  background: var(--patent-accent-soft);
+  font-size: 23px;
+  line-height: 1;
+}
+.modern-patent-analysis-empty strong,
+.modern-patent-revision-empty strong { color: #e6ecf7; font-size: 13px; }
+.modern-patent-analysis-empty p,
+.modern-patent-revision-empty p { margin: 3px 0 0; color: #aebdd0; font-size: 12px; line-height: 1.5; }
+
+/* 修订：快速起草与版本时间线。 */
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-panel .patent-prior-art-source { height: clamp(170px, 23vh, 260px); }
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0;
+}
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-prompts span { margin-right: 4px; color: #aab9ce; font-size: 12px; }
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-prompts button {
+  min-height: 29px;
+  padding: 3px 10px;
+  color: #ead0bf;
+  border: 1px solid #735d55;
+  border-radius: 16px;
+  background: #2b2b37;
+  font-size: 11px;
+  cursor: pointer;
+}
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-prompts button:hover { background: #3c3540; }
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-log-list { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; padding-left: 20px; }
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-log-list::before { position: absolute; top: 6px; bottom: 6px; left: 7px; width: 1px; background: #715d58; content: ''; }
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-log-list article { position: relative; margin-bottom: 10px; border-radius: 5px; }
+.modern-patent-workbench .modern-patent-content.is-revision .patent-revision-log-list article::before { position: absolute; top: 20px; left: -18px; width: 9px; height: 9px; border-radius: 50%; background: #e6bca3; content: ''; }
+
+@container (min-width: 950px) {
+  .modern-patent-workbench .modern-patent-content.is-mining { grid-template-columns: minmax(0, 1.2fr) minmax(390px, .8fr); }
+}
+@container (max-width: 949px) {
+  .modern-patent-workbench .modern-patent-content.is-mining .patent-result-panel,
+  .modern-patent-workbench .modern-patent-content.is-mining .patent-case-panel { grid-column: 1 / -1; }
+  .modern-patent-workbench .modern-patent-content.is-prior-art { gap: 12px; }
+  .modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-panel,
+  .modern-patent-workbench .modern-patent-content.is-prior-art .patent-prior-art-result-panel { border: 1px solid #3a4961; border-radius: 7px; }
+}
+@container (max-width: 690px) {
+  .modern-patent-workbench.patent-demo > .demo-hero-card { padding-left: 57px; }
+  .modern-patent-workbench.patent-demo > .demo-hero-card::before { left: 11px; font-size: 25px; }
+  .modern-patent-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .modern-patent-workbench .modern-patent-content.is-mining .demo-table-list { grid-template-columns: minmax(0, 1fr); }
+}
+@container (max-width: 560px) {
+  .modern-patent-flow button::after { display: none !important; }
+}

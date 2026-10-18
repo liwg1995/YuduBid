@@ -4,6 +4,9 @@ import type { SectionId } from '../../../shared/types/navigation';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { GrantApplicationProfile, GrantApplicationProject, GrantApplicationProjectList } from '../types';
 import '../grantApplication.css';
+import './modernGrantProjects.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { projectNameInitials } from '../../../shared/utils/projectNameInitials';
 
 interface GrantApplicationProjectsPageProps {
   onNavigate?: (section: SectionId) => void;
@@ -136,7 +139,12 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
   }
 
   return (
-    <div className="page-stack grant-project-page">
+    <div className={getStoredUiAppearance() === 'modern' ? 'modern-grant-projects' : 'page-stack grant-project-page'}>
+      {getStoredUiAppearance() === 'modern' ? <>
+        <header className="modern-grant-head"><div><span>GRANT / PROJECTS</span><h1>课题项目</h1><p>让不同课题的档案、材料和申报成果各自归位。</p></div><button type="button" onClick={() => setCreateDialogOpen(true)} disabled={busy}>＋ 新建课题项目</button></header>
+        <div className="modern-grant-overview"><div><span>本地项目</span><strong>{projectList.projects.length}</strong></div><label><span>查找课题</span><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="项目名称、历史项目或创建时间" /></label><small>当前显示 {filteredProjects.length} 个</small></div>
+        <section className="modern-grant-list" aria-label="课题项目列表">{loading ? <p>正在读取课题项目…</p> : filteredProjects.length ? filteredProjects.map((project) => <article key={project.id}><div className="modern-grant-project-mark">{projectNameInitials(project.name)}</div><div className="modern-grant-project-body">{editingProjectId === project.id ? <input autoFocus value={editingProjectName} onChange={(event) => setEditingProjectName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void renameProject(project); if (event.key === 'Escape') setEditingProjectId(''); }} aria-label="编辑课题项目名称" /> : <strong>{project.name}</strong>}<span>{project.isLegacy ? '历史项目 · 承接旧版数据' : `创建于 ${new Date(project.created_at).toLocaleString('zh-CN', { hour12: false })}`}</span></div><div className="modern-grant-project-actions">{editingProjectId === project.id ? <><button type="button" onClick={() => void renameProject(project)} disabled={busy}>保存</button><button type="button" onClick={() => setEditingProjectId('')} disabled={busy}>取消</button></> : <button type="button" onClick={() => { setEditingProjectId(project.id); setEditingProjectName(project.name); }} disabled={busy}>重命名</button>}{projectList.projects.length > 1 && <button type="button" className="is-danger" onClick={() => void deleteProject(project)} disabled={busy}>{pendingDeleteProjectId === project.id ? '确认删除' : '删除'}</button>}<button type="button" className="is-primary" onClick={() => void enterProject(project)} disabled={busy}>进入项目 →</button></div></article>) : <div className="modern-grant-empty"><strong>{projectList.projects.length ? '没有匹配项目' : '还没有课题项目'}</strong><p>新建项目后即可整理申报材料。</p><button type="button" onClick={() => setCreateDialogOpen(true)}>创建课题项目</button></div>}</section>
+      </> : <>
       <section className="technical-project-hero">
         <div>
           <span className="section-kicker">课题申报</span>
@@ -194,6 +202,7 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
           </article>
         ))}
       </section>
+      </>}
       <Dialog.Root open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
@@ -203,7 +212,6 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
                 <Dialog.Title>新建课题项目</Dialog.Title>
                 <Dialog.Description>创建项目时填写课题档案，后续诊断、选题、撰写和评审会自动引用。</Dialog.Description>
               </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭新建课题项目">×</Dialog.Close>
             </div>
             <div className="grant-application-create-profile-grid">
               <label>

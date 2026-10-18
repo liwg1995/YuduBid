@@ -1,16 +1,23 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import brandProducerLogo from '../../../assets/brand-producer-logo.svg';
 import { configurableFeatureModules } from '../../../app/menuConfig';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type { ClientConfig, FeatureModuleId, FeatureModuleSettings, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelStatus, LatestReleaseInfo, ModelListCache, SkillSettings, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateProgressEvent, UpdateSource, UsageStatsSummary, UsageTrendRange } from '../../../shared/types';
+import type { SectionId } from '../../../shared/types/navigation';
+import { registerNavigationBlocker } from '../../../shared/navigationBlocker';
 import type { SettingsPageState } from '../types';
 import { getStoredUiThemePreference, setStoredUiThemePreference, UI_THEME_CHANGE_EVENT, type UiThemePreference } from '../../../shared/uiTheme';
+import { getStoredUiAppearance, setStoredUiAppearance, UI_APPEARANCE_CHANGE_EVENT, type UiAppearance } from '../../../shared/uiAppearance';
+import { getStoredReduceMotion, setStoredReduceMotion, REDUCE_MOTION_CHANGE_EVENT } from '../../../shared/motionPreference';
 import PluginManagementPanel from '../plugin-management/PluginManagementPanel';
+import SettingsLayout from '../components/SettingsLayout';
+import '../settingsAppearance.css';
 
-type SettingsTab = 'general' | 'features' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'plugins' | 'usage' | 'about';
+type SettingsTab = 'appearance' | 'general' | 'features' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'plugins' | 'usage' | 'about';
 type ReleaseDownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'installing' | 'error';
+type ReleaseHistoryItem = Pick<LatestReleaseInfo, 'version' | 'name' | 'body' | 'published_at'>;
 type LocalModelHelpKind = 'ollama-text' | 'ollama-image' | 'comfyui';
 
 interface ReleaseDownloadState {
@@ -88,15 +95,28 @@ function validateComfyUiWorkflowJson(value: string) {
 
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'general', label: '通用' },
+  { id: 'appearance', label: '界面与外观' },
   { id: 'text-model', label: '文本模型' },
   { id: 'image-model', label: '生图模型' },
   { id: 'file-parser', label: '文件解析' },
   { id: 'features', label: '功能管理' },
   { id: 'skills', label: '技能管理' },
-  { id: 'plugins', label: '插件管理' },
   { id: 'usage', label: '用量统计' },
   { id: 'about', label: '关于' },
 ];
+
+const settingsTabDescriptions: Record<SettingsTab, string> = {
+  general: '管理应用通用行为与开发选项。',
+  appearance: '选择习惯的工作方式。守矩与启象共享相同的功能与数据。',
+  'text-model': '配置文本生成服务与模型参数。',
+  'image-model': '配置图片生成服务与工作流。',
+  'file-parser': '选择本地或在线文件解析方式。',
+  features: '管理工作区功能入口。',
+  skills: '管理可供工作流使用的技能。',
+  plugins: '管理已连接的插件能力。',
+  usage: '查看本机记录的用量信息。',
+  about: '查看软件信息与版本更新。',
+};
 
 const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
   { value: 'agnes-ai-cn', label: 'agnes-ai【中国大陆】' },
@@ -769,13 +789,32 @@ function getInitialSettingsTab(): SettingsTab {
 function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: SettingsPageProps) {
   const [state, setState] = useState<SettingsPageState>(initialState);
   const [uiThemePreference, setUiThemePreference] = useState<UiThemePreference>(getStoredUiThemePreference);
+  const [uiAppearance, setUiAppearance] = useState<UiAppearance>(getStoredUiAppearance);
+  const [reduceMotion, setReduceMotion] = useState(getStoredReduceMotion);
 
   useEffect(() => {
     const syncThemePreference = (event: Event) => setUiThemePreference((event as CustomEvent<UiThemePreference>).detail);
     window.addEventListener(UI_THEME_CHANGE_EVENT, syncThemePreference);
-    return () => window.removeEventListener(UI_THEME_CHANGE_EVENT, syncThemePreference);
+    const syncAppearance = (event: Event) => setUiAppearance((event as CustomEvent<UiAppearance>).detail);
+    window.addEventListener(UI_APPEARANCE_CHANGE_EVENT, syncAppearance);
+    const syncReduceMotion = (event: Event) => setReduceMotion((event as CustomEvent<boolean>).detail);
+    window.addEventListener(REDUCE_MOTION_CHANGE_EVENT, syncReduceMotion);
+    return () => {
+      window.removeEventListener(UI_THEME_CHANGE_EVENT, syncThemePreference);
+      window.removeEventListener(UI_APPEARANCE_CHANGE_EVENT, syncAppearance);
+      window.removeEventListener(REDUCE_MOTION_CHANGE_EVENT, syncReduceMotion);
+    };
   }, []);
   const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialSettingsTab);
+  useEffect(() => {
+    if (settingsTabs.some((tab) => tab.id === activeTab)) return;
+    window.localStorage.setItem(SETTINGS_ACTIVE_TAB_KEY, DEFAULT_SETTINGS_TAB);
+    setActiveTab(DEFAULT_SETTINGS_TAB);
+  }, [activeTab]);
+  const [pendingTab, setPendingTab] = useState<SettingsTab | null>(null);
+  const [pendingSection, setPendingSection] = useState<SectionId | null>(null);
+  const pendingSectionResolveRef = useRef<((allowed: boolean) => void) | null>(null);
+  const [switchingTab, setSwitchingTab] = useState(false);
   const [savedConfig, setSavedConfig] = useState<ClientConfig | null>(null);
   const [textModels, setTextModels] = useState<string[]>([]);
   const [loadingModelInfo, setLoadingModelInfo] = useState(false);
@@ -791,12 +830,31 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const [checkingLatestRelease, setCheckingLatestRelease] = useState(false);
   const [latestRelease, setLatestRelease] = useState<LatestReleaseInfo | null>(null);
   const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
+  const [releaseHistory, setReleaseHistory] = useState<ReleaseHistoryItem[]>([]);
+  const [selectedReleaseVersion, setSelectedReleaseVersion] = useState('');
+  const [releaseHistoryLoading, setReleaseHistoryLoading] = useState(false);
+  const [releaseHistoryError, setReleaseHistoryError] = useState(false);
   const [agnesNoticeOpen, setAgnesNoticeOpen] = useState(false);
   const [localModelHelpKind, setLocalModelHelpKind] = useState<LocalModelHelpKind | null>(null);
   const [releaseDownloadState, setReleaseDownloadState] = useState<ReleaseDownloadState>(() => createInitialReleaseDownloadState());
   const [usageStats, setUsageStats] = useState<UsageStatsSummary | null>(null);
   const [usageRange, setUsageRange] = useState<UsageTrendRange>('14d');
   const { showToast } = useToast();
+  useEffect(() => {
+    if (!releaseDialogOpen || uiAppearance !== 'modern' || !latestRelease?.version || !appVersion) return;
+    const bridge = window.yibiao;
+    if (!bridge) return;
+    let canceled = false;
+    setSelectedReleaseVersion(latestRelease.version);
+    setReleaseHistory([]);
+    setReleaseHistoryError(false);
+    setReleaseHistoryLoading(true);
+    bridge.getReleaseHistory(latestRelease.source === 'gitcode' ? 'gitcode' : 'github')
+      .then((items) => { if (!canceled) setReleaseHistory(items); })
+      .catch(() => { if (!canceled) setReleaseHistoryError(true); })
+      .finally(() => { if (!canceled) setReleaseHistoryLoading(false); });
+    return () => { canceled = true; };
+  }, [releaseDialogOpen, uiAppearance, latestRelease?.version, latestRelease?.source, appVersion]);
 
   useEffect(() => {
     void loadTextConfig();
@@ -846,7 +904,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     try {
       const config = await window.yibiao?.config.load();
       if (!config) {
-        return;
+        return false;
       }
 
       const textModelProfiles = normalizeTextModelProfiles(config.text_model_profiles);
@@ -893,9 +951,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       setImageModels(nextModelListCache.image[activeImageProfile.provider] || []);
       onDeveloperModeChange?.(Boolean(config.developer_mode));
       onFeatureModuleSettingsChange?.(featureModuleSettings);
+      return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '加载客户端配置失败';
       showToast(errorMessage, 'error');
+      return false;
     }
   };
 
@@ -976,7 +1036,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           showToast(`发现新版本 ${release.version}，安装包仍在构建或上传，请稍后重新检测`, 'info');
           return;
         }
-        showToast(`发现新版本 ${release.version}`, 'info');
+        showToast(`发现新版本 ${release.version}`, 'info', { title: '新版本可用' });
         return;
       }
 
@@ -1168,7 +1228,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   };
 
   const saveTextConfig = async () => {
-    await saveClientConfig(createClientConfig());
+    return saveClientConfig(createClientConfig());
   };
 
   const updateDeveloperMode = (developerMode: boolean) => {
@@ -1299,7 +1359,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   };
 
   const saveImageConfig = async () => {
-    await saveClientConfig(createClientConfig());
+    return saveClientConfig(createClientConfig());
   };
 
   const testImageConfig = async () => {
@@ -1375,7 +1435,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   };
 
   const saveFileParserConfig = async () => {
-    await saveClientConfig(createClientConfig());
+    return saveClientConfig(createClientConfig());
   };
 
   const updateWordOptimizationSkill = (enabled: boolean) => {
@@ -1683,32 +1743,73 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
 
   const saveActiveTabConfig = async () => {
     if (activeTab === 'general') {
-      await saveClientConfig(createClientConfig());
-      return;
+      return saveClientConfig(createClientConfig());
     }
     if (activeTab === 'text-model') {
-      await saveTextConfig();
-      return;
+      return saveTextConfig();
     }
     if (activeTab === 'image-model') {
-      await saveImageConfig();
-      return;
+      return saveImageConfig();
     }
     if (activeTab === 'file-parser') {
-      await saveFileParserConfig();
-      return;
+      return saveFileParserConfig();
     }
     if (activeTab === 'skills') {
-      await saveClientConfig(createClientConfig());
-      return;
+      return saveClientConfig(createClientConfig());
     }
     if (activeTab === 'features') {
-      await saveClientConfig(createClientConfig());
+      return saveClientConfig(createClientConfig());
     }
+    return true;
   };
 
   const canSaveActiveTab = activeTab === 'general' || activeTab === 'text-model' || activeTab === 'image-model' || activeTab === 'file-parser' || activeTab === 'skills' || activeTab === 'features';
   const activeTabDirty = isActiveTabDirty();
+  useEffect(() => {
+    if (uiAppearance !== 'modern' || !activeTabDirty) return undefined;
+    return registerNavigationBlocker((destination) => {
+      if (destination === 'settings') return Promise.resolve(true);
+      if (pendingTab || pendingSectionResolveRef.current) return Promise.resolve(false);
+      return new Promise<boolean>((resolve) => {
+        pendingSectionResolveRef.current = resolve;
+        setPendingSection(destination);
+      });
+    });
+  }, [uiAppearance, activeTabDirty, pendingTab]);
+  useEffect(() => () => { pendingSectionResolveRef.current?.(false); pendingSectionResolveRef.current = null; }, []);
+  const activateTab = (tab: SettingsTab) => {
+    window.localStorage.setItem(SETTINGS_ACTIVE_TAB_KEY, tab);
+    setActiveTab(tab);
+  };
+  const requestTabChange = (tab: SettingsTab) => {
+    if (tab === activeTab || pendingSection) return;
+    if (getStoredUiAppearance() === 'modern' && activeTabDirty) {
+      setPendingTab(tab);
+      return;
+    }
+    activateTab(tab);
+  };
+  const cancelPendingChange = () => {
+    pendingSectionResolveRef.current?.(false);
+    pendingSectionResolveRef.current = null;
+    setPendingSection(null);
+    setPendingTab(null);
+  };
+  const finishPendingTabChange = async (save: boolean) => {
+    if ((!pendingTab && !pendingSection) || switchingTab) return;
+    setSwitchingTab(true);
+    try {
+      const success = save ? await saveActiveTabConfig() : await loadTextConfig();
+      if (!success) return;
+      if (pendingTab) activateTab(pendingTab);
+      pendingSectionResolveRef.current?.(true);
+      pendingSectionResolveRef.current = null;
+      setPendingSection(null);
+      setPendingTab(null);
+    } finally {
+      setSwitchingTab(false);
+    }
+  };
   const currentTextProviderDefault = textProviderDefaults[state.textModel.provider];
   const imageModelStatus: ImageModelStatus = state.imageModel.status || 'untested';
   const currentImageStatus = imageStatusMeta[imageModelStatus];
@@ -1760,7 +1861,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               variant: 'primary',
               disabled: !activeTabDirty,
               tooltip: activeTabDirty ? '保存当前设置' : '当前设置已保存',
-              onClick: saveActiveTabConfig,
+              onClick: () => { void saveActiveTabConfig(); },
             },
           ],
         },
@@ -1768,6 +1869,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     : [];
 
   const hasNewRelease = Boolean(latestRelease?.version && compareVersions(latestRelease.version, appVersion) > 0);
+  const availableReleaseHistory = latestRelease?.version
+    ? [...new Map([...releaseHistory, latestRelease].filter((release) => release.version && compareVersions(release.version, appVersion) > 0 && compareVersions(release.version, latestRelease.version) <= 0).map((release) => [release.version, release])).values()]
+      .sort((left, right) => compareVersions(left.version, right.version))
+    : [];
+  const displayedRelease = availableReleaseHistory.find((release) => release.version === selectedReleaseVersion) || latestRelease;
   const latestDownloadUrl = isDirectReleaseDownloadUrl(latestRelease?.download_url) ? latestRelease?.download_url : '';
   const releaseDownloading = releaseDownloadState.status === 'downloading';
   const releaseDownloaded = releaseDownloadState.status === 'downloaded' || releaseDownloadState.status === 'installing';
@@ -1780,25 +1886,79 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
     : '';
 
   return (
-    <div className="settings-page">
-      <div className="settings-page-scroll">
-        <div className="settings-tab-shell" role="tablist" aria-label="设置分类">
-          {settingsTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`settings-tab ${activeTab === tab.id ? 'is-active' : ''}`}
-              onClick={() => {
-                window.localStorage.setItem(SETTINGS_ACTIVE_TAB_KEY, tab.id);
-                setActiveTab(tab.id);
-              }}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+    <div className={`settings-page${activeTab === 'appearance' ? ' is-appearance-page' : ''}`}>
+      <SettingsLayout activeTab={activeTab} tabs={settingsTabs} description={settingsTabDescriptions[activeTab]}
+        onTabChange={(id) => requestTabChange(id as SettingsTab)}
+        headerAction={uiAppearance === 'modern' && canSaveActiveTab ? (
+          <div className="modern-settings-save-control">
+            <span className={activeTabDirty ? 'is-dirty' : ''} role="status">{activeTabDirty ? '有未保存修改' : '已保存'}</span>
+            <button type="button" disabled={!activeTabDirty} onClick={() => { void saveActiveTabConfig(); }}>保存设置</button>
+          </div>
+        ) : undefined}>
+
+      {activeTab === 'appearance' && (
+        <section className="settings-page-section appearance-selection" aria-labelledby="appearance-selection-title">
+          <div className="settings-section-title appearance-classic-title"><span /><strong>界面与外观</strong></div>
+          <div className="appearance-selection-content">
+            <h2 id="appearance-selection-title">选择界面模式</h2>
+            <p>切换后不影响已有项目、资料、后台任务和软件配置。守矩保留现有布局。</p>
+            <div className="appearance-card-grid" role="radiogroup" aria-label="界面模式">
+              {(['modern', 'classic'] as const).map((appearance) => (
+                <button
+                  className={`appearance-choice${uiAppearance === appearance ? ' is-selected' : ''}`}
+                  key={appearance}
+                  type="button"
+                  role="radio"
+                  aria-checked={uiAppearance === appearance}
+                  onClick={() => { setUiAppearance(appearance); setStoredUiAppearance(appearance); }}
+                >
+                  <span className={`appearance-preview is-${appearance}`} aria-hidden="true">
+                    {appearance === 'classic' ? (
+                      <>
+                        <span className="appearance-classic-nav"><b>禹都助手</b><em>工作台</em><em className="is-active">技术方案</em><em>知识库</em><em>设置</em></span>
+                        <span className="appearance-classic-workspace">
+                          <span className="appearance-classic-toolbar">技术方案 <span>项目管理　文档处理</span></span>
+                          <span className="appearance-classic-title">项目工作区</span>
+                          <span className="appearance-classic-tabs"><i>项目概览</i><i>文件资料</i><i>正文生成</i></span>
+                          <span className="appearance-classic-panel"><b>项目资料</b><i /><i /><i /></span>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="appearance-modern-rail"><b>禹</b><i>⌂</i><i className="is-active">▤</i><i>▦</i><i>⚙</i></span>
+                        <span className="appearance-modern-nav"><b>AI 解决方案助手</b><small>招投标</small><i className="is-active">技术方案　›</i><i>已有方案扩写　›</i><i>知识库　›</i></span>
+                        <span className="appearance-modern-workspace">
+                          <span className="appearance-modern-breadcrumb">工作空间　›　招投标　›　技术方案</span>
+                          <span className="appearance-modern-hero"><small>PROJECT WORKSPACE</small><b>项目工作区</b><i>继续处理文件、目录和正文</i></span>
+                          <span className="appearance-modern-columns"><span><small>WORKFLOW</small><b>01　上传文件</b><b>02　生成设置</b><b>03　生成正文</b></span><span><small>当前项目</small><b>技术方案工作台</b><i /><i /></span></span>
+                        </span>
+                      </>
+                    )}
+                  </span>
+                  <span className="appearance-choice-summary">
+                    <span className="appearance-choice-name"><span className="appearance-radio-dot" aria-hidden="true" /><strong>{appearance === 'classic' ? '守矩 Classic' : '启象 Modern'}</strong>{appearance === 'modern' && <em>推荐</em>}</span>
+                    <span className="appearance-choice-description">{appearance === 'classic' ? '沿用熟悉的页面与操作路径' : '分层导航，聚焦当前项目与任务'}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            {uiAppearance === 'classic' && (
+              <div className="appearance-theme-setting">
+                <div>
+                  <strong>守矩颜色主题</strong>
+                  <span>仅在守矩界面中生效；切换启象时会保留当前选择。</span>
+                </div>
+                <select value={uiThemePreference} onChange={(event) => { const preference = event.target.value as UiThemePreference; setUiThemePreference(preference); setStoredUiThemePreference(preference); }}>
+                  <option value="classic">经典</option>
+                  <option value="aurora">柔光</option>
+                  <option value="dark">暗黑</option>
+                  <option value="system">跟随系统</option>
+                </select>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {activeTab === 'general' && (
         <section className="settings-page-section">
@@ -1807,18 +1967,18 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
             <strong>通用</strong>
           </div>
           <div className="settings-list">
-            <div className="settings-row">
-              <div className="settings-row-copy">
-                <strong>应用主题</strong>
-                <span>选择界面风格；跟随系统会随本机深色模式自动切换</span>
-              </div>
-              <select value={uiThemePreference} onChange={(event) => { const preference = event.target.value as UiThemePreference; setUiThemePreference(preference); setStoredUiThemePreference(preference); }}>
-                <option value="classic">经典</option>
-                <option value="aurora">柔光</option>
-                <option value="dark">暗黑</option>
-                <option value="system">跟随系统</option>
-              </select>
-            </div>
+            {uiAppearance === 'modern' && (
+              <label className="settings-row">
+                <div className="settings-row-copy">
+                  <strong>减少动态效果</strong>
+                  <span>减少页面过渡、背景动画和逐字显示，适合性能较低的电脑；立即生效，也会遵循系统设置</span>
+                </div>
+                <span className="settings-switch-control">
+                  <input type="checkbox" checked={reduceMotion} onChange={(event) => { setReduceMotion(event.target.checked); setStoredReduceMotion(event.target.checked); }} />
+                  <span className="settings-switch-track" aria-hidden="true"><span className="settings-switch-thumb" /></span>
+                </span>
+              </label>
+            )}
             <label className="settings-row">
               <div className="settings-row-copy">
                 <strong>开发者模式</strong>
@@ -1848,7 +2008,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               </label>
             )}
             {state.general.developer_mode && (
-              <div className="settings-row">
+              <div className="settings-row settings-developer-action-row">
                 <div className="settings-row-copy">
                   <strong>配置文件夹</strong>
                   <span>打开本机配置、工作区缓存和开发者日志所在目录</span>
@@ -1861,7 +2021,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               </div>
             )}
             {state.general.developer_mode && (
-              <div className="settings-row">
+              <div className="settings-row settings-developer-action-row">
                 <div className="settings-row-copy">
                   <strong>应用日志</strong>
                   <span>按日期和级别保存；普通与警告日志保留 3 天，错误日志长期保留</span>
@@ -1889,11 +2049,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 <div className="settings-provider-title">
                   <strong>服务提供商</strong>
                   {(state.textModel.provider === 'agnes-ai-cn' || state.textModel.provider === 'agnes-ai-global') && (
-                    <button type="button" className="settings-notice-link" onClick={() => setAgnesNoticeOpen(true)}>
-                      🔔 查看使用公告
+                    <button type="button" className="settings-notice-link context-help-trigger" onClick={() => setAgnesNoticeOpen(true)}>
+                      查看服务公告
                     </button>
                   )}
-                  {state.textModel.provider === 'ollama' && <button type="button" className="settings-notice-link" onClick={() => setLocalModelHelpKind('ollama-text')}>ⓘ Ollama 使用说明</button>}
+                  {state.textModel.provider === 'ollama' && <button type="button" className="settings-notice-link context-help-trigger" onClick={() => setLocalModelHelpKind('ollama-text')}>查看 Ollama 说明</button>}
                 </div>
                 <span>选择服务商会自动使用预置 Base URL；自定义服务商和 Ollama 允许修改</span>
                 {(state.textModel.provider === 'agnes-ai-cn' || state.textModel.provider === 'agnes-ai-global') && (
@@ -2052,7 +2212,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           </div>
           <div className={`image-model-status is-${imageModelStatus}`}>
             <div>
-              <strong>接口状态：{currentImageStatus.label}</strong>
+              <strong>接口状态{uiAppearance === 'modern' ? '' : `：${currentImageStatus.label}`}</strong>
               <span>{currentImageStatus.description}</span>
               {imageTestTime && <small>最近测试：{imageTestTime}</small>}
               {imageModelStatus === 'unavailable' && state.imageModel.last_error && <small>失败原因：{state.imageModel.last_error}</small>}
@@ -2065,12 +2225,12 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 <div className="settings-provider-title">
                   <strong>服务提供商</strong>
                   {(state.imageModel.provider === 'agnes-ai-cn' || state.imageModel.provider === 'agnes-ai-global') && (
-                    <button type="button" className="settings-notice-link" onClick={() => setAgnesNoticeOpen(true)}>
-                      🔔 查看使用公告
+                    <button type="button" className="settings-notice-link context-help-trigger" onClick={() => setAgnesNoticeOpen(true)}>
+                      查看服务公告
                     </button>
                   )}
-                  {state.imageModel.provider === 'ollama' && <button type="button" className="settings-notice-link" onClick={() => setLocalModelHelpKind('ollama-image')}>ⓘ 实验生图说明</button>}
-                  {state.imageModel.provider === 'comfyui' && <button type="button" className="settings-notice-link" onClick={() => setLocalModelHelpKind('comfyui')}>ⓘ 工作流使用说明</button>}
+                  {state.imageModel.provider === 'ollama' && <button type="button" className="settings-notice-link context-help-trigger" onClick={() => setLocalModelHelpKind('ollama-image')}>查看生图说明</button>}
+                  {state.imageModel.provider === 'comfyui' && <button type="button" className="settings-notice-link context-help-trigger" onClick={() => setLocalModelHelpKind('comfyui')}>查看工作流说明</button>}
                 </div>
                 <span>各家生图接口不统一，先选择服务商再配置模型</span>
                 {(state.imageModel.provider === 'agnes-ai-cn' || state.imageModel.provider === 'agnes-ai-global') && (
@@ -2313,7 +2473,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
             {configurableFeatureModules.map((module) => {
               const enabled = state.featureModuleSettings.modules[module.id]?.enabled !== false;
               return (
-                <label className="settings-row" key={module.id}>
+                <label className="settings-row feature-module-row" key={module.id}>
                   <div className="settings-row-copy">
                     <strong>{module.label}</strong>
                     <span>{module.description}</span>
@@ -2365,6 +2525,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 <span className="settings-switch-control">
                   <input
                     type="checkbox"
+                    aria-label="启用 Word 导出版式优化"
                     checked={state.skillSettings.skills['word-optimization'].enabled}
                     onChange={(event) => updateWordOptimizationSkill(event.target.checked)}
                   />
@@ -2397,6 +2558,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                 <span className="settings-switch-control">
                   <input
                     type="checkbox"
+                    aria-label="启用技术图谱生成"
                     checked={state.skillSettings.skills['technical-diagram'].enabled}
                     onChange={(event) => updateTechnicalDiagramSkill(event.target.checked)}
                   />
@@ -2428,24 +2590,31 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               ['总 Token', '输入与输出合计', usageStats?.totals.total_tokens || 0],
             ].map(([label, description, value]) => <article className="usage-kpi-card" key={String(label)}><span>{label}</span><strong>{Number(value).toLocaleString()}</strong><small>{description}</small></article>)}
           </div>
-          <div className="usage-range-control">
-            <label htmlFor="usage-trend-range">趋势范围</label>
-            <select id="usage-trend-range" value={usageRange} onChange={(event) => setUsageRange(event.target.value as UsageTrendRange)}>
-              <option value="1h">近 1 小时</option>
-              <option value="6h">近 6 小时</option>
-              <option value="1d">近 1 天</option>
-              <option value="7d">近 7 天</option>
-              <option value="14d">近 14 天</option>
-            </select>
-          </div>
-          <UsageTrendChart trend={usageStats?.trend || []} range={usageRange} />
-          <div className="usage-thinking-note">Thinking Token：{(usageStats?.totals.reasoning_tokens || 0).toLocaleString()}（仅服务商返回该字段时统计）</div>
-          <div className="usage-thinking-note">缓存命中 Token：{(usageStats?.totals.cached_tokens || 0).toLocaleString()}（包含在输入 Token 中，仅服务商返回该字段时统计）</div>
-          {usageStats?.by_model?.length ? (
-            <div className="settings-list">
-              {usageStats.by_model.map((item) => <div className="settings-row" key={`${item.provider}-${item.model}`}><div className="settings-row-copy"><strong>{item.model}</strong><span>{item.provider} · {item.requests} 次请求</span></div><strong>{item.total_tokens.toLocaleString()} Token</strong></div>)}
+          <div className="usage-detail-layout">
+            <div className="usage-chart-column">
+              <div className="usage-range-control">
+                <label htmlFor="usage-trend-range">趋势范围</label>
+                <select id="usage-trend-range" value={usageRange} onChange={(event) => setUsageRange(event.target.value as UsageTrendRange)}>
+                  <option value="1h">近 1 小时</option>
+                  <option value="6h">近 6 小时</option>
+                  <option value="1d">近 1 天</option>
+                  <option value="7d">近 7 天</option>
+                  <option value="14d">近 14 天</option>
+                </select>
+              </div>
+              <UsageTrendChart trend={usageStats?.trend || []} range={usageRange} />
+              <div className="usage-thinking-note">Thinking Token：{(usageStats?.totals.reasoning_tokens || 0).toLocaleString()}（仅服务商返回该字段时统计）</div>
+              <div className="usage-thinking-note">缓存命中 Token：{(usageStats?.totals.cached_tokens || 0).toLocaleString()}（包含在输入 Token 中，仅服务商返回该字段时统计）</div>
             </div>
-          ) : <div className="parser-note">暂无已记录的文本模型用量。</div>}
+            <div className="usage-model-column">
+              {uiAppearance === 'modern' && <div className="usage-model-heading"><strong>模型用量</strong><span>{usageStats?.by_model?.length || 0} 个模型</span></div>}
+              {usageStats?.by_model?.length ? (
+                <div className="settings-list">
+                  {usageStats.by_model.map((item) => <div className="settings-row" key={`${item.provider}-${item.model}`}><div className="settings-row-copy"><strong>{item.model}</strong><span>{item.provider} · {item.requests} 次请求</span></div><strong>{item.total_tokens.toLocaleString()} Token</strong></div>)}
+                </div>
+              ) : <div className="parser-note">暂无已记录的文本模型用量。</div>}
+            </div>
+          </div>
         </section>
       )}
 
@@ -2455,6 +2624,21 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
             <span />
             <strong>关于</strong>
           </div>
+          {uiAppearance === 'modern' && (
+            <div className="modern-about-hero">
+              <div className="modern-about-hero-copy">
+                <span>YUDU · DESKTOP WORKSPACE</span>
+                <h2>让复杂工作，<br /><em>变得更从容。</em></h2>
+                <p>从资料整理到成果交付，在一个本地工作空间里完成。</p>
+              </div>
+              <div className="modern-about-hero-art" aria-hidden="true">
+                <i className="modern-about-orbit modern-about-orbit-one" />
+                <i className="modern-about-orbit modern-about-orbit-two" />
+                <b>禹都</b>
+                <span>AI SOLUTION WORKSPACE</span>
+              </div>
+            </div>
+          )}
           <div className="about-update-source">
             <label htmlFor="about-update-source">更新渠道</label>
             <select
@@ -2494,7 +2678,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                     onClick={() => setReleaseDialogOpen(true)}
                     aria-label={latestRelease?.syncPending ? '查看更新渠道同步状态' : '查看新版更新详情'}
                   >
-                    {latestRelease?.syncPending ? '等待同步' : 'NEW'}
+                    {latestRelease?.syncPending ? '等待同步' : '有新版本'}
                   </button>
                 )}
               </strong>
@@ -2519,20 +2703,31 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           <Dialog.Root open={releaseDialogOpen} onOpenChange={setReleaseDialogOpen}>
             <Dialog.Portal>
               <Dialog.Overlay className="content-regenerate-modal" />
-              <Dialog.Content className="release-detail-card">
+              <Dialog.Content className={`release-detail-card${uiAppearance === 'modern' ? ' is-modern' : ''}`}>
                 <div className="release-detail-head">
-                  <span>NEW</span>
+                  <span>{uiAppearance === 'modern' ? '版本更新' : 'NEW'}</span>
                   <Dialog.Title>{latestRelease?.name || `新版 ${latestRelease?.version || ''}`}</Dialog.Title>
                   <Dialog.Description>
                     当前版本 {appVersion || '...'}，最新版本 {latestRelease?.version || '...'} · {releaseDownloaded ? (releaseDownloadState.source === 'gitcode' ? 'GitCode' : 'GitHub') : (latestRelease?.source === 'gitcode' ? 'GitCode' : 'GitHub')}
                   </Dialog.Description>
+                  {uiAppearance === 'modern' && <div className="release-version-route" aria-label="版本变化">
+                    <span className="release-route-current"><small>当前版本</small><strong>v{appVersion || '...'}</strong></span>
+                    {availableReleaseHistory.map((release, index) => <div className="release-route-step" key={release.version}>
+                      <i aria-hidden="true">→</i>
+                      <button type="button" className={displayedRelease?.version === release.version ? 'is-active' : ''} aria-pressed={displayedRelease?.version === release.version} onClick={() => setSelectedReleaseVersion(release.version)}>
+                        <small>{index === availableReleaseHistory.length - 1 ? '最新版本' : '中间版本'}</small><strong>v{release.version}</strong>
+                      </button>
+                    </div>)}
+                    {releaseHistoryLoading && <small className="release-route-note">正在读取版本记录…</small>}
+                    {releaseHistoryError && <small className="release-route-note">历史版本暂不可用，仍可查看最新版</small>}
+                  </div>}
                   <Dialog.Close className="release-detail-close" type="button" aria-label="关闭更新详情">×</Dialog.Close>
                 </div>
                 <div className="release-detail-body">
                   {latestRelease?.syncPending ? (
                     <p>{latestRelease.syncMessage || '更新渠道正在同步，请稍后刷新。'}</p>
-                  ) : latestRelease?.body ? (
-                    <MarkdownRenderer allowRawHtml={false}>{latestRelease.body}</MarkdownRenderer>
+                  ) : displayedRelease?.body ? (
+                    <MarkdownRenderer key={displayedRelease.version} allowRawHtml={false}>{displayedRelease.body}</MarkdownRenderer>
                   ) : (
                     <p>该版本暂未填写更新详情。</p>
                   )}
@@ -2687,8 +2882,24 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      </div>
-      <FloatingToolbar groups={settingsToolbarGroups} label="设置保存工具条" />
+      </SettingsLayout>
+      <Dialog.Root open={pendingTab !== null || pendingSection !== null} onOpenChange={(open) => { if (!open && !switchingTab) cancelPendingChange(); }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="app-action-dialog-overlay" />
+          <Dialog.Content className="app-action-dialog-card" aria-describedby="settings-unsaved-description">
+            <div className="app-action-dialog-head">
+              <Dialog.Title>当前设置尚未保存</Dialog.Title>
+              <Dialog.Description id="settings-unsaved-description">保存修改后继续，或放弃本次修改。保存失败时会留在当前分类。</Dialog.Description>
+            </div>
+            <div className="app-action-dialog-actions settings-unsaved-actions">
+              <button type="button" className="secondary-action" disabled={switchingTab} onClick={cancelPendingChange}>继续编辑</button>
+              <button type="button" className="secondary-action" disabled={switchingTab} onClick={() => { void finishPendingTabChange(false); }}>放弃修改</button>
+              <button type="button" className="primary-action" disabled={switchingTab} onClick={() => { void finishPendingTabChange(true); }}>{switchingTab ? '处理中…' : '保存并切换'}</button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      {uiAppearance !== 'modern' && <FloatingToolbar groups={settingsToolbarGroups} label="设置保存工具条" />}
     </div>
   );
 }

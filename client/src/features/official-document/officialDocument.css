@@ -9,7 +9,8 @@
   padding: 24px;
 }\n\n.official-document-header {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
   padding: 22px 24px;
@@ -34,6 +35,9 @@
 }
 
 .official-document-reminder-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 12px;
   padding: 8px 14px;
   border: 1px solid rgba(37, 99, 235, 0.18);
@@ -44,6 +48,25 @@
   font-weight: 800;
   line-height: 1.2;
   transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.official-document-reminder-link-icon {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #4f6fe1;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.official-document-reminder-link-arrow {
+  margin-left: 2px;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 0.7;
 }
 
 .official-document-reminder-link:hover {
@@ -58,6 +81,17 @@
   justify-content: flex-end;
   gap: 10px;
 }
+
+.official-document-header-eyebrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.official-document-header-eyebrow .official-document-reminder-link { margin-top: 0; }
+.official-document-header > div:first-child { min-width: 0; flex: 1 1 620px; }
+.official-document-header > .official-document-actions { flex: 0 0 auto; margin-left: auto; }
 
 .official-document-config-notice {
   display: flex;
@@ -203,6 +237,8 @@
 .official-document-reminder-body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  align-items: start;
   gap: 14px;
   min-height: 0;
   overflow: auto;
@@ -271,19 +307,21 @@
 .official-document-field textarea {
   width: 100%;
   min-width: 0;
-  padding: 10px 12px;
+  padding: 9px 11px;
   color: #172033;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(191, 200, 214, 0.92);
   border-radius: 12px;
   outline: none;
+  font-size: 13px;
+  line-height: 1.5;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .official-document-field textarea {
   min-height: 132px;
   resize: vertical;
-  line-height: 1.65;
+  line-height: 1.6;
 }
 
 .official-document-field input:focus,
@@ -562,6 +600,23 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid rgba(27, 50, 92, 0.1);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.official-document-template-preview-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border: 1px solid rgba(27, 50, 92, 0.14);
+  border-radius: 8px;
+  color: #526071;
+  background: #f8fafd;
+  font-size: 21px;
+  line-height: 1;
 }
 
 .official-document-template-preview-body {
@@ -926,7 +981,7 @@
   outline: none;
   resize: vertical;
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.6;
 }
 
 .official-document-rewrite-box textarea:focus {
@@ -975,6 +1030,8 @@
 .official-document-markdown-editor .markdown-editor-textarea {
   min-height: 370px;
   resize: vertical;
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .official-document-draft-preview {
@@ -1000,8 +1057,8 @@
   border-radius: 14px;
   outline: none;
   resize: vertical;
-  font-size: 14px;
-  line-height: 1.85;
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .official-document-draft-editor:focus {
@@ -1119,6 +1176,11 @@
 }
 
 .official-document-agent-dialog h2 { margin: 0; color: var(--yb-text); font-size: 19px; }
+.official-document-agent-dialog-head { display: grid; gap: 7px; }
+.official-document-agent-dialog-head .section-kicker { font-size: 11px; }
+.official-document-agent-dialog-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.official-document-agent-dialog-steps span { border: 1px solid var(--yb-border); border-radius: 8px; padding: 9px; color: var(--yb-text-soft); background: var(--yb-surface); font-size: 12px; font-weight: 700; text-align: center; }
+.official-document-agent-dialog-note { border-radius: 9px; padding: 10px 12px; background: color-mix(in srgb, var(--yb-primary) 7%, var(--yb-surface)); }
 
 @media (max-width: 760px) {
   .official-document-agent-panel { align-items: stretch; flex-direction: column; }

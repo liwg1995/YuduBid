@@ -16,6 +16,8 @@ import type {
   PresalesResearchInput,
 } from '../types';
 import '../presalesWorkbench.css';
+import './modernPresalesWorkbench.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 
 const emptyProfile: PresalesProjectProfile = {
   projectName: '',
@@ -1748,8 +1750,8 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   return (
-    <div className="presales-workbench-page is-workbench-mode">
-      <main className="presales-workspace">
+    <div className={`presales-workbench-page is-workbench-mode${getStoredUiAppearance() === 'modern' ? ' modern-presales-workbench' : ''}`}>
+      <main className={getStoredUiAppearance() === 'modern' ? 'modern-presales-workspace' : 'presales-workspace'}>
         <section className="presales-workspace-head">
           <div>
             <span className="section-kicker">售前工作台</span>
@@ -1757,7 +1759,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
             <p>当前显示最近进入或创建的售前项目。需要切换项目时，请先到“售前项目”点击目标项目卡片进入。</p>
           </div>
           <div className="presales-workspace-head-actions">
-            <span className="demo-soft-pill">{state?.updated_at ? `更新于 ${formatDateTime(state.updated_at)}` : '本地项目'}</span>
+            <span className="demo-soft-pill modern-update-time">{state?.updated_at ? `更新于 ${formatDateTime(state.updated_at)}` : '本地项目'}</span>
             <div>
               <button type="button" className="secondary-action" onClick={previewProjectPackage} disabled={isLoading || isPreviewingPackage}>
                 {isPreviewingPackage ? '预览中...' : '预览项目包'}
@@ -1827,7 +1829,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
           </Dialog.Portal>
         </Dialog.Root>
 
-        <nav className="presales-workflow-tabs">
+        {getStoredUiAppearance() === 'modern' ? <aside className="modern-presales-flow"><div><span>PRESALES / FLOW</span><strong>工作阶段</strong><small>{workflowSteps.filter((step) => isStepDone(state, step.id)).length} / {workflowSteps.length} 已完成</small></div><nav aria-label="售前工作阶段">{workflowSteps.map((step, index) => <button key={step.id} type="button" className={activeStep === step.id ? 'is-active' : ''} aria-current={activeStep === step.id ? 'step' : undefined} onClick={() => setActiveStep(step.id)}><b>{String(index + 1).padStart(2, '0')}</b><span><strong>{step.title}</strong><small>{step.desc}</small></span><em>{isStepDone(state, step.id) ? '✓' : '›'}</em></button>)}</nav></aside> : <nav className="presales-workflow-tabs">
           {workflowSteps.map((step, index) => (
             <button
               key={step.id}
@@ -1841,7 +1843,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
               <em>{isStepDone(state, step.id) ? '已完成' : '待处理'}</em>
             </button>
           ))}
-        </nav>
+        </nav>}
 
         <Dialog.Root open={agentConfirmOpen} onOpenChange={setAgentConfirmOpen}>
           <Dialog.Portal>

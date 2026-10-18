@@ -1,0 +1,16 @@
+.modern-docked-actions { display:flex; align-items:center; justify-content:space-between; gap:18px; width:100%; min-width:0; min-height:50px; border:1px solid #35445a; border-radius:8px; padding:6px 10px; color:#dce4f2; background:#19283b; }
+.modern-docked-actions-group { display:flex; align-items:center; gap:7px; min-width:0; overflow-x:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+.modern-docked-actions-group.is-trailing { flex:0 0 auto; justify-content:flex-end; }
+.modern-docked-actions-status { flex:0 0 auto; margin-right:3px; color:#aab9cd; font-size:11px; white-space:nowrap; }
+.modern-docked-action { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:35px; flex:0 0 auto; border:1px solid #495a73; border-radius:6px; padding:0 11px; color:#dce4f2; background:#27384d; font-size:11px; font-weight:700; white-space:nowrap; cursor:pointer; transition:border-color .16s ease, background-color .16s ease, transform .16s ease; }
+.modern-docked-action:hover:not(:disabled) { border-color:#9487e0; background:#35415f; transform:translateY(-1px); }
+.modern-docked-action:focus-visible { outline:2px solid #b6aaff; outline-offset:2px; }
+.modern-docked-action:disabled { opacity:.45; cursor:not-allowed; }
+.modern-docked-action.is-primary { border-color:#9888ea; color:#fff; background:#6e62bc; }
+.modern-docked-action.is-primary:hover:not(:disabled) { background:#8275d5; }
+.modern-docked-action.is-danger { border-color:#7a555f; color:#f2b4bd; background:#3a2b3b; }
+.modern-docked-action.is-ghost { border-color:transparent; color:#aab9cd; background:transparent; }
+.modern-docked-action > span { display:inline-flex; width:15px; height:15px; }
+.modern-docked-action svg { width:15px; height:15px; }
+@container (max-width:700px) { .modern-docked-actions { gap:9px; } .modern-docked-actions-group.is-trailing { flex:0 0 auto; } .modern-docked-actions-status { display:none; } }
+@media (prefers-reduced-motion:reduce) { .modern-docked-action { transition:none; } .modern-docked-action:hover:not(:disabled) { transform:none; } }

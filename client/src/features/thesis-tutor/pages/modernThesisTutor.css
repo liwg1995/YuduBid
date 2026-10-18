@@ -1,0 +1,42 @@
+.modern-shell .modern-thesis-tutor { gap: 9px; padding: 0 2px 14px 0; }
+.modern-shell .modern-thesis-tutor > .thesis-tutor-header { border: 0; border-bottom: 1px solid #35435a; border-radius: 0; padding: 2px 2px 10px; background: transparent; box-shadow: none; }
+.modern-shell .modern-thesis-tutor > .thesis-tutor-header h2 { color: #f1eeff; font-size: 20px; }
+.modern-thesis-tutor > .thesis-tutor-header p { color: #99aac2; font-size: 11px; }
+.modern-thesis-journey { display: grid; gap: 7px; flex: 0 0 auto; min-width: 0; border: 1px solid #35465f; border-radius: 8px; padding: 8px 10px; background: #172335; }
+.modern-thesis-journey-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.modern-thesis-journey-head > div { display: flex; align-items: baseline; gap: 9px; }
+.modern-thesis-journey-head span { color: #a99bf0; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.modern-thesis-journey-head strong { color: #f0edfc; font-size: 13px; }
+.modern-thesis-journey-head small { color: #91a3ba; font-size: 10px; }
+.modern-thesis-journey-groups { display: flex; min-width:0; gap:5px; overflow-x:auto; overflow-y:hidden; padding-bottom:3px; scrollbar-width:thin; }
+.modern-thesis-journey-group, .modern-thesis-journey-group > div { display: contents; }
+.modern-thesis-journey-group > span { display:none; }
+.modern-thesis-journey-group button { display: flex; min-width:110px; min-height:37px; flex: 1 0 auto; align-items: center; gap: 5px; border: 1px solid #35465e; border-radius: 6px; padding: 5px 7px; color: #aab9cf; background: #1d2b3e; cursor: pointer; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
+.modern-thesis-journey-group button:hover { border-color: #877bcc; background: #2b3851; transform: translateY(-1px); }
+.modern-thesis-journey-group button.is-active { border-color: #9a89ed; color: #f3efff; background: #303754; box-shadow: inset 3px 0 #aa9df5; }
+.modern-thesis-journey-group button b { color: #ac9ef0; font-size: 9px; }
+.modern-thesis-journey-group button span { min-width: 0; flex: 1; overflow: hidden; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.modern-thesis-journey-group button em { color: #aa9cf1; font-size: 12px; font-style: normal; }
+.modern-shell .modern-thesis-tutor .thesis-tutor-layout { grid-template-columns: minmax(0,1fr) 245px; gap: 10px; }
+.modern-thesis-tutor .thesis-tutor-main, .modern-thesis-tutor .thesis-tutor-side { min-width: 0; gap: 12px; }
+.modern-thesis-tutor .thesis-tutor-panel { border-color: #35465e; border-radius: 9px; background: #1b293c; box-shadow: none; }
+.modern-thesis-tutor .thesis-tutor-panel-head strong, .modern-thesis-tutor .thesis-tutor-overview-next strong { color: #f0edfc; }
+.modern-thesis-tutor .thesis-tutor-panel-head span, .modern-thesis-tutor .thesis-tutor-overview-next span { color: #9aacc3; }
+.modern-thesis-tutor .thesis-tutor-overview-score > div, .modern-thesis-tutor .thesis-tutor-overview-next { border-color: #3a4961; border-radius: 8px; background: #202e43; }
+.modern-thesis-tutor .thesis-tutor-overview-score strong { color: #b4a7f5; }
+.modern-thesis-tutor .thesis-tutor-overview-score span { color: #9aacc3; }
+.modern-thesis-tutor .thesis-tutor-textarea, .modern-thesis-tutor .thesis-tutor-source { border-color: #3a4961; border-radius: 8px; color: #e8edf8; background: #202e43; }
+.modern-thesis-tutor .thesis-tutor-result-head { border-color: #35465e; background: #202e43; }
+.modern-thesis-tutor .thesis-tutor-result-body.has-result { grid-template-columns: repeat(2,minmax(0,1fr)); align-items: stretch; height: clamp(460px, 62vh, 720px); gap: 12px; background: #172335; }
+.modern-thesis-tutor .thesis-tutor-editor-zone { display: grid; grid-template-rows: auto minmax(0,1fr); min-width: 0; min-height: 0; gap: 8px; }
+.modern-thesis-tutor .thesis-tutor-editor-zone .markdown-editor { min-width: 0; min-height: 0; border-color: #35465e; border-radius: 8px; background: #1d2b3e; box-shadow: none; }
+.modern-thesis-tutor .thesis-tutor-editor-zone .markdown-editor-toolbar { border-color: #35465e; background: #26354b; }
+.modern-thesis-tutor .thesis-tutor-editor-zone .markdown-editor-textarea { min-height: 0; color: #e7ebf7; }
+.modern-thesis-tutor .thesis-tutor-preview { min-width: 0; min-height: 0; overflow: auto; border-color: #35465e; border-radius: 8px; background: #1d2b3e; }
+.modern-thesis-tutor .thesis-tutor-history-list { max-height: 430px; align-content: start; overflow-y: auto; padding-right: 4px; scrollbar-width: thin; }
+.modern-thesis-result-label { display: block; color: #b6aaf5; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+@container (max-width:1030px) { .modern-thesis-tutor .thesis-tutor-result-body.has-result { grid-template-columns: minmax(0,1fr); height: auto; } .modern-thesis-tutor .thesis-tutor-editor-zone { height: 420px; } .modern-thesis-tutor .thesis-tutor-preview { max-height: 520px; } }
+@container (max-width:1260px) { .modern-shell .modern-thesis-tutor .thesis-tutor-layout { grid-template-columns: minmax(0,1fr); } .modern-thesis-tutor .thesis-tutor-side { display: grid; grid-template-columns: repeat(auto-fit,minmax(290px,1fr)); align-items: start; } }
+@container (max-width:1100px) { .modern-thesis-tutor .thesis-tutor-profile-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .modern-thesis-tutor .thesis-tutor-chart-template-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@container (max-width:650px) { .modern-thesis-journey-group button { flex: 0 0 130px; } .modern-thesis-journey-head { align-items: flex-start; flex-direction: column; } .modern-thesis-tutor .thesis-tutor-profile-grid, .modern-thesis-tutor .thesis-tutor-chart-template-grid, .modern-thesis-tutor .thesis-tutor-chapter-grid { grid-template-columns: minmax(0,1fr); } .modern-thesis-tutor .thesis-tutor-profile-grid label.is-full { grid-column: 1; } }
+@media (prefers-reduced-motion:reduce) { .modern-thesis-journey-group button { transition: none; } .modern-thesis-journey-group button:hover { transform: none; } }

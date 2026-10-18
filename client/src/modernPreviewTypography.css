@@ -1,0 +1,247 @@
+/* Modern 工作区的 Markdown 阅读字号。导出模板和 Word 纸张预览有独立版式，
+   不纳入这一组规则，以免屏幕阅读样式改变实际文档比例。 */
+:root[data-ui-appearance="modern"] .modern-shell :is(
+  .project-management-preview,
+  .presales-material-preview,
+  .presales-analysis-result,
+  .grant-application-preview,
+  .patent-draft-preview,
+  .thesis-tutor-preview,
+  .official-document-draft-preview,
+  .software-copyright-draft-preview,
+  .rejection-markdown-viewer,
+  .knowledge-source-content,
+  .markdown-viewer
+),
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(
+  .presales-package-preview-body,
+  .project-history-preview-body,
+  .grant-application-report-dialog-body,
+  .knowledge-source-content,
+  .content-expand-preview-body,
+  .feasibility-full-preview-body
+) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.72;
+  letter-spacing: 0;
+}
+
+/* 有些预览容器没有 .markdown-viewer，Markdown 标题会回退到浏览器默认字号。 */
+:root[data-ui-appearance="modern"] .modern-shell :is(
+  .project-management-preview,
+  .presales-material-preview,
+  .presales-analysis-result,
+  .grant-application-preview,
+  .patent-draft-preview,
+  .thesis-tutor-preview,
+  .official-document-draft-preview,
+  .software-copyright-draft-preview,
+  .rejection-markdown-viewer,
+  .knowledge-source-content,
+  .markdown-viewer
+),
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(
+  .presales-package-preview-body,
+  .project-history-preview-body,
+  .grant-application-report-dialog-body,
+  .knowledge-source-content,
+  .content-expand-preview-body,
+  .feasibility-full-preview-body
+) {
+  --modern-preview-title: #f0edfc;
+  --modern-preview-text: #c6d0e1;
+}
+
+:root[data-ui-appearance="modern"] .modern-shell :is(
+  .project-management-preview,
+  .presales-material-preview,
+  .presales-analysis-result,
+  .grant-application-preview,
+  .patent-draft-preview,
+  .thesis-tutor-preview,
+  .official-document-draft-preview,
+  .software-copyright-draft-preview,
+  .rejection-markdown-viewer,
+  .knowledge-source-content,
+  .markdown-viewer
+) :is(h1, h2, h3, h4),
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(
+  .presales-package-preview-body,
+  .project-history-preview-body,
+  .grant-application-report-dialog-body,
+  .knowledge-source-content,
+  .content-expand-preview-body,
+  .feasibility-full-preview-body
+) :is(h1, h2, h3, h4) {
+  margin: 1.12em 0 0.48em;
+  color: var(--modern-preview-title);
+  font-weight: 700;
+  line-height: 1.42;
+  letter-spacing: 0;
+}
+
+:root[data-ui-appearance="modern"] .modern-shell :is(
+  .project-management-preview,
+  .presales-material-preview,
+  .presales-analysis-result,
+  .grant-application-preview,
+  .patent-draft-preview,
+  .thesis-tutor-preview,
+  .official-document-draft-preview,
+  .software-copyright-draft-preview,
+  .rejection-markdown-viewer,
+  .knowledge-source-content,
+  .markdown-viewer
+) h1,
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(
+  .presales-package-preview-body,
+  .project-history-preview-body,
+  .grant-application-report-dialog-body,
+  .knowledge-source-content,
+  .content-expand-preview-body,
+  .feasibility-full-preview-body
+) h1 { font-size: 20px; }
+
+:root[data-ui-appearance="modern"] .modern-shell :is(
+  .project-management-preview,
+  .presales-material-preview,
+  .presales-analysis-result,
+  .grant-application-preview,
+  .patent-draft-preview,
+  .thesis-tutor-preview,
+  .official-document-draft-preview,
+  .software-copyright-draft-preview,
+  .rejection-markdown-viewer,
+  .knowledge-source-content,
+  .markdown-viewer
+) h2,
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(
+  .presales-package-preview-body,
+  .project-history-preview-body,
+  .grant-application-report-dialog-body,
+  .knowledge-source-content,
+  .content-expand-preview-body,
+  .feasibility-full-preview-body
+) h2 {
+  padding-bottom: 5px;
+  border-bottom: 1px solid #36455a;
+  font-size: 17px;
+}
+
+:root[data-ui-appearance="modern"] .modern-shell :is(
+  .project-management-preview,
+  .presales-material-preview,
+  .presales-analysis-result,
+  .grant-application-preview,
+  .patent-draft-preview,
+  .thesis-tutor-preview,
+  .official-document-draft-preview,
+  .software-copyright-draft-preview,
+  .rejection-markdown-viewer,
+  .knowledge-source-content,
+  .markdown-viewer
+) h3,
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(
+  .presales-package-preview-body,
+  .project-history-preview-body,
+  .grant-application-report-dialog-body,
+  .knowledge-source-content,
+  .content-expand-preview-body,
+  .feasibility-full-preview-body
+) h3 { font-size: 15px; }
+
+:root[data-ui-appearance="modern"] .modern-shell :is(
+  .project-management-preview,
+  .presales-material-preview,
+  .presales-analysis-result,
+  .grant-application-preview,
+  .patent-draft-preview,
+  .thesis-tutor-preview,
+  .official-document-draft-preview,
+  .software-copyright-draft-preview,
+  .rejection-markdown-viewer,
+  .knowledge-source-content,
+  .markdown-viewer
+) h4,
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(
+  .presales-package-preview-body,
+  .project-history-preview-body,
+  .grant-application-report-dialog-body,
+  .knowledge-source-content,
+  .content-expand-preview-body,
+  .feasibility-full-preview-body
+) h4 { font-size: 13px; }
+
+:root[data-ui-appearance="modern"] .modern-shell :is(
+  .project-management-preview,
+  .presales-material-preview,
+  .presales-analysis-result,
+  .grant-application-preview,
+  .patent-draft-preview,
+  .thesis-tutor-preview,
+  .official-document-draft-preview,
+  .software-copyright-draft-preview,
+  .rejection-markdown-viewer,
+  .knowledge-source-content,
+  .markdown-viewer
+) :is(p, ul, ol, blockquote, table, pre),
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(
+  .presales-package-preview-body,
+  .project-history-preview-body,
+  .grant-application-report-dialog-body,
+  .knowledge-source-content,
+  .content-expand-preview-body,
+  .feasibility-full-preview-body
+) :is(p, ul, ol, blockquote, table, pre) {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: var(--modern-preview-text);
+  font-size: 13px;
+  line-height: 1.72;
+}
+
+:root[data-ui-appearance="modern"] .modern-shell :is(
+  .project-management-preview,
+  .presales-material-preview,
+  .presales-analysis-result,
+  .grant-application-preview,
+  .patent-draft-preview,
+  .thesis-tutor-preview,
+  .official-document-draft-preview,
+  .software-copyright-draft-preview,
+  .rejection-markdown-viewer,
+  .knowledge-source-content,
+  .markdown-viewer
+) :is(h1, h2, h3, h4):first-child,
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(
+  .presales-package-preview-body,
+  .project-history-preview-body,
+  .grant-application-report-dialog-body,
+  .knowledge-source-content,
+  .content-expand-preview-body,
+  .feasibility-full-preview-body
+) :is(h1, h2, h3, h4):first-child { margin-top: 0; }
+
+:root[data-ui-appearance="modern"] .modern-shell :is(
+  .project-management-preview,
+  .presales-material-preview,
+  .presales-analysis-result,
+  .grant-application-preview,
+  .patent-draft-preview,
+  .thesis-tutor-preview,
+  .official-document-draft-preview,
+  .software-copyright-draft-preview,
+  .rejection-markdown-viewer,
+  .knowledge-source-content,
+  .markdown-viewer
+) :is(pre, code),
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(
+  .presales-package-preview-body,
+  .project-history-preview-body,
+  .grant-application-report-dialog-body,
+  .knowledge-source-content,
+  .content-expand-preview-body,
+  .feasibility-full-preview-body
+) :is(pre, code) { font-size: 12px; }

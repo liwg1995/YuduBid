@@ -1,6 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import '../patentGeneration.css';
+import './modernPatentWorkflow.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import type { AgentHostStatus, AgentRunResult, WordExportProgressEvent } from '../../../shared/types/ipc';
@@ -928,7 +930,7 @@ function PatentComingPage({
   ) : null;
 
   return (
-    <div className="demo-coming-page patent-demo">
+    <div className={getStoredUiAppearance() === 'modern' ? `demo-coming-page patent-demo modern-patent-workbench modern-patent-${pageVariant}` : 'demo-coming-page patent-demo'}>
       <button type="button" className="patent-projects-back" onClick={() => onNavigate?.('patent-projects')}>← 返回专利项目</button>
       <PatentHero
         kicker={kicker}
@@ -962,7 +964,7 @@ function PatentComingPage({
         </AgentFloatingPanel>
       )}
 
-      <nav className="patent-workflow-strip" aria-label="专利生成步骤">
+      <nav className={getStoredUiAppearance() === 'modern' ? 'modern-patent-flow' : 'patent-workflow-strip'} aria-label="专利生成步骤">
         {([
           { section: 'patent-mining', label: '挖掘并选择专利点', ready: Boolean(state?.selectedPatentPointId), optional: false },
           { section: 'patent-disclosure', label: '生成并检查交底书', ready: Boolean(state?.activeDraftId), optional: false },
@@ -971,15 +973,16 @@ function PatentComingPage({
         ] as Array<{ section: SectionId; label: string; ready: boolean; optional: boolean }>).map((item, index) => {
           const active = item.section === `patent-${pageVariant}` || (pageVariant === 'prior-art' && item.section === 'patent-prior-art');
           return (
-            <button key={item.section} type="button" className={active ? 'is-active' : item.ready ? 'is-complete' : ''} onClick={() => onNavigate?.(item.section)}>
-              <span>{item.ready ? '✓' : item.optional ? '选' : index + 1}</span>
+            <button key={item.section} type="button" className={active ? 'is-active' : item.ready ? 'is-complete' : ''} aria-current={active ? 'step' : undefined} onClick={() => onNavigate?.(item.section)}>
+              <span>{getStoredUiAppearance() === 'modern' ? String(index + 1).padStart(2, '0') : item.ready ? '✓' : item.optional ? '选' : index + 1}</span>
               <strong>{item.label}{item.optional && <small>可选</small>}</strong>
+              {getStoredUiAppearance() === 'modern' && item.ready && <em>✓</em>}
             </button>
           );
         })}
       </nav>
 
-      <div className="patent-current-action" role="status">
+      <div className={getStoredUiAppearance() === 'modern' ? 'modern-patent-current-action' : 'patent-current-action'} role="status">
         <strong>当前操作</strong>
         <span>{pageVariant === 'mining'
           ? state?.selectedPatentPointId ? '已选定主专利点，可以直接生成交底书，也可以先做查新增强。' : state?.project ? '项目已导入，请开始挖掘并选择一个主专利点。' : '先填写案件信息并选择项目目录。'
@@ -990,11 +993,17 @@ function PatentComingPage({
               : state?.activeDraftId ? '可选步骤：需要补充或纠错时生成新版本，旧稿会保留。' : '尚无交底书草稿，请先完成交底书生成。'}</span>
       </div>
 
-      <div className={`demo-content-grid patent-content-grid is-${pageVariant}`}>
+      <div className={`demo-content-grid patent-content-grid${getStoredUiAppearance() === 'modern' ? ' modern-patent-content' : ''} is-${pageVariant}${pageVariant === 'prior-art' && !priorArtMarkdown.trim() ? ' is-awaiting-result' : ''}`}>
         {pageVariant === 'disclosure' && (
           <>
+            {getStoredUiAppearance() === 'modern' ? (
+              <details className="modern-patent-context">
+                <summary>主专利点资料 <span>{selectedPatentPoint?.title || '尚未选择主专利点'}</span></summary>
+                {selectedPointPanel}
+              </details>
+            ) : null}
             {draftPanel}
-            {selectedPointPanel}
+            {getStoredUiAppearance() !== 'modern' && selectedPointPanel}
           </>
         )}
         {pageVariant === 'prior-art' && (

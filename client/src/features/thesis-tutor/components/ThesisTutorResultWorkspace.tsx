@@ -1,5 +1,6 @@
 import type { WordExportProgressEvent } from '../../../shared/types/ipc';
 import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import type { ThesisTutorPanel, ThesisTutorReference } from '../types';
 import { panelCopy, type ThesisTutorPanelCopy } from '../model/thesisTutorPageModel';
 import { auditThesisEvidence } from '../model/thesisTutorEvidenceAudit';
@@ -142,14 +143,18 @@ export function ThesisTutorResultWorkspace({
         </details>
       )}
       <div className={`thesis-tutor-result-body ${result ? 'has-result' : 'is-empty'}`}>
+        <div className="thesis-tutor-editor-zone">
+          {getStoredUiAppearance() === 'modern' && <span className="modern-thesis-result-label">可编辑工作稿</span>}
         <MarkdownEditor
           value={draft}
           onChange={setDraft}
           placeholder={`${panel.resultPlaceholder}\n\n也可以直接输入或粘贴内容；建议先补充“${panel.inputTitle}”和“${panel.materialTitle}”，再点击“${nextActionLabel}”。`}
           disabled={isRunning}
         />
+        </div>
         {result ? (
           <div className="thesis-tutor-preview">
+            {getStoredUiAppearance() === 'modern' && <span className="modern-thesis-result-label">生成结果参照</span>}
             <MarkdownRenderer allowRawHtml={false}>{result}</MarkdownRenderer>
           </div>
         ) : (

@@ -2,6 +2,8 @@ import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import { Profiler, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import '../knowledgeBase.css';
+import './modernKnowledgeBase.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import type { Components } from 'react-markdown';
 import { isLibreOfficeRequiredMessage, MarkdownRenderer, useAppDialog, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseIndex, KnowledgeBaseMigrationStatus, KnowledgeDocument, KnowledgeItem } from '../types';
@@ -852,6 +854,25 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
     );
   }
 
+  if (getStoredUiAppearance() === 'modern') {
+    return <>
+      <div className="modern-knowledge-page">
+        <header className="modern-knowledge-header"><div><span>DOCUMENT LIBRARY</span><h2>文档资料</h2><p>按文件夹组织历史文档，查看知识提取进度与结果。</p></div><div><strong>{index.documents.length}</strong><small>个文档</small><button type="button" onClick={uploadDocuments} disabled={loading || migrationRunning || !activeFolder}>{migrationRunning ? '迁移中…' : loading ? '处理中…' : '上传文档'}</button></div></header>
+        <div className="modern-knowledge-workspace">
+          <aside className="modern-knowledge-folders"><div className="modern-knowledge-panel-head"><div><span>COLLECTIONS</span><strong>文件夹</strong></div><button type="button" onClick={() => setShowCreateFolder((value) => !value)} disabled={migrationRunning || listLoading}>＋ 新建</button></div>
+            {showCreateFolder && <form className="modern-knowledge-create" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}><input autoFocus value={newFolderName} onChange={(event) => setNewFolderName(event.target.value)} placeholder="文件夹名称" disabled={migrationRunning} /><div><button type="submit" disabled={creatingFolder || migrationRunning}>{creatingFolder ? '创建中…' : '创建'}</button><button type="button" onClick={() => { setNewFolderName(''); setShowCreateFolder(false); }}>取消</button></div></form>}
+            <div className="modern-knowledge-folder-list">{listLoading ? <p>正在读取文件夹…</p> : index.folders.length ? index.folders.map((folder) => { const count = documentsByFolder.get(folder.id)?.length || 0; return <div key={folder.id} className={`modern-knowledge-folder${folder.id === activeFolder?.id ? ' is-active' : ''}`}><button type="button" onClick={() => startTransition(() => setActiveFolderId(folder.id))} disabled={migrationRunning}><span aria-hidden="true">▧</span><strong>{folder.name}</strong><small>{count}</small></button><div><button type="button" title="重命名" aria-label={`重命名 ${folder.name}`} onClick={() => void renameFolder(folder.id, folder.name)} disabled={migrationRunning}>✎</button><button type="button" title="删除" aria-label={`删除 ${folder.name}`} onClick={() => void deleteFolder(folder.id, folder.name)} disabled={migrationRunning}>×</button></div></div>; }) : <p>还没有文件夹。创建后即可上传资料。</p>}</div>
+            <div className="modern-knowledge-folder-foot">{index.folders.length} 个文件夹 · 保存在本地</div>
+          </aside>
+          <main className="modern-knowledge-documents"><div className="modern-knowledge-document-head"><div><span>当前文件夹</span><h3>{activeFolder?.name || '请选择文件夹'}</h3></div><strong>{documents.length} 个文档</strong></div>
+            <div className="modern-knowledge-document-list">{listLoading ? <div className="modern-knowledge-empty"><strong>正在读取知识库…</strong><p>文件夹和文档加载完成后会自动显示。</p></div> : documents.length ? <>{visibleDocuments.map((document) => <article className="modern-knowledge-document" key={document.id}><div className="modern-knowledge-document-main"><span className="modern-knowledge-doc-icon">{document.file_name.split('.').pop()?.slice(0, 4).toUpperCase() || 'DOC'}</span><div><strong title={document.file_name}>{document.file_name}</strong>{developerMode && <code>文档 ID：{document.id}</code>}<p>{document.message || '等待处理'}</p></div><span className={`modern-knowledge-status is-${document.status}`}>{statusLabels[document.status]}</span></div><div className="modern-knowledge-document-progress" role="progressbar" aria-label={`${document.file_name}处理进度`} aria-valuenow={Math.max(0, Math.min(100, document.progress || 0))} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.max(0, Math.min(100, document.progress || 0))}%` }} /></div><div className="modern-knowledge-document-foot"><div><span><b>{document.item_count || 0}</b> 条知识</span><span>{document.candidate_item_count || 0} 个候选</span><span>{document.block_count || 0} 个 block</span></div><div>{developerMode && <button type="button" onClick={() => void openDocument(document, 'analysis')} disabled={migrationRunning || !canOpenAnalysis(document)}>分析调试</button>}<button type="button" onClick={() => void openDocument(document, 'items')} disabled={migrationRunning || document.status !== 'success'}>知识条目</button><button type="button" onClick={() => void openDocument(document, 'markdown')} disabled={migrationRunning || !canOpenMarkdown(document)}>Markdown</button><button type="button" className="is-danger" onClick={() => void deleteDocument(document)} disabled={migrationRunning}>删除</button></div></div></article>)}{visibleDocuments.length < documents.length && <div className="modern-knowledge-more">正在加载更多文档… {visibleDocuments.length} / {documents.length}</div>}</> : <div className="modern-knowledge-empty"><strong>{activeFolder ? '当前文件夹还没有文档' : '先创建文件夹'}</strong><p>支持 .doc、.docx、.wps、.pdf 和 .md 文档。</p>{activeFolder && <button type="button" onClick={uploadDocuments} disabled={loading || migrationRunning}>上传文档</button>}</div>}</div>
+          </main>
+        </div>
+      </div>
+      {migrationDialog}
+    </>;
+  }
+
   return (
     <>
       <div className="page-stack knowledge-page">
@@ -1153,25 +1174,9 @@ function KnowledgeDocumentViewer({
     }
   };
 
-  return (
-    <div className="page-stack knowledge-viewer-page">
-      <section className="knowledge-workspace-bar knowledge-viewer-bar">
-        <div className="knowledge-breadcrumb">
-          <span>知识库</span>
-          <strong>{document.file_name}</strong>
-          {developerMode && <code className="knowledge-entity-id">文档ID：{document.id}</code>}
-          <small>{mode === 'analysis' ? '分析调试' : mode === 'items' ? `${document.item_count || 0} 条知识` : 'Markdown 原文'}</small>
-        </div>
-        <div className="knowledge-toolbar-actions">
-          <button type="button" className="secondary-action" onClick={onBack}>返回知识库</button>
-          {developerMode && <button type="button" className="secondary-action" onClick={() => void copyDebugLogs()}>复制调试日志</button>}
-          {developerMode && <button type="button" className={`secondary-action ${mode === 'analysis' ? 'is-active' : ''}`} onClick={() => onModeChange('analysis')}>分析调试</button>}
-          <button type="button" className={`secondary-action ${mode === 'items' ? 'is-active' : ''}`} onClick={() => onModeChange('items')} disabled={document.status !== 'success'}>知识条目</button>
-          <button type="button" className={`secondary-action ${mode === 'markdown' ? 'is-active' : ''}`} onClick={() => onModeChange('markdown')} disabled={!canOpenMarkdown(document)}>Markdown</button>
-        </div>
-      </section>
+  const readerContent = (
+    <>
 
-      <section className="knowledge-viewer-panel">
         {mode === 'analysis' && developerMode ? (
           <KnowledgeAnalysisView
             document={document}
@@ -1224,8 +1229,12 @@ function KnowledgeDocumentViewer({
             )}
           </div>
         )}
-      </section>
 
+    </>
+  );
+
+  const sourceDialog = (
+    <>
       <Dialog.Root open={Boolean(sourceItem)} onOpenChange={(open) => !open && closeSourceItem()}>
         <Dialog.Portal>
           <Dialog.Overlay className="knowledge-source-modal" />
@@ -1240,6 +1249,41 @@ function KnowledgeDocumentViewer({
           )}
         </Dialog.Portal>
       </Dialog.Root>
+    </>
+  );
+
+  if (getStoredUiAppearance() === 'modern') {
+    return <div className="modern-knowledge-viewer">
+      <header className="modern-knowledge-viewer-header"><div><button type="button" onClick={onBack}>← 返回文档资料</button><span>DOCUMENT DETAIL</span><h2 title={document.file_name}>{document.file_name}</h2><p>{statusLabels[document.status]} · {document.item_count || 0} 条知识{developerMode ? ` · 文档 ID：${document.id}` : ''}</p></div>{developerMode && <button type="button" onClick={() => void copyDebugLogs()}>复制调试日志</button>}</header>
+      <div className="modern-knowledge-viewer-modes" role="tablist" aria-label="文档查看模式"><button type="button" role="tab" aria-selected={mode === 'items'} className={mode === 'items' ? 'is-active' : ''} onClick={() => onModeChange('items')} disabled={document.status !== 'success'}>知识条目 <small>{document.item_count || 0}</small></button><button type="button" role="tab" aria-selected={mode === 'markdown'} className={mode === 'markdown' ? 'is-active' : ''} onClick={() => onModeChange('markdown')} disabled={!canOpenMarkdown(document)}>Markdown 原文</button>{developerMode && <button type="button" role="tab" aria-selected={mode === 'analysis'} className={mode === 'analysis' ? 'is-active' : ''} onClick={() => onModeChange('analysis')}>分析调试</button>}</div>
+      <section className="modern-knowledge-viewer-body" aria-label={mode === 'items' ? '知识条目' : mode === 'markdown' ? 'Markdown 原文' : '分析调试'}>{readerContent}</section>
+      {sourceDialog}
+    </div>;
+  }
+
+  return (
+    <div className="page-stack knowledge-viewer-page">
+      <section className="knowledge-workspace-bar knowledge-viewer-bar">
+        <div className="knowledge-breadcrumb">
+          <span>知识库</span>
+          <strong>{document.file_name}</strong>
+          {developerMode && <code className="knowledge-entity-id">文档ID：{document.id}</code>}
+          <small>{mode === 'analysis' ? '分析调试' : mode === 'items' ? `${document.item_count || 0} 条知识` : 'Markdown 原文'}</small>
+        </div>
+        <div className="knowledge-toolbar-actions">
+          <button type="button" className="secondary-action" onClick={onBack}>返回知识库</button>
+          {developerMode && <button type="button" className="secondary-action" onClick={() => void copyDebugLogs()}>复制调试日志</button>}
+          {developerMode && <button type="button" className={`secondary-action ${mode === 'analysis' ? 'is-active' : ''}`} onClick={() => onModeChange('analysis')}>分析调试</button>}
+          <button type="button" className={`secondary-action ${mode === 'items' ? 'is-active' : ''}`} onClick={() => onModeChange('items')} disabled={document.status !== 'success'}>知识条目</button>
+          <button type="button" className={`secondary-action ${mode === 'markdown' ? 'is-active' : ''}`} onClick={() => onModeChange('markdown')} disabled={!canOpenMarkdown(document)}>Markdown</button>
+        </div>
+      </section>
+
+      <section className="knowledge-viewer-panel">
+        {readerContent}
+      </section>
+
+      {sourceDialog}
     </div>
   );
 }

@@ -14,7 +14,7 @@ export function resolveUiTheme(preference: UiThemePreference): UiTheme {
 }
 
 export function applyUiThemePreference(preference: UiThemePreference) {
-  const resolved = resolveUiTheme(preference);
+  const resolved = document.documentElement.dataset.uiAppearance === 'modern' ? 'dark' : resolveUiTheme(preference);
   document.documentElement.dataset.uiTheme = resolved;
   document.documentElement.dataset.uiThemePreference = preference;
   document.documentElement.style.colorScheme = resolved === 'dark' ? 'dark' : 'light';

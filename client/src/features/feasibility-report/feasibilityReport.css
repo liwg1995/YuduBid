@@ -768,6 +768,9 @@
 .feasibility-pane-empty p { max-width: 420px; margin: 8px 0 0; line-height: 1.65; }
 
 .feasibility-outline-workspace { grid-template-columns: minmax(230px, 0.72fr) minmax(380px, 1.25fr) minmax(300px, 0.85fr); }
+.feasibility-outline-detail-pane.has-adjust-action { grid-template-rows: auto minmax(0, 1fr) auto; }
+.feasibility-outline-adjust-footer { display: flex; padding: 10px 16px; border-top: 1px solid var(--yb-border-soft); }
+.feasibility-outline-adjust-footer button { width: 100%; }
 .feasibility-outline-navigation-scroll { padding: 10px; }
 .feasibility-outline-structure-pane > .outline-tree-list { min-height: 0; padding-bottom: 90px; }
 .feasibility-outline-structure-pane .outline-tree-head { min-height: 68px; }

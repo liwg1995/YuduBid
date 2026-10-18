@@ -1,5 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import type { OpportunityOperatingMetrics, OpportunityWorkflowStage } from '../types';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { ModernOpportunityOperationsDialog } from './ModernOpportunityOperationsDialog';
 
 interface OpportunityOperationsDialogProps {
   open: boolean;
@@ -12,6 +14,7 @@ interface OpportunityOperationsDialogProps {
 }
 
 export function OpportunityOperationsDialog({ open, metrics, workflowLabels, formatMoney, onOpenChange, onShowReminder, onSelectOpportunity }: OpportunityOperationsDialogProps) {
+  if (getStoredUiAppearance() === 'modern') return <ModernOpportunityOperationsDialog open={open} metrics={metrics} workflowLabels={workflowLabels} formatMoney={formatMoney} onOpenChange={onOpenChange} onShowReminder={onShowReminder} onSelectOpportunity={onSelectOpportunity} />;
   const funnelMax = Math.max(1, ...metrics.funnel.map((item) => item.count));
   return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="opportunity-dialog operations-dialog"><div className="opportunity-dialog-head"><div><Dialog.Title>商机经营视图</Dialog.Title><Dialog.Description>基于本地机会、负责人、投标决策和期限实时计算，不产生额外统计上报。</Dialog.Description></div><div className="opportunity-operations-head-actions"><button type="button" onClick={onShowReminder}>检查提醒</button><Dialog.Close className="dialog-close">×</Dialog.Close></div></div>
     <div className="opportunity-operations-kpis"><article><span>活跃商机</span><strong>{metrics.activeCount}</strong><small>预算池 {formatMoney(metrics.pipelineBudget)}</small></article><article className={metrics.tasks.overdue ? 'is-danger' : ''}><span>逾期待办</span><strong>{metrics.tasks.overdue}</strong><small>今日到期 {metrics.tasks.today}</small></article><article className={metrics.deadlines.urgent ? 'is-warning' : ''}><span>临近截标</span><strong>{metrics.deadlines.urgent}</strong><small>3 天以内</small></article><article><span>决定投标</span><strong>{metrics.decisions.bid}</strong><small>待决策 {metrics.decisions.undecided}</small></article></div>

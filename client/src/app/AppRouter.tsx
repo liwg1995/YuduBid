@@ -5,6 +5,8 @@ import type { PluginNavigationTarget } from '../shared/types/plugin';
 import type { GrantApplicationInitialPanel } from '../features/grant-application/pages/GrantApplicationPage';
 import type { ThesisTutorInitialPanel } from '../features/thesis-tutor/pages/ThesisTutorPage';
 import HomePage from '../features/home/pages/HomePage';
+import ModernHomePage from '../features/home/pages/ModernHomePage';
+import { getStoredUiAppearance } from '../shared/uiAppearance';
 
 const BidOpportunityPage = lazy(() => import('../features/bid-opportunity/pages/BidOpportunityPage'));
 const BidTemplateManagementPage = lazy(() => import('../features/export-format/pages/BidTemplateManagementPage'));
@@ -47,7 +49,9 @@ interface AppRouterProps {
 function AppRouteContent({ activeSection, developerMode, featureModuleSettings, pluginNavigationTarget, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange }: AppRouterProps) {
   switch (activeSection) {
     case 'home':
-      return <HomePage featureModuleSettings={featureModuleSettings} onNavigate={onSectionChange} />;
+      return getStoredUiAppearance() === 'modern'
+        ? <ModernHomePage featureModuleSettings={featureModuleSettings} onNavigate={onSectionChange} />
+        : <HomePage featureModuleSettings={featureModuleSettings} onNavigate={onSectionChange} />;
     case 'presales-projects':
       return <PresalesProjectsPage onNavigate={onSectionChange} />;
     case 'presales-workbench':

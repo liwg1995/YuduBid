@@ -1,0 +1,25 @@
+.modern-developer-test { display:flex; min-height:0; height:100%; flex-direction:column; gap:10px; overflow:hidden; color:#e9edf8; }
+.modern-developer-test .developer-test-hero { flex:0 0 auto; min-height:0; border:0; border-bottom:1px solid #34435a; border-radius:0; padding:3px 2px 12px; background:transparent; box-shadow:none; }
+.modern-developer-test .developer-test-hero .eyebrow { color:#a99bf0; font-size:9px; }
+.modern-developer-test .developer-test-hero h2 { margin:4px 0 2px; color:#f2efff; font-size:20px; }
+.modern-developer-test .developer-test-hero p { max-width:750px; margin:0; color:#99a9c0; font-size:10px; line-height:1.5; }
+.modern-developer-test .developer-test-actions { gap:6px; margin-top:10px; }
+.modern-developer-test .developer-test-actions button { min-height:32px; border-radius:5px; padding:0 10px; font-size:10px; }
+.modern-developer-tabs { display:flex; flex:0 0 auto; gap:5px; border-bottom:1px solid #34445b; padding-bottom:7px; }
+.modern-developer-tabs button { min-height:32px; border:1px solid transparent; border-radius:5px; padding:0 11px; color:#a6b5ca; background:transparent; font-size:11px; cursor:pointer; }
+.modern-developer-tabs button:hover { color:#eeeaff; background:#2b3950; }
+.modern-developer-tabs button.is-active { border-color:#8075c4; color:#f3efff; background:#363a59; }
+.modern-developer-test .developer-test-grid { min-height:0; flex:1; grid-template-columns:repeat(2,minmax(0,1fr)); align-content:start; gap:10px; overflow-y:auto; overscroll-behavior:contain; padding:2px 2px 14px; scrollbar-width:thin; }
+.modern-developer-test .developer-test-panel { min-width:0; border:1px solid #35465e; border-radius:8px; padding:14px; color:#dce4f3; background:#1b2a3e; box-shadow:none; }
+.modern-developer-test .developer-test-panel h3, .modern-developer-test .settings-section-title strong { color:#eeeafa; }
+.modern-developer-test .developer-test-panel pre { max-height:50vh; margin-top:10px; border:1px solid #394b62; border-radius:6px; padding:12px; color:#cbd9ec; background:#101c2c; font-size:10px; line-height:1.55; scrollbar-width:thin; }
+.modern-developer-test .developer-agent-form :is(input,select,textarea) { min-width:0; border-color:#485972; border-radius:6px; color:#e9edfa; background:#203046; }
+.modern-developer-test .developer-agent-status-pill { border-color:#475972; color:#c0ccdf; background:#24354a; }
+.modern-developer-test .developer-agent-status-pill.is-enabled { border-color:#37755f; color:#a7ecc7; background:#244638; }
+.modern-developer-test .developer-agent-history-row, .modern-developer-test .developer-agent-admission, .modern-developer-test .developer-agent-audit { border-color:#3c4d66; background:#24354a; }
+.modern-developer-test[data-modern-section='requests'] .developer-test-panel:not(.developer-request-reference),
+.modern-developer-test[data-modern-section='agent'] .developer-test-panel:not(.developer-agent-diagnostic),
+.modern-developer-test[data-modern-section='logs'] .developer-test-panel:not(.developer-log-panel) { display:none; }
+.modern-developer-test[data-modern-section='logs'] .developer-log-panel { grid-column:auto; min-height:220px; }
+.modern-developer-test :is(button,input,select,textarea,[role='tab']):focus-visible { outline:2px solid #b6a8ff; outline-offset:2px; }
+@container (max-width:750px) { .modern-developer-test .developer-test-grid { grid-template-columns:minmax(0,1fr); } .modern-developer-test[data-modern-section='logs'] .developer-log-panel { grid-column:1; } }

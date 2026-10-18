@@ -4,6 +4,8 @@ import * as Switch from '@radix-ui/react-switch';
 import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { OutlineItem } from '../../../shared/types/outline';
 import { MarkdownEditor, MarkdownRenderer, useAppDialog, useToast } from '../../../shared/ui';
+import { ActivityWaiting } from '../../../shared/ui/ActivityWaiting';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import type { FeasibilityContentGenerationOptions, FeasibilityReportState } from '../types';
 import { isTaskRunning } from './TaskProgressCard';
 
@@ -48,8 +50,8 @@ function normalizeGenerationOptions(options: FeasibilityContentGenerationOptions
   };
 }
 
-function ContentNavigation({ items, level, selectedId, reviewingNodeId, state, onSelect }: { items: OutlineItem[]; level: number; selectedId: string; reviewingNodeId: string; state: FeasibilityReportState; onSelect: (id: string) => void }) {
-  return <>{items.map((item) => {
+function ContentNavigation({ items, level, selectedId, reviewingNodeId, state, onSelect, modern = false, prefix = '' }: { items: OutlineItem[]; level: number; selectedId: string; reviewingNodeId: string; state: FeasibilityReportState; onSelect: (id: string) => void; modern?: boolean; prefix?: string }) {
+  return <>{items.map((item, index) => {
     const leaf = !item.children?.length;
     const childLeaves = leaf ? [] : collectLeaves(item.children || []);
     const completedChildren = childLeaves.filter(({ item: child }) => child.content?.trim()).length;
@@ -59,6 +61,15 @@ function ContentNavigation({ items, level, selectedId, reviewingNodeId, state, o
       : completedChildren === childLeaves.length && childLeaves.length ? 'success' : childLeaves.some(({ item: child }) => state.contentSections[child.id]?.status === 'running') ? 'running' : 'idle';
     const label = reviewing ? '审校中' : status === 'success' ? '已生成' : status === 'running' ? '生成中' : status === 'error' ? '生成失败' : '待生成';
     const words = String(item.content || '').replace(/\s+/g, '').length;
+    const position = `${prefix}${index + 1}`;
+    if (modern) return <div className="feasibility-modern-tree-node" key={item.id} style={{ '--content-level': level - 1 } as CSSProperties}>
+      <button type="button" className={`feasibility-modern-tree-item is-${status}${item.id === selectedId ? ' is-active' : ''}`} onClick={() => leaf && onSelect(item.id)} title={item.title} aria-current={leaf && item.id === selectedId ? 'true' : undefined}>
+        <span className="feasibility-modern-tree-index">{position}</span>
+        <span className="feasibility-modern-tree-name">{item.title}</span>
+        <span className="feasibility-modern-tree-indicator" aria-label={label} />
+      </button>
+      {item.children?.length ? <ContentNavigation items={item.children} level={level + 1} selectedId={selectedId} reviewingNodeId={reviewingNodeId} state={state} onSelect={onSelect} modern prefix={`${position}.`} /> : null}
+    </div>;
     return <div className="content-outline-node" key={item.id} style={{ '--content-level': level - 1 } as CSSProperties}>
       <button type="button" className={`content-outline-item is-${status}${item.id === selectedId ? ' is-active' : ''}`} onClick={() => leaf && onSelect(item.id)}>
         <span className="content-outline-dot" aria-hidden="true" />
@@ -73,6 +84,7 @@ function ContentNavigation({ items, level, selectedId, reviewingNodeId, state, o
 export default function ContentPanel({ projectId, state, onStateChange }: { projectId: string; state: FeasibilityReportState; onStateChange: (state: FeasibilityReportState) => void }) {
   const { showToast } = useToast();
   const { confirm } = useAppDialog();
+  const modern = getStoredUiAppearance() === 'modern';
   const leaves = useMemo(() => collectLeaves(state.outlineData?.outline || []), [state.outlineData]);
   const [selectedId, setSelectedId] = useState(leaves[0]?.item.id || '');
   const selected = leaves.find((entry) => entry.item.id === selectedId) || leaves[0];
@@ -167,8 +179,17 @@ export default function ContentPanel({ projectId, state, onStateChange }: { proj
   const statusText = running ? '进行中' : state.contentTask?.status === 'paused' ? '已暂停' : completed === leaves.length && leaves.length ? '已完成' : '等待开始';
   const statusMessage = !running && allContentCompleted ? '全部正文小节已生成。' : activeTask?.error || activeTask?.logs?.at(-1) || (completed ? `已完成 ${completed}/${leaves.length} 个小节。` : '点击“生成正文”后，后台会按目录顺序逐节撰写。');
   const configuredIllustrations = [state.contentGenerationOptions?.useAiImages ? 'AI 生图' : '', state.contentGenerationOptions?.useTechnicalDiagrams ? '技术图谱' : '', state.contentGenerationOptions?.useMermaidImages ? 'Mermaid' : ''].filter(Boolean);
+  const selectedStatus = selected?.item.content?.trim() ? 'success' : state.contentSections[selected?.item.id || '']?.status || 'idle';
+  const selectedStatusLabel = selected?.item.content?.trim() ? '已生成' : selectedStatus === 'running' ? '生成中' : selectedStatus === 'error' ? '生成失败' : '待生成';
+  const selectedWords = String(selected?.item.content || '').replace(/\s+/g, '').length;
+  const readerActions = selected ? <div className="content-reader-actions">
+    {!modern && <span className={`content-status-badge is-${selectedStatus}`}>{selectedStatusLabel}</span>}
+    {!editing && selected.item.content?.trim() ? <button type="button" className="secondary-action" onClick={() => setWordPreviewOpen(true)}>Word 预览</button> : null}
+    <button type="button" className="secondary-action" disabled={running} onClick={() => setEditing(!editing)}>{editing ? '取消' : '编辑'}</button>
+    {editing ? <button type="button" className="primary-action" onClick={() => void save()}>保存</button> : <button type="button" className="secondary-action" disabled={running} onClick={() => void regenerateCurrent()}>重新生成本节</button>}
+  </div> : null;
 
-  return <div className="feasibility-stage-content feasibility-content-layout">
+  return <div className={`feasibility-stage-content feasibility-content-layout${modern ? ' is-modern' : ''}`}>
     <section className="content-generation-command-bar feasibility-content-command-row">
       <div><strong>正文生成</strong><p>按目录叶子小节生成并即时保存。配图方式：{configuredIllustrations.join('、') || '不配图'}。</p></div>
       <div className="content-generation-stats" aria-label="正文生成统计"><span><strong>{leaves.length}</strong> 个小节</span><span><strong>{completed}</strong> 已生成</span><span><strong>{leaves.length - completed}</strong> 待生成</span></div>
@@ -186,15 +207,32 @@ export default function ContentPanel({ projectId, state, onStateChange }: { proj
       <button type="button" className="secondary-action" disabled={!completed || running} onClick={() => void humanize()}>审校全文</button>
       <button type="button" className="secondary-action" disabled={!completed} onClick={() => setPreviewOpen(true)}>整篇预览</button>
     </section>
+    {modern && <section className="feasibility-modern-content-overview" aria-label="正文生成概况">
+      <div><span>章节进度</span><strong>{completed}<small> / {leaves.length}</small></strong></div>
+      <div><span>当前字数</span><strong>{leaves.reduce((sum, { item }) => sum + String(item.content || '').replace(/\s+/g, '').length, 0).toLocaleString('zh-CN')}</strong></div>
+      <div><span>生成状态</span><strong className="feasibility-modern-status-text">{statusText}</strong></div>
+      <div className="feasibility-modern-progress"><span>生成进度 · {completed}/{leaves.length}</span><div role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="正文生成进度"><i style={{ width: `${progress}%` }} /></div><small>{progress}%</small></div>
+    </section>}
     <section className="content-generation-workspace feasibility-content-workspace">
       <aside className="content-outline-panel">
-        <div className="analysis-result-head"><strong>报告目录</strong><span>{leaves.length} 个小节</span></div>
-        <div className="content-outline-stats"><button type="button" aria-expanded="true"><span>生成进度</span><strong>{progress}%</strong><em>{statusText}</em></button><div className="content-outline-stats-body"><div className={`content-generation-progress-track${running ? ' is-active' : ''}`} aria-label={`正文生成进度 ${progress}%`}><span style={{ width: `${progress}%` }} /></div><p>{statusMessage}</p>{failedIds.length ? <small>失败 {failedIds.length} 个小节</small> : null}</div></div>
-        <div className="content-outline-list"><ContentNavigation items={state.outlineData?.outline || []} level={1} selectedId={selected?.item.id || ''} reviewingNodeId={reviewingNodeId} state={state} onSelect={(id) => { setSelectedId(id); setEditing(false); }} /></div>
+        <div className={modern ? 'feasibility-modern-panel-heading' : 'analysis-result-head'}><strong>{modern ? '章节导航' : '报告目录'}</strong><span>{leaves.length} 个小节</span></div>
+        {!modern && <div className="content-outline-stats"><button type="button" aria-expanded="true"><span>生成进度</span><strong>{progress}%</strong><em>{statusText}</em></button><div className="content-outline-stats-body"><div className={`content-generation-progress-track${running ? ' is-active' : ''}`} aria-label={`正文生成进度 ${progress}%`}><span style={{ width: `${progress}%` }} /></div><p>{statusMessage}</p>{failedIds.length ? <small>失败 {failedIds.length} 个小节</small> : null}</div></div>}
+        <div className="content-outline-list"><ContentNavigation items={state.outlineData?.outline || []} level={1} selectedId={selected?.item.id || ''} reviewingNodeId={reviewingNodeId} state={state} modern={modern} onSelect={(id) => { setSelectedId(id); setEditing(false); }} /></div>
+        {modern && <div className="feasibility-modern-nav-foot"><strong>正文生成</strong><p>{statusMessage}</p>{failedIds.length ? <small>失败 {failedIds.length} 个小节</small> : null}</div>}
       </aside>
       <article className="content-reader-panel">
-        {selected ? <><div className="content-reader-head"><div><span className="section-kicker">正文内容</span><strong>{selected.item.title}</strong><p>{selected.path.join(' / ')} · {state.contentSections[selected.item.id]?.status === 'running' ? '正在生成' : selected.item.content?.trim() ? '已生成' : '待生成'}</p></div><div className="content-reader-actions"><span className={`content-status-badge is-${selected.item.content?.trim() ? 'success' : state.contentSections[selected.item.id]?.status || 'idle'}`}>{selected.item.content?.trim() ? '已生成' : state.contentSections[selected.item.id]?.status === 'running' ? '生成中' : '待生成'}</span>{!editing && selected.item.content?.trim() ? <button type="button" className="secondary-action" onClick={() => setWordPreviewOpen(true)}>Word 预览</button> : null}<button type="button" className="secondary-action" disabled={running} onClick={() => setEditing(!editing)}>{editing ? '取消' : '编辑'}</button>{editing ? <button type="button" className="primary-action" onClick={() => void save()}>保存</button> : <button type="button" className="secondary-action" disabled={running} onClick={() => void regenerateCurrent()}>重新生成本节</button>}</div></div><div className={editing ? '' : 'markdown-viewer content-generation-output'}>{editing ? <MarkdownEditor value={draft} onChange={setDraft} placeholder="在此编写本节正文…" /> : selected.item.content?.trim() ? <MarkdownRenderer allowRawHtml={false}>{selected.item.content}</MarkdownRenderer> : <div className="markdown-empty-state content-generation-empty"><strong>{state.contentSections[selected.item.id]?.status === 'running' ? '正在生成此章节' : '正文待生成'}</strong><p>{state.contentSections[selected.item.id]?.error || (state.contentSections[selected.item.id]?.status === 'running' ? '模型返回内容后会自动显示在这里。' : '点击上方“生成正文”后，后台会按目录顺序撰写并保存。')}</p></div>}</div></> : <div className="markdown-empty-state content-generation-empty"><strong>当前目录没有可生成的小节</strong></div>}
+        {selected ? <><div className="content-reader-head"><div><span className="section-kicker">正文内容</span><strong>{selected.item.title}</strong><p>{selected.path.join(' / ')} · {selectedStatusLabel}</p></div>{modern ? <span className={`content-status-badge is-${selectedStatus}`}>{selectedStatusLabel}</span> : readerActions}</div><div className={editing ? 'feasibility-modern-editor-body' : 'markdown-viewer content-generation-output'}>{editing ? <MarkdownEditor value={draft} onChange={setDraft} placeholder="在此编写本节正文…" /> : selected.item.content?.trim() ? <MarkdownRenderer allowRawHtml={false}>{selected.item.content}</MarkdownRenderer> : modern && selectedStatus === 'running' ? <ActivityWaiting title="正在生成此章节" description="模型返回内容后会自动显示在这里。" progress={progress} /> : <div className="markdown-empty-state content-generation-empty"><strong>{state.contentSections[selected.item.id]?.status === 'running' ? '正在生成此章节' : '正文待生成'}</strong><p>{state.contentSections[selected.item.id]?.error || (state.contentSections[selected.item.id]?.status === 'running' ? '模型返回内容后会自动显示在这里。' : '点击上方“生成正文”后，后台会按目录顺序撰写并保存。')}</p></div>}</div>{modern && <div className="feasibility-modern-mobile-actions">{readerActions}</div>}</> : <div className="markdown-empty-state content-generation-empty"><strong>当前目录没有可生成的小节</strong></div>}
       </article>
+      {modern && <aside className="feasibility-modern-inspector">
+        <div className="feasibility-modern-panel-heading"><strong>当前小节</strong><span>{selected ? selected.path.length + ' 级目录' : '—'}</span></div>
+        <div className="feasibility-modern-inspector-body">
+          <span>小节信息</span>
+          <h4>{selected?.item.title || '尚未选择'}</h4>
+          <p>{selected?.item.description || '从左侧目录选择小节，查看正文与生成状态。'}</p>
+          {selected && <div className="feasibility-modern-section-meta"><span>生成状态 <b>{selectedStatusLabel}</b></span><span>正文长度 <b>{selectedWords.toLocaleString('zh-CN')} 字</b></span></div>}
+          {readerActions}
+        </div>
+      </aside>}
     </section>
     <Dialog.Root open={generationDialogOpen} onOpenChange={setGenerationDialogOpen}>
       <Dialog.Portal>

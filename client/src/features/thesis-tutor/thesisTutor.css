@@ -1972,6 +1972,10 @@
   background: rgba(248, 251, 255, 0.42);
 }
 
+.thesis-tutor-editor-zone {
+  display: contents;
+}
+
 .thesis-tutor-result-panel .markdown-editor {
   min-height: 0;
   overflow: hidden;

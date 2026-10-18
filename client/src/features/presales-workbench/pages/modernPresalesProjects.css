@@ -1,0 +1,38 @@
+.modern-presales-projects { display:flex; width:100%; height:100%; min-height:0; flex-direction:column; gap:10px; color:#e9edf8; }
+.modern-presales-projects-head { display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid #34435a; padding:2px 2px 10px; }
+.modern-presales-projects-head span, .modern-presales-editor-head span { color:#a99bf0; font-size:10px; font-weight:800; letter-spacing:.1em; }
+.modern-presales-projects-head h1 { margin:3px 0 2px; color:#f4f1ff; font-size:20px; }
+.modern-presales-projects-head p { margin:0; color:#93a5bb; font-size:11px; }
+.modern-presales-projects-head button, .modern-presales-editor-actions button:first-child { min-height:38px; border:1px solid #9185db; border-radius:6px; padding:0 14px; color:#fff; background:#7063bf; font-size:11px; font-weight:700; cursor:pointer; }
+.modern-presales-projects-layout { display:grid; grid-template-columns:minmax(205px,260px) minmax(0,1fr); gap:10px; min-height:0; flex:1; }
+.modern-presales-project-list, .modern-presales-project-editor { display:flex; min-width:0; min-height:0; flex-direction:column; overflow:hidden; border:1px solid #36465e; border-radius:9px; background:#1b293c; }
+.modern-presales-project-list-head { display:flex; flex-direction:column; gap:7px; border-bottom:1px solid #35455b; padding:10px; }
+.modern-presales-project-list-head strong { color:#f0edfc; font-size:13px; }
+.modern-presales-project-list-head strong span { color:#a99bf0; }
+.modern-presales-project-list-head input { min-height:34px; border:1px solid #45556d; border-radius:5px; padding:0 9px; color:#edf0fb; background:#26364b; font-size:10px; }
+.modern-presales-project-list-body { min-height:0; flex:1; overflow:auto; padding:9px; }
+.modern-presales-project-list-body article { margin-bottom:8px; border:1px solid #3b4a63; border-radius:7px; padding:9px; background:#25354a; }
+.modern-presales-project-list-body article.is-active { border-color:#9688d9; background:#303853; }
+.modern-presales-project-list-body article > button { display:flex; width:100%; flex-direction:column; gap:5px; border:0; padding:2px; color:#eff0fb; background:transparent; text-align:left; cursor:pointer; }
+.modern-presales-project-list-body article > button span { color:#a99bf0; font-size:9px; }
+.modern-presales-project-list-body article > button strong { overflow:hidden; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-presales-project-list-body article > button small { color:#a1afc3; font-size:10px; }
+.modern-presales-project-list-body article > div { display:flex; gap:5px; margin-top:8px; border-top:1px solid #42516a; padding-top:7px; }
+.modern-presales-project-list-body article > div button { border:0; padding:5px; color:#c7bbff; background:transparent; font-size:10px; cursor:pointer; }
+.modern-presales-project-list-body article > div button.is-danger { color:#eeabb6; }
+.modern-presales-project-editor { overflow:hidden; }
+.modern-presales-editor-head { display:flex; flex:0 0 auto; flex-direction:column; gap:4px; border-bottom:1px solid #35455b; padding:10px 14px; }
+.modern-presales-editor-head strong { font-size:18px; }
+.modern-presales-editor-head small { color:#91a3ba; font-size:10px; }
+.modern-presales-editor-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-content:start; gap:10px; min-height:0; flex:1; overflow:auto; padding:14px; }
+.modern-presales-editor-fields label { display:flex; min-width:0; flex-direction:column; gap:6px; color:#cbd4e5; font-size:11px; }
+.modern-presales-editor-fields label.is-wide { grid-column:1/-1; }
+.modern-presales-editor-fields input, .modern-presales-editor-fields textarea { min-height:36px; min-width:0; border:1px solid #45556d; border-radius:5px; padding:8px 10px; color:#edf0fb; background:#26364b; font:inherit; }
+.modern-presales-editor-fields textarea { min-height:94px; resize:vertical; }
+.modern-presales-editor-actions { display:flex; flex:0 0 auto; flex-wrap:wrap; gap:7px; margin-top:auto; border-top:1px solid #35455b; padding:9px 14px; background:#1b293c; }
+.modern-presales-editor-actions button:last-child { min-height:38px; border:1px solid #596783; border-radius:6px; padding:0 13px; color:#d8e0ee; background:#29384d; font-size:11px; cursor:pointer; }
+.modern-presales-empty { display:flex; min-height:150px; flex-direction:column; align-items:center; justify-content:center; color:#91a3ba; font-size:11px; }
+.modern-presales-empty strong { color:#eff0fb; font-size:13px; }
+@container (max-width:760px) { .modern-presales-projects-layout { grid-template-columns:185px minmax(0,1fr); } .modern-presales-editor-fields { grid-template-columns:1fr; } .modern-presales-editor-fields label.is-wide { grid-column:auto; } }
+@container (max-width:560px) { .modern-presales-projects { overflow:auto; } .modern-presales-projects-head { align-items:flex-start; flex-direction:column; } .modern-presales-projects-layout { display:flex; flex-direction:column; min-height:700px; } .modern-presales-project-list { min-height:230px; max-height:300px; } .modern-presales-project-editor { min-height:430px; } }
+.modern-presales-projects :is(button,input,textarea):focus-visible { outline:2px solid #b3a8ff; outline-offset:2px; }

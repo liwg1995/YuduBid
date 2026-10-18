@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import '../codeGeneration.css';
+import './modernCodeGeneration.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { SectionId } from '../../../shared/types/navigation';
 import type { SoftwareCopyrightCase } from '../../software-copyright/types';
@@ -247,7 +249,12 @@ function CodeGenerationPage({ onNavigate }: CodeGenerationPageProps) {
   }
 
   return (
-    <div className="code-generation-page">
+    <div className={getStoredUiAppearance() === 'modern' ? 'modern-code-page' : 'code-generation-page'}>
+      {getStoredUiAppearance() === 'modern' ? <>
+        <header className="modern-code-head"><div><span>SOFTWARE / SOURCE</span><h1>源码准备</h1><p>为当前软著项目确认可用于鉴别材料的代码范围。</p><button type="button" className="context-help-trigger" onClick={() => setNoticeOpen(true)}>查看合规提醒</button></div><div><button type="button" onClick={() => onNavigate('software-copyright')} disabled={savingSelection}>切换项目</button><button type="button" onClick={handleSelectProject} disabled={savingSelection}>{state?.project ? '更换源码目录' : '选择源码目录'}</button>{state?.project && <button type="button" onClick={() => setRescanOpen(true)} disabled={savingSelection}>重新扫描</button>}{state?.project && <button type="button" className="is-danger" onClick={handleClear} disabled={savingSelection}>清空</button>}</div></header>
+        <div className="modern-code-context"><div><span>当前项目</span><strong>{activeProject?.name || '未命名软著项目'}</strong><small>{activeProject?.softwareName || '软件名称待填写'} / {activeProject?.version || 'V1.0'}</small></div><div><span>源码状态</span><strong>{state?.confirmed ? '已确认' : state?.analysis ? '待确认' : '尚未选择'}</strong><small>{state?.project?.name || '选择本机源码目录开始'}</small></div>{state?.analysis && <div><span>文件范围</span><strong>{state.summary.selectedCount} / {state.analysis.fileCount}</strong><small>已选文件 / 扫描文件</small></div>}</div>
+        <div className="modern-code-workspace"><main className="modern-code-main">{state?.analysis ? <><section className="modern-code-summary"><div><span>源码行数</span><strong>{state.analysis.lineCount}</strong></div><div><span>预计页数</span><strong>{state.summary.estimatedPages}</strong></div><div><span>当前排序</span><strong>{state.sortMode === 'path' ? '路径排序' : state.sortMode === 'manual' ? '手动排序' : '入口优先'}</strong></div><div><span>已选语言</span><strong>{selectedComposition || '未选择'}</strong></div></section><section className="modern-code-files"><header><div><span>FILE SCOPE</span><h2>确认代码文件范围</h2><p>扫描结果保存在当前项目；文件选择由你确认。</p></div><button type="button" onClick={handleConfirm} disabled={!canConfirm}>确认素材</button></header><div className="modern-code-files-body"><SourceFileWorkspace analysis={state.analysis} selectedPaths={state.selectedPaths} sortMode={state.sortMode || 'smart'} disabled={savingSelection} onChange={(paths, sortMode) => void saveSelection(paths, sortMode)} /></div></section></> : <div className="modern-code-empty"><span>STEP 01 / SOURCE</span><h2>选择这个软件的源码目录</h2><p>将在本机扫描代码文件，再由你决定纳入鉴别材料的范围。</p><button type="button" onClick={handleSelectProject} disabled={savingSelection}>{savingSelection ? '正在处理…' : '选择源码目录'}</button></div>}</main><aside className="modern-code-next"><span>工作进度</span><strong>从源码到材料</strong><ol><li>选择当前项目的源码目录</li><li>确认代码素材范围</li><li>生成软著材料</li><li>导出代码鉴别材料</li></ol>{state?.analysis && <small>最近扫描：{state.scannedAt ? new Date(state.scannedAt).toLocaleString() : '历史数据'}</small>}<button type="button" onClick={handleContinueToMaterials} disabled={!state?.confirmed || savingSelection}>进入材料生成 →</button></aside></div>
+      </> : <>
       <section className="code-generation-header">
         <div>
           <span className="section-kicker">源码准备</span>
@@ -258,8 +265,8 @@ function CodeGenerationPage({ onNavigate }: CodeGenerationPageProps) {
             <strong>{activeProject?.name || '未命名软著项目'}</strong>
             <small>{activeProject?.softwareName || '尚未填写软件全称'} / {activeProject?.version || 'V1.0'}</small>
           </div>
-          <button type="button" className="code-generation-notice-link" onClick={() => setNoticeOpen(true)}>
-            关于AI生成软著的必看事项
+          <button type="button" className="code-generation-notice-link context-help-trigger" onClick={() => setNoticeOpen(true)}>
+            查看合规提醒
           </button>
         </div>
         <div className="software-copyright-header-actions">
@@ -343,6 +350,7 @@ function CodeGenerationPage({ onNavigate }: CodeGenerationPageProps) {
         </aside>}
       </div>
 
+      </>}
       <Dialog.Root open={noticeOpen} onOpenChange={setNoticeOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />

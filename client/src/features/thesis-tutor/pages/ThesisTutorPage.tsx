@@ -5,6 +5,8 @@ import type { SectionId } from '../../../shared/types/navigation';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import '../thesisTutor.css';
+import './modernThesisTutor.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import { ThesisTutorChapterWorkspace } from '../components/ThesisTutorChapterWorkspace';
 import { ThesisTutorCheckWorkspace } from '../components/ThesisTutorCheckWorkspace';
 import { ThesisTutorFeedbackWorkspace } from '../components/ThesisTutorFeedbackWorkspace';
@@ -668,7 +670,7 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
   }
 
   return (
-    <div className="thesis-tutor-page" ref={mainScrollRef} onWheelCapture={handleMainWheelCapture}>
+    <div className={`thesis-tutor-page${getStoredUiAppearance() === 'modern' ? ' modern-thesis-tutor' : ''}`} ref={mainScrollRef} onWheelCapture={handleMainWheelCapture}>
       <ThesisTutorHeader
         panel={panel}
         saving={saving}
@@ -678,6 +680,35 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
         importWorkspace={importWorkspace}
         clearAll={clearAll}
       />
+
+      {getStoredUiAppearance() === 'modern' && (
+        <nav className="modern-thesis-journey" aria-label="论文导师工作阶段">
+          <div className="modern-thesis-journey-head">
+            <div><span>论文工作路径</span><strong>{panelCopy[activePanel].label}</strong></div>
+            <small>{completedPanels.length} / {panelOrder.length} 阶段已有成果</small>
+          </div>
+          <div className="modern-thesis-journey-groups">
+            {[panelOrder.slice(0, 5), panelOrder.slice(5)].map((group, groupIndex) => (
+              <div className="modern-thesis-journey-group" key={groupIndex}>
+                <span>{groupIndex === 0 ? '01 · 研究准备' : '02 · 写作交付'}</span>
+                <div>{group.map((item) => (
+                  <button
+                    type="button"
+                    key={item}
+                    className={activePanel === item ? 'is-active' : completedPanels.includes(item) ? 'is-done' : ''}
+                    aria-current={activePanel === item ? 'step' : undefined}
+                    onClick={() => switchPanel(item)}
+                  >
+                    <b>{String(panelOrder.indexOf(item) + 1).padStart(2, '0')}</b>
+                    <span>{panelCopy[item].label}</span>
+                    <em>{completedPanels.includes(item) ? '✓' : '›'}</em>
+                  </button>
+                ))}</div>
+              </div>
+            ))}
+          </div>
+        </nav>
+      )}
 
       {agentStatus?.enabled && (
         <AgentFloatingPanel label="论文导师 Agent" className="thesis-tutor-agent-panel">

@@ -35,7 +35,7 @@ export function ThesisTutorHeader({
           <span className="thesis-tutor-kicker">论文导师 · {panel.label}</span>
           <Dialog.Root>
             <Dialog.Trigger asChild>
-              <button type="button" className="thesis-tutor-notice-trigger">注意事项</button>
+              <button type="button" className="thesis-tutor-notice-trigger context-help-trigger">查看使用提醒</button>
             </Dialog.Trigger>
             <Dialog.Portal>
               <Dialog.Overlay className="content-regenerate-modal" />

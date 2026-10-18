@@ -7,6 +7,7 @@ export interface AppConfirmOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+  cardClassName?: string;
 }
 
 export interface AppPromptOptions extends AppConfirmOptions {
@@ -85,7 +86,7 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
       <Dialog.Root open={Boolean(request)} onOpenChange={(open) => !open && finishRequest()}>
         <Dialog.Portal>
           <Dialog.Overlay className="app-action-dialog-overlay" />
-          <Dialog.Content className="app-action-dialog-card">
+          <Dialog.Content className={`app-action-dialog-card${request?.cardClassName ? ` ${request.cardClassName}` : ''}`}>
             <div className="app-action-dialog-head">
               <Dialog.Title>{request?.title || '请确认'}</Dialog.Title>
               <Dialog.Description>{request?.description || ''}</Dialog.Description>

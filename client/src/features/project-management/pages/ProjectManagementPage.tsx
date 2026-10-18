@@ -1,9 +1,13 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentHostStatus, AgentRunResult } from '../../../shared/types/ipc';
 import { useToast } from '../../../shared/ui/ToastProvider';
+import { useAppDialog } from '../../../shared/ui';
 import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import '../projectManagement.css';
+import './modernProjectManagement.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { registerNavigationBlocker } from '../../../shared/navigationBlocker';
 
 import {
   ModuleIntro,
@@ -39,6 +43,7 @@ import { useProjectManagementWorkspaceState } from '../hooks/useProjectManagemen
 
 function ProjectManagementPage() {
   const { showToast } = useToast();
+  const { confirm } = useAppDialog();
   const [activeModuleId, setActiveModuleId] = useState(modules[0].id);
   const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
   const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
@@ -154,6 +159,28 @@ function ProjectManagementPage() {
     resetActiveModule: () => setActiveModuleId(modules[0].id),
     showToast,
   });
+  const editableValues = {
+    profile, planningInput, planningResult, discoveryInput, discoveryResult,
+    executionInput, executionResult, riskInput, riskResult, stakeholderInput,
+    stakeholderResult, deliveryInput, deliveryResult, reportingInput, reportingResult,
+    commercialInput, commercialResult, retrospectiveInput, retrospectiveResult,
+    complianceInput, complianceResult,
+  };
+  const hasUnsavedChanges = Boolean(viewMode === 'workbench' && state?.projectId && Object.entries(editableValues).some(([key, value]) =>
+    JSON.stringify(value) !== JSON.stringify(state[key as keyof typeof editableValues])));
+  const confirmDiscardEdits = useCallback(() => confirm({
+    title: '项目协作内容尚未保存',
+    description: '离开后，项目档案或模块输入、结果的未保存修改会丢失。',
+    confirmLabel: '放弃修改并继续',
+  }), [confirm]);
+  useEffect(() => {
+    if (getStoredUiAppearance() !== 'modern' || !hasUnsavedChanges) return undefined;
+    return registerNavigationBlocker((destination) => destination === 'project-management' ? Promise.resolve(true) : confirmDiscardEdits());
+  }, [hasUnsavedChanges, confirmDiscardEdits]);
+  const returnToProjectList = () => {
+    if (getStoredUiAppearance() !== 'modern' || !hasUnsavedChanges) { setViewMode('list'); return; }
+    void confirmDiscardEdits().then((accepted) => { if (accepted) setViewMode('list'); });
+  };
   const moduleOperations = useProjectManagementModuleOperations({
     workspace: {
       profile,
@@ -361,6 +388,11 @@ function ProjectManagementPage() {
   }
 
   async function clearWorkspace() {
+    if (getStoredUiAppearance() === 'modern' && !await confirm({
+      title: '清空项目协作工作区？',
+      description: '当前项目档案与各模块内容会被清空。',
+      confirmLabel: '确认清空',
+    })) return;
     try {
       const result = await window.yibiao?.projectManagement.clear();
       if (result?.state) applyState(result.state);
@@ -376,7 +408,7 @@ function ProjectManagementPage() {
 
   return (
     <div className="project-management-page">
-      <section className="project-management-hero">
+      {getStoredUiAppearance() !== 'modern' && <section className="project-management-hero">
         <div>
           <div className="project-management-hero-kicker">
             <span className="section-kicker">项目管理</span>
@@ -387,7 +419,7 @@ function ProjectManagementPage() {
             先建立项目档案，再按启动、需求、排期、风险、沟通、交付、汇报、回款、复盘、合规的顺序推进。每个模块都会沿用同一份项目上下文。
           </p>
         </div>
-      </section>
+      </section>}
 
       {viewMode === 'list' ? (
         <ProjectManagementListView
@@ -410,7 +442,8 @@ function ProjectManagementPage() {
         profile={profile}
         hasProject={Boolean(state?.projectId)}
         isRunning={Boolean(isRunning)}
-        onBack={() => setViewMode('list')}
+        draftDirty={getStoredUiAppearance() === 'modern' && hasUnsavedChanges}
+        onBack={returnToProjectList}
         onDelete={() => setDeleteProjectOpen(true)}
       />
       {agentStatus?.enabled && state?.projectId && (
@@ -419,7 +452,7 @@ function ProjectManagementPage() {
           <div className="project-management-agent-actions">{agentContinuousStatus === 'running' ? <button type="button" className="secondary-action" onClick={pauseProjectContinuousRun}>暂停连续执行</button> : <button type="button" className="primary-action" onClick={requestProjectContinuousRun} disabled={loading || Boolean(isRunning)}>{agentContinuousStatus === 'paused' || agentContinuousStatus === 'blocked' ? '继续连续执行' : agentContinuousStatus === 'completed' ? '检查未完成项' : '连续执行'}</button>}<button type="button" className="secondary-action" onClick={() => void planProjectNextStep()} disabled={agentPlanning || Boolean(isRunning)}>{agentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}</button>{agentRun?.shadowEvaluation?.agentAction && <button type="button" className="primary-action" onClick={requestProjectAgentExecution} disabled={Boolean(isRunning)}>执行建议</button>}</div>
         </AgentFloatingPanel>
       )}
-      <section className="project-management-workspace">
+      <section className={`project-management-workspace${getStoredUiAppearance() === 'modern' ? ' modern-pm-workspace' : ''}`}>
         <ProjectManagementFlowNavigation
           modules={modules}
           activeModule={activeModule}
@@ -714,7 +747,7 @@ function ProjectManagementPage() {
             )}
           </article>
 
-          <ProjectManagementSidebar
+          {getStoredUiAppearance() === 'modern' ? <details className="modern-pm-context"><summary><span>项目概况</span><strong>{profile.projectName || '未命名项目'}</strong><small>{suggestedModule ? `建议下一步：${suggestedModule.label}` : `${completedCount}/${modules.length} 个模块已完成`}</small><em className="modern-pm-context-action">查看详情</em></summary><ProjectManagementSidebar
             profile={profile}
             state={state}
             activeModule={activeModule}
@@ -725,7 +758,18 @@ function ProjectManagementPage() {
             isRunning={Boolean(isRunning)}
             onSelectModule={setActiveModuleId}
             onClear={clearWorkspace}
-          />
+          /></details> : <div className="project-management-sidebar-slot"><ProjectManagementSidebar
+            profile={profile}
+            state={state}
+            activeModule={activeModule}
+            suggestedModule={suggestedModule}
+            currentModuleDone={currentModuleDone}
+            completedCount={completedCount}
+            moduleCount={modules.length}
+            isRunning={Boolean(isRunning)}
+            onSelectModule={setActiveModuleId}
+            onClear={clearWorkspace}
+          /></div>}
         </div>
       </section>
       </>

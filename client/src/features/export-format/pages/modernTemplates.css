@@ -1,0 +1,32 @@
+.modern-template-library { display:flex; width:100%; height:100%; min-height:0; flex-direction:column; gap:16px; color:#e9edf8; }
+.modern-template-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; border-bottom:1px solid #34435a; padding:3px 2px 16px; }
+.modern-template-head span, .modern-template-list-head span, .modern-template-preview-head span { color:#a99bf0; font-size:10px; font-weight:800; letter-spacing:.1em; }
+.modern-template-head h1 { margin:6px 0 3px; color:#f4f1ff; font-size:24px; }
+.modern-template-head p { margin:0; color:#93a5bb; font-size:11px; }
+.modern-template-head > div:last-child { display:flex; flex-wrap:wrap; gap:6px; }
+.modern-template-head button, .modern-template-preview-head button { min-height:34px; border:1px solid #53617d; border-radius:5px; padding:0 10px; color:#dce3f2; background:#26354a; font-size:10px; cursor:pointer; }
+.modern-template-head button:last-child { border-color:#9185db; color:#fff; background:#7063bf; }
+.modern-template-head button:disabled, .modern-template-preview-head button:disabled { opacity:.5; cursor:not-allowed; }
+.modern-template-layout { display:grid; grid-template-columns:minmax(240px,300px) minmax(0,1fr); gap:12px; min-height:0; flex:1; }
+.modern-template-list, .modern-template-preview { display:flex; min-width:0; min-height:0; flex-direction:column; overflow:hidden; border:1px solid #36465e; border-radius:9px; background:#1b293c; }
+.modern-template-list-head, .modern-template-preview-head { display:flex; align-items:center; justify-content:space-between; gap:8px; flex:0 0 auto; border-bottom:1px solid #35455b; padding:14px; }
+.modern-template-list-head strong, .modern-template-preview-head strong { color:#f0edfc; font-size:12px; }
+.modern-template-list-scroll { min-height:0; flex:1; overflow:auto; padding:10px; }
+.modern-template-list-scroll h2 { margin:13px 5px 8px; color:#a99bf0; font-size:10px; letter-spacing:.08em; }
+.modern-template-list-scroll > p { padding:10px; color:#91a3ba; font-size:11px; }
+.modern-template-list-scroll article { display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-bottom:6px; border:1px solid #3c4c64; border-radius:6px; padding:7px; background:#25354a; }
+.modern-template-list-scroll article.is-active { border-color:#9387d9; background:#303853; }
+.modern-template-list-scroll article > button:first-child { display:flex; min-width:0; flex:1; flex-direction:column; gap:4px; border:0; padding:4px; color:#eef0fb; background:transparent; text-align:left; cursor:pointer; }
+.modern-template-list-scroll article strong { overflow:hidden; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-template-list-scroll article small { color:#91a3bb; font-size:9px; }
+.modern-template-list-scroll article > div { display:flex; width:100%; justify-content:flex-end; gap:3px; }
+.modern-template-list-scroll article button:not(:first-child), .modern-template-list-scroll article > div button { border:0; border-radius:4px; padding:5px 6px; color:#cbbfff; background:transparent; font-size:10px; cursor:pointer; }
+.modern-template-list-scroll article button.is-danger { color:#eeacb6; }
+.modern-template-preview-body { min-height:0; flex:1; overflow:auto; padding:18px; }
+.modern-template-preview-body .export-template-preview-panel { position:relative; top:auto; height:min(720px,100%); max-height:none; min-height:340px; border:0; border-radius:0; box-shadow:none; }
+.modern-template-source { margin-top:18px; border:1px solid #40516a; border-radius:6px; padding:15px; background:#25354a; }
+.modern-template-source p, .modern-template-source details { color:#acbbd0; font-size:11px; line-height:1.6; }
+.modern-template-empty { display:flex; min-height:120px; flex-direction:column; align-items:center; justify-content:center; gap:9px; color:#91a3ba; font-size:11px; }
+.modern-template-empty button { border:1px solid #9185db; border-radius:5px; padding:7px 10px; color:#fff; background:#7063bf; cursor:pointer; }
+@container (max-width:780px) { .modern-template-layout { grid-template-columns:200px minmax(0,1fr); } .modern-template-preview-body { padding:10px; } }
+@container (max-width:580px) { .modern-template-library { overflow:auto; } .modern-template-head { align-items:flex-start; flex-direction:column; } .modern-template-layout { display:flex; flex-direction:column; min-height:700px; } .modern-template-list { min-height:230px; max-height:300px; } .modern-template-preview { min-height:380px; } }

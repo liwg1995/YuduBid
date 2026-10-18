@@ -1,0 +1,30 @@
+.modern-presales-workbench { min-width:0; }
+.modern-presales-workspace { display:grid; width:100%; height:100%; min-height:0; grid-template-columns:170px minmax(0,1fr); grid-template-rows:auto auto auto minmax(0,1fr); gap:8px; overflow:hidden; color:#e9edf8; }
+.modern-presales-workspace > .presales-workspace-head, .modern-presales-workspace > .presales-current-project-strip, .modern-presales-workspace > .presales-agent-panel { grid-column:1/-1; }
+.modern-presales-workspace > .presales-workspace-head { border:0; border-bottom:1px solid #34435a; border-radius:0; padding:1px 2px 9px; background:transparent; }
+.modern-presales-workspace > .presales-workspace-head { grid-row:1; }
+.modern-presales-workspace > .presales-current-project-strip { grid-row:2; }
+.modern-presales-workspace > .presales-agent-panel { grid-row:3; }
+.modern-presales-workspace > .presales-workspace-head h2 { color:#f4f1ff; font-size:19px; }
+.modern-presales-workspace > .presales-workspace-head p { color:#93a5bb; font-size:11px; font-weight:400; }
+.modern-shell .modern-presales-workspace :is(.presales-workspace-head-actions, .presales-section-actions) :is(.primary-action, .secondary-action) { min-height:35px; border-radius:7px; padding:7px 13px; font-size:13px; line-height:1.25; white-space:nowrap; }
+.modern-presales-workspace .presales-workspace-head-actions > div { gap:6px; }
+.modern-presales-workspace .presales-section-actions { gap:6px; }
+.modern-presales-workspace > .presales-current-project-strip { border:1px solid #3b4962; border-radius:7px; padding:9px 13px; background:#1b293c; }
+.modern-presales-flow { display:flex; grid-column:1; grid-row:4; min-height:0; flex-direction:column; overflow:hidden; border:1px solid #36465e; border-radius:8px; background:#172335; }
+.modern-presales-flow > div { display:flex; flex-direction:column; gap:4px; border-bottom:1px solid #34445b; padding:10px; }
+.modern-presales-flow > div > span { color:#a99bf0; font-size:9px; font-weight:800; letter-spacing:.1em; }
+.modern-presales-flow > div strong { font-size:14px; }
+.modern-presales-flow > div small { color:#8d9fb7; font-size:10px; }
+.modern-presales-flow nav { display:flex; min-height:0; flex:1; flex-direction:column; gap:2px; overflow:auto; padding:6px; }
+.modern-presales-flow nav button { display:flex; align-items:center; gap:7px; min-height:44px; border:1px solid transparent; border-radius:6px; padding:5px 7px; color:#aebbd0; background:transparent; text-align:left; cursor:pointer; }
+.modern-presales-flow nav button:hover { background:#2b3952; }
+.modern-presales-flow nav button.is-active { border-color:#776db5; color:#f2edff; background:#343955; }
+.modern-presales-flow nav button b { color:#a99bf0; font-size:9px; }
+.modern-presales-flow nav button > span { display:flex; min-width:0; flex:1; flex-direction:column; gap:3px; }
+.modern-presales-flow nav button strong { overflow:hidden; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-presales-flow nav button small { overflow:hidden; color:#8f9fb5; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-presales-flow nav button em { color:#a99bf0; font-size:12px; font-style:normal; }
+.modern-presales-workspace > .presales-step-panel { grid-column:2; grid-row:4; min-width:0; min-height:0; overflow:auto; margin:0; border:1px solid #36465e; border-radius:8px; background:#1b293c; }
+@container (max-width:1000px) { .modern-presales-workspace { grid-template-columns:minmax(0,1fr); grid-template-rows:auto auto auto auto minmax(420px,1fr); overflow:auto; } .modern-presales-flow { grid-column:1; grid-row:4; min-height:0; } .modern-presales-flow > div { display:none; } .modern-presales-flow nav { flex-direction:row; overflow-x:auto; } .modern-presales-flow nav button { flex:0 0 auto; max-width:170px; } .modern-presales-workspace > .presales-step-panel { grid-column:1; grid-row:5; min-height:420px; } }
+@container (max-width:580px) { .modern-presales-workspace > .presales-workspace-head { align-items:flex-start; flex-direction:column; } .modern-presales-workspace > .presales-current-project-strip { flex-wrap:wrap; } }

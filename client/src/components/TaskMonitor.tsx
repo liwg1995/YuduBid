@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface TaskSnapshot {
   type: string;
@@ -12,12 +12,25 @@ interface TaskSnapshot {
   ai_retry_count?: number;
 }
 
+const taskNames: Record<string, string> = {
+  'bid-section-extraction': '多标段识别',
+  'bid-analysis': '招标文件解析',
+  'outline-generation': '目录生成',
+  'global-facts-generation': '全局事实设定',
+  'content-generation': '正文生成',
+  'rejection-items-extraction': '无效与废标项解析',
+  'rejection-check-run': '废标项检查',
+  'duplicate-analysis': '标书查重分析',
+};
+
 function normalizeTask(value: unknown): TaskSnapshot | null {
   if (!value || typeof value !== 'object') return null;
   const task = value as Record<string, unknown>;
   return {
     type: String(task.type || ''),
-    label: String(task.label || task.type || '后台任务'),
+    label: /[\u3400-\u9fff]/u.test(String(task.label || ''))
+      ? String(task.label)
+      : taskNames[String(task.type || '')] || '后台任务',
     status: String(task.status || 'running'),
     progress: Math.max(0, Math.min(100, Number(task.progress || 0))),
     logs: Array.isArray(task.logs) ? task.logs.map(String).slice(-2) : [],
@@ -52,6 +65,8 @@ export default function TaskMonitor() {
   const [tasks, setTasks] = useState<TaskSnapshot[]>([]);
   const [open, setOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const monitorRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -84,22 +99,41 @@ export default function TaskMonitor() {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [open, activeCount]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!monitorRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
   if (!tasks.length) return null;
 
   return (
-    <div className="task-monitor">
-      <button type="button" className={`task-monitor-trigger${activeCount ? ' is-active' : ''}`} onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+    <div className="task-monitor" ref={monitorRef}>
+      <button type="button" ref={triggerRef} className={`task-monitor-trigger${activeCount ? ' is-active' : ''}`} onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-controls="task-monitor-panel">
         <span className="task-monitor-dot" aria-hidden="true" />
         <span>{activeCount ? `${activeCount} 个任务运行中` : '后台任务'}</span>
+        <span className={`task-monitor-chevron${open ? ' is-open' : ''}`} aria-hidden="true">⌄</span>
       </button>
       {open && (
-        <div className="task-monitor-panel" role="status">
-          <div className="task-monitor-head"><strong>后台任务</strong><span>页面切换不会中断</span></div>
+        <div className="task-monitor-panel" id="task-monitor-panel" role="region" aria-label="后台任务状态">
+          <div className="task-monitor-head"><div><strong>后台任务</strong><span>页面切换后继续运行</span></div><b>{activeCount} 项进行中</b></div>
           {tasks.map((task) => (
             <div className="task-monitor-item" key={task.type}>
-              <div className="task-monitor-item-head"><strong>{task.label}</strong><span>{statusLabel(task.status)}</span></div>
-              <div className="task-monitor-progress"><i style={{ width: `${task.progress}%` }} /></div>
-              <small>{task.progress}%{task.logs[task.logs.length - 1] ? ` · ${task.logs[task.logs.length - 1]}` : ''}</small>
+              <div className="task-monitor-item-head"><strong>{task.label}</strong><span className={`task-monitor-state is-${task.status}`}>{statusLabel(task.status)}</span></div>
+              <div className="task-monitor-progress-heading"><span>阶段进度</span><strong>{Math.round(task.progress)}%</strong></div>
+              <div className="task-monitor-progress" role="progressbar" aria-label={`${task.label}进度`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={task.progress}><i style={{ width: `${task.progress}%` }} /></div>
+              {task.logs[task.logs.length - 1] ? <p className="task-monitor-log">{task.logs[task.logs.length - 1]}</p> : null}
               {aiActivityLabel(task, nowMs) ? <small className="task-monitor-ai-activity">{aiActivityLabel(task, nowMs)}</small> : null}
             </div>
           ))}

@@ -1,0 +1,30 @@
+.modern-grant-projects { display:flex; width:100%; height:100%; min-height:0; flex-direction:column; gap:14px; overflow:auto; color:#e9edf8; }
+.modern-grant-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; border-bottom:1px solid #34435a; padding:3px 2px 17px; }
+.modern-grant-head span, .modern-grant-overview span { color:#a99bf0; font-size:10px; font-weight:800; letter-spacing:.1em; }
+.modern-grant-head h1 { margin:7px 0 4px; color:#f4f1ff; font-size:25px; }
+.modern-grant-head p { margin:0; color:#93a5bb; font-size:11px; }
+.modern-grant-head button, .modern-grant-empty button { min-height:38px; border:1px solid #9185db; border-radius:6px; padding:0 14px; color:#fff; background:#7063bf; font-size:11px; font-weight:700; cursor:pointer; }
+.modern-grant-overview { display:flex; align-items:center; gap:18px; flex:0 0 auto; border:1px solid #3b4962; border-radius:8px; padding:13px 17px; background:#1b293c; }
+.modern-grant-overview > div { display:flex; align-items:baseline; gap:8px; }
+.modern-grant-overview strong { font-size:23px; }
+.modern-grant-overview label { display:flex; align-items:center; gap:8px; min-width:0; flex:1; }
+.modern-grant-overview input { min-width:0; flex:1; min-height:34px; border:1px solid #45556d; border-radius:5px; padding:0 9px; color:#edf0fb; background:#26364b; font-size:10px; }
+.modern-grant-overview small { color:#91a3ba; font-size:10px; }
+.modern-grant-list { min-height:0; flex:1; overflow:auto; padding:2px; }
+.modern-grant-list > p { color:#91a3ba; font-size:11px; }
+.modern-grant-list article { display:flex; align-items:center; gap:12px; min-height:78px; margin-bottom:8px; border:1px solid #38475e; border-radius:8px; padding:12px; background:#1b293c; transition:border-color .18s ease, transform .18s ease; }
+.modern-grant-list article:hover { border-color:#8679c9; transform:translateY(-1px); }
+.modern-grant-project-mark { display:grid; width:40px; height:40px; flex:0 0 auto; place-items:center; border-radius:6px; color:#d1c6ff; background:#3b4062; font-size:12px; font-weight:700; }
+.modern-grant-project-body { display:flex; min-width:0; flex:1; flex-direction:column; gap:6px; }
+.modern-grant-project-body strong { overflow:hidden; font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-grant-project-body span { color:#91a3ba; font-size:10px; }
+.modern-grant-project-body input { min-height:31px; border:1px solid #9688dd; border-radius:5px; padding:0 8px; color:#edf0fb; background:#293750; }
+.modern-grant-project-actions { display:flex; flex-wrap:wrap; gap:5px; }
+.modern-grant-project-actions button { min-height:29px; border:1px solid #566184; border-radius:5px; padding:0 8px; color:#d1c6ff; background:#303b55; font-size:10px; cursor:pointer; }
+.modern-grant-project-actions button.is-danger { border-color:transparent; color:#eeabb6; background:transparent; }
+.modern-grant-project-actions button.is-primary { border-color:#9185db; color:#fff; background:#7063bf; }
+.modern-grant-empty { display:flex; min-height:220px; flex-direction:column; align-items:center; justify-content:center; border:1px dashed #4b5871; border-radius:8px; }
+.modern-grant-empty p { color:#91a3ba; font-size:11px; }
+@container (max-width:730px) { .modern-grant-list article { flex-wrap:wrap; } .modern-grant-project-actions { margin-left:52px; } }
+@container (max-width:550px) { .modern-grant-head { align-items:flex-start; flex-direction:column; } .modern-grant-overview { flex-wrap:wrap; } .modern-grant-overview label { flex-basis:100%; } }
+@media (prefers-reduced-motion:reduce) { .modern-grant-list article { transition:none; } .modern-grant-list article:hover { transform:none; } }

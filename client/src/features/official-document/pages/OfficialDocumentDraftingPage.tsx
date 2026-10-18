@@ -1,7 +1,10 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import '../officialDocument.css';
+import './modernOfficialDocument.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { registerNavigationBlocker } from '../../../shared/navigationBlocker';
 import {
   buildOfficialDocumentDraftPrompt,
   officialDocumentTemplates,
@@ -13,7 +16,7 @@ import {
 } from '../../../shared/prompts/officialDocument';
 import type { AgentHostStatus, AgentRunResult, WordExportProgressEvent } from '../../../shared/types/ipc';
 import type { SectionId } from '../../../shared/types/navigation';
-import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
+import { MarkdownEditor, MarkdownRenderer, useAppDialog } from '../../../shared/ui';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import {
   OfficialDocumentRevisionList,
@@ -92,6 +95,7 @@ const panelHeroCopy: Record<OfficialDocumentInitialPanel, { kicker: string; titl
 
 function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }: OfficialDocumentDraftingPageProps) {
   const { showToast } = useToast();
+  const { confirm } = useAppDialog();
   const [input, setInput] = useState<OfficialDocumentPromptInput>(defaultInput);
   const [state, setState] = useState<OfficialDocumentState | null>(null);
   const [draft, setDraft] = useState('');
@@ -114,6 +118,22 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   const [agentContinuousCycle, setAgentContinuousCycle] = useState(0);
   const agentContinuousLaunchingRef = useRef(false);
   const agentContinuousPersistenceReadyRef = useRef(false);
+  const persistedInputRef = useRef<OfficialDocumentPromptInput>(defaultInput);
+  const persistedDraftRef = useRef('');
+  const inputDirty = Boolean(state && JSON.stringify(input) !== JSON.stringify({ ...defaultInput, ...state.input }));
+  const draftDirty = Boolean(state && draft !== (state.draft || ''));
+  const hasUnsavedChanges = inputDirty || draftDirty;
+  const confirmDiscardEdits = useCallback(() => confirm({
+    title: '公文内容尚未保存',
+    description: '离开后，起草要素或公文草稿中未保存的修改会丢失。',
+    confirmLabel: '放弃修改并继续',
+    cardClassName: 'official-document-confirm-dialog',
+  }), [confirm]);
+  useEffect(() => {
+    if (getStoredUiAppearance() !== 'modern' || !hasUnsavedChanges) return undefined;
+    const currentSection = `official-document-${initialPanel}`;
+    return registerNavigationBlocker((destination) => destination === currentSection ? Promise.resolve(true) : confirmDiscardEdits());
+  }, [hasUnsavedChanges, initialPanel, confirmDiscardEdits]);
 
   const promptPreview = useMemo(() => state?.prompt || buildOfficialDocumentDraftPrompt(input), [input, state?.prompt]);
   const selectedTypeNote = officialDocumentTypeNotes[input.documentType];
@@ -135,9 +155,11 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
     bridge.loadState()
       .then((nextState) => {
         if (!mounted) return;
+        persistedInputRef.current = { ...defaultInput, ...nextState.input };
+        persistedDraftRef.current = nextState.draft || '';
         setState(nextState);
-        setInput({ ...defaultInput, ...nextState.input });
-        setDraft(nextState.draft || '');
+        setInput(persistedInputRef.current);
+        setDraft(persistedDraftRef.current);
         setReview(nextState.review || '');
       })
       .catch((error) => showToast(error instanceof Error ? error.message : '读取公文写作状态失败', 'error'))
@@ -146,9 +168,20 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       });
 
     const unsubscribe = bridge.onEvent((nextState) => {
+      const nextInput = { ...defaultInput, ...nextState.input };
+      const nextDraft = nextState.draft || '';
+      const previousInput = persistedInputRef.current;
+      const previousDraft = persistedDraftRef.current;
+      persistedInputRef.current = nextInput;
+      persistedDraftRef.current = nextDraft;
       setState(nextState);
-      setInput({ ...defaultInput, ...nextState.input });
-      setDraft(nextState.draft || '');
+      if (getStoredUiAppearance() === 'modern') {
+        setInput((current) => JSON.stringify(current) === JSON.stringify(previousInput) ? nextInput : current);
+        setDraft((current) => current === previousDraft ? nextDraft : current);
+      } else {
+        setInput(nextInput);
+        setDraft(nextDraft);
+      }
       setReview(nextState.review || '');
     });
 
@@ -263,7 +296,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   async function copyPrompt() {
     try {
       await navigator.clipboard.writeText(promptPreview);
-      showToast('公文起草提示词已复制', 'success');
+      showToast('起草指令已复制', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '复制失败', 'error');
     }
@@ -287,6 +320,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       setSaving(true);
       const nextState = await window.yibiao?.officialDocument.saveInput(input);
       if (nextState) {
+        persistedInputRef.current = { ...defaultInput, ...nextState.input };
         setState(nextState);
         setInput({ ...defaultInput, ...nextState.input });
       }
@@ -306,7 +340,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
     try {
       setSaving(true);
       const nextState = await window.yibiao?.officialDocument.saveDraft(draft);
-      if (nextState) setState(nextState);
+      if (nextState) { persistedDraftRef.current = nextState.draft || ''; setState(nextState); }
       setReview(nextState?.review || review);
       showToast('公文草稿已保存', 'success');
     } catch (error) {
@@ -548,6 +582,12 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }, [agentContinuousCycle, agentContinuousStatus, draft, isRunning, loading, review, revisions, state, task?.type]);
 
   async function resetForm() {
+    if (getStoredUiAppearance() === 'modern' && !await confirm({
+      title: '清空公文写作工作区？',
+      description: '起草要素、公文草稿和当前工作结果会被清空。',
+      confirmLabel: '确认清空',
+      cardClassName: 'official-document-confirm-dialog',
+    })) return;
     if (!window.yibiao?.officialDocument) {
       setState(null);
       setInput(defaultInput);
@@ -862,7 +902,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
             <div className="official-document-panel-head">
               <div>
                 <span className="section-kicker">生成流程</span>
-                <h3>Skill 工作流映射</h3>
+                <h3>起草步骤</h3>
               </div>
             </div>
             <OfficialDocumentWorkflowSteps steps={workflowSteps} />
@@ -910,17 +950,17 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   function getReminderTitle() {
-    if (initialPanel === 'drafting') return '智能起草提醒';
-    if (initialPanel === 'check') return '格式检查提醒';
-    if (initialPanel === 'polish') return '润色改写提醒';
-    return '公文写作提醒';
+    if (initialPanel === 'drafting') return '智能起草参考';
+    if (initialPanel === 'check') return '格式检查参考';
+    if (initialPanel === 'polish') return '润色改写参考';
+    return '公文写作参考';
   }
 
   function getReminderLinkText() {
-    if (initialPanel === 'drafting') return '关于智能起草的提醒事项';
-    if (initialPanel === 'check') return '关于格式检查的提醒事项';
-    if (initialPanel === 'polish') return '关于润色改写的提醒事项';
-    return '关于公文写作的提醒事项';
+    if (initialPanel === 'drafting') return '查看起草参考';
+    if (initialPanel === 'check') return '查看检查参考';
+    if (initialPanel === 'polish') return '查看改写参考';
+    return '查看写作参考';
   }
 
   if (loading) {
@@ -928,26 +968,33 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   return (
-    <div className="official-document-page">
+    <div className={`official-document-page${getStoredUiAppearance() === 'modern' ? ' modern-official-document' : ''}`}>
       <section className="official-document-header">
         <div>
-          <span className="section-kicker">{heroCopy.kicker}</span>
+          <div className="official-document-header-eyebrow">
+            <span className="section-kicker">{heroCopy.kicker}</span>
+            {initialPanel !== 'templates' && (
+              <button type="button" className="official-document-reminder-link context-help-trigger has-inline-decor" onClick={() => setReminderOpen(true)}>
+                <span className="official-document-reminder-link-icon" aria-hidden="true">?</span>
+                <span>{getReminderLinkText()}</span>
+                <span className="official-document-reminder-link-arrow" aria-hidden="true">›</span>
+              </button>
+            )}
+          </div>
           <h2>{heroCopy.title}</h2>
-          <p>{heroCopy.description}</p>
-          {initialPanel !== 'templates' && (
-            <button type="button" className="official-document-reminder-link" onClick={() => setReminderOpen(true)}>
-              {getReminderLinkText()}
-            </button>
-          )}
+          <div className="official-document-header-meta">
+            <p>{heroCopy.description}</p>
+          </div>
         </div>
         <div className="official-document-actions">
+          {getStoredUiAppearance() === 'modern' && hasUnsavedChanges && <span className="modern-official-draft-status" role="status">{inputDirty && draftDirty ? '要素与草稿未保存' : inputDirty ? '起草要素未保存' : '公文草稿未保存'}</span>}
           {initialPanel !== 'templates' && (
             <button type="button" className="secondary-action" onClick={() => void importDraft()} disabled={isRunning}>导入草稿</button>
           )}
           {initialPanel === 'drafting' && (
             <>
               <button type="button" className="secondary-action" onClick={() => void saveInput()} disabled={saving || isRunning}>保存要素</button>
-              <button type="button" className="primary-action" onClick={() => void copyPrompt()}>复制提示词</button>
+              <button type="button" className="primary-action" onClick={() => void copyPrompt()}>复制起草指令</button>
             </>
           )}
           {initialPanel === 'check' && (
@@ -961,6 +1008,13 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
           )}
         </div>
       </section>
+
+      {getStoredUiAppearance() === 'modern' && <nav className="modern-official-stages" aria-label="公文工作阶段">{([
+        ['drafting', '智能起草', '补全要素并生成草稿', 'official-document-drafting'],
+        ['check', '格式检查', '校核结构与内容', 'official-document-check'],
+        ['polish', '润色改写', '编辑版本并导出', 'official-document-polish'],
+        ['templates', '模板管理', '选择可复用模板', 'official-document-templates'],
+      ] as const).map(([id, label, detail, section], index) => <button type="button" key={id} className={initialPanel === id ? 'is-active' : ''} aria-current={initialPanel === id ? 'step' : undefined} onClick={() => onNavigate?.(section)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{label}</strong><small>{detail}</small><em>›</em></button>)}</nav>}
 
       {missingTextModelFields.length > 0 && (
         <div className="official-document-config-notice">
@@ -1005,13 +1059,15 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
           <Dialog.Content className="official-document-agent-dialog">
-            <Dialog.Title>确认执行 Agent 建议</Dialog.Title>
-            <Dialog.Description>
-              将执行“{officialAgentActionLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一步'}”。该操作复用现有公文写作方法，可能产生模型费用并更新当前草稿。
-            </Dialog.Description>
+            <div className="official-document-agent-dialog-head">
+              <span className="section-kicker">智能助手 · 单步执行</span>
+              <Dialog.Title>执行下一步建议</Dialog.Title>
+              <Dialog.Description>即将执行“{officialAgentActionLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一步'}”，并更新当前公文工作区。</Dialog.Description>
+            </div>
+            <p className="official-document-agent-dialog-note">此操作可能调用文本模型并产生费用。执行前请确认当前草稿已保存。</p>
             <div className="official-document-agent-actions">
               <Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close>
-              <button type="button" className="primary-action" onClick={() => void executeOfficialAgentRecommendation()}>确认执行</button>
+              <button type="button" className="primary-action" onClick={() => void executeOfficialAgentRecommendation()}>执行建议</button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
@@ -1021,10 +1077,13 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
           <Dialog.Content className="official-document-agent-dialog">
-            <Dialog.Title>确认公文连续执行</Dialog.Title>
-            <Dialog.Description>
-              Agent 将依次完成尚未完成的公文起草、格式与内容检查、降 AI 味润色。该过程可能产生多次模型费用；失败时会停止，改写方向、事实核对和 Word 导出仍由你确认。
-            </Dialog.Description>
+            <div className="official-document-agent-dialog-head">
+              <span className="section-kicker">智能助手 · 连续执行</span>
+              <Dialog.Title>连续完成公文处理</Dialog.Title>
+              <Dialog.Description>依次完成尚未执行的起草、格式与内容检查、润色；遇到失败会自动停止。</Dialog.Description>
+            </div>
+            <div className="official-document-agent-dialog-steps" aria-label="连续执行步骤"><span>起草</span><span>检查</span><span>润色</span></div>
+            <p className="official-document-agent-dialog-note">过程中可能产生多次模型费用。改写方向、事实核对与 Word 导出仍需你确认。</p>
             <div className="official-document-agent-actions">
               <Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close>
               <button type="button" className="primary-action" onClick={confirmOfficialDocumentContinuousRun}>开始连续执行</button>
@@ -1034,7 +1093,17 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       </Dialog.Root>
 
       <div className={`official-document-layout ${initialPanel === 'templates' ? 'is-templates' : ''} ${initialPanel === 'check' || initialPanel === 'polish' ? 'is-main-only' : ''}`}>
-        <main className="official-document-main">
+        <main className={`official-document-main is-${initialPanel}`}>
+          {getStoredUiAppearance() === 'modern' && (
+            <header className="modern-official-work-header">
+              <div>
+                <span>当前工作区 / {initialPanel === 'drafting' ? '01 智能起草' : initialPanel === 'check' ? '02 格式检查' : initialPanel === 'polish' ? '03 润色与导出' : '04 场景模板'}</span>
+                <h3>{initialPanel === 'drafting' ? '先整理事实，再生成公文' : initialPanel === 'check' ? '草稿与检查意见对照查看' : initialPanel === 'polish' ? '在宽敞的编辑区完成定稿' : '选择适合当前场景的模板'}</h3>
+                <p>{initialPanel === 'drafting' ? '起草要素集中填写；生成指令可在下方核对。' : initialPanel === 'check' ? '左侧核对原文，右侧查看格式与内容建议。' : initialPanel === 'polish' ? '正文编辑优先，历史版本随时可恢复。' : '预览结构后套用，继续回到起草工作区。'}</p>
+              </div>
+              <span className="modern-official-work-state">本地工作区</span>
+            </header>
+          )}
           {initialPanel === 'drafting' && (
             <>
               <section className="official-document-panel">
@@ -1043,7 +1112,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
                     <span className="section-kicker">起草要素</span>
                     <h3>按公文场景补齐必要信息</h3>
                   </div>
-                  <span className="official-document-pill">Prompt 预集成</span>
+                  <span className="official-document-pill">已配起草规则</span>
                 </div>
 
                 <div className="official-document-form-grid">
@@ -1119,11 +1188,18 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
               <section className="official-document-panel">
                 <div className="official-document-panel-head">
                   <div>
-                    <span className="section-kicker">提示词预览</span>
+                    <span className="section-kicker">生成指令</span>
                     <h3>已内置文种判定、格式规范和终检清单</h3>
                   </div>
                 </div>
-                <pre className="official-document-prompt-preview">{promptPreview}</pre>
+                {getStoredUiAppearance() === 'modern' ? (
+                  <details className="modern-official-prompt-details">
+                    <summary>展开查看当前生成指令 <span>仅供核对，不影响已填写内容</span></summary>
+                    <pre className="official-document-prompt-preview">{promptPreview}</pre>
+                  </details>
+                ) : (
+                  <pre className="official-document-prompt-preview">{promptPreview}</pre>
+                )}
               </section>
             </>
           )}
@@ -1269,12 +1345,12 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       <Dialog.Root open={reminderOpen} onOpenChange={setReminderOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="official-document-reminder-card">
+          <Dialog.Content className={`official-document-reminder-card is-${initialPanel}`}>
             <div className="official-document-reminder-head">
               <div>
-                <span className="section-kicker">按需查看</span>
+                <span className="section-kicker">写作参考</span>
                 <Dialog.Title>{getReminderTitle()}</Dialog.Title>
-                <Dialog.Description>这些内容只作为写作和检查时的参考，不会占用主工作区。</Dialog.Description>
+                <Dialog.Description>按当前文种查看结构、起草步骤和提交前的核对要点。</Dialog.Description>
               </div>
               <Dialog.Close asChild>
                 <button type="button" className="secondary-action">关闭</button>
@@ -1297,30 +1373,17 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
                 <Dialog.Title>{previewTemplate?.name || '模板详情'}</Dialog.Title>
                 <Dialog.Description>{previewTemplate?.description || '查看模板的起草要素和结构。'}</Dialog.Description>
               </div>
-              <div className="official-document-template-preview-actions">
-                {previewTemplate && (
-                  <button
-                    type="button"
-                    className="primary-action"
-                    onClick={() => {
-                      applyTemplate(previewTemplate, true);
-                      setPreviewTemplate(null);
-                    }}
-                    disabled={saving || isRunning}
-                  >
-                    套用并起草
-                  </button>
-                )}
-                <Dialog.Close asChild>
-                  <button type="button" className="secondary-action">关闭</button>
-                </Dialog.Close>
-              </div>
+              <Dialog.Close asChild><button type="button" className="official-document-template-preview-close" aria-label="关闭模板预览">×</button></Dialog.Close>
             </div>
             {previewTemplate && (
               <div className="official-document-template-preview-body">
                 {renderTemplatePreview(previewTemplate)}
               </div>
             )}
+            <div className="official-document-template-preview-actions">
+              <Dialog.Close asChild><button type="button" className="secondary-action">返回模板列表</button></Dialog.Close>
+              {previewTemplate && <button type="button" className="primary-action" onClick={() => { applyTemplate(previewTemplate, true); setPreviewTemplate(null); }} disabled={saving || isRunning}>套用并起草</button>}
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

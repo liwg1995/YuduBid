@@ -1,7 +1,10 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '../../../shared/ui/ToastProvider';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { projectNameInitials } from '../../../shared/utils/projectNameInitials';
 import type { SoftwareCopyrightCase, SoftwareCopyrightCaseList } from '../types';
+import './modernSoftwareProjects.css';
 
 interface SoftwareCopyrightProjectsPageProps {
   onEnterProject: () => void;
@@ -167,7 +170,7 @@ function SoftwareCopyrightProjectsPage({ onEnterProject }: SoftwareCopyrightProj
   }
 
   return (
-    <div className="software-copyright-projects-page">
+    <div className={`software-copyright-projects-page${getStoredUiAppearance() === 'modern' ? ' modern-software-projects' : ''}`}>
       <section className="software-copyright-projects-hero">
         <div>
           <span className="section-kicker">软件著作</span>
@@ -209,6 +212,27 @@ function SoftwareCopyrightProjectsPage({ onEnterProject }: SoftwareCopyrightProj
           ) : visibleProjects.length ? visibleProjects.map((project) => {
             const isActive = project.id === projectList.activeCaseId;
             const statusLabel = project.archived ? '已归档' : project.draftConfirmed ? '材料已确认' : stepLabels[project.step];
+            if (getStoredUiAppearance() === 'modern') return (
+              <article className={`modern-software-project-row${isActive ? ' is-active' : ''}${project.archived ? ' is-archived' : ''}`} key={project.id}>
+                <div className="modern-software-project-identity">
+                  <span>{projectNameInitials(project.name)}</span>
+                  <div><strong>{project.name}</strong><small>{project.softwareName || '尚未填写软件全称'} · {project.version || 'V1.0'}</small></div>
+                  <em>{statusLabel}</em>
+                </div>
+                <dl>
+                  <div><dt>源码目录</dt><dd title={project.projectPath}>{project.projectPath || '尚未关联源码'}</dd></div>
+                  <div><dt>最近更新</dt><dd>{formatDateTime(project.updatedAt)}</dd></div>
+                  <div><dt>创建时间</dt><dd>{formatDateTime(project.createdAt)}</dd></div>
+                </dl>
+                <div className="modern-software-project-actions">
+                  {!project.archived && <button type="button" className="primary-action" onClick={() => void enterProject(project)} disabled={Boolean(busyId)}>{busyId === project.id ? '正在进入...' : '进入工作台'}</button>}
+                  <button type="button" className="secondary-action" onClick={() => openEditor('rename', project)} disabled={Boolean(busyId)}>重命名</button>
+                  {!project.archived && <button type="button" className="secondary-action" onClick={() => openEditor('duplicate', project)} disabled={Boolean(busyId)}>复制</button>}
+                  {project.archived ? <button type="button" className="secondary-action" onClick={() => void changeArchive(project, false)} disabled={Boolean(busyId)}>恢复</button> : isActive ? <button type="button" className="secondary-action" disabled title="当前项目不能直接归档">当前项目</button> : <button type="button" className="danger-action" onClick={() => setArchiveTarget(project)} disabled={Boolean(busyId)}>归档</button>}
+                  <button type="button" className="danger-action" onClick={() => openDeleteDialog(project)} disabled={Boolean(busyId)}>删除</button>
+                </div>
+              </article>
+            );
             return (
               <article className={`software-copyright-project-card ${isActive ? 'is-active' : ''} ${project.archived ? 'is-archived' : ''}`} key={project.id}>
                 <div className="software-copyright-project-card-head">

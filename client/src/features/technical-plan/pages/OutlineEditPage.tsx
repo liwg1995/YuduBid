@@ -1,10 +1,13 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CSSProperties } from 'react';
 import { useToast } from '../../../shared/ui';
+import { ActivityWaiting } from '../../../shared/ui/ActivityWaiting';
 import type { BackgroundTaskState, TechnicalPlanWorkflowKind } from '../types';
 import type { KnowledgeBaseIndex, KnowledgeDocument } from '../../knowledge-base/types';
 import type { OutlineData, OutlineItem, OutlineMode } from '../../../shared/types';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import './modernOutline.css';
 
 interface OutlineEditPageProps {
   projectId?: string;
@@ -139,7 +142,7 @@ function OutlineEditPage({
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [startingOutline, setStartingOutline] = useState(false);
-  const [progressCollapsed, setProgressCollapsed] = useState(false);
+  const [progressCollapsed, setProgressCollapsed] = useState(true);
   const [generationDialogOpen, setGenerationDialogOpen] = useState(false);
   const [draftOutlineMode, setDraftOutlineMode] = useState<OutlineMode>(outlineMode);
   const [noScoreConfirmed, setNoScoreConfirmed] = useState(false);
@@ -578,6 +581,104 @@ function OutlineEditPage({
     );
   };
 
+  const generationDialog = (
+      <Dialog.Root open={generationDialogOpen} onOpenChange={setGenerationDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="outline-generation-config-card">
+            <Dialog.Title className="sr-only">{outlineData ? '重新生成目录' : '生成目录'}</Dialog.Title>
+            <Dialog.Description className="sr-only">选择本次目录生成方式和参考知识库。</Dialog.Description>
+
+            <section className="outline-generation-config-section">
+              <div className="outline-generation-config-head">
+                <strong>生成方式</strong>
+                <span>{noTechnicalScoreMode ? '无技术评分项' : outlineModeLabels[draftOutlineMode]}</span>
+              </div>
+              {!noTechnicalScoreMode ? <div className="outline-generation-mode-list" role="radiogroup" aria-label="目录生成方式">
+                <button
+                  type="button"
+                  className={`outline-generation-mode-card${draftOutlineMode === 'free' ? ' is-active' : ''}`}
+                  onClick={() => setDraftOutlineMode('free')}
+                  disabled={generating}
+                >
+                  <strong>自由生成</strong>
+                  <span>完全由 AI 分析并生成目录，标题贴近技术评分项语义，但不完全一致。</span>
+                </button>
+                <button
+                  type="button"
+                  className={`outline-generation-mode-card${draftOutlineMode === 'aligned' ? ' is-active' : ''}`}
+                  onClick={() => setDraftOutlineMode('aligned')}
+                  disabled={generating}
+                >
+                  <strong>按评分项对齐</strong>
+                  <span>一级目录完全和技术评分项要求一致，二三级目录由 AI 生成。</span>
+                </button>
+                <button
+                  type="button"
+                  className={`outline-generation-mode-card${draftOutlineMode === 'response-file' ? ' is-active' : ''}`}
+                  onClick={() => setDraftOutlineMode('response-file')}
+                  disabled={generating}
+                >
+                  <strong>按响应文件目录</strong>
+                  <span>优先按招标文件中的技术文件组成和编制要求组织一级目录，二三级目录由 AI 生成。</span>
+                </button>
+              </div> : null}
+              {noTechnicalScoreMode ? (
+                <label className="outline-generation-config-hint">
+                  <input type="checkbox" checked={noScoreConfirmed} onChange={(event) => setNoScoreConfirmed(event.target.checked)} disabled={generating} />
+                  已确认招标文件没有技术评分项，按技术要求和项目概述生成目录
+                </label>
+              ) : null}
+            </section>
+
+            <section className="outline-generation-config-section outline-knowledge-picker">
+              <div className="outline-generation-config-head">
+                <strong>参考知识库</strong>
+                <span>已选择 {draftKnowledgeDocumentIds.length} 个文档</span>
+              </div>
+              {renderKnowledgePicker()}
+            </section>
+
+            <div className="content-regenerate-actions">
+              <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
+              <button type="button" className="secondary-action" onClick={saveOutlineConfig} disabled={generating}>
+                保存配置
+              </button>
+              {draftOutlineMode === 'response-file' && !responseFileRequirements ? (
+                <span className="outline-generation-config-hint">未找到独立的响应文件要求，将退回使用技术评分要求。</span>
+              ) : null}
+              <button type="button" className="primary-action" onClick={generateOutline} disabled={generating || !projectOverview || !techRequirements || (noTechnicalScoreMode && !noScoreConfirmed)}>
+                开始生成
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+  );
+
+  const renderModernItem = (item: OutlineItem): ReactNode => {
+    const hasChildren = Boolean(item.children?.length);
+    const expanded = expandedItems.has(item.id);
+    return <div className="modern-outline-node" key={item.id}>
+      <div className={`modern-outline-item${selectedItemId === item.id ? ' is-active' : ''}`}>
+        <button type="button" className="modern-outline-expand" onClick={() => toggleExpanded(item.id)} disabled={!hasChildren} aria-label={hasChildren ? `${expanded ? '折叠' : '展开'} ${item.title}` : `${item.title} 无子目录`}>{hasChildren ? expanded ? '▾' : '▸' : '·'}</button>
+        <button type="button" className="modern-outline-select" onClick={() => setSelectedItemId(item.id)} onDoubleClick={() => hasChildren && toggleExpanded(item.id)}><span>{item.id}</span><strong>{item.title}</strong><small>{item.description || '无描述'}</small></button>
+      </div>
+      {hasChildren && expanded && item.children?.map((child) => renderModernItem(child))}
+    </div>;
+  };
+
+  if (getStoredUiAppearance() === 'modern') {
+    return <div className="modern-outline-page">
+      <header className="modern-outline-header"><div><span>目录结构工作台</span><h2>组织技术方案章节</h2><p>当前参考知识库：{referenceKnowledgeDocumentIds.length ? `已选 ${referenceKnowledgeDocumentIds.length} 个文档` : '未选择文档'}。</p></div><button type="button" onClick={openGenerationDialog} disabled={generating || !projectOverview || !techRequirements}>{generating ? 'AI 正在生成目录' : outlineData ? '重新生成目录' : '生成目录'}</button></header>
+      <section className="modern-outline-progress"><div><span className={`modern-outline-status is-${taskFailed ? 'error' : generating ? 'running' : outlineData ? 'success' : 'idle'}`}>{statusText}</span><strong>{progress}%</strong><div role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="目录生成进度"><span style={{ width: `${progress}%` }} /></div><button type="button" onClick={() => setProgressCollapsed((value) => !value)} aria-expanded={!progressCollapsed}>{progressCollapsed ? '查看过程' : '收起过程'}</button></div>{!progressCollapsed && <div className="modern-outline-progress-detail"><p>{statusMessage}</p>{(elapsedText || staleText) && <small>{[elapsedText, staleText].filter(Boolean).join(' · ')}</small>}{taskFailed && <small>{task?.error || latestLog || '目录生成失败'}</small>}<div ref={logListRef}>{progressLogs.length ? progressLogs.map((item, index) => <p key={`${item}-${index}`} className={index === progressLogs.length - 1 ? 'is-latest' : ''}>{item}</p>) : <p>等待生成任务启动。</p>}</div></div>}</section>
+      <div className="modern-outline-workspace"><section className="modern-outline-tree"><header><div><span>CHAPTER STRUCTURE</span><h3>目录结构 <small>{outlineData?.outline?.length || 0} 个一级目录</small></h3></div><div><button type="button" onClick={addRootItem} disabled={!outlineData || generating}>新增一级目录</button><button type="button" onClick={expandAllItems} disabled={!outlineData?.outline?.length}>全部展开</button><button type="button" onClick={collapseAllItems} disabled={!outlineData?.outline?.length}>全部折叠</button></div></header><div className="modern-outline-tree-body">{outlineData?.outline?.length ? outlineData.outline.map((item) => renderModernItem(item)) : generating ? <ActivityWaiting title="正在生成目录" description={statusMessage || "正在组织技术方案章节，生成后将在这里显示目录结构。"} progress={progress} /> : <div className="modern-outline-empty"><strong>尚未生成目录</strong><p>完成招标文件解析后，点击“生成目录”。</p></div>}</div></section>
+        <aside className="modern-outline-detail"><header><span>CHAPTER DETAIL</span><h3>目录项详情</h3><small>{selectedItem?.id || '未选择'}</small></header>{selectedItem ? <div className="modern-outline-detail-body">{generating && <p className="modern-outline-lock">目录生成中，暂不可编辑，以免覆盖后台结果。</p>}{editingItemId === selectedItem.id ? <><label>标题<input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} disabled={generating} /></label><label>描述<textarea value={editDescription} onChange={(event) => setEditDescription(event.target.value)} disabled={generating} /></label><div><button type="button" className="is-primary" onClick={saveEditing} disabled={generating}>保存</button><button type="button" onClick={() => setEditingItemId(null)}>取消</button></div></> : <><h4>{selectedItem.title}</h4><p>{selectedItem.description || '无描述'}</p>{selectedItem.source_requirement_title && <small>来源评分项：{selectedItem.source_requirement_title}</small>}<div><button type="button" className="is-primary" onClick={() => startEditing(selectedItem)} disabled={generating}>编辑</button><button type="button" onClick={() => addChildItem(selectedItem.id)} disabled={generating}>添加子目录</button><button type="button" className="is-danger" onClick={() => removeItem(selectedItem.id)} disabled={generating}>删除</button></div></>}</div> : <div className="modern-outline-empty"><strong>选择目录项</strong><p>选择左侧章节后，可以查看和编辑标题与描述。</p></div>}</aside>
+      </div>
+      {generationDialog}
+    </div>;
+  }
+
   return (
     <div className="plan-step-body outline-generation-page">
       <section className="outline-command-bar">
@@ -720,78 +821,7 @@ function OutlineEditPage({
         </aside>
       </section>
 
-      <Dialog.Root open={generationDialogOpen} onOpenChange={setGenerationDialogOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="outline-generation-config-card">
-            <Dialog.Title className="sr-only">{outlineData ? '重新生成目录' : '生成目录'}</Dialog.Title>
-            <Dialog.Description className="sr-only">选择本次目录生成方式和参考知识库。</Dialog.Description>
-
-            <section className="outline-generation-config-section">
-              <div className="outline-generation-config-head">
-                <strong>生成方式</strong>
-                <span>{noTechnicalScoreMode ? '无技术评分项' : outlineModeLabels[draftOutlineMode]}</span>
-              </div>
-              {!noTechnicalScoreMode ? <div className="outline-generation-mode-list" role="radiogroup" aria-label="目录生成方式">
-                <button
-                  type="button"
-                  className={`outline-generation-mode-card${draftOutlineMode === 'free' ? ' is-active' : ''}`}
-                  onClick={() => setDraftOutlineMode('free')}
-                  disabled={generating}
-                >
-                  <strong>自由生成</strong>
-                  <span>完全由 AI 分析并生成目录，标题贴近技术评分项语义，但不完全一致。</span>
-                </button>
-                <button
-                  type="button"
-                  className={`outline-generation-mode-card${draftOutlineMode === 'aligned' ? ' is-active' : ''}`}
-                  onClick={() => setDraftOutlineMode('aligned')}
-                  disabled={generating}
-                >
-                  <strong>按评分项对齐</strong>
-                  <span>一级目录完全和技术评分项要求一致，二三级目录由 AI 生成。</span>
-                </button>
-                <button
-                  type="button"
-                  className={`outline-generation-mode-card${draftOutlineMode === 'response-file' ? ' is-active' : ''}`}
-                  onClick={() => setDraftOutlineMode('response-file')}
-                  disabled={generating}
-                >
-                  <strong>按响应文件目录</strong>
-                  <span>优先按招标文件中的技术文件组成和编制要求组织一级目录，二三级目录由 AI 生成。</span>
-                </button>
-              </div> : null}
-              {noTechnicalScoreMode ? (
-                <label className="outline-generation-config-hint">
-                  <input type="checkbox" checked={noScoreConfirmed} onChange={(event) => setNoScoreConfirmed(event.target.checked)} disabled={generating} />
-                  已确认招标文件没有技术评分项，按技术要求和项目概述生成目录
-                </label>
-              ) : null}
-            </section>
-
-            <section className="outline-generation-config-section outline-knowledge-picker">
-              <div className="outline-generation-config-head">
-                <strong>参考知识库</strong>
-                <span>已选择 {draftKnowledgeDocumentIds.length} 个文档</span>
-              </div>
-              {renderKnowledgePicker()}
-            </section>
-
-            <div className="content-regenerate-actions">
-              <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
-              <button type="button" className="secondary-action" onClick={saveOutlineConfig} disabled={generating}>
-                保存配置
-              </button>
-              {draftOutlineMode === 'response-file' && !responseFileRequirements ? (
-                <span className="outline-generation-config-hint">未找到独立的响应文件要求，将退回使用技术评分要求。</span>
-              ) : null}
-              <button type="button" className="primary-action" onClick={generateOutline} disabled={generating || !projectOverview || !techRequirements || (noTechnicalScoreMode && !noScoreConfirmed)}>
-                开始生成
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      {generationDialog}
     </div>
   );
 }
