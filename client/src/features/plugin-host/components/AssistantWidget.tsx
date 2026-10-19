@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type Keybo
 import logoUrl from '../../../../assets/assistant-chat.png';
 import type { AssistantActionPresentation, AssistantActionResult, AssistantChatMessage, AssistantChatResult, AssistantHistoryResult, AssistantKnowledgeTargetConfirmationPresentation, AssistantKnowledgeUploadConfigurationPresentation, AssistantNavigationContext, AssistantOpportunityActionConfirmationPresentation, AssistantOpportunityBulkConfigurationPresentation, AssistantOpportunityDecisionConfigurationPresentation, AssistantOpportunityDecisionOutcome, AssistantOpportunityOption, AssistantOpportunitySelectionPresentation, AssistantOpportunitySelectionResult, AssistantOpportunityWorkflowStage, AssistantOutlineConfigurationPresentation, AssistantOutlineMode, AssistantProgressPresentation, AssistantProjectDeleteConfirmationPresentation, AssistantProjectDeleteResult, AssistantProjectOption, AssistantProjectSelectionPresentation, AssistantProjectSelectionResult, AssistantRejectionCheckConfigurationPresentation } from '../../../shared/types';
 import type { AppMenuGroup } from '../../../shared/types/navigation';
+import { shouldReduceMotion } from '../../../shared/motionPreference';
 
 const AssistantMarkdown = lazy(() => import('../../../shared/ui/MarkdownRenderer'));
 
@@ -48,7 +49,7 @@ function AssistantMessageContent({ message, selectingProjectId, selectingOpportu
   const [revealComplete, setRevealComplete] = useState(!message.reveal);
 
   useEffect(() => {
-    if (!message.reveal || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!message.reveal || shouldReduceMotion()) {
       setVisibleContent(message.content);
       setRevealComplete(true);
       return;
@@ -56,6 +57,12 @@ function AssistantMessageContent({ message, selectingProjectId, selectingOpportu
     let position = 0;
     const step = Math.max(1, Math.ceil(message.content.length / 90));
     const timer = window.setInterval(() => {
+      if (shouldReduceMotion()) {
+        setVisibleContent(message.content);
+        setRevealComplete(true);
+        window.clearInterval(timer);
+        return;
+      }
       position = Math.min(message.content.length, position + step);
       setVisibleContent(message.content.slice(0, position));
       if (position >= message.content.length) {

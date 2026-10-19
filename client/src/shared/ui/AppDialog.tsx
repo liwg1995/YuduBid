@@ -20,7 +20,7 @@ export interface AppDialogProps {
 
 /**
  * 统一的应用弹窗封装：遮罩 + 居中卡片 + kicker/标题/描述头部 + 操作区。
- * 视觉与既有 content-regenerate-* 系列保持一致，进出动画由 shared-dialog.css 统一提供。
+ * 视觉与既有 content-regenerate-* 系列保持一致，进出动画由 dialogMotion.css 统一提供。
  */
 export default function AppDialog({
   open,

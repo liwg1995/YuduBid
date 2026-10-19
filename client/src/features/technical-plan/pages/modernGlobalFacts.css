@@ -1,0 +1,59 @@
+.modern-facts-page { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; gap: 12px; }
+.modern-facts-overview { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex: 0 0 auto; border-bottom: 1px solid #344258; padding: 2px 2px 17px; }
+.modern-facts-overview > div:first-child > span, .modern-facts-index header span, .modern-facts-detail > header > div:first-child > span { color: #ac9ef4; font-size: 10px; font-weight: 800; }
+.modern-facts-overview h2 { margin: 6px 0 4px; color: #f0effb; font-size: 19px; }
+.modern-facts-overview p, .modern-facts-detail > header p { margin: 0; color: #95a7bd; font-size: 11px; }
+.modern-facts-overview-stats { display: flex; align-items: center; gap: 14px; }
+.modern-facts-overview-stats > span { display: flex; align-items: baseline; gap: 4px; color: #9eafc4; font-size: 10px; white-space: nowrap; }
+.modern-facts-overview-stats strong { color: #ddd8ff; font-size: 19px; font-variant-numeric: tabular-nums; }
+.modern-facts-overview-stats button { min-height: 36px; border: 1px solid #8c80de; border-radius: 6px; padding: 0 12px; color: #fff; background: #6b60b9; font-size: 11px; font-weight: 700; cursor: pointer; }
+.modern-facts-overview-stats button:disabled { opacity: .5; cursor: not-allowed; }
+.modern-facts-notices { flex: 0 0 auto; border: 1px solid #795d46; border-radius: 7px; padding: 8px 12px; color: #f1c39d; background: #392f2b; }
+.modern-facts-notices p { margin: 3px 0; font-size: 11px; line-height: 1.5; }
+.modern-facts-layout { display: grid; grid-template-columns: 224px minmax(0, 1fr); gap: 13px; min-height: 0; flex: 1; }
+.modern-facts-index, .modern-facts-detail { min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #39475c; border-radius: 8px; background: #1c293c; }
+.modern-facts-index { display: flex; flex-direction: column; }
+.modern-facts-index header { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; border-bottom: 1px solid #354359; padding: 14px 13px; }
+.modern-facts-index h3, .modern-facts-detail h3 { margin: 5px 0 0; color: #eceefa; font-size: 15px; }
+.modern-facts-index header small { color: #a5b4c8; font-size: 10px; white-space: nowrap; }
+.modern-facts-progress { display: flex; align-items: baseline; gap: 6px; min-height: 40px; border: 0; padding: 8px 13px; color: #9badc2; background: transparent; text-align: left; cursor: pointer; }
+.modern-facts-progress span { flex: 1; font-size: 10px; }
+.modern-facts-progress strong { color: #d6ccff; font-size: 15px; }
+.modern-facts-progress small { font-size: 10px; }
+.modern-facts-progress-detail { border-bottom: 1px solid #354359; padding: 0 13px 12px; }
+.modern-facts-progress-detail > div { height: 4px; overflow: hidden; border-radius: 2px; background: #35465d; }
+.modern-facts-progress-detail > div span { display: block; height: 100%; border-radius: inherit; background: #a294ed; transition: width .3s ease; }
+.modern-facts-progress-detail p { margin: 8px 0 0; color: #8fa2b8; font-size: 10px; line-height: 1.5; }
+.modern-facts-index nav { min-height: 0; flex: 1; overflow: auto; padding: 8px; }
+.modern-facts-index nav, .modern-facts-editor-layout, .modern-facts-preview .markdown-viewer { overscroll-behavior: contain; scrollbar-width: thin; }
+.modern-facts-index nav button { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 3px 8px; width: 100%; min-height: 51px; margin-bottom: 5px; border: 1px solid transparent; border-radius: 6px; padding: 8px; color: #d9e1ef; background: transparent; text-align: left; cursor: pointer; transition: border-color .16s ease, background-color .16s ease; }
+.modern-facts-index nav button:hover { border-color: #54637a; background: #29394d; }
+.modern-facts-index nav button.is-active { border-color: #786fb5; background: #333652; }
+.modern-facts-index nav button:focus-visible { outline: 2px solid #b6aaff; outline-offset: -2px; }
+.modern-facts-index nav button span { color: #9e93e2; font-size: 10px; }
+.modern-facts-index nav button strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.modern-facts-index nav button small { grid-column: 2; color: #91a3b8; font-size: 10px; }
+.modern-facts-index nav > p { color: #8fa2b8; font-size: 11px; line-height: 1.5; }
+.modern-facts-add { min-height: 39px; flex: 0 0 auto; margin: 9px; border: 1px dashed #7168b6; border-radius: 6px; color: #c7bbff; background: #262e48; font-size: 11px; cursor: pointer; }
+.modern-facts-add:disabled { opacity: .5; cursor: not-allowed; }
+.modern-facts-detail { display: flex; flex-direction: column; }
+.modern-facts-detail > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex: 0 0 auto; border-bottom: 1px solid #354359; padding: 15px 17px; }
+.modern-facts-detail > header > div:last-child { display: flex; gap: 6px; }
+.modern-facts-detail > header button { min-height: 33px; border: 1px solid #4b5b72; border-radius: 5px; padding: 0 9px; color: #dce4f2; background: #293a4f; font-size: 10px; cursor: pointer; }
+.modern-facts-detail > header button.is-primary { border-color: #9488e4; color: #fff; background: #6d62b9; }
+.modern-facts-detail > header button.is-danger { color: #ecaeb5; }
+.modern-facts-detail > header button:disabled { opacity: .45; cursor: not-allowed; }
+.modern-facts-editor-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .8fr); gap: 11px; min-height: 0; flex: 1; padding: 12px; }
+.modern-facts-editor { display: flex; min-width: 0; min-height: 0; flex-direction: column; gap: 10px; }
+.modern-facts-editor > label { display: flex; flex-direction: column; gap: 6px; color: #a5b4c9; font-size: 10px; }
+.modern-facts-editor > label input { min-height: 37px; border: 1px solid #45546d; border-radius: 6px; padding: 0 10px; color: #eef0fa; background: #25344a; }
+.modern-facts-editor > :last-child { min-height: 0; flex: 1; }
+.modern-facts-preview { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid #3c4b61; border-radius: 7px; background: #202d41; }
+.modern-facts-preview > div:first-child { display: flex; justify-content: space-between; border-bottom: 1px solid #3c4b61; padding: 10px 12px; color: #dde2f0; font-size: 11px; font-weight: 700; }
+.modern-facts-preview > div:first-child span { color: #a99df3; font-size: 10px; font-weight: 500; }
+.modern-facts-preview .markdown-viewer { min-height: 0; flex: 1; overflow: auto; padding: 14px; }
+.modern-facts-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; color: #e7ebf5; text-align: center; }
+.modern-facts-empty p { max-width: 260px; color: #8fa2b8; font-size: 11px; line-height: 1.6; }
+@media (max-width: 1110px) { .modern-facts-editor-layout { grid-template-columns: 1fr; overflow: auto; } .modern-facts-editor { min-height: 280px; } .modern-facts-preview { min-height: 240px; } }
+@media (max-width: 830px) { .modern-facts-layout { grid-template-columns: 1fr; overflow: auto; } .modern-facts-index { min-height: 200px; max-height: 270px; } .modern-facts-detail { min-height: 380px; } .modern-facts-overview, .modern-facts-detail > header { align-items: flex-start; flex-direction: column; } }
+@media (prefers-reduced-motion: reduce) { .modern-facts-index nav button, .modern-facts-progress-detail > div span { transition: none; } }

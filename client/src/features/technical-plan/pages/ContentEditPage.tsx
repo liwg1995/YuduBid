@@ -9,7 +9,9 @@ import type { ClientConfig, ImageModelStatus, OutlineData, OutlineItem } from '.
 import { countReadableWords } from '../../../shared/utils/wordCount';
 import type { BackgroundTaskState, ContentGenerationOptions, ContentGenerationSectionStatus, ContentGenerationSections, ContentImageStats, ContentTableRequirement, TechnicalPlanWorkflowKind } from '../types';
 import KnowledgeImagePicker from '../../knowledge-base/components/KnowledgeImagePicker';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import '../../knowledge-base/imageKnowledgeBase.css';
+import './modernContentEdit.css';
 
 const ContentWordPreview = lazy(() => import('../components/ContentWordPreview'));
 
@@ -53,6 +55,51 @@ const statusLabels: Record<TreeStatus, string> = {
   partial: '部分生成',
   planning: '编排中',
 };
+
+function ContentWritingWaiting({ phase, progress }: { phase: 'planning' | 'running' | 'queued'; progress: number }) {
+  const visibleProgress = Math.max(0, Math.min(100, Math.round(progress)));
+  const title = phase === 'planning' ? '正在编排正文结构' : phase === 'running' ? '正在生成此小节' : '等待生成此小节';
+  const description = phase === 'planning'
+    ? '正在确定各章节的写作安排。'
+    : phase === 'running'
+      ? '正在撰写本节内容，完成后会自动显示。'
+      : '任务正在处理其他小节，轮到本节后会自动开始。';
+  return (
+    <div className={`modern-content-writing-wait is-${phase}`} role="status" aria-live="polite">
+      {phase === 'running' ? (
+        <div className="modern-content-writing-live" aria-hidden="true">
+          <div className="modern-content-writing-live-head"><i /><span>正在撰写</span><small>AI</small></div>
+          <div className="modern-content-writing-live-lines"><span /><span /><span /><span /></div>
+          <div className="modern-content-writing-live-foot"><i /><i /><i /></div>
+        </div>
+      ) : phase === 'planning' ? (
+        <div className="modern-content-planning" aria-hidden="true">
+          <div className="modern-content-planning-head"><span className="modern-content-planning-beacon" />章节脉络</div>
+          <div className="modern-content-planning-branches">
+            <div className="modern-content-planning-branch"><span>01</span><i /><b /><em /></div>
+            <div className="modern-content-planning-branch"><span>02</span><i /><b /><em /></div>
+            <div className="modern-content-planning-branch"><span>03</span><i /><b /><em /></div>
+          </div>
+          <div className="modern-content-planning-foot"><span /><span /><span /></div>
+        </div>
+      ) : (
+        <div className="modern-content-writing-sheet" aria-hidden="true">
+          <span className="modern-content-writing-sheet-heading" />
+          <span className="modern-content-writing-sheet-line" />
+          <span className="modern-content-writing-sheet-line" />
+          <span className="modern-content-writing-sheet-line" />
+          <span className="modern-content-writing-caret" />
+        </div>
+      )}
+      <strong>{title}</strong>
+      <p>{description}</p>
+      <div className="modern-content-writing-wait-progress">
+        <span>任务总体进度</span><b>{visibleProgress}%</b>
+        <div role="progressbar" aria-label="正文任务总体进度" aria-valuenow={visibleProgress} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${visibleProgress}%` }} /></div>
+      </div>
+    </div>
+  );
+}
 
 const imageModelStatusLabels: Record<ImageModelStatus, string> = {
   untested: '未测试',
@@ -505,6 +552,7 @@ function ContentEditPage({
                     ? `已生成 ${completedCount} 个小节，共 ${totalWords} 字。`
                     : '点击生成正文后，目录会实时显示每个小节状态。';
   const selectedStatus = selectedItem ? outlineMeta.get(selectedItem.id)?.status || 'idle' : 'idle';
+  const selectedWaitingInQueue = taskInFlight && selectedIsLeaf && selectedStatus === 'idle' && !selectedContent.trim();
   const generationButtonLabel = pausing
     ? '正在暂停中...'
     : running
@@ -938,176 +986,8 @@ function ContentEditPage({
     );
   });
 
-  if (!outlineData?.outline?.length) {
-    return (
-      <div className="plan-step-body content-generation-page">
-        <section className="markdown-empty-state content-generation-empty">
-          <strong>暂无目录</strong>
-          <p>请先在目录生成步骤完成技术方案目录，再进入正文生成。</p>
-        </section>
-      </div>
-    );
-  }
-
-  return (
-    <div className="plan-step-body content-generation-page">
-      <section className="content-generation-command-bar">
-        <div>
-          <span className="section-kicker">STEP 06</span>
-          <strong>正文生成</strong>
-          <p>按目录叶子小节并发生成技术方案正文，页面切换不会中断后台任务。</p>
-        </div>
-        <div className="content-generation-stats" aria-label="正文生成统计">
-          <span><strong>{leaves.length}</strong> 个小节</span>
-          <span><strong>{completedCount}</strong> 已生成</span>
-          <span><strong>{totalWords}</strong> 字</span>
-        </div>
-        <div className="content-generation-actions">
-          <button
-            type="button"
-            className="outline-config-action"
-            onClick={openGenerationDialog}
-            disabled={taskInFlight || !leaves.length}
-            aria-label="打开正文生成配置"
-            title="正文生成配置"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
-              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.05.05a2 2 0 0 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.08a1.7 1.7 0 0 0-1.04-1.56 1.7 1.7 0 0 0-1.87.34l-.05.05a2 2 0 0 1-2.83-2.83l.05-.05A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.08A1.7 1.7 0 0 0 4.6 8.93a1.7 1.7 0 0 0-.34-1.87l-.05-.05a2 2 0 0 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.87.34A1.7 1.7 0 0 0 10 3.01V3a2 2 0 0 1 4 0v.08a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.05-.05a2 2 0 0 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.87 1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
-            </svg>
-          </button>
-          <button type="button" className="primary-action" onClick={() => void handleGenerationButtonClick()} disabled={pausing || !leaves.length}>
-            {generationButtonLabel}
-          </button>
-        </div>
-      </section>
-
-      {developerMode && imageStats && taskInFlight && (
-        <aside className="content-dev-stats-panel" aria-label="开发者生成统计">
-          <strong>配图统计</strong>
-          <span>AI 生图 计划 {aiImageStats.planned} / 尝试 {aiImageStats.attempted} / 成功 {aiImageStats.success} / 失败 {aiImageStats.failed} / 跳过 {aiImageStats.skipped}</span>
-          <span>技术图谱 计划 {technicalDiagramStats.planned} / 尝试 {technicalDiagramStats.attempted} / 成功 {technicalDiagramStats.success} / 失败 {technicalDiagramStats.failed} / 跳过 {technicalDiagramStats.skipped}</span>
-          <span>Mermaid 计划 {mermaidImageStats.planned} / 尝试 {mermaidImageStats.attempted} / 成功 {mermaidImageStats.success} / 失败 {mermaidImageStats.failed}</span>
-          <span>HTML 图 计划 {htmlImageStats.planned} / 尝试 {htmlImageStats.attempted} / 成功 {htmlImageStats.success} / 失败 {htmlImageStats.failed}</span>
-        </aside>
-      )}
-
-      <section className="content-generation-workspace">
-        <aside className="content-outline-panel">
-          <div className="analysis-result-head">
-            <strong>标书目录</strong>
-            <span>{leaves.length} 个小节</span>
-          </div>
-          <div className={`content-outline-stats${statsCollapsed ? ' is-collapsed' : ''}`}>
-            <button type="button" onClick={() => setStatsCollapsed((prev) => !prev)} aria-expanded={!statsCollapsed}>
-              <span>{displayProgressLabel}</span>
-              <strong>{displayProgressCount}</strong>
-              <em>{statsCollapsed ? '展开' : '折叠'}</em>
-            </button>
-            {!statsCollapsed && (
-              <div className="content-outline-stats-body">
-                <div className={progressTrackClass} aria-label={`${progressPhaseLabel}进度 ${displayProgress}%`}>
-                  <span style={{ width: `${displayProgress}%` }} />
-                </div>
-                <p>{progressDescription}</p>
-                {failedCount > 0 && <small>失败 {failedCount} 个小节</small>}
-              </div>
-            )}
-          </div>
-          <div className="content-outline-list">
-            {renderTree(outlineData.outline)}
-          </div>
-        </aside>
-
-        <article className={`content-reader-panel${isExpansionWorkflow && originalPlanMarkdown.trim() ? ' has-original-reference' : ''}`}>
-          <div className="content-reader-head">
-            <div>
-              <span className="section-kicker">正文内容</span>
-              <strong title={selectedItem?.id}>{selectedItem ? displayOutlineTitle(selectedItem) : '选择小节'}</strong>
-              <p>{selectedItem?.description || '选择左侧目录项查看生成正文。'}</p>
-            </div>
-            <div className="content-reader-actions">
-              <span className={`content-status-badge is-${selectedStatus}`}>{statusLabels[selectedStatus]}</span>
-              {!editing && selectedItem && selectedIsLeaf && selectedContent.trim() && (
-                <button type="button" className="secondary-action" onClick={() => setWordPreview({ sectionId: selectedItem.id, title: selectedItem.title, content: selectedContent, projectName: outlineData?.project_name || '技术方案' })}>Word 预览</button>
-              )}
-              {editing ? (
-                <>
-                  <button type="button" className={isPreviewing ? 'secondary-action' : 'primary-action'} onClick={togglePreview}>
-                    {isPreviewing ? '编辑' : '预览'}
-                  </button>
-                  <button type="button" className="primary-action" onClick={saveEditingContent}>保存</button>
-                  <button type="button" className="secondary-action" onClick={cancelEditingContent}>取消</button>
-                </>
-              ) : (
-                <button type="button" className="secondary-action" onClick={startEditingContent} disabled={!selectedItem || !selectedIsLeaf || taskInFlight}>编辑</button>
-              )}
-            </div>
-          </div>
-
-          {isExpansionWorkflow && originalPlanMarkdown.trim() && !(editing && !isPreviewing) && (
-            <section className="content-original-reference" aria-label="原方案参考">
-              <div className="content-original-reference-head">
-                <span className="section-kicker">原方案参考</span>
-                <strong>已有方案原文</strong>
-              </div>
-              <div className="markdown-viewer content-original-reference-body">
-                <MarkdownRenderer>
-                  {originalPlanMarkdown}
-                </MarkdownRenderer>
-              </div>
-            </section>
-          )}
-
-          {selectedItem && selectedIsLeaf && editing && !isPreviewing ? (
-            <div className={`content-editing-layout${isExpansionWorkflow && originalPlanMarkdown.trim() ? ' has-original-reference' : ''}`}>
-              <MarkdownEditor
-                value={draftContent}
-                onChange={setDraftContent}
-                placeholder="输入 Markdown 正文..."
-                onRequestImage={(insert) => { imageInsertRef.current = insert; setImagePickerOpen(true); }}
-              />
-              {isExpansionWorkflow && originalPlanMarkdown.trim() && (
-                <section className="content-original-reference" aria-label="原方案参考">
-                  <div className="content-original-reference-head">
-                    <span className="section-kicker">原方案参考</span>
-                    <strong>已有方案原文</strong>
-                  </div>
-                  <div className="markdown-viewer content-original-reference-body">
-                    <MarkdownRenderer>
-                      {originalPlanMarkdown}
-                    </MarkdownRenderer>
-                  </div>
-                </section>
-              )}
-            </div>
-          ) : selectedItem && selectedIsLeaf && editing && isPreviewing ? (
-            <div className="markdown-viewer content-generation-output">
-              {draftContent.trim() ? (
-                <MarkdownContent content={draftContent} onPreviewImage={handlePreviewImage} />
-              ) : (
-                <p className="content-editor-empty">暂无预览内容</p>
-              )}
-            </div>
-          ) : selectedItem && selectedIsLeaf && selectedContent.trim() ? (
-            <div className="markdown-viewer content-generation-output">
-              <MarkdownContent content={selectedContent} onPreviewImage={handlePreviewImage} />
-            </div>
-          ) : selectedItem && selectedIsLeaf ? (
-            <div className="markdown-empty-state content-generation-empty">
-              <strong>{getLeafStatus(selectedItem, sections) === 'error' ? sections[selectedItem.id]?.error || '正文生成失败' : '正文待生成'}</strong>
-              <p>{taskInFlight ? '如果该小节正在生成，模型返回内容后会实时显示在这里。' : paused ? '任务已暂停，可先导出当前内容或点击继续。' : '点击生成正文后，后台会按目录小节生成内容。'}</p>
-            </div>
-          ) : (
-            <div className="markdown-empty-state content-generation-empty">
-              <strong>当前是目录分组</strong>
-              <p>该目录下包含 {selectedItem?.children ? collectLeafItems(selectedItem.children).length : 0} 个小节，请选择叶子小节查看具体正文。</p>
-            </div>
-          )}
-          <KnowledgeImagePicker open={imagePickerOpen} onOpenChange={setImagePickerOpen} onSelect={(image) => { imageInsertRef.current?.(`![${image.name}](${image.asset_url})`); setImagePickerOpen(false); }} />
-        </article>
-      </section>
-
+  const dialogs = (
+    <>
       <Dialog.Root
         open={generationDialogOpen}
         onOpenChange={setGenerationDialogOpen}
@@ -1294,9 +1174,6 @@ function ContentEditPage({
                   <Switch.Thumb className="content-generation-switch-thumb" />
                 </Switch.Root>
               </label>
-              {draftGenerationOptions.useMermaidImages && (
-                <p className="content-generation-config-note">Mermaid 图的预览与 Word 导出转换均在本地完成，不调用第三方图片转换服务。</p>
-              )}
             </div>
             <div className="content-regenerate-actions">
               <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
@@ -1390,6 +1267,281 @@ function ContentEditPage({
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+    </>
+  );
+
+  const renderModernTree = (items: OutlineItem[], level = 0): ReactNode => items.map((item) => {
+    const meta = outlineMeta.get(item.id);
+    const status = meta?.status || 'idle';
+    const isLeaf = !item.children?.length;
+    return (
+      <div className="modern-content-tree-node" key={item.id} style={{ '--content-level': level } as CSSProperties}>
+        <button
+          type="button"
+          className={`modern-content-tree-item is-${status}${selectedItemId === item.id ? ' is-active' : ''}`}
+          onClick={() => selectItem(item.id)}
+          aria-current={selectedItemId === item.id ? 'true' : undefined}
+        >
+          <span className="modern-content-tree-index">{item.id}</span>
+          <span className="modern-content-tree-name" title={displayOutlineTitle(item)}>{item.title}</span>
+          <span className="modern-content-tree-indicator" title={statusLabels[status]} aria-label={statusLabels[status]} />
+        </button>
+        {item.children?.length ? renderModernTree(item.children, level + 1) : null}
+      </div>
+    );
+  });
+
+  if (getStoredUiAppearance() === 'modern') {
+    return (
+      <div className="plan-step-body modern-content-page">
+        <header className="modern-content-top">
+          <div>
+            <span className="modern-content-eyebrow">DOCUMENT STUDIO / 06</span>
+            <h2>正文工作台</h2>
+            <p>按目录生成内容，逐节检查并完善技术方案。</p>
+          </div>
+          <div className="modern-content-top-actions">
+            <button type="button" className="modern-content-quiet" onClick={openGenerationDialog} disabled={taskInFlight || !leaves.length}>生成配置</button>
+            <button type="button" className="modern-content-primary" onClick={() => void handleGenerationButtonClick()} disabled={pausing || !leaves.length}>{generationButtonLabel}</button>
+          </div>
+        </header>
+
+        {outlineData?.outline?.length ? (
+          <>
+            <section className="modern-content-overview" aria-label="正文生成概况">
+              <div><span>章节进度</span><strong>{completedCount}<small> / {leaves.length}</small></strong></div>
+              <div><span>当前字数</span><strong>{totalWords.toLocaleString('zh-CN')}</strong></div>
+              <div><span>生成状态</span><strong className={`is-${taskFailed ? 'error' : taskInFlight ? 'running' : paused ? 'partial' : 'idle'}`}>{taskFailed ? '任务失败' : taskInFlight ? '进行中' : paused ? '已暂停' : completedCount ? '可继续' : '待开始'}</strong></div>
+              <div className="modern-content-overview-progress"><span>{displayProgressLabel} · {displayProgressCount}</span><div role="progressbar" aria-valuenow={displayProgress} aria-valuemin={0} aria-valuemax={100} aria-label={`${progressPhaseLabel}进度`}><i style={{ width: `${displayProgress}%` }} /></div><small>{displayProgress}%</small></div>
+            </section>
+            <div className="modern-content-workspace">
+              <nav className="modern-content-navigator" aria-label="正文目录">
+                <div className="modern-content-panel-heading"><span>章节导航</span><strong>{leaves.length} 个小节</strong></div>
+                <div className="modern-content-tree">{renderModernTree(outlineData.outline)}</div>
+                <div className="modern-content-nav-foot"><strong>{progressPhaseLabel}</strong><p>{progressDescription}</p>{failedCount > 0 && <small>失败 {failedCount} 个小节</small>}</div>
+              </nav>
+
+              <main className="modern-content-editor">
+                <header className="modern-content-editor-heading">
+                  <div><span>{selectedItem?.id || '选择章节'}</span><h3>{selectedItem ? displayOutlineTitle(selectedItem) : '请选择一个小节'}</h3><p>{selectedItem?.description || '从左侧目录选择章节，查看正文内容与生成状态。'}</p></div>
+                  {selectedItem && <span className={`modern-content-status is-${selectedWaitingInQueue ? 'queued' : selectedStatus}`}>{selectedWaitingInQueue ? '排队中' : statusLabels[selectedStatus]}</span>}
+                </header>
+                <div className="modern-content-editor-body">
+                  {selectedItem && selectedIsLeaf && editing && !isPreviewing ? (
+                    <div className="modern-content-writing">
+                      <MarkdownEditor value={draftContent} onChange={setDraftContent} placeholder="输入 Markdown 正文..." onRequestImage={(insert) => { imageInsertRef.current = insert; setImagePickerOpen(true); }} />
+                      {isExpansionWorkflow && originalPlanMarkdown.trim() && <section className="modern-content-reference"><strong>原方案参考</strong><div className="markdown-viewer"><MarkdownRenderer>{originalPlanMarkdown}</MarkdownRenderer></div></section>}
+                    </div>
+                  ) : selectedItem && selectedIsLeaf && editing && isPreviewing ? (
+                    <div className="modern-content-reading"><div className="markdown-viewer modern-content-document">{draftContent.trim() ? <MarkdownContent content={draftContent} onPreviewImage={handlePreviewImage} /> : <p>暂无预览内容</p>}</div>{isExpansionWorkflow && originalPlanMarkdown.trim() && <section className="modern-content-reference"><strong>原方案参考</strong><div className="markdown-viewer"><MarkdownRenderer>{originalPlanMarkdown}</MarkdownRenderer></div></section>}</div>
+                  ) : selectedItem && selectedIsLeaf && selectedContent.trim() ? (
+                    <div className="modern-content-reading">
+                      <div className="markdown-viewer modern-content-document"><MarkdownContent content={selectedContent} onPreviewImage={handlePreviewImage} /></div>
+                      {isExpansionWorkflow && originalPlanMarkdown.trim() && <section className="modern-content-reference"><strong>原方案参考</strong><div className="markdown-viewer"><MarkdownRenderer>{originalPlanMarkdown}</MarkdownRenderer></div></section>}
+                    </div>
+                  ) : selectedItem && selectedIsLeaf && taskInFlight && (selectedStatus === 'running' || selectedStatus === 'planning' || selectedStatus === 'idle') ? (
+                    <ContentWritingWaiting phase={selectedStatus === 'planning' ? 'planning' : selectedStatus === 'running' ? 'running' : 'queued'} progress={displayProgress} />
+                  ) : <div className="modern-content-blank"><span aria-hidden="true">✦</span><strong>{selectedItem && !selectedIsLeaf ? '这里是章节分组' : selectedItem ? getLeafStatus(selectedItem, sections) === 'error' ? sections[selectedItem.id]?.error || '正文生成失败' : '正文待生成' : '从目录开始阅读'}</strong><p>{selectedItem && !selectedIsLeaf ? `此分组包含 ${selectedItem.children ? collectLeafItems(selectedItem.children).length : 0} 个小节，请选择具体小节。` : taskInFlight ? '生成完成后，内容会出现在这里。' : paused ? '任务已暂停，可以继续生成或查看已有内容。' : '选择左侧小节，开始生成或编辑正文。'}</p></div>}
+                </div>
+                <KnowledgeImagePicker open={imagePickerOpen} onOpenChange={setImagePickerOpen} onSelect={(image) => { imageInsertRef.current?.(`![${image.name}](${image.asset_url})`); setImagePickerOpen(false); }} />
+              </main>
+
+              <aside className="modern-content-inspector">
+                <div className="modern-content-panel-heading"><span>当前小节</span><strong>{selectedItem?.id || '—'}</strong></div>
+                <div className="modern-content-inspector-body">
+                  <span className="modern-content-eyebrow">SECTION DETAIL</span>
+                  <h4>{selectedItem ? displayOutlineTitle(selectedItem) : '尚未选择'}</h4>
+                  <p>{selectedItem?.description || '选择目录中的小节后，可在这里进行编辑、预览和单节重生成。'}</p>
+                  {selectedItem && selectedIsLeaf && <div className="modern-content-section-meta"><span>生成状态 <b className={`is-${selectedWaitingInQueue ? 'queued' : selectedStatus}`}>{selectedWaitingInQueue ? '排队中' : statusLabels[selectedStatus]}</b></span><span>正文长度 <b>{countReadableWords(editing ? draftContent : selectedContent)} 字</b></span></div>}
+                  {selectedItem && selectedIsLeaf && <div className="modern-content-section-actions">
+                    {editing ? <><button type="button" className="modern-content-primary" onClick={saveEditingContent}>保存修改</button><button type="button" onClick={togglePreview}>{isPreviewing ? '返回编辑' : '预览修改'}</button><button type="button" onClick={cancelEditingContent}>取消编辑</button></> : <>
+                      <button type="button" className="modern-content-primary" onClick={startEditingContent} disabled={taskInFlight}>编辑正文</button>
+                      {!!selectedContent.trim() && <button type="button" onClick={() => setWordPreview({ sectionId: selectedItem.id, title: selectedItem.title, content: selectedContent, projectName: outlineData.project_name || '技术方案' })}>Word 预览</button>}
+                      <button type="button" disabled={taskBlocksGeneration} onClick={() => { setRequirementItem(selectedItem); setRegenerateRequirement(''); }}>重新生成此小节</button>
+                    </>}
+                  </div>}
+                  {developerMode && imageStats && taskInFlight && <details className="modern-content-dev-stats"><summary>开发者配图统计</summary><p>AI 生图 {aiImageStats.success}/{aiImageStats.planned} · 技术图谱 {technicalDiagramStats.success}/{technicalDiagramStats.planned} · Mermaid {mermaidImageStats.success}/{mermaidImageStats.planned} · HTML 图 {htmlImageStats.success}/{htmlImageStats.planned}</p></details>}
+                </div>
+              </aside>
+            </div>
+          </>
+        ) : <section className="modern-content-blank modern-content-no-outline"><span aria-hidden="true">✦</span><strong>还没有可生成的目录</strong><p>请先完成目录生成，再返回正文工作台。</p></section>}
+        {dialogs}
+      </div>
+    );
+  }
+
+  if (!outlineData?.outline?.length) {
+    return (
+      <div className="plan-step-body content-generation-page">
+        <section className="markdown-empty-state content-generation-empty">
+          <strong>暂无目录</strong>
+          <p>请先在目录生成步骤完成技术方案目录，再进入正文生成。</p>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="plan-step-body content-generation-page">
+      <section className="content-generation-command-bar">
+        <div>
+          <span className="section-kicker">STEP 06</span>
+          <strong>正文生成</strong>
+          <p>按目录叶子小节并发生成技术方案正文，页面切换不会中断后台任务。</p>
+        </div>
+        <div className="content-generation-stats" aria-label="正文生成统计">
+          <span><strong>{leaves.length}</strong> 个小节</span>
+          <span><strong>{completedCount}</strong> 已生成</span>
+          <span><strong>{totalWords}</strong> 字</span>
+        </div>
+        <div className="content-generation-actions">
+          <button
+            type="button"
+            className="outline-config-action"
+            onClick={openGenerationDialog}
+            disabled={taskInFlight || !leaves.length}
+            aria-label="打开正文生成配置"
+            title="正文生成配置"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.05.05a2 2 0 0 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.08a1.7 1.7 0 0 0-1.04-1.56 1.7 1.7 0 0 0-1.87.34l-.05.05a2 2 0 0 1-2.83-2.83l.05-.05A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.08A1.7 1.7 0 0 0 4.6 8.93a1.7 1.7 0 0 0-.34-1.87l-.05-.05a2 2 0 0 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.87.34A1.7 1.7 0 0 0 10 3.01V3a2 2 0 0 1 4 0v.08a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.05-.05a2 2 0 0 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.87 1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
+            </svg>
+          </button>
+          <button type="button" className="primary-action" onClick={() => void handleGenerationButtonClick()} disabled={pausing || !leaves.length}>
+            {generationButtonLabel}
+          </button>
+        </div>
+      </section>
+
+      {developerMode && imageStats && taskInFlight && (
+        <aside className="content-dev-stats-panel" aria-label="开发者生成统计">
+          <strong>配图统计</strong>
+          <span>AI 生图 计划 {aiImageStats.planned} / 尝试 {aiImageStats.attempted} / 成功 {aiImageStats.success} / 失败 {aiImageStats.failed} / 跳过 {aiImageStats.skipped}</span>
+          <span>技术图谱 计划 {technicalDiagramStats.planned} / 尝试 {technicalDiagramStats.attempted} / 成功 {technicalDiagramStats.success} / 失败 {technicalDiagramStats.failed} / 跳过 {technicalDiagramStats.skipped}</span>
+          <span>Mermaid 计划 {mermaidImageStats.planned} / 尝试 {mermaidImageStats.attempted} / 成功 {mermaidImageStats.success} / 失败 {mermaidImageStats.failed}</span>
+          <span>HTML 图 计划 {htmlImageStats.planned} / 尝试 {htmlImageStats.attempted} / 成功 {htmlImageStats.success} / 失败 {htmlImageStats.failed}</span>
+        </aside>
+      )}
+
+      <section className="content-generation-workspace">
+        <aside className="content-outline-panel">
+          <div className="analysis-result-head">
+            <strong>标书目录</strong>
+            <span>{leaves.length} 个小节</span>
+          </div>
+          <div className={`content-outline-stats${statsCollapsed ? ' is-collapsed' : ''}`}>
+            <button type="button" onClick={() => setStatsCollapsed((prev) => !prev)} aria-expanded={!statsCollapsed}>
+              <span>{displayProgressLabel}</span>
+              <strong>{displayProgressCount}</strong>
+              <em>{statsCollapsed ? '展开' : '折叠'}</em>
+            </button>
+            {!statsCollapsed && (
+              <div className="content-outline-stats-body">
+                <div className={progressTrackClass} aria-label={`${progressPhaseLabel}进度 ${displayProgress}%`}>
+                  <span style={{ width: `${displayProgress}%` }} />
+                </div>
+                <p>{progressDescription}</p>
+                {failedCount > 0 && <small>失败 {failedCount} 个小节</small>}
+              </div>
+            )}
+          </div>
+          <div className="content-outline-list">
+            {renderTree(outlineData.outline)}
+          </div>
+        </aside>
+
+        <article className={`content-reader-panel${isExpansionWorkflow && originalPlanMarkdown.trim() ? ' has-original-reference' : ''}`}>
+          <div className="content-reader-head">
+            <div>
+              <span className="section-kicker">正文内容</span>
+              <strong title={selectedItem?.id}>{selectedItem ? displayOutlineTitle(selectedItem) : '选择小节'}</strong>
+              <p>{selectedItem?.description || '选择左侧目录项查看生成正文。'}</p>
+            </div>
+            <div className="content-reader-actions">
+              <span className={`content-status-badge is-${selectedStatus}`}>{statusLabels[selectedStatus]}</span>
+              {!editing && selectedItem && selectedIsLeaf && selectedContent.trim() && (
+                <button type="button" className="secondary-action" onClick={() => setWordPreview({ sectionId: selectedItem.id, title: selectedItem.title, content: selectedContent, projectName: outlineData?.project_name || '技术方案' })}>Word 预览</button>
+              )}
+              {editing ? (
+                <>
+                  <button type="button" className={isPreviewing ? 'secondary-action' : 'primary-action'} onClick={togglePreview}>
+                    {isPreviewing ? '编辑' : '预览'}
+                  </button>
+                  <button type="button" className="primary-action" onClick={saveEditingContent}>保存</button>
+                  <button type="button" className="secondary-action" onClick={cancelEditingContent}>取消</button>
+                </>
+              ) : (
+                <button type="button" className="secondary-action" onClick={startEditingContent} disabled={!selectedItem || !selectedIsLeaf || taskInFlight}>编辑</button>
+              )}
+            </div>
+          </div>
+
+          {isExpansionWorkflow && originalPlanMarkdown.trim() && !(editing && !isPreviewing) && (
+            <section className="content-original-reference" aria-label="原方案参考">
+              <div className="content-original-reference-head">
+                <span className="section-kicker">原方案参考</span>
+                <strong>已有方案原文</strong>
+              </div>
+              <div className="markdown-viewer content-original-reference-body">
+                <MarkdownRenderer>
+                  {originalPlanMarkdown}
+                </MarkdownRenderer>
+              </div>
+            </section>
+          )}
+
+          {selectedItem && selectedIsLeaf && editing && !isPreviewing ? (
+            <div className={`content-editing-layout${isExpansionWorkflow && originalPlanMarkdown.trim() ? ' has-original-reference' : ''}`}>
+              <MarkdownEditor
+                value={draftContent}
+                onChange={setDraftContent}
+                placeholder="输入 Markdown 正文..."
+                onRequestImage={(insert) => { imageInsertRef.current = insert; setImagePickerOpen(true); }}
+              />
+              {isExpansionWorkflow && originalPlanMarkdown.trim() && (
+                <section className="content-original-reference" aria-label="原方案参考">
+                  <div className="content-original-reference-head">
+                    <span className="section-kicker">原方案参考</span>
+                    <strong>已有方案原文</strong>
+                  </div>
+                  <div className="markdown-viewer content-original-reference-body">
+                    <MarkdownRenderer>
+                      {originalPlanMarkdown}
+                    </MarkdownRenderer>
+                  </div>
+                </section>
+              )}
+            </div>
+          ) : selectedItem && selectedIsLeaf && editing && isPreviewing ? (
+            <div className="markdown-viewer content-generation-output">
+              {draftContent.trim() ? (
+                <MarkdownContent content={draftContent} onPreviewImage={handlePreviewImage} />
+              ) : (
+                <p className="content-editor-empty">暂无预览内容</p>
+              )}
+            </div>
+          ) : selectedItem && selectedIsLeaf && selectedContent.trim() ? (
+            <div className="markdown-viewer content-generation-output">
+              <MarkdownContent content={selectedContent} onPreviewImage={handlePreviewImage} />
+            </div>
+          ) : selectedItem && selectedIsLeaf ? (
+            <div className="markdown-empty-state content-generation-empty">
+              <strong>{getLeafStatus(selectedItem, sections) === 'error' ? sections[selectedItem.id]?.error || '正文生成失败' : '正文待生成'}</strong>
+              <p>{taskInFlight ? '如果该小节正在生成，模型返回内容后会实时显示在这里。' : paused ? '任务已暂停，可先导出当前内容或点击继续。' : '点击生成正文后，后台会按目录小节生成内容。'}</p>
+            </div>
+          ) : (
+            <div className="markdown-empty-state content-generation-empty">
+              <strong>当前是目录分组</strong>
+              <p>该目录下包含 {selectedItem?.children ? collectLeafItems(selectedItem.children).length : 0} 个小节，请选择叶子小节查看具体正文。</p>
+            </div>
+          )}
+          <KnowledgeImagePicker open={imagePickerOpen} onOpenChange={setImagePickerOpen} onSelect={(image) => { imageInsertRef.current?.(`![${image.name}](${image.asset_url})`); setImagePickerOpen(false); }} />
+        </article>
+      </section>
+
+      {dialogs}
     </div>
   );
 }

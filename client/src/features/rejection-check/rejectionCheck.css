@@ -795,6 +795,28 @@
   background: rgba(14, 116, 144, 0.11);
 }
 
+/* 深色卡片上使用亮色文字，避免沿用浅色主题的深色标签字。 */
+:root[data-ui-theme="dark"] .rejection-finding-tag.is-logic {
+  color: #9ceaf2;
+  background: rgba(20, 145, 168, 0.23);
+  box-shadow: inset 0 0 0 1px rgba(112, 222, 236, 0.3);
+}
+
+:root[data-ui-theme="dark"] .rejection-finding-tag.is-invalidBid {
+  color: #ffb5a9;
+  background: rgba(200, 50, 32, 0.2);
+}
+
+:root[data-ui-theme="dark"] .rejection-finding-tag.is-rejectionItem {
+  color: #c4baff;
+  background: rgba(113, 103, 221, 0.23);
+}
+
+:root[data-ui-theme="dark"] .rejection-finding-tag.is-typo {
+  color: #ffd28a;
+  background: rgba(245, 158, 11, 0.2);
+}
+
 .rejection-finding-severity.is-high {
   color: #b42318;
   background: rgba(200, 50, 32, 0.1);

@@ -1,0 +1,114 @@
+.project-management-sidebar-slot { display:contents; }
+.project-management-before-input { display:contents; }
+.modern-pm-workspace { display:grid; grid-template-columns:148px minmax(0,1fr); align-items:start; gap:0; border:1px solid #33435a; border-radius:9px; padding:0; background:#152133; }
+.modern-pm-flow { display:flex; grid-column:1; grid-row:1 / span 2; min-width:0; min-height:0; height:100%; flex-direction:column; border-right:1px solid #33435a; background:#172335; }
+.modern-pm-flow-head { display:flex; flex-direction:column; gap:4px; border-bottom:1px solid #33435a; padding:10px; }
+.modern-pm-flow-head span { color:#a99bf0; font-size:9px; font-weight:800; letter-spacing:.1em; }
+.modern-pm-flow-head strong { color:#f0edfc; font-size:15px; }
+.modern-pm-flow-head small { color:#8c9eb8; font-size:10px; }
+.modern-pm-flow nav { display:flex; min-height:0; flex:1; flex-direction:column; gap:2px; overflow-y:auto; padding:6px; }
+.modern-pm-flow nav button { display:flex; align-items:center; gap:6px; min-height:38px; border:1px solid transparent; border-radius:6px; padding:0 8px; color:#a9b8ce; background:transparent; text-align:left; cursor:pointer; }
+.modern-pm-flow nav button:hover { background:#2a3951; }
+.modern-pm-flow nav button.is-active { border-color:#7269ae; color:#f1edff; background:#343955; }
+.modern-pm-flow nav button span { color:#a99bf0; font-size:9px; }
+.modern-pm-flow nav button strong { min-width:0; flex:1; overflow:hidden; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-pm-flow nav button small { color:#a99bf0; font-size:9px; }
+.modern-pm-flow-foot { display:flex; flex-direction:column; gap:7px; margin-top:auto; border-top:1px solid #33435a; padding:9px; }
+.modern-pm-flow-foot p, .modern-pm-flow-foot small { margin:0; color:#8d9fb7; font-size:10px; line-height:1.5; }
+.modern-pm-flow-foot button { min-height:33px; border:1px solid #786fc1; border-radius:5px; color:#d8d0ff; background:#383b60; font-size:10px; cursor:pointer; }
+.modern-pm-flow-foot button:disabled { opacity:.45; cursor:not-allowed; }
+.modern-pm-workspace > .project-management-layout { display:contents; }
+.modern-pm-workspace .project-management-detail { grid-column:2; grid-row:2; min-width:0; padding:12px; background:#1b293c; }
+.modern-pm-workspace .project-management-detail-head { padding-bottom:10px; border-bottom-color:#34445b; }
+.modern-pm-workspace .project-management-module-reference { margin-top:8px; }
+.modern-pm-workspace .project-management-module-reference summary { color:#b9adfb; font-size:11px; }
+.modern-pm-workspace .project-management-module-reference summary span { color:#93a5bb; font-size:10px; }
+.modern-pm-workspace .project-management-section-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-top:9px; }
+.modern-pm-workspace .project-management-section-grid section { padding:10px; border-color:#35455e; border-radius:7px; background:#192638; }
+.modern-pm-workspace .project-management-section-grid h4 { margin-bottom:7px; color:#e6eafa; font-size:11px; }
+.modern-pm-workspace .project-management-section-grid div { gap:5px; }
+.modern-pm-workspace .project-management-section-grid span { padding:4px 6px; border-radius:5px; color:#aebed4; background:#223249; font-size:10px; font-weight:500; }
+.modern-pm-workspace .modern-pm-context { grid-column:2; grid-row:1; min-width:0; border-bottom:1px solid #33435a; background:#19283b; }
+.modern-pm-context summary { display:flex; align-items:center; gap:10px; min-height:38px; padding:7px 12px; color:#d3c8ff; cursor:pointer; list-style:none; }
+.modern-pm-context summary::-webkit-details-marker { display:none; }
+.modern-pm-context summary::before { content:'›'; color:#a99bf0; font-size:18px; line-height:1; transition:transform .16s ease; }
+.modern-pm-context[open] summary::before { transform:rotate(90deg); }
+.modern-pm-context summary span { font-size:11px; font-weight:800; }
+.modern-pm-context summary strong { min-width:0; overflow:hidden; color:#ebedfb; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-pm-context summary small { margin-left:auto; color:#b7c9df; font-size:10px; white-space:nowrap; }
+.modern-pm-context-action { flex:0 0 auto; border:1px solid #675e9c; border-radius:5px; padding:4px 9px; color:#d7caff; background:#333b59; font-size:10px; font-style:normal; font-weight:700; }
+.modern-pm-context[open] .modern-pm-context-action { color:#9eb0ca; background:#26354b; font-size:0; }
+.modern-pm-context[open] .modern-pm-context-action::after { content:'收起详情'; font-size:10px; }
+.modern-pm-context summary:hover { background:#26374d; }
+.modern-pm-draft-status { border:1px solid #8b6a55; border-radius:6px; padding:7px 9px; color:#f0c39d; background:#3a302e; font-size:10px; white-space:nowrap; }
+.modern-pm-context summary:focus-visible { outline:2px solid #b3a8ff; outline-offset:-3px; }
+.modern-pm-workspace .modern-pm-context .project-management-side { position:static; display:flex; flex-wrap:wrap; align-items:center; gap:7px 10px; border-top:1px solid #34455e; padding:10px 12px; }
+.modern-pm-context .project-management-side > :is(.section-kicker,h3,p) { grid-column:1/-1; margin:0; }
+.modern-pm-context .project-management-side > :is(.section-kicker,h3,p) { display:none; }
+.modern-pm-context .project-management-next-card, .modern-pm-context .project-management-roadmap { margin-top:0; }
+.modern-pm-context .project-management-next-card { display:flex; flex:0 1 auto; flex-wrap:wrap; align-content:center; align-items:center; gap:5px 8px; padding:6px 9px; }
+.modern-pm-context .project-management-next-card strong { font-size:12px; }
+.modern-pm-context .project-management-next-card p { display:none; }
+.modern-pm-context .project-management-next-card .secondary-action { justify-self:start; width:auto; min-height:32px; margin-top:4px; padding:5px 11px; border-color:#596b88; border-radius:6px; color:#c9d8f2; background:#293950; font-size:11px; }
+.modern-pm-context .project-management-roadmap { display:flex; min-width:0; flex:1; flex-wrap:wrap; align-content:center; gap:6px; }
+.modern-pm-context .project-management-roadmap span { padding:5px 8px; border-color:#35465d; border-radius:5px; color:#aebed1; background:#203047; font-size:10px; font-weight:500; }
+.modern-pm-context .project-management-next-card .secondary-action:hover { border-color:#a99bf0; color:#f0eaff; background:#354461; }
+.modern-pm-context .project-management-clear { flex:0 0 auto; width:auto; min-height:28px; margin:0 0 0 auto; border:0; padding:3px 8px; color:#98a9bf; background:transparent; font-size:10px; }
+.modern-pm-context .project-management-clear:hover:not(:disabled) { color:#ffbac1; background:#382b39; }
+.modern-pm-workspace .project-management-mvp { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; align-items:start; margin-top:10px; }
+.modern-pm-workspace .project-management-before-input { display:block; grid-column:1/-1; grid-row:1; }
+.modern-pm-workspace .project-management-before-input .project-management-form-panel { margin:0; }
+.modern-pm-workspace .project-management-mvp > .project-management-form-panel { grid-column:1; grid-row:2; }
+.modern-pm-workspace .project-management-mvp > .project-management-result-panel { grid-column:2; grid-row:2; }
+.modern-pm-workspace .project-management-mvp > .project-management-task { grid-column:1/-1; grid-row:3; margin:0; }
+.modern-pm-workspace .project-management-mvp > :is(.project-management-form-panel,.project-management-result-panel) { display:flex; min-width:0; min-height:530px; max-height:min(720px,78vh); flex-direction:column; overflow:hidden; padding:12px; }
+.modern-pm-workspace .project-management-mvp > :is(.project-management-form-panel,.project-management-result-panel) .project-management-panel-head { flex:0 0 auto; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+.modern-pm-workspace .project-management-mvp > :is(.project-management-form-panel,.project-management-result-panel) .project-management-panel-head h4 { font-size:13px; }
+.modern-pm-workspace .project-management-input-grid { min-height:0; flex:1; grid-template-columns:minmax(0,1fr); align-content:start; overflow-y:auto; overscroll-behavior:contain; padding:1px 5px 4px 1px; scrollbar-width:thin; }
+.modern-pm-workspace .project-management-input-grid textarea { min-height:90px; }
+.modern-pm-workspace .project-management-result-panel > :is(.markdown-editor,.project-management-preview) { min-height:0; height:100%; flex:1; overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+.modern-pm-workspace .project-management-result-panel .markdown-editor { min-height:0; }
+@container (max-width:1120px) { .modern-pm-workspace .project-management-mvp { grid-template-columns:minmax(0,1fr); } .modern-pm-workspace .project-management-mvp > :is(.project-management-form-panel,.project-management-result-panel) { grid-column:1; min-height:0; max-height:none; } .modern-pm-workspace .project-management-mvp > .project-management-form-panel { grid-row:2; } .modern-pm-workspace .project-management-mvp > .project-management-task { grid-row:3; } .modern-pm-workspace .project-management-mvp > .project-management-result-panel { grid-row:4; min-height:500px; } .modern-pm-workspace .project-management-input-grid { overflow:visible; grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container (max-width:680px) { .modern-pm-workspace .project-management-input-grid { grid-template-columns:minmax(0,1fr); } .modern-pm-workspace .project-management-section-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container (max-width:760px) { .modern-pm-workspace { grid-template-columns:minmax(0,1fr); } .modern-pm-flow { grid-column:1; grid-row:1; min-height:0; height:auto; border-right:0; border-bottom:1px solid #33435a; } .modern-pm-flow-head { display:none; } .modern-pm-flow nav { flex-direction:row; overflow-x:auto; overflow-y:hidden; } .modern-pm-flow nav button { flex:0 0 auto; } .modern-pm-flow-foot { flex-direction:row; align-items:center; } .modern-pm-workspace .modern-pm-context { grid-column:1; grid-row:2; } .modern-pm-workspace .project-management-detail { grid-column:1; grid-row:3; } }
+@container (max-width:560px) { .modern-pm-context summary { flex-wrap:wrap; } .modern-pm-context summary small { margin-left:0; } .modern-pm-context-action { margin-left:auto; } .modern-pm-context .project-management-next-card, .modern-pm-context .project-management-roadmap { flex-basis:100%; } }
+.modern-pm-list { display:flex; min-height:0; height:100%; flex-direction:column; gap:14px; color:#e9edf8; }
+.modern-pm-list-head { display:flex; flex:0 0 auto; align-items:flex-end; justify-content:space-between; gap:18px; border-bottom:1px solid #34435a; padding:3px 2px 18px; }
+.modern-pm-list-head span, .modern-pm-list-overview span { color:#a99bf0; font-size:10px; font-weight:800; letter-spacing:.1em; }
+.modern-pm-list-head h1 { margin:7px 0 4px; color:#f4f1ff; font-size:25px; }
+.modern-pm-list-head p { margin:0; color:#93a5bb; font-size:11px; }
+.modern-pm-list-head button, .modern-pm-list-empty button { min-height:38px; border:1px solid #998be4; border-radius:6px; padding:0 14px; color:#fff; background:#7063bf; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
+.modern-pm-list-overview { display:flex; align-items:center; justify-content:space-between; gap:18px; flex:0 0 auto; border:1px solid #3b4962; border-radius:8px; padding:13px 17px; background:#1b293c; }
+.modern-pm-list-overview > div { display:flex; align-items:baseline; gap:9px; }
+.modern-pm-list-overview strong { color:#f0ecff; font-size:25px; }
+.modern-pm-list-overview label { display:flex; align-items:center; gap:10px; width:min(420px,60%); }
+.modern-pm-list-overview input { min-width:0; flex:1; min-height:34px; border:1px solid #45556d; border-radius:6px; padding:0 10px; color:#ecedfa; background:#25354a; font-size:11px; }
+.modern-pm-list-toolbar { display:flex; align-items:center; gap:12px; flex:0 0 auto; color:#91a3ba; font-size:11px; }
+.modern-pm-list-toolbar label { display:flex; align-items:center; gap:7px; color:#cdd5e5; }
+.modern-pm-list-toolbar > span { margin-right:auto; }
+.modern-pm-list-toolbar button { border:1px solid #6c4d60; border-radius:5px; padding:6px 10px; color:#eeacb6; background:#3a2939; font-size:10px; cursor:pointer; }
+.modern-pm-list-toolbar button:disabled { opacity:.45; cursor:not-allowed; }
+.modern-pm-project-list { min-height:0; flex:1; overflow:auto; padding:1px 2px 14px; }
+.modern-pm-project-list article { display:flex; align-items:center; gap:15px; min-height:94px; margin-bottom:9px; border:1px solid #38475e; border-radius:8px; padding:13px 15px; background:#1b293c; transition:border-color .18s ease, transform .18s ease; }
+.modern-pm-project-list article:hover, .modern-pm-project-list article.is-active { border-color:#8176bf; }
+.modern-pm-project-list article:hover { transform:translateY(-1px); }
+.modern-pm-project-main { min-width:0; flex:1; }
+.modern-pm-project-main > div { display:flex; align-items:center; gap:8px; }
+.modern-pm-project-main > div span { border:1px solid #595b89; border-radius:4px; padding:3px 6px; color:#bcb0f4; font-size:9px; }
+.modern-pm-project-main strong { overflow:hidden; color:#f0eefb; font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-pm-project-main p { margin:6px 0 3px; color:#bdc8d9; font-size:11px; }
+.modern-pm-project-main small { color:#889bb3; font-size:10px; }
+.modern-pm-project-progress { display:flex; width:96px; flex:0 0 96px; flex-direction:column; gap:3px; color:#91a4bd; font-size:10px; }
+.modern-pm-project-progress strong { color:#c8bbff; font-size:20px; }
+.modern-pm-project-progress strong small { color:#8292a9; font-size:11px; }
+.modern-pm-project-progress i { display:block; max-width:100%; height:3px; border-radius:3px; background:#a99bf0; }
+.modern-pm-project-actions { display:flex; gap:6px; }
+.modern-pm-project-actions button { min-height:30px; border:1px solid #5c5c90; border-radius:5px; padding:0 9px; color:#cec3ff; background:#333b59; font-size:10px; cursor:pointer; }
+.modern-pm-project-actions button.is-danger { border-color:transparent; color:#eeabb6; background:transparent; }
+.modern-pm-list-empty { display:flex; min-height:220px; flex-direction:column; align-items:center; justify-content:center; border:1px dashed #4b5871; border-radius:8px; background:#1b293c; }
+.modern-pm-list-empty strong { font-size:15px; }
+.modern-pm-list-empty p { color:#91a3bb; font-size:11px; }
+@container (max-width:760px) { .modern-pm-project-list article { flex-wrap:wrap; } .modern-pm-project-main { flex-basis:calc(100% - 40px); } .modern-pm-project-progress { margin-left:30px; } .modern-pm-project-actions { margin-left:auto; } }
+@container (max-width:560px) { .modern-pm-list { overflow:auto; } .modern-pm-list-head, .modern-pm-list-overview { align-items:flex-start; flex-direction:column; } .modern-pm-list-overview label { width:100%; } .modern-pm-project-list { overflow:visible; } }
+@media (prefers-reduced-motion:reduce) { .modern-pm-project-list article { transition:none; } .modern-pm-project-list article:hover { transform:none; } }
+@media (prefers-reduced-motion:reduce) { .modern-pm-context summary::before { transition:none; } }

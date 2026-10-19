@@ -3,6 +3,8 @@ import { useToast } from '../../../shared/ui/ToastProvider';
 import type { SectionId } from '../../../shared/types/navigation';
 import type { PresalesProjectList, PresalesProjectListItem, PresalesProjectProfile, PresalesProjectState } from '../types';
 import '../presalesWorkbench.css';
+import './modernPresalesProjects.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 
 const emptyProfile: PresalesProjectProfile = {
   projectName: '',
@@ -181,6 +183,12 @@ function PresalesProjectsPage({ onNavigate }: PresalesProjectsPageProps) {
       </article>
     );
   }
+
+  if (getStoredUiAppearance() === 'modern') return <div className="modern-presales-projects">
+    <header className="modern-presales-projects-head"><div><span>PRESALES / PROJECTS</span><h1>售前项目</h1><p>选择项目，整理客户背景并进入售前工作台。</p></div><button type="button" onClick={() => void createProject()} disabled={isSaving}>＋ 新建售前项目</button></header>
+    <div className="modern-presales-projects-layout"><section className="modern-presales-project-list"><div className="modern-presales-project-list-head"><strong>项目列表 <span>{filteredProjects.length}</span></strong><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索项目、客户、行业" /></div><div className="modern-presales-project-list-body">{isLoading ? <p>正在加载项目…</p> : filteredProjects.length ? filteredProjects.map((project) => <article key={project.id} className={project.id === selectedProject?.projectId ? 'is-active' : ''}><button type="button" onClick={() => void selectProject(project.id)}><span>{project.currentStage || '阶段待填写'}</span><strong>{project.name || '未命名售前项目'}</strong><small>{project.customerName || '客户待填写'} · {project.industry || '行业待填写'}</small><small>{project.materialCount} 份材料 · {project.generatedCount}/5 输出</small></button><div><button type="button" onClick={() => void enterWorkbench(project.id)}>进入工作台 →</button><button type="button" className={deleteCandidateId === project.id ? 'is-danger' : ''} onClick={() => void deleteProject(project.id)} disabled={isSaving}>{deleteCandidateId === project.id ? '确认删除' : '删除'}</button></div></article>) : <div className="modern-presales-empty"><strong>没有匹配项目</strong><p>清空搜索词，或创建售前项目。</p></div>}</div></section>
+    <main className="modern-presales-project-editor"><div className="modern-presales-editor-head"><span>PROJECT / PROFILE</span><strong>{selectedProject?.profile.projectName || '选择一个项目'}</strong>{selectedProject && <small>{selectedProject.materials.length} 份材料 · 更新于 {formatDateTime(selectedProject.updated_at)}</small>}</div>{selectedProject ? <><div className="modern-presales-editor-fields">{([{ key:'projectName', label:'项目名称', placeholder:'项目名称' }, { key:'customerName', label:'客户名称', placeholder:'客户单位或集团名称' }, { key:'industry', label:'行业领域', placeholder:'政企、制造、医疗等' }, { key:'currentStage', label:'当前阶段', placeholder:'线索识别 / 需求调研' }, { key:'opportunitySource', label:'机会来源', placeholder:'客户拜访、伙伴推荐等' }, { key:'owner', label:'负责人', placeholder:'售前负责人' }, { key:'expectedValue', label:'预估价值', placeholder:'预算或合作价值' }, { key:'decisionDate', label:'决策时间', placeholder:'' }] as const).map((field) => <label key={field.key}><span>{field.label}</span><input type={field.key === 'decisionDate' ? 'date' : 'text'} value={profileDraft[field.key]} onChange={(event) => setProfileDraft({ ...profileDraft, [field.key]: event.target.value })} placeholder={field.placeholder} /></label>)}<label className="is-wide"><span>背景摘要</span><textarea value={profileDraft.keyBackground} onChange={(event) => setProfileDraft({ ...profileDraft, keyBackground: event.target.value })} placeholder="记录客户背景、沟通结论和关键上下文" /></label></div><div className="modern-presales-editor-actions"><button type="button" onClick={() => void saveProject()} disabled={isSaving}>{isSaving ? '保存中…' : '保存修改'}</button><button type="button" onClick={() => void enterWorkbench(selectedProject.projectId)} disabled={isSaving}>进入售前工作台 →</button></div></> : <div className="modern-presales-empty"><strong>还没有选中项目</strong><p>从项目列表选择，或创建一个项目。</p></div>}</main></div>
+  </div>;
 
   return (
     <div className="presales-projects-page">

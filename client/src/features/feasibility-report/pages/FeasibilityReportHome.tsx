@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { BidExportTemplateRecord, BidWordExportMode, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
 import { FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useAppDialog } from '../../../shared/ui';
+import DockedActionBar from '../../../shared/ui/DockedActionBar';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import {
   FEASIBILITY_STEPS,
@@ -19,6 +20,10 @@ import ContentPanel from '../components/ContentPanel';
 import BidWordExportDialog from '../../export-format/components/BidWordExportDialog';
 import { isTaskRunning } from '../components/TaskProgressCard';
 import '../feasibilityReport.css';
+import './modernFeasibilityReport.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { projectNameInitials } from '../../../shared/utils/projectNameInitials';
+import { registerNavigationBlocker } from '../../../shared/navigationBlocker';
 
 const emptyProjectList: FeasibilityProjectList = { projects: [] };
 
@@ -90,6 +95,18 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
   const [exportChoiceOpen, setExportChoiceOpen] = useState(false);
   const [includePreparationNotes, setIncludePreparationNotes] = useState(true);
   const [includeAppendixTables, setIncludeAppendixTables] = useState(true);
+  const [materialsDirty, setMaterialsDirty] = useState(false);
+
+  const confirmUnsavedMaterials = useCallback(() => confirm({
+    title: '项目资料尚未保存',
+    description: '继续后，这次填写的项目资料修改会丢失。',
+    confirmLabel: '放弃修改并继续',
+  }), [confirm]);
+
+  useEffect(() => {
+    if (getStoredUiAppearance() !== 'modern' || !materialsDirty) return undefined;
+    return registerNavigationBlocker((destination) => destination === 'feasibility-report' ? Promise.resolve(true) : confirmUnsavedMaterials());
+  }, [materialsDirty, confirmUnsavedMaterials]);
 
   useEffect(() => {
     let disposed = false;
@@ -125,6 +142,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
       if (step === 'parameters' && !reportState.outlineData) { showToast('请先生成报告目录', 'info'); return; }
       if (step === 'content' && !reportState.keyParametersMarkdown.trim()) { showToast('请先生成并确认关键参数', 'info'); return; }
     }
+    if (getStoredUiAppearance() === 'modern' && materialsDirty && !await confirmUnsavedMaterials()) return;
     const previousStep = activeStep;
     setActiveStep(step);
     setSavingStep(true);
@@ -336,16 +354,18 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
   }];
 
   return (
-    <div className="page-stack technical-workbench feasibility-workbench">
-      <section className="technical-project-context feasibility-project-context">
+    <div className={getStoredUiAppearance() === 'modern' ? 'modern-feasibility-workbench' : 'page-stack technical-workbench feasibility-workbench'}>
+      <section className={getStoredUiAppearance() === 'modern' ? 'modern-feasibility-context' : 'technical-project-context feasibility-project-context'}>
         <div>
           <span className="section-kicker">当前项目</span>
           <strong>{reportState?.projectName || project.name}</strong>
         </div>
-        <button type="button" className="secondary-action" onClick={onBack}>返回项目列表</button>
+        <button type="button" className="secondary-action" onClick={() => { void (async () => { if (getStoredUiAppearance() === 'modern' && materialsDirty && !await confirmUnsavedMaterials()) return; onBack(); })(); }}>返回项目列表</button>
       </section>
 
-      <main className="plan-step-body feasibility-step-page">
+      {getStoredUiAppearance() === 'modern' && <aside className="modern-feasibility-steps"><div><span>REPORT / FLOW</span><strong>编制流程</strong><small>{activeIndex + 1} / {FEASIBILITY_STEPS.length}</small></div><nav aria-label="可研报告步骤">{FEASIBILITY_STEPS.map((step, index) => <button key={step.id} type="button" className={activeStep === step.id ? 'is-active' : ''} aria-current={activeStep === step.id ? 'step' : undefined} onClick={() => void changeStep(step.id)} disabled={workflowBusy}><span>{String(index + 1).padStart(2, '0')}</span><strong>{step.label}</strong><small>›</small></button>)}</nav><p>{loading ? '读取中' : savingStep ? '保存中' : '步骤已保存'}</p></aside>}
+
+      <main className={getStoredUiAppearance() === 'modern' ? 'modern-feasibility-stage' : 'plan-step-body feasibility-step-page'}>
         <header className="content-generation-command-bar feasibility-step-command-bar">
           <div>
             <span className="section-kicker">STEP {String(activeIndex + 1).padStart(2, '0')} · {activeDefinition.label}</span>
@@ -361,7 +381,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
 
         <div className="feasibility-step-content">
           {reportState && activeStep === 'materials' ? (
-            <ProjectMaterialsPanel projectId={project.id} state={reportState} onStateChange={setReportState} />
+            <ProjectMaterialsPanel projectId={project.id} state={reportState} onStateChange={setReportState} onDirtyChange={setMaterialsDirty} />
           ) : reportState && activeStep === 'sources' ? (
             <SourceFilesPanel projectId={project.id} state={reportState} onStateChange={setReportState} />
           ) : reportState && activeStep === 'analysis' ? (
@@ -379,6 +399,9 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
             </section>
           )}
         </div>
+        {getStoredUiAppearance() === 'modern' && (
+          <DockedActionBar label="可研报告步骤操作" leading={toolbarGroups[0].actions} trailing={toolbarGroups[1].actions} status={materialsDirty ? '项目资料未保存' : savingStep ? '保存步骤中' : '项目已同步'} />
+        )}
       </main>
       <BidWordExportDialog
         open={exportChoiceOpen}
@@ -449,7 +472,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <FloatingToolbar groups={toolbarGroups} label="可研报告步骤工具条" />
+      {getStoredUiAppearance() !== 'modern' && <FloatingToolbar groups={toolbarGroups} label="可研报告步骤工具条" />}
     </div>
   );
 }
@@ -566,7 +589,12 @@ function FeasibilityReportHome() {
   }
 
   return (
-    <div className="page-stack feasibility-report-page feasibility-project-page">
+    <div className={getStoredUiAppearance() === 'modern' ? 'modern-feasibility-projects' : 'page-stack feasibility-report-page feasibility-project-page'}>
+      {getStoredUiAppearance() === 'modern' ? <>
+        <header className="modern-feasibility-head"><div><span>FEASIBILITY / PROJECTS</span><h1>可研报告</h1><p>项目资料、分析、目录与正文都保存在独立工作区。</p></div><button type="button" onClick={() => setCreateDialogOpen(true)} disabled={busy}>＋ 新建可研项目</button></header>
+        <div className="modern-feasibility-overview"><div><span>本地项目</span><strong>{projectList.projects.length}</strong></div><label><span>查找项目</span><input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="搜索项目名称" /></label><small>当前显示 {filteredProjects.length} 个</small></div>
+        <section className="modern-feasibility-list" aria-label="可研项目列表">{loading ? <p>正在读取本地项目…</p> : filteredProjects.length ? filteredProjects.map((project) => <article key={project.id} className={project.isActive ? 'is-active' : ''}><div className="modern-feasibility-project-mark">{projectNameInitials(project.name)}</div><div className="modern-feasibility-project-body">{renamingProjectId === project.id ? <input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void renameProject(project); if (event.key === 'Escape') setRenamingProjectId(null); }} aria-label="编辑可研项目名称" /> : <strong>{project.name}</strong>}<span>当前步骤：{getStepLabel(project.step)}{project.contentTotal ? ` · 正文 ${project.contentCompleted || 0}/${project.contentTotal}` : ''}</span><small>更新于 {formatUpdatedAt(project.updated_at)}{project.isActive ? ' · 当前项目' : ''}</small></div><div className="modern-feasibility-project-actions">{renamingProjectId === project.id ? <><button type="button" onClick={() => setRenamingProjectId(null)} disabled={busy}>取消</button><button type="button" onClick={() => void renameProject(project)} disabled={busy}>保存名称</button></> : <button type="button" onClick={() => startRename(project)} disabled={busy}>重命名</button>}<button type="button" className="is-danger" onClick={() => setPendingDeleteProject(project)} disabled={busy}>删除</button><button type="button" className="is-primary" onClick={() => void enterProject(project)} disabled={busy}>进入工作区 →</button></div></article>) : <div className="modern-feasibility-empty"><strong>{searchText.trim() ? '没有匹配的可研项目' : '还没有可研项目'}</strong><p>创建项目后即可开始编制。</p><button type="button" onClick={() => setCreateDialogOpen(true)}>创建可研项目</button></div>}</section>
+      </> : <>
       <section className="feasibility-project-hero">
         <div>
           <span className="section-kicker">招投标</span>
@@ -619,6 +647,7 @@ function FeasibilityReportHome() {
         ))}
       </section>
 
+      </>}
       <Dialog.Root open={createDialogOpen} onOpenChange={(open) => { if (!busy) setCreateDialogOpen(open); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />

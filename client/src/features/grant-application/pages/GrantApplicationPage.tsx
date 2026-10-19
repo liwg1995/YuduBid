@@ -7,6 +7,8 @@ import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { GrantApplicationPanel, GrantApplicationPanelInput, GrantApplicationProfile, GrantApplicationProjectList, GrantApplicationTaskState, GrantFormFieldMapping, GrantProposalFinalReview, GrantProposalModuleKey, GrantProposalModuleQuality, GrantProposalTemplateMapping, GrantProposalVisualSettings, GrantTemplateFillReport } from '../types';
 import '../grantApplication.css';
+import './modernGrantApplication.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 
 export type GrantApplicationInitialPanel = GrantApplicationPanel;
 
@@ -1444,18 +1446,18 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   }
 
   return (
-    <div className="grant-application-page">
+    <div className={`grant-application-page${getStoredUiAppearance() === 'modern' ? ' modern-grant-application' : ''}`}>
       <section className="grant-application-header">
         <div>
           <div className="grant-application-title-row">
             <span className="section-kicker">课题申报</span>
-            <button type="button" className="grant-application-help-button" onClick={() => setHelpOpen(true)}>使用说明</button>
+            <button type="button" className="grant-application-help-button context-help-trigger" onClick={() => setHelpOpen(true)}>查看申报参考</button>
           </div>
           <h2>{copy.title}</h2>
           <p>{copy.description}</p>
         </div>
         <div className="grant-application-header-side">
-          <strong>{profileSummary}</strong>
+          <strong title={profileSummary}>{profileSummary}</strong>
           <span>课题申报全流程工作台</span>
           <div className="grant-application-project-row">
             <select value={projectList.activeProjectId} onChange={(event) => void switchProject(event.target.value)} disabled={projectBusy || task?.status === 'running'}>
@@ -1474,16 +1476,19 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         </div>
       </section>
 
-      <nav className="grant-application-tabs" aria-label="课题申报流程">
-        {panelOrder.map((panel) => (
+      <nav className={getStoredUiAppearance() === 'modern' ? 'modern-grant-journey' : 'grant-application-tabs'} aria-label="课题申报流程">
+        {panelOrder.map((panel, index) => (
           <button
             type="button"
             key={panel}
             className={panel === initialPanel ? 'is-active' : ''}
+            aria-current={panel === initialPanel ? 'step' : undefined}
             onClick={() => switchPanel(panel)}
           >
+            {getStoredUiAppearance() === 'modern' && <b>{String(index + 1).padStart(2, '0')}</b>}
             <strong>{panelCopy[panel].label}</strong>
             <span>{panelCopy[panel].steps[0]}</span>
+            {getStoredUiAppearance() === 'modern' && <em>›</em>}
           </button>
         ))}
       </nav>
@@ -1623,6 +1628,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                         type="button"
                         key={module.key}
                         className={`${module.key === selectedProposalModule ? 'is-active' : ''} ${isActiveAiModule ? 'is-running' : ''}`}
+                        aria-pressed={module.key === selectedProposalModule}
                         onClick={() => setSelectedProposalModule(module.key)}
                       >
                         <span>{isActiveAiModule ? runningLabel : skippedCheck ? '未生成跳过' : completed ? '已生成' : '待生成'} · {quality.status === 'unchecked' ? '未检' : quality.status === 'pass' ? '通过' : quality.status === 'warning' ? '需补充' : '高风险'}</span>
@@ -1726,8 +1732,8 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
               <div className="grant-application-output-controls">
                 <div className="grant-application-output-mode-row">
                   <div className="grant-application-mode-switch" aria-label="工作稿显示模式">
-                    <button type="button" className={outputMode === 'preview' ? 'is-active' : ''} onClick={() => setOutputMode('preview')}>预览</button>
-                    <button type="button" className={outputMode === 'edit' ? 'is-active' : ''} onClick={() => setOutputMode('edit')}>编辑</button>
+                    <button type="button" className={outputMode === 'preview' ? 'is-active' : ''} aria-pressed={outputMode === 'preview'} onClick={() => setOutputMode('preview')}>预览</button>
+                    <button type="button" className={outputMode === 'edit' ? 'is-active' : ''} aria-pressed={outputMode === 'edit'} onClick={() => setOutputMode('edit')}>编辑</button>
                   </div>
                 </div>
                 <div className="grant-application-panel-actions">
@@ -1952,7 +1958,6 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                   课题档案、输入材料和四个入口的工作稿都会从本机工作区删除，此操作不会影响其他模块。
                 </Dialog.Description>
               </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭清空确认">×</Dialog.Close>
             </div>
             <div className="grant-application-dialog-actions">
               <Dialog.Close className="secondary-action" type="button" disabled={clearing}>取消</Dialog.Close>
@@ -2004,7 +2009,6 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                   当前课题项目的档案、材料和工作稿都会被删除。至少会保留一个课题项目。
                 </Dialog.Description>
               </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭删除确认">×</Dialog.Close>
             </div>
             <div className="grant-application-dialog-actions">
               <Dialog.Close className="secondary-action" type="button" disabled={projectBusy}>取消</Dialog.Close>
@@ -2173,7 +2177,6 @@ function renderCreateProjectDialog({
               <Dialog.Title>新建课题项目</Dialog.Title>
               <Dialog.Description>创建独立工作区，并先填写课题档案。后续诊断、选题、撰写和评审都会引用这些信息。</Dialog.Description>
             </div>
-            <Dialog.Close className="detail-help-close" type="button" aria-label="关闭新建项目">×</Dialog.Close>
           </div>
           <div className="grant-application-create-profile-grid">
             <label>
@@ -2264,7 +2267,6 @@ function renderProfileEditDialog({
               <Dialog.Title>修改课题档案</Dialog.Title>
               <Dialog.Description>修改后会作为当前课题项目的基础信息，后续诊断、选题、撰写和评审都会引用。</Dialog.Description>
             </div>
-            <Dialog.Close className="detail-help-close" type="button" aria-label="关闭修改档案">×</Dialog.Close>
           </div>
           <div className="grant-application-create-profile-grid">
             <label>
@@ -2357,7 +2359,6 @@ function renderProjectDialog({
               <Dialog.Title>{title}</Dialog.Title>
               <Dialog.Description>{description}</Dialog.Description>
             </div>
-            <Dialog.Close className="detail-help-close" type="button" aria-label="关闭项目弹窗">×</Dialog.Close>
           </div>
           <label className="grant-application-dialog-field">
             <span>项目名称</span>

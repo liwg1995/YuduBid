@@ -16,7 +16,7 @@ const overviewStats: Array<{ label: string; value: string; detail: string; tone:
   { label: '流程覆盖', value: '全周期', detail: '解析、生成、检查、修订、沉淀、导出', tone: 'green', icon: 'check' },
 ];
 
-const featureCards: Array<{ title: string; text: string; action: string; section: SectionId; tone: string; icon: HomeIconName; tags: string[] }> = [
+export const featureCards: Array<{ title: string; text: string; action: string; section: SectionId; tone: string; icon: HomeIconName; tags: string[] }> = [
   {
     title: '售前工作台',
     text: '独立承载客户材料分析、调研准备、方案架构、图表工场和汇报材料规划，形成完整售前交付链路。',

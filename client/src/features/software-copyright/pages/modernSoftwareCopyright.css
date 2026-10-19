@@ -1,0 +1,46 @@
+.modern-shell .modern-software-copyright { gap: 9px; padding: 0 2px 14px; }
+.modern-shell .modern-software-copyright > .software-copyright-header { flex: 0 0 auto; border: 0; border-bottom: 1px solid #34435a; border-radius: 0; padding: 2px 2px 9px; background: transparent; box-shadow: none; }
+.modern-shell .modern-software-copyright > .software-copyright-header h2 { color: #f3f0ff; font-size: 20px; }
+.modern-software-copyright > .software-copyright-header p { color: #96a7bf; font-size: 11px; }
+.modern-software-navigation { display: grid; gap: 5px; flex: 0 0 auto; min-width: 0; border: 1px solid #38475f; border-radius: 8px; padding: 7px; background: #172335; }
+.modern-software-navigation-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px 2px; }
+.modern-software-navigation-head > div { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.modern-software-navigation-head span { flex: 0 0 auto; color: #a99bf0; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+.modern-software-navigation-head strong { overflow: hidden; color: #e8e9f5; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.modern-software-navigation-head > small { flex: 0 0 auto; color: #a7b6cc; font-size: 10px; }
+.modern-software-navigation-head > small.is-dirty { color:#f0c39d; }
+.modern-software-navigation nav { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 5px; min-width: 0; }
+.modern-software-navigation nav button { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 44px; border: 1px solid #34455f; border-radius: 6px; padding: 5px 7px; color: #afbdd2; background: #1c2a3d; text-align: left; cursor: pointer; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
+.modern-software-navigation nav button:hover:not(:disabled) { border-color: #8479ca; background: #293750; transform: translateY(-1px); }
+.modern-software-navigation nav button.is-active { border-color: #9587e5; color: #f3f0ff; background: #303653; box-shadow: inset 3px 0 #a99af4; }
+.modern-software-navigation nav button:disabled { opacity: .5; }
+.modern-software-navigation nav button b { flex: 0 0 auto; color: #ad9ff2; font-size: 10px; }
+.modern-software-navigation nav button span { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.modern-software-navigation nav button strong { overflow: hidden; color: #e8e9f5; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.modern-software-navigation nav button small { overflow: hidden; color: #92a3bb; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.modern-software-navigation nav button em { flex: 0 0 auto; color: #ad9ff2; font-size: 12px; font-style: normal; }
+.modern-software-copyright .software-copyright-layout { width: 100%; min-width: 0; }
+.modern-software-copyright .software-copyright-panel { min-width: 0; border-color: #36465e; border-radius: 8px; background: #1b293c; }
+.modern-software-copyright .software-copyright-stage-source { padding:16px; }
+.modern-software-copyright .software-copyright-stage-source .software-copyright-panel-head { align-items:center; min-width:0; margin-bottom:12px; }
+.modern-software-copyright .software-copyright-stage-source .software-copyright-panel-head > div { min-width:0; }
+.modern-software-copyright .software-copyright-source-path { display:block; max-width:min(45%,440px); overflow:hidden; border-color:#4a6487; padding:6px 10px; color:#bdd5ff; background:#263b58; font-size:11px; font-weight:600; line-height:1.4; text-overflow:ellipsis; white-space:nowrap; }
+.modern-software-copyright .software-copyright-stage-source .software-copyright-stats { gap:10px; }
+.modern-software-copyright .software-copyright-stage-source .software-copyright-stats article { padding:12px; }
+.modern-software-copyright .software-copyright-stage-source .software-copyright-stats strong { font-size:16px; }
+.modern-software-copyright .software-copyright-stage-source .software-copyright-stats article.is-text strong { font-size:13px; }
+.modern-software-copyright .software-copyright-draft-workspace { display: grid; grid-template-columns: 150px minmax(0,1fr); align-items: start; gap: 9px; }
+.modern-software-copyright .software-copyright-draft-tabs { display: flex; position: sticky; top: 10px; flex-direction: column; gap: 5px; max-height: 560px; overflow: auto; border: 1px solid #35455e; border-radius: 8px; padding: 8px; background: #172335; }
+.modern-software-copyright .software-copyright-draft-tabs button { min-height: 39px; border: 1px solid transparent; border-radius: 6px; padding: 7px 10px; color: #adbbd0; background: transparent; text-align: left; font-size: 11px; }
+.modern-software-copyright .software-copyright-draft-tabs button:hover { border-color: #706aa9; background: #2b3852; }
+.modern-software-copyright .software-copyright-draft-tabs button.is-active { border-color: #9587e5; color: #f1edff; background: #343958; box-shadow: inset 3px 0 #aa9df5; }
+.modern-software-copyright .software-copyright-draft-content { display: flex; min-width: 0; flex-direction: column; gap: 12px; }
+.modern-software-copyright .software-copyright-draft-meta { justify-content: space-between; color: #97a8bd; }
+.modern-software-copyright .software-copyright-draft-mode { border: 1px solid #35465f; border-radius: 7px; background: #172335; }
+.modern-software-copyright .software-copyright-draft-mode button { border-radius: 5px; color: #abbbd0; background: transparent; font-size: 11px; }
+.modern-software-copyright .software-copyright-draft-mode button.is-active { border-color: #9284df; color: #f1edff; background: #343958; box-shadow: none; }
+.modern-software-copyright .software-copyright-draft-preview { border-color: #35465f; border-radius: 8px; background: #182536; }
+@container modern-work-area (max-width:930px) { .modern-software-copyright .software-copyright-draft-workspace { grid-template-columns: minmax(0,1fr); } .modern-software-copyright .software-copyright-draft-tabs { position: static; flex-direction: row; max-height: none; overflow-x: auto; } .modern-software-copyright .software-copyright-draft-tabs button { flex: 0 0 auto; } }
+@container (max-width:1100px) { .modern-software-navigation nav { display: flex; overflow-x: auto; padding-bottom: 3px; } .modern-software-navigation nav button { flex: 0 0 174px; } }
+@container (max-width:620px) { .modern-software-copyright > .software-copyright-header { flex-direction: column; } .modern-software-navigation-head { align-items: flex-start; flex-direction: column; } .modern-software-navigation-head > div { align-items: flex-start; flex-direction: column; gap: 4px; } .modern-software-copyright .software-copyright-stage-source .software-copyright-panel-head { align-items:flex-start; } .modern-software-copyright .software-copyright-source-path { max-width:100%; } }
+@media (prefers-reduced-motion:reduce) { .modern-software-navigation nav button { transition: none; } .modern-software-navigation nav button:hover:not(:disabled) { transform: none; } }

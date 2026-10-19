@@ -4,7 +4,9 @@ import type { SectionId } from '../../../shared/types/navigation';
 import { MarkdownRenderer } from '../../../shared/ui';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { ProjectManagementProjectRecord, ProjectManagementState } from '../types';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import '../projectManagement.css';
+import './modernProjectHistory.css';
 
 interface ProjectHistoryPageProps {
   onNavigate: (section: SectionId) => void;
@@ -98,8 +100,47 @@ function ProjectHistoryPage({ onNavigate }: ProjectHistoryPageProps) {
     }
   }
 
+  const previewDialog = (
+      <Dialog.Root open={Boolean(preview)} onOpenChange={(open) => !open && setPreview(null)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="project-history-preview-card">
+            <div className="project-management-help-head">
+              <div>
+                <Dialog.Title>{preview?.stage.title || '阶段产出预览'}</Dialog.Title>
+                <Dialog.Description>查看该阶段已保存的生成结果。</Dialog.Description>
+              </div>
+              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭阶段产出预览">×</Dialog.Close>
+            </div>
+            <div className="project-history-preview-body">
+              {previewContent ? <MarkdownRenderer allowRawHtml={false}>{previewContent}</MarkdownRenderer> : <p>暂无可预览内容。</p>}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+  );
+
   if (loading) {
-    return <div className="project-history-page"><section className="project-history-empty">正在读取项目历史...</section></div>;
+    return getStoredUiAppearance() === 'modern'
+      ? <div className="modern-history-page"><div className="modern-history-empty">正在读取项目历史…</div></div>
+      : <div className="project-history-page"><section className="project-history-empty">正在读取项目历史...</section></div>;
+  }
+
+  if (getStoredUiAppearance() === 'modern') {
+    const activeProject = visibleProjects.find((project) => project.id === expandedProjectId) || visibleProjects[0];
+    return <div className="modern-history-page">
+      <header className="modern-history-header"><div><span>PROJECT ARCHIVE</span><h2>项目历史</h2><p>按项目查看已保存的阶段成果，随时返回工作台继续推进。</p></div><button type="button" onClick={() => onNavigate('project-management')}>进入项目管理</button></header>
+      {visibleProjects.length ? <div className="modern-history-workspace">
+        <aside className="modern-history-projects"><div className="modern-history-panel-head"><span>本地项目</span><strong>{visibleProjects.length}</strong></div><div className="modern-history-project-list">{visibleProjects.map((project) => <button type="button" key={project.id} className={`modern-history-project${activeProject?.id === project.id ? ' is-active' : ''}`} onClick={() => setExpandedProjectId(project.id)}><span>{project.isActive ? '当前项目' : '已保存项目'}</span><strong>{project.name}</strong><small>{project.clientName || '客户待确认'} · {project.projectType || '类型待确认'}</small><div><i><b style={{ width: `${Math.round((project.completedCount / stageMetas.length) * 100)}%` }} /></i><em>{project.completedCount}/{stageMetas.length}</em></div></button>)}</div><div className="modern-history-project-foot">项目数据保存在本地工作区</div></aside>
+        {activeProject && <main className="modern-history-detail">
+          <div className="modern-history-detail-heading"><div><span>{activeProject.isActive ? '当前项目' : '项目档案'}</span><h3>{activeProject.name}</h3><p>{activeProject.clientName || '客户待确认'} · {activeProject.projectType || '项目类型待确认'}</p></div><button type="button" onClick={() => void enterProject(activeProject.id)}>继续此项目 →</button></div>
+          <div className="modern-history-facts"><div><span>已完成阶段</span><strong>{activeProject.completedCount}<small> / {stageMetas.length}</small></strong></div><div><span>当前阶段</span><strong>{activeProject.currentStage || '待确认'}</strong></div><div><span>交付方</span><strong>{activeProject.vendorName || '待确认'}</strong></div><div><span>最近更新</span><strong>{formatTime(activeProject.updated_at)}</strong></div></div>
+          <div className="modern-history-stages-head"><div><span>STAGE OUTPUTS</span><h4>阶段产出</h4></div><small>选择已生成阶段可预览保存内容</small></div>
+          <div className="modern-history-stages">{stageMetas.map((stage, index) => { const content = String(activeProject.state[stage.resultKey] || '').trim(); const done = Boolean(content); return <article key={stage.id} className={done ? 'is-done' : ''}><div><span>{String(index + 1).padStart(2, '0')}</span><strong>{stage.label}</strong><small>{done ? '已生成' : '待生成'}</small></div><p>{done ? compactText(content, 95) : '此阶段尚无保存的成果。'}</p><button type="button" onClick={() => setPreview({ project: activeProject, stage })} disabled={!done}>{done ? '预览产出 →' : '暂无预览'}</button></article>; })}</div>
+        </main>}
+      </div> : <div className="modern-history-empty"><span>◇</span><strong>暂无项目历史</strong><p>进入项目管理创建项目并生成阶段产出，这里会自动汇总展示。</p><button type="button" onClick={() => onNavigate('project-management')}>去项目管理</button></div>}
+      {previewDialog}
+    </div>;
   }
 
   return (
@@ -168,23 +209,7 @@ function ProjectHistoryPage({ onNavigate }: ProjectHistoryPageProps) {
         </section>
       )}
 
-      <Dialog.Root open={Boolean(preview)} onOpenChange={(open) => !open && setPreview(null)}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="project-history-preview-card">
-            <div className="project-management-help-head">
-              <div>
-                <Dialog.Title>{preview?.stage.title || '阶段产出预览'}</Dialog.Title>
-                <Dialog.Description>查看该阶段已保存的生成结果。</Dialog.Description>
-              </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭阶段产出预览">×</Dialog.Close>
-            </div>
-            <div className="project-history-preview-body">
-              {previewContent ? <MarkdownRenderer allowRawHtml={false}>{previewContent}</MarkdownRenderer> : <p>暂无可预览内容。</p>}
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      {previewDialog}
     </div>
   );
 }

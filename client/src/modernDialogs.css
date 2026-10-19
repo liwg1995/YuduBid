@@ -1,0 +1,377 @@
+/* Radix 弹窗挂在 body 下，无法通过 .modern-shell 继承页面样式。
+   这里统一 Modern 弹窗的表面、层级和操作密度；文档纸张及全屏预览保留自身布局。 */
+:root[data-ui-appearance="modern"] body [role="dialog"]:not(:is(
+  .export-template-fullscreen-dialog,
+  .official-document-reminder-card,
+  .official-document-template-preview-card,
+  .official-document-agent-dialog,
+  .official-document-confirm-dialog,
+  .modern-opportunity-operations,
+  .content-word-dialog,
+  .image-preview-card,
+  .content-expand-preview-card,
+  .feasibility-full-preview,
+  .software-copyright-ai-preview-dialog,
+  .knowledge-source-viewer
+)) {
+  box-sizing: border-box;
+  border-color: #465673;
+  border-radius: 12px;
+  color: #e9edf8;
+  background: #172437;
+  box-shadow: 0 30px 86px #020817b8, inset 0 1px #ffffff0c;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .detail-help-modal,
+  .document-parse-notice-modal,
+  .app-action-dialog-overlay,
+  .content-regenerate-modal,
+  .content-generation-config-modal,
+  .export-progress-modal
+) {
+  background: #040a16bd;
+  backdrop-filter: blur(6px);
+}
+
+/* 说明、确认与轻量表单采用同一种信息层级。 */
+:root[data-ui-appearance="modern"] body :is(
+  .detail-help-card,
+  .document-parse-notice-card,
+  .app-dialog-card,
+  .app-action-dialog-card
+) {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .detail-help-head,
+  .document-parse-notice-head,
+  .app-dialog-card-head,
+  .app-action-dialog-head,
+  .presales-ppt-export-head
+) {
+  padding: 19px 22px 17px;
+  border-bottom: 1px solid #3d4b63;
+  background: linear-gradient(110deg, #263451, #1f2b42 82%);
+}
+
+/* 未拆成 head/body 的确认弹窗保留内边距，标题与说明以文本节奏区分。 */
+:root[data-ui-appearance="modern"] body :is(
+  .patent-agent-dialog,
+  .grant-agent-dialog,
+  .thesis-tutor-agent-dialog,
+  .software-copyright-agent-dialog,
+  .project-management-agent-dialog,
+  .presales-agent-confirm-dialog,
+  .patent-reset-confirm-card,
+  .software-copyright-screenshot-remove-card,
+  .template-delete-dialog,
+  .opportunity-confirm-dialog
+) {
+  gap: 12px;
+  padding: 21px 23px;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .patent-agent-dialog,
+  .grant-agent-dialog,
+  .thesis-tutor-agent-dialog,
+  .software-copyright-agent-dialog,
+  .project-management-agent-dialog,
+  .presales-agent-confirm-dialog,
+  .patent-reset-confirm-card,
+  .software-copyright-screenshot-remove-card,
+  .template-delete-dialog,
+  .opportunity-confirm-dialog
+) > h2 {
+  margin: 0;
+  color: #f4f1ff;
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .patent-agent-dialog,
+  .grant-agent-dialog,
+  .thesis-tutor-agent-dialog,
+  .software-copyright-agent-dialog,
+  .project-management-agent-dialog,
+  .presales-agent-confirm-dialog,
+  .patent-reset-confirm-card,
+  .software-copyright-screenshot-remove-card,
+  .template-delete-dialog,
+  .opportunity-confirm-dialog
+) > p {
+  margin: 0;
+  color: #b9c7db;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .patent-agent-actions,
+  .grant-agent-actions,
+  .thesis-tutor-agent-actions,
+  .software-copyright-agent-actions,
+  .project-management-agent-actions,
+  .presales-agent-confirm-dialog .presales-section-actions,
+  .template-delete-actions,
+  .opportunity-confirm-dialog > div:last-child,
+  .software-copyright-screenshot-remove-card > div:last-child
+) {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .detail-help-card,
+  .document-parse-notice-card,
+  .app-dialog-card,
+  .app-action-dialog-card
+) :is(h2, h3) {
+  margin: 0;
+  color: #f4f1ff;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .detail-help-body,
+  .document-parse-notice-body,
+  .app-dialog-card > :not(.app-dialog-card-head, .app-dialog-actions),
+  .app-action-dialog-field
+) {
+  min-width: 0;
+  padding: 17px 22px;
+  color: #bfcbdd;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .detail-help-actions,
+  .document-parse-notice-actions,
+  .app-dialog-actions,
+  .app-action-dialog-actions
+) {
+  gap: 8px;
+  padding: 12px 22px 16px;
+  border-top: 1px solid #36455c;
+  background: #19283b;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .detail-help-actions,
+  .document-parse-notice-actions,
+  .app-dialog-actions,
+  .app-action-dialog-actions
+) :is(button, .primary-action, .secondary-action, .danger-action) {
+  min-height: 34px;
+  border-radius: 7px;
+  padding: 7px 13px;
+  font-size: 11px;
+}
+
+/* 表单和配置弹窗：内容内部滚动，按钮始终靠近正在编辑的内容。 */
+:root[data-ui-appearance="modern"] body :is(
+  .patent-project-dialog,
+  .feasibility-create-dialog,
+  .technical-project-create-card,
+  .modern-project-create-dialog,
+  .project-management-project-dialog,
+  .software-copyright-project-editor,
+  .software-copyright-case-editor,
+  .grant-application-create-dialog,
+  .knowledge-source-dialog-card
+) {
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #536687 transparent;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .outline-generation-config-card,
+  .content-generation-config-card,
+  .rejection-check-config-card,
+  .presales-ppt-export-dialog
+) {
+  max-height: calc(100dvh - 36px);
+}
+
+:root[data-ui-appearance="modern"] body [role="dialog"]:not(:is(
+  .export-template-fullscreen-dialog,
+  .content-word-dialog,
+  .feasibility-full-preview,
+  .software-copyright-ai-preview-dialog,
+  .knowledge-source-viewer
+)) :is(input, select, textarea) {
+  border-color: #42536d;
+  border-radius: 7px;
+  color: #e9edf8;
+  background: #202e43;
+  box-shadow: none;
+  font-size: 12px;
+}
+
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(input, select, textarea):focus-visible {
+  outline: 2px solid #aa9cf4;
+  outline-offset: 1px;
+}
+
+/* 帮助和说明弹窗中的小块保持紧凑，避免左侧内容短时出现大片空白。 */
+:root[data-ui-appearance="modern"] body :is(
+  .thesis-tutor-help-card,
+  .patent-usage-help-card,
+  .patent-workflow-help-card,
+  .project-management-help-card,
+  .grant-application-help-card,
+  .knowledge-migration-card,
+  .local-model-help-card,
+  .agnes-notice-card
+) {
+  align-content: start;
+  gap: 12px;
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #536687 transparent;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .thesis-tutor-help-flow,
+  .thesis-tutor-help-modules,
+  .thesis-tutor-help-lock,
+  .knowledge-migration-lead,
+  .knowledge-migration-warning
+) {
+  border-color: #3c4d67;
+  border-radius: 8px;
+  color: #c5d0e1;
+  background: #202f44;
+}
+
+:root[data-ui-appearance="modern"] body .thesis-tutor-help-card :is(h2, h3, strong),
+:root[data-ui-appearance="modern"] body .knowledge-migration-card :is(h2, h3, strong) {
+  color: #f0edff;
+}
+
+:root[data-ui-appearance="modern"] body .thesis-tutor-help-card :is(p, li),
+:root[data-ui-appearance="modern"] body .knowledge-migration-card :is(p, li) {
+  color: #bdc9dc;
+}
+
+/* 生成配置和导出选择需要展示较多选项，用分区代替层层嵌套的大圆角卡。 */
+:root[data-ui-appearance="modern"] body :is(
+  .content-regenerate-card,
+  .content-generation-config-card,
+  .outline-generation-config-card,
+  .export-progress-card,
+  .bid-export-choice-card
+) {
+  gap: 13px;
+  padding: 20px 22px;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .content-regenerate-card,
+  .content-generation-config-card,
+  .outline-generation-config-card,
+  .export-progress-card,
+  .bid-export-choice-card
+) > .content-regenerate-card-head {
+  gap: 5px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #3a4961;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .content-regenerate-card,
+  .content-generation-config-card,
+  .outline-generation-config-card,
+  .export-progress-card,
+  .bid-export-choice-card
+) .content-regenerate-card-head h2 {
+  color: #f1edff;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .content-regenerate-card,
+  .content-generation-config-card,
+  .outline-generation-config-card,
+  .export-progress-card,
+  .bid-export-choice-card
+) .content-regenerate-card-head p {
+  color: #b3c0d4;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+:root[data-ui-appearance="modern"] body :is(
+  .content-regenerate-card,
+  .content-generation-config-card,
+  .outline-generation-config-card,
+  .export-progress-card,
+  .bid-export-choice-card
+) > .content-regenerate-actions {
+  gap: 8px;
+  padding-top: 13px;
+  border-top: 1px solid #3a4961;
+}
+
+:root[data-ui-appearance="modern"] body .bid-export-choice-list { gap: 7px; margin: 1px 0; }
+:root[data-ui-appearance="modern"] body .bid-export-choice {
+  align-items: center;
+  border-color: #42536d;
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: #202f44;
+}
+:root[data-ui-appearance="modern"] body .bid-export-choice:has(input:checked) {
+  border-color: #9b8cf6;
+  background: #303654;
+  box-shadow: inset 3px 0 #aa9cf4;
+}
+
+:root[data-ui-appearance="modern"] body .image-edit-dialog {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  border-radius: 12px;
+  padding: 20px 22px;
+  scrollbar-width: thin;
+}
+:root[data-ui-appearance="modern"] body .image-edit-dialog h2 {
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #3a4961;
+  color: #f1edff;
+  font-size: 18px;
+}
+:root[data-ui-appearance="modern"] body .image-edit-dialog img {
+  max-height: min(220px, 30dvh);
+  border: 1px solid #3a4961;
+  background: #111c2c;
+}
+:root[data-ui-appearance="modern"] body .image-edit-dialog .image-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px solid #3a4961;
+}
+
+@media (max-width: 680px) {
+  :root[data-ui-appearance="modern"] body [role="dialog"]:not(.export-template-fullscreen-dialog) {
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - 20px);
+  }
+}

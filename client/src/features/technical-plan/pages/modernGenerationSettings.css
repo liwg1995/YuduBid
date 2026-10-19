@@ -1,0 +1,100 @@
+.modern-generation-page { display: grid; grid-template-columns: 164px minmax(0, 1fr); width: 100%; height: 100%; min-height: 0; overflow: hidden; border: 1px solid #334257; border-radius: 9px; background: #192638; }
+.modern-generation-index { display: flex; min-height: 0; flex-direction: column; border-right: 1px solid #334257; padding: 13px 8px; background: #172233; }
+.modern-generation-index > div { padding: 0 9px 17px; border-bottom: 1px solid #344257; }
+.modern-generation-index > div span, .modern-generation-header > div > span { color: #a99df3; font-size: 10px; font-weight: 800; letter-spacing: .07em; }
+.modern-generation-index > div strong { display: block; margin-top: 7px; color: #edeefa; font-size: 14px; }
+.modern-generation-index > div p { margin: 5px 0 0; color: #8597af; font-size: 10px; line-height: 1.5; }
+.modern-generation-index nav { display: flex; min-height:0; flex:1; flex-direction: column; gap: 3px; margin-top: 9px; overflow-y:auto; }
+.modern-generation-index nav button { display: flex; align-items: center; gap: 10px; min-height: 40px; border: 1px solid transparent; border-radius: 6px; padding: 0 10px; color: #9dacc2; background: transparent; text-align: left; cursor: pointer; transition: color .16s ease, border-color .16s ease, background-color .16s ease; }
+.modern-generation-index nav button:hover { border-color: #4a5870; color: #eeeafb; background: #28364b; }
+.modern-generation-index nav button.is-active { border-color: #5b5e91; color: #f3f0ff; background: #313454; }
+.modern-generation-index nav button:focus-visible { outline: 2px solid #b6aaff; outline-offset: -2px; }
+.modern-generation-index nav button span { color: #7788a2; font-size: 10px; font-variant-numeric: tabular-nums; }
+.modern-generation-index nav button.is-active span { color: #b9adff; }
+.modern-generation-index nav button strong { font-size: 11px; font-weight: 650; }
+.modern-generation-index > small { margin: auto 9px 0; color: #74869e; font-size: 10px; line-height: 1.5; }
+.modern-generation-main { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.modern-generation-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex: 0 0 auto; border-bottom: 1px solid #344257; padding: 11px 16px; background: #1b293c; }
+.modern-generation-header h2 { margin: 6px 0 4px; color: #f0effb; font-size: 20px; }
+.modern-generation-header p { margin: 0; color: #90a1b8; font-size: 11px; }
+.modern-generation-change { flex: 0 0 auto; border: 1px solid #43566c; border-radius: 5px; padding: 5px 8px; color: #9dafc5; font-size: 10px; }
+.modern-generation-change.is-dirty { border-color: #916d51; color: #f2c49d; background: #3b2b28; }
+.modern-generation-alert { margin: 0; border-bottom: 1px solid #795d40; padding: 10px 22px; color: #f1c69d; background: #3c3029; font-size: 11px; }
+.modern-generation-alert button { margin-left: 9px; border: 0; color: #f7d2ac; background: transparent; text-decoration: underline; cursor: pointer; }
+.modern-generation-content { min-height: 0; flex: 1; overflow: auto; padding: 14px 16px; animation: modern-generation-in .18s ease-out both; }
+.modern-generation-index nav, .modern-generation-content { overscroll-behavior: contain; scrollbar-width: thin; }
+.modern-generation-stack { display: flex; max-width: 970px; flex-direction: column; gap: 12px; }
+.modern-generation-stack h3 { margin: 0; color: #e9eafa; font-size: 14px; }
+.modern-generation-stack p { color: #9cacbf; font-size: 11px; line-height: 1.6; }
+.modern-generation-scope { border: 1px solid #5d6090; border-radius: 8px; padding: 23px; background: linear-gradient(115deg, #2b3155, #202c44); }
+.modern-generation-scope span { color: #a99df3; font-size: 10px; font-weight: 700; }
+.modern-generation-scope strong { display: block; margin-top: 9px; color: #f1efff; font-size: 20px; }
+.modern-generation-scope p { margin: 5px 0 0; }
+.modern-generation-block { border: 1px solid #37465d; border-radius: 8px; padding: 17px 19px; background: #202e42; }
+.modern-generation-block > p { margin: 5px 0 15px; }
+.modern-generation-block > button, .modern-generation-template button { min-height: 36px; border: 1px solid #655fab; border-radius: 6px; padding: 0 11px; color: #dfd8ff; background: #343657; font-size: 11px; cursor: pointer; }
+.modern-generation-block > button:disabled, .modern-generation-template button:disabled { opacity: .48; cursor: not-allowed; }
+.modern-generation-unavailable { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; color: #8595ac; font-size: 11px; }
+.modern-generation-unavailable span { border: 1px dashed #415069; border-radius: 5px; padding: 7px 10px; }
+.modern-generation-unavailable small { color: #7788a0; }
+.modern-generation-summary { display: flex; gap: 12px; }
+.modern-generation-summary > div { display: flex; min-width: 126px; flex-direction: column; gap: 4px; border: 1px solid #3a4961; border-radius: 8px; padding: 12px 16px; background: #25334a; }
+.modern-generation-summary span { color: #9aaac0; font-size: 10px; }
+.modern-generation-summary strong { color: #eaeafa; font-size: 22px; }
+.modern-generation-search { display: flex; align-items: center; gap: 12px; color: #aebbd0; font-size: 11px; }
+.modern-generation-search input { min-width: 0; flex: 1; border: 1px solid #40516b; border-radius: 6px; padding: 9px 10px; color: #edf0fa; background: #233147; }
+.modern-generation-knowledge-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(210px, 1fr); gap: 12px; min-height: 0; }
+.modern-generation-library, .modern-generation-selected { min-width: 0; border: 1px solid #37465d; border-radius: 8px; padding: 14px; background: #202e42; }
+.modern-generation-library > h3 { margin-bottom: 13px; }
+.modern-generation-folder { margin-top: 7px; border: 1px solid #3b4a61; border-radius: 6px; overflow: hidden; }
+.modern-generation-folder header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 40px; padding: 6px 9px; background: #25344a; }
+.modern-generation-folder header button, .modern-generation-selected button { border: 0; color: #bcafff; background: transparent; font-size: 10px; cursor: pointer; }
+.modern-generation-folder header button:first-child { min-width: 0; flex: 1; overflow: hidden; color: #e2e8f5; font-size: 11px; font-weight: 700; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.modern-generation-folder header span { color: #879ab1; font-size: 10px; }
+.modern-generation-folder > div { padding: 4px; }
+.modern-generation-folder label { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 6px; color: #dce2f1; font-size: 11px; cursor: pointer; }
+.modern-generation-folder label:hover { background: #304057; }
+.modern-generation-folder label input { accent-color: #9b8cf6; }
+.modern-generation-folder label span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modern-generation-folder label small { color: #8294ac; white-space: nowrap; }
+.modern-generation-selected header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.modern-generation-selected > div { display: flex; align-items: center; gap: 8px; border-top: 1px solid #34445a; padding: 8px 0; }
+.modern-generation-selected > div span { min-width: 0; flex: 1; overflow: hidden; color: #d9e0f0; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.modern-generation-selected > p, .modern-generation-empty { margin: 0; border: 1px dashed #485670; border-radius: 7px; padding: 22px; color: #96a8be; font-size: 11px; text-align: center; }
+.modern-generation-length { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 12px; }
+.modern-generation-length > section, .modern-generation-length > aside { border: 1px solid #37465d; border-radius: 8px; padding: 17px; background: #202e42; }
+.modern-generation-length > section > span, .modern-generation-length > aside > span { color: #a99df3; font-size: 10px; font-weight: 800; }
+.modern-generation-length > section > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 16px 0 10px; }
+.modern-generation-length label { display: flex; min-width: 0; flex-direction: column; gap: 7px; color: #d8e0ef; font-size: 11px; }
+.modern-generation-length input, .modern-generation-field input[type='number'], .modern-generation-field select, .modern-generation-template select { min-width: 0; border: 1px solid #485870; border-radius: 6px; padding: 8px 10px; color: #edf0fa; background: #27374c; }
+.modern-generation-length > section > small, .modern-generation-length > aside > small { color: #8799b2; font-size: 10px; }
+.modern-generation-length > aside { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+.modern-generation-length > aside strong { margin: 8px 0; color: #c2b5ff; font-size: 33px; }
+.modern-generation-field { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 66px; border: 1px solid #39485e; border-radius: 7px; padding: 12px 15px; background: #202e42; }
+.modern-generation-field > div:first-child { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.modern-generation-field strong { color: #e9eaf6; font-size: 12px; }
+.modern-generation-field small { color: #94a5bc; font-size: 10px; line-height: 1.5; }
+.modern-generation-field > :is(input, select) { width: min(180px, 100%); }
+.modern-generation-field .yb-switch { position: relative; display: block; width: 46px; min-width: 46px; height: 26px; min-height: 26px; flex: 0 0 46px; border: 1px solid #64738b; border-radius: 999px; padding: 0; background: #354358; box-shadow: inset 0 1px 3px #0003; cursor: pointer; transition: border-color .18s ease, background-color .18s ease; }
+.modern-generation-field .yb-switch[data-state='checked'] { border-color: #aa9df6; background: #796bd1; }
+.modern-generation-field .yb-switch[data-disabled] { opacity: .55; cursor: not-allowed; }
+.modern-generation-field .yb-switch-thumb { display: block; width: 18px; height: 18px; border-radius: 50%; background: #f4f1ff; box-shadow: 0 1px 4px #07101d77; transform: translateX(3px); transition: transform .18s ease; }
+.modern-generation-field .yb-switch-thumb[data-state='checked'] { transform: translateX(23px); }
+.modern-generation-block > .modern-generation-field { margin-top: 12px; }
+.modern-generation-policy, .modern-generation-export-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 14px; }
+.modern-generation-policy button, .modern-generation-export-options label { display: flex; min-width: 0; min-height: 97px; flex-direction: column; align-items: flex-start; gap: 7px; border: 1px solid #46536a; border-radius: 7px; padding: 14px; color: #e6e9f6; background: #27364a; text-align: left; cursor: pointer; }
+.modern-generation-policy button.is-selected, .modern-generation-export-options label.is-selected { border-color: #9589e6; background: #34365b; box-shadow: inset 0 2px #a99df3; }
+.modern-generation-policy button span, .modern-generation-export-options label small { color: #9eacc2; font-size: 10px; line-height: 1.5; }
+.modern-generation-export-options label:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+.modern-generation-export-options label input { width: 15px; height: 15px; margin: 0 0 5px; accent-color: #a99df3; }
+.modern-generation-template { display: flex; gap: 9px; }
+.modern-generation-template select { min-width: 0; flex: 1; }
+.modern-generation-template button { flex: 0 0 auto; }
+.modern-generation-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex: 0 0 auto; border-top: 1px solid #37465d; padding: 11px 19px; color: #93a4bd; background: #1c2a3e; font-size: 11px; }
+.modern-generation-footer button { min-height: 37px; border: 1px solid #978ae6; border-radius: 6px; padding: 0 15px; color: #fff; background: #6e63bc; font-size: 11px; font-weight: 700; cursor: pointer; transition: background-color .16s ease, transform .16s ease; }
+.modern-generation-footer button:hover:not(:disabled) { background: #8276d9; transform: translateY(-1px); }
+.modern-generation-footer button:disabled { opacity: .5; cursor: not-allowed; }
+@keyframes modern-generation-in { from { opacity: .5; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 1120px) { .modern-generation-page { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .modern-generation-index { padding: 6px 11px; border-right: 0; border-bottom: 1px solid #334257; } .modern-generation-index > div, .modern-generation-index > small { display: none; } .modern-generation-index nav { flex-direction: row; gap: 3px; margin: 0; overflow-x: auto; } .modern-generation-index nav button { min-width: max-content; } }
+@media (max-width: 830px) { .modern-generation-knowledge-grid, .modern-generation-length { grid-template-columns: 1fr; } .modern-generation-policy, .modern-generation-export-options, .modern-generation-length > section > div { grid-template-columns: 1fr; } .modern-generation-field { align-items: stretch; flex-direction: column; } .modern-generation-template { flex-direction: column; } }
+@media (prefers-reduced-motion: reduce) { .modern-generation-content { animation: none; } .modern-generation-index nav button, .modern-generation-footer button, .modern-generation-field .yb-switch, .modern-generation-field .yb-switch-thumb { transition: none; } .modern-generation-footer button:hover:not(:disabled) { transform: none; } }

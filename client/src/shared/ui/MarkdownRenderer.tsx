@@ -63,6 +63,10 @@ function normalizeLegacyHtmlTables(markdown: string) {
   });
 }
 
+function stripIllustrationMarkers(markdown: string) {
+  return markdown.replace(/<!--\s*yibiao-illustration:(?:ai|mermaid|diagram|html)\s*-->[ \t]*(?:\r?\n)?/gi, '');
+}
+
 const defaultMarkdownComponents: Components = {
   a({ node: _node, href, children, ...props }) {
     const externalUrl = normalizeExternalUrl(href);
@@ -153,7 +157,8 @@ function mergeMarkdownComponents(components?: Components, enableMermaid = false)
 }
 
 function MarkdownRenderer({ children, components, allowRawHtml = false, enableGfm = true, enableMermaid = false }: MarkdownRendererProps) {
-  const normalizedChildren = allowRawHtml ? children : normalizeLegacyHtmlTables(children);
+  const visibleMarkdown = stripIllustrationMarkers(children);
+  const normalizedChildren = allowRawHtml ? visibleMarkdown : normalizeLegacyHtmlTables(visibleMarkdown);
 
   return (
     <ReactMarkdown

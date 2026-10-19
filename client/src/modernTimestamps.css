@@ -1,0 +1,47 @@
+/* 时间是辅助信息：在 Modern 页面中统一为紧凑、低强调的字号。 */
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-workspace .modern-update-time {
+  align-self: flex-end;
+  min-height: 28px;
+  border: 1px solid #3e4e67;
+  border-radius: 6px;
+  padding: 4px 9px;
+  color: #9fb0c6;
+  background: #1a283b;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+:root[data-ui-appearance='modern'] .modern-shell :is(
+  .modern-project-tile-content p,
+  .modern-feasibility-project-body small,
+  .modern-grant-project-body > span,
+  .modern-patent-project-body small,
+  .modern-pm-project-main small,
+  .modern-presales-editor-head small,
+  .modern-software-project-row dd,
+  .modern-history-project > small,
+  .modern-history-facts > div:last-child strong,
+  .modern-credential-company-list article small,
+  .modern-template-list-scroll article small
+) {
+  color: #98a9bd;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-ui-appearance='modern'] .modern-shell .modern-history-facts > div:last-child strong {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 620px) {
+  :root[data-ui-appearance='modern'] .modern-shell .modern-presales-workspace .modern-update-time {
+    align-self: flex-start;
+  }
+}

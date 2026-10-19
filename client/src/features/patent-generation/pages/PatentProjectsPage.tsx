@@ -4,6 +4,9 @@ import { useToast } from '../../../shared/ui/ToastProvider';
 import type { SectionId } from '../../../shared/types/navigation';
 import type { PatentApplicationType, PatentWorkspaceProject, PatentWorkspaceProjectList } from '../types';
 import '../patentGeneration.css';
+import './modernPatentProjects.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { projectNameInitials } from '../../../shared/utils/projectNameInitials';
 
 interface Props { onNavigate: (section: SectionId) => void }
 
@@ -104,7 +107,12 @@ function PatentProjectsPage({ onNavigate }: Props) {
   const activeCount = data.projects.filter((item) => !item.archived).length;
   const draftCount = data.projects.reduce((sum, item) => sum + item.draftCount, 0);
 
-  return <main className="patent-projects-page">
+  return <main className={getStoredUiAppearance() === 'modern' ? 'modern-patent-projects' : 'patent-projects-page'}>
+    {getStoredUiAppearance() === 'modern' ? <>
+      <header className="modern-patent-head"><div><span>PATENT / PROJECTS</span><h1>专利项目</h1><p>案件资料、候选专利点和交底书都按项目独立保存。</p></div><button type="button" onClick={() => { setName(''); setTopic(''); setApplicationType('invention'); setEditor({ mode: 'create' }); }}>＋ 创建专利项目</button></header>
+      <div className="modern-patent-overview"><div><span>进行中</span><strong>{activeCount}</strong></div><div><span>交底书草稿</span><strong>{draftCount}</strong></div><label><span>查找项目</span><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="项目、案件或技术主题" /></label><label className="modern-patent-archive"><input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />显示已归档</label></div>
+      <div className="modern-patent-list">{loading ? <p>正在读取专利项目…</p> : visible.length ? visible.map((project) => <article key={project.id} className={project.id === data.activeProjectId ? 'is-active' : ''}><div className="modern-patent-project-mark">{projectNameInitials(project.name)}</div><div className="modern-patent-project-body"><span>{typeLabel[project.applicationType]} · {stageLabel[project.stage]}{project.archived ? ' · 已归档' : ''}</span><strong>{project.name}</strong><p>{project.topic || project.selectedPatentTitle || '技术主题待填写'}</p><small>{project.candidateCount} 个候选专利点 · {project.draftCount} 份交底书 · 更新于 {new Date(project.updated_at).toLocaleString('zh-CN', { hour12: false })}</small></div><div className="modern-patent-project-actions">{!project.archived && <button type="button" className="is-primary" onClick={() => void enter(project)} disabled={busy === project.id}>进入项目 →</button>}<button type="button" onClick={() => { setName(project.name); setEditor({ mode: 'rename', project }); }}>重命名</button><button type="button" onClick={() => toggleArchive(project)}>{project.archived ? '恢复' : '归档'}</button><button type="button" className="is-danger" onClick={() => setDeleteTarget(project)}>删除</button></div></article>) : <div className="modern-patent-empty"><strong>{data.projects.length ? '没有符合条件的项目' : '从一个专利项目开始'}</strong><p>创建项目后即可进入专利挖掘。</p><button type="button" onClick={() => { setName(''); setTopic(''); setApplicationType('invention'); setEditor({ mode: 'create' }); }}>创建专利项目</button></div>}</div>
+    </> : <>
     <header className="patent-projects-header">
       <div><span>专利生成</span><h1>专利项目</h1><p>每个项目独立保存案件资料、候选专利点、交底书和修订版本。</p></div>
       <button className="patent-projects-primary create-action" onClick={() => { setName(''); setTopic(''); setApplicationType('invention'); setEditor({ mode: 'create' }); }}>创建专利项目</button>
@@ -131,6 +139,7 @@ function PatentProjectsPage({ onNavigate }: Props) {
       {!loading && visible.length === 0 && <div className="patent-projects-empty"><strong>{data.projects.length ? '没有符合条件的项目' : '从一个专利项目开始'}</strong><span>创建后，专利挖掘到交底书修订的全部资料都会归入该项目。</span><button className="create-action" onClick={() => { setName(''); setTopic(''); setApplicationType('invention'); setEditor({ mode: 'create' }); }}>创建专利项目</button></div>}
     </section>
 
+    </>}
     <Dialog.Root open={Boolean(editor)} onOpenChange={(open) => !open && setEditor(null)}><Dialog.Portal><Dialog.Overlay className="patent-project-dialog-overlay" /><Dialog.Content className="patent-project-dialog">
       <Dialog.Title>{editor?.mode === 'rename' ? '重命名项目' : '创建专利项目'}</Dialog.Title>
       <Dialog.Description>{editor?.mode === 'rename' ? '项目内的案件资料不会改变。' : '先建立项目，再进入专利挖掘及后续步骤。'}</Dialog.Description>

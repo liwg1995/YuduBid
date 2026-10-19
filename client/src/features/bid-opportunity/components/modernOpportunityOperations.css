@@ -1,0 +1,59 @@
+.modern-opportunity-operations { position:fixed; z-index:1001; top:50%; left:50%; display:flex; width:min(980px,calc(100vw - 32px)); max-height:calc(100vh - 32px); flex-direction:column; overflow:hidden; border:1px solid #465873; border-radius:11px; color:#e9edfa; background:#172438; box-shadow:0 28px 75px #03071299; transform:translate(-50%,-50%); }
+.modern-operations-head { display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:16px; border-bottom:1px solid #34445b; padding:15px 18px; background:#1b2a3e; }
+.modern-operations-head > div:first-child { min-width:0; }
+.modern-operations-head span, .modern-operations-dashboard header span, .modern-operations-task-head span { color:#ac9ff0; font-size:9px; font-weight:800; letter-spacing:.08em; }
+.modern-operations-head h2 { margin:3px 0 2px; color:#f2eeff; font-size:18px; }
+.modern-operations-head p { margin:0; color:#9bacc3; font-size:11px; }
+.modern-operations-head > div:last-child { display:flex; flex:0 0 auto; align-items:center; gap:8px; }
+.modern-operations-head button { min-height:32px; border:1px solid #5a6382; border-radius:5px; padding:0 10px; color:#d6ccff; background:#303951; font-size:10px; cursor:pointer; }
+.modern-operations-head button:last-child { min-width:32px; padding:0; font-size:19px; }
+.modern-operations-kpis { display:grid; flex:0 0 auto; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; padding:10px 14px; }
+.modern-operations-kpis > :is(article,button) { display:flex; min-width:0; flex-direction:column; align-items:flex-start; gap:2px; border:1px solid #3b4b63; border-radius:7px; padding:9px 11px; color:#edf0fa; background:#202f43; text-align:left; }
+.modern-operations-kpis button { cursor:pointer; }
+.modern-operations-kpis button:hover { border-color:#8479cf; background:#2c3853; }
+.modern-operations-kpis span { color:#9aacc5; font-size:10px; }
+.modern-operations-kpis strong { color:#e6ddff; font-size:21px; line-height:1.2; }
+.modern-operations-kpis small { max-width:100%; overflow:hidden; color:#92a5bd; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-operations-tabs { display:flex; flex:0 0 auto; gap:5px; border-bottom:1px solid #34445b; padding:0 14px 7px; }
+.modern-operations-tabs button { min-height:31px; border:1px solid transparent; border-radius:5px; padding:0 11px; color:#9faec5; background:transparent; font-size:11px; cursor:pointer; }
+.modern-operations-tabs button:hover { color:#eeeaff; background:#2a3850; }
+.modern-operations-tabs button.is-active { border-color:#786fbd; color:#f4efff; background:#363a5c; }
+.modern-operations-tabs small { margin-left:3px; color:#bdb1f5; }
+.modern-operations-body { min-height:0; flex:1; overflow-y:auto; overscroll-behavior:contain; padding:13px 14px 18px; scrollbar-width:thin; }
+.modern-operations-dashboard { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(240px,.8fr); gap:10px; }
+.modern-operations-dashboard section, .modern-operations-tasks { min-width:0; border:1px solid #3a4a63; border-radius:7px; padding:14px; background:#1d2d42; }
+.modern-operations-dashboard h3, .modern-operations-task-head h3 { margin:4px 0 13px; color:#f0eefc; font-size:14px; }
+.modern-operations-funnel > div { display:grid; gap:12px; }
+.modern-operations-funnel > div > div { display:grid; grid-template-columns:78px minmax(0,1fr) 28px; align-items:center; gap:8px; color:#c4cfe1; font-size:10px; }
+.modern-operations-funnel i { height:7px; overflow:hidden; border-radius:5px; background:#303e53; }
+.modern-operations-funnel i b { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#7772c9,#b6a6ff); transition:width .24s ease; }
+.modern-operations-funnel strong { color:#e7e1ff; text-align:right; }
+.modern-operations-decisions dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin:0; }
+.modern-operations-decisions dl div { display:flex; min-width:0; flex-direction:column; gap:3px; border:1px solid #384b62; border-radius:5px; padding:8px; background:#24354b; }
+.modern-operations-decisions dt { color:#a7b6cb; font-size:10px; }
+.modern-operations-decisions dd { margin:0; color:#ded4ff; font-size:17px; font-weight:750; }
+.modern-operations-owners { grid-column:1/-1; }
+.modern-operations-owners > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.modern-operations-owners article { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; align-items:center; gap:8px; border:1px solid #394b62; border-radius:5px; padding:8px 10px; background:#24354a; color:#aebdd0; font-size:10px; }
+.modern-operations-owners article strong { overflow:hidden; color:#e5e8f8; text-overflow:ellipsis; white-space:nowrap; }
+.modern-operations-owners article em { color:#9cb7a9; font-style:normal; }
+.modern-operations-owners article em.is-danger { color:#ffb3ac; }
+.modern-operations-owners p { color:#9aacc3; font-size:11px; }
+.modern-operations-task-head { display:flex; align-items:end; justify-content:space-between; gap:10px; }
+.modern-operations-task-head > div:last-child { display:flex; flex-wrap:wrap; gap:5px; }
+.modern-operations-task-head button { min-height:28px; border:1px solid #4a5a73; border-radius:5px; padding:0 9px; color:#aebdd0; background:#25364b; font-size:10px; cursor:pointer; }
+.modern-operations-task-head button.is-active { border-color:#8378ca; color:#f0eaff; background:#393e60; }
+.modern-operations-task-list { display:grid; gap:6px; }
+.modern-operations-task-list > button { display:grid; grid-template-columns:70px minmax(0,1fr) auto; gap:3px 9px; align-items:center; border:1px solid #394c64; border-radius:6px; padding:9px 11px; color:#e9ecf8; background:#24354b; text-align:left; cursor:pointer; transition:border-color .16s ease,background .16s ease; }
+.modern-operations-task-list > button:hover { border-color:#8276c3; background:#303b58; }
+.modern-operations-task-list > button > span { grid-row:1/3; color:#beaefc; font-size:10px; }
+.modern-operations-task-list > button strong { min-width:0; overflow:hidden; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-operations-task-list > button small { min-width:0; overflow:hidden; grid-column:2; color:#9aacc1; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.modern-operations-task-list > button time { grid-column:3; grid-row:1/3; color:#9cb2cb; font-size:9px; }
+.modern-operations-task-list > button time.is-danger { color:#ffb3ac; }
+.modern-operations-task-list > button b { display:none; }
+.modern-operations-empty { border:1px dashed #4c5c74; border-radius:6px; padding:35px 10px; color:#9eaec3; text-align:center; font-size:11px; }
+.modern-opportunity-operations :is(button,[role='tab']):focus-visible { outline:2px solid #b6a8ff; outline-offset:2px; }
+@media (max-width:700px) { .modern-operations-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .modern-operations-dashboard { grid-template-columns:minmax(0,1fr); } .modern-operations-owners { grid-column:1; } .modern-operations-owners > div { grid-template-columns:minmax(0,1fr); } .modern-operations-task-head { align-items:flex-start; flex-direction:column; } }
+@media (max-width:500px) { .modern-operations-head { align-items:flex-start; } .modern-operations-head p { display:none; } .modern-operations-task-list > button { grid-template-columns:60px minmax(0,1fr) 15px; } .modern-operations-task-list > button time { grid-column:2; grid-row:3; } .modern-operations-task-list > button b { display:block; grid-column:3; grid-row:1/4; color:#a99bf0; font-size:18px; } }
+@media (prefers-reduced-motion:reduce) { .modern-operations-funnel i b, .modern-operations-task-list > button { transition:none; } }

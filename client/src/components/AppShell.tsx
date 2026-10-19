@@ -5,10 +5,13 @@ import type { SectionId } from '../shared/types/navigation';
 import Sidebar from './Sidebar';
 import ThemeSwitcher from './ThemeSwitcher';
 import TaskMonitor from './TaskMonitor';
+import ModernShell from './ModernShell';
+import type { UiAppearance } from '../shared/uiAppearance';
 import AssistantWidget from '../features/plugin-host/components/AssistantWidget';
 import { getAppMenuGroups, getSectionDescriptor } from '../app/menuConfig';
 
 interface AppShellProps {
+  appearance: UiAppearance;
   activeSection: SectionId;
   children: ReactNode;
   developerMode: boolean;
@@ -17,7 +20,7 @@ interface AppShellProps {
   onSectionChange: (section: SectionId) => void;
 }
 
-function AppShell({ activeSection, children, developerMode, featureModuleSettings, assistantPluginEnabled = false, onSectionChange }: AppShellProps) {
+function AppShell({ appearance, activeSection, children, developerMode, featureModuleSettings, assistantPluginEnabled = false, onSectionChange }: AppShellProps) {
   const isMac = window.yibiao?.platform === 'darwin'
     || window.yibiaoClient?.platform === 'darwin'
     || /Mac/i.test(navigator.platform || navigator.userAgent);
@@ -33,6 +36,16 @@ function AppShell({ activeSection, children, developerMode, featureModuleSetting
       .filter((group) => group.items.length > 0),
     { id: 'system', label: '系统', items: [{ id: 'settings' as const, label: '设置', description: '应用配置与功能管理' }] },
   ], [developerMode, featureModuleSettings]);
+
+  if (appearance === 'modern') {
+    return (
+      <Tooltip.Provider delayDuration={120} skipDelayDuration={80}>
+        <ModernShell activeSection={activeSection} developerMode={developerMode} featureModuleSettings={featureModuleSettings} assistantPluginEnabled={assistantPluginEnabled} onSectionChange={onSectionChange}>
+          {children}
+        </ModernShell>
+      </Tooltip.Provider>
+    );
+  }
 
   return (
     <Tooltip.Provider delayDuration={120} skipDelayDuration={80}>
@@ -56,7 +69,7 @@ function AppShell({ activeSection, children, developerMode, featureModuleSetting
               navigationGroups={assistantNavigationGroups}
             />
           )}
-          <div className="app-copyright" aria-label="版权信息">Copyright © 2026 禹都一只猫</div>
+          <div className="app-copyright" aria-label="版权信息">Copyright © {new Date().getFullYear()} 禹都一只猫</div>
         </main>
       </div>
     </Tooltip.Provider>

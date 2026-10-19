@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { AppDialog, AppSwitch, EmptyState, InlineSpinner, useToast } from '../../../shared/ui';
 import './credentialLibrary.css';
+import './modernCredentialLibrary.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import CredentialImageField, { type CredentialImageItemView } from '../components/CredentialImageField';
 import {
   emptyCredentialProfile,
@@ -849,8 +851,15 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     return <div className="credential-library-loading"><InlineSpinner /><strong>正在读取资信库...</strong></div>;
   }
 
+  const modernAppearance = getStoredUiAppearance() === 'modern';
+
   if (!activeCompanyId) {
     return <div className="credential-library-page credential-companies-page">
+      {modernAppearance ? <section className="modern-credential-companies">
+        <header className="modern-credential-companies-head"><div><span>KNOWLEDGE / CREDENTIALS</span><h1>资信库</h1><p>每家企业拥有独立的资质、员工、业绩和原始资料。</p></div><button type="button" onClick={() => setCreateCompanyOpen(true)}>＋ 创建企业</button></header>
+        <div className="modern-credential-companies-summary"><span>企业档案</span><strong>{companies.length}</strong><small>选择企业，进入对应资料工作区</small></div>
+        {companies.length ? <div className="modern-credential-company-list">{companies.map((company) => <article key={company.companyId}><div className="modern-credential-company-mark">{company.companyName.slice(0, 1)}</div><div><strong>{company.companyName}</strong><small>创建于 {new Date(company.createdAt).toLocaleString('zh-CN', { hour12: false })}</small></div><button type="button" onClick={() => void enterCompany(company.companyId)}>进入资料 →</button><button type="button" className="is-danger" onClick={() => setDeleteCompanyTarget(company)}>删除</button></article>)}</div> : <div className="modern-credential-companies-empty"><strong>还没有企业档案</strong><p>创建企业后，即可管理专属资信资料。</p><button type="button" onClick={() => setCreateCompanyOpen(true)}>创建第一家企业</button></div>}
+      </section> :
       <section className="credential-library-shell credential-companies-shell">
         <header className="bid-analysis-command-bar credential-library-command-bar">
           <div><span className="section-kicker">知识库</span><strong>资信库</strong><p>先选择企业，再填写其基本信息、资质、员工、业绩和其他资料。</p></div>
@@ -867,7 +876,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
             </div>
           </article>)}</div> : <div className="credential-company-empty"><strong>还没有企业档案</strong><p>创建企业后，即可进入专属资信信息填写界面。</p><button type="button" className="primary-action create-action" onClick={() => setCreateCompanyOpen(true)}>创建企业</button></div>}
         </div>
-      </section>
+      </section>}
       <AppDialog open={createCompanyOpen} onOpenChange={(open) => busy === null && setCreateCompanyOpen(open)} kicker="企业档案" title="创建企业" description="填写企业名称后，将直接进入该企业的资信信息填写界面。" preventClose={busy !== null}
         actions={<><button type="button" className="secondary-action" onClick={() => setCreateCompanyOpen(false)} disabled={busy !== null}>取消</button><button type="button" className="primary-action create-action" onClick={() => void createCompany()} disabled={!companyNameDraft.trim() || busy !== null}>{busy === 'create-company' ? '创建中...' : '创建并进入'}</button></>}>
         <div className="credential-company-create-fields"><FormField label="企业名称"><input autoFocus maxLength={100} value={companyNameDraft} onChange={(event) => setCompanyNameDraft(event.target.value)} placeholder="请输入企业全称" /></FormField><FormField label="统一社会信用代码（选填）"><input maxLength={32} value={creditCodeDraft} onChange={(event) => setCreditCodeDraft(event.target.value)} placeholder="可稍后在基本信息中补充" /></FormField></div>
@@ -880,6 +889,23 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
 
   return (
     <div className="credential-library-page">
+      {modernAppearance ? <section className="modern-credential-workspace">
+        <header className="modern-credential-head">
+          <div><span>KNOWLEDGE / CREDENTIALS</span><button type="button" onClick={() => void returnToCompanies()} disabled={busy !== null}>← 企业列表</button><h1>{profile.companyName || '未填写公司名称'}</h1><p>逐项维护企业资料。输入后离开字段会自动保存。</p></div>
+          <div><span aria-live="polite">{profileStatus || '资料已就绪'}</span><button type="button" onClick={() => void saveCurrentProfile()} disabled={busy !== null}>保存企业信息</button>{developerMode ? <button type="button" onClick={() => setImportConfirmOpen(true)} disabled={busy !== null}>导入测试数据</button> : null}</div>
+        </header>
+        <div className="modern-credential-layout">
+          <aside className="modern-credential-side">
+            <div className="modern-credential-side-heading"><span>企业档案</span><strong>资料目录</strong><small>按类别填写和查阅</small></div>
+            <nav aria-label="资信库分类">{tabs.map((tab, index) => <button type="button" key={tab.id} id={`credential-tab-${tab.id}`} role="tab" aria-selected={activeTab === tab.id} aria-controls="credential-tab-panel" tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'is-active' : ''} onClick={() => setActiveTab(tab.id)} onKeyDown={(event) => handleTabKeyDown(event, index)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{tab.label}</strong><span>›</span></button>)}</nav>
+            <div className="modern-credential-side-summary"><strong>当前企业</strong><span>{snapshot?.employees.length || 0} 名员工</span><span>{snapshot?.projects.length || 0} 项业绩</span><span>{snapshot?.images.length || 0} 张图片</span></div>
+          </aside>
+          <main className="modern-credential-main" id="credential-tab-panel" role="tabpanel" aria-labelledby={`credential-tab-${activeTab}`}>
+            <div className="modern-credential-main-head"><span>资料分类 / {tabs.find((tab) => tab.id === activeTab)?.label}</span><strong>{tabs.find((tab) => tab.id === activeTab)?.label}</strong></div>
+            <div className="modern-credential-main-content">{activeTab === 'basic' ? renderBasicPanel() : activeTab === 'intro' ? renderIntroPanel() : activeTab === 'qualification' ? renderQualificationPanel() : activeTab === 'employee' ? renderEmployeePanel() : activeTab === 'project' ? renderProjectPanel() : activeTab === 'finance' ? renderFinancePanel() : activeTab === 'other' ? renderOtherPanel() : renderWatermarkPanel()}</div>
+          </main>
+        </div>
+      </section> :
       <section className="credential-library-shell">
         <header className="bid-analysis-command-bar credential-library-command-bar">
           <div>
@@ -915,7 +941,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
                       : activeTab === 'other' ? renderOtherPanel()
                         : renderWatermarkPanel()}
         </div>
-      </section>
+      </section>}
 
       <AppDialog
         open={importConfirmOpen}

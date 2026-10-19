@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
 import { MarkdownEditor, MarkdownRenderer, useAppDialog, useToast } from '../../../shared/ui';
+import { ActivityWaiting } from '../../../shared/ui/ActivityWaiting';
 import type { FeasibilityReportState } from '../types';
 import TaskProgressCard, { isTaskRunning } from './TaskProgressCard';
 
@@ -39,7 +40,7 @@ export default function AnalysisPanel({ projectId, state, onStateChange }: { pro
       </article>
       <article className="feasibility-document-preview-pane">
         <header><strong>渲染预览</strong><button type="button" className="secondary-action" disabled={!state.analysisMarkdown} onClick={() => setPreviewOpen(true)}>全屏</button></header>
-        <div className="markdown-viewer">{state.analysisMarkdown ? <MarkdownRenderer allowRawHtml={false}>{editing ? draft : state.analysisMarkdown}</MarkdownRenderer> : <div className="feasibility-pane-empty"><strong>等待分析结果</strong><p>分析完成后将在这里显示结构化预览。</p></div>}</div>
+        <div className="markdown-viewer">{running && !state.analysisMarkdown ? <ActivityWaiting title="正在分析项目资料" description="模型正在整理项目事实与风险，完成后将在这里显示结果。" /> : state.analysisMarkdown ? <MarkdownRenderer allowRawHtml={false}>{editing ? draft : state.analysisMarkdown}</MarkdownRenderer> : <div className="feasibility-pane-empty"><strong>等待分析结果</strong><p>分析完成后将在这里显示结构化预览。</p></div>}</div>
       </article>
     </section>
     <Dialog.Root open={previewOpen} onOpenChange={setPreviewOpen}><Dialog.Portal><Dialog.Overlay className="detail-help-modal" /><Dialog.Content className="detail-help-card feasibility-full-preview"><header className="detail-help-head"><div><Dialog.Title>资料分析底稿预览</Dialog.Title><Dialog.Description>以最终 Markdown 渲染效果预览分析结果。</Dialog.Description></div><Dialog.Close type="button" className="detail-help-close" aria-label="关闭预览">×</Dialog.Close></header><div className="feasibility-full-preview-body markdown-viewer"><MarkdownRenderer allowRawHtml={false}>{editing ? draft : state.analysisMarkdown}</MarkdownRenderer></div></Dialog.Content></Dialog.Portal></Dialog.Root>

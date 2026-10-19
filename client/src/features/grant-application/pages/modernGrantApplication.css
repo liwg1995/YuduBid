@@ -1,0 +1,72 @@
+.modern-shell .modern-grant-application { gap: 9px; padding: 0 2px 14px 0; }
+.modern-shell .modern-grant-application > .grant-application-header { border: 0; border-bottom: 1px solid #35435a; border-radius: 0; padding: 2px 2px 10px; background: transparent; box-shadow: none; }
+.modern-shell .modern-grant-application > .grant-application-header h2 { color: #f2efff; font-size: 20px; }
+.modern-grant-application > .grant-application-header p { color: #99aac2; font-size: 11px; }
+.modern-shell .modern-grant-application .grant-application-header-side { min-width: 235px; gap:6px; padding:10px 12px; border-color: #394960; border-radius: 7px; background: #1c2a3d; }
+.modern-grant-journey { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 5px; min-width: 0; border: 1px solid #35465e; border-radius: 8px; padding: 6px; background: #172335; }
+.modern-grant-journey button { display: grid; grid-template-columns: 20px minmax(0,1fr) 10px; grid-template-rows: auto auto; align-items: center; column-gap: 5px; min-width: 0; min-height: 45px; border: 1px solid #35455d; border-radius: 6px; padding: 5px 7px; color: #acbad0; background: #1d2b3e; text-align: left; cursor: pointer; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
+.modern-grant-journey button:hover { border-color: #857acc; background: #2a3851; transform: translateY(-1px); }
+.modern-grant-journey button.is-active { border-color: #9687e5; background: #303754; box-shadow: inset 3px 0 #aa9df5; }
+.modern-grant-journey button b { grid-row: 1/3; color: #ac9ef0; font-size: 10px; }
+.modern-grant-journey button strong { min-width: 0; overflow: hidden; color: #eeebfc; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.modern-grant-journey button span { min-width: 0; grid-column: 2; overflow: hidden; color: #93a3ba; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.modern-grant-journey button em { grid-column: 3; grid-row: 1/3; color: #aa9cf1; font-size: 15px; font-style: normal; }
+.modern-shell .modern-grant-application .grant-application-workspace { grid-template-columns: minmax(0,1fr) 245px; gap: 10px; }
+.modern-grant-application .grant-application-main, .modern-grant-application .grant-application-side { gap: 12px; }
+.modern-grant-application .grant-application-panel, .modern-grant-application .grant-application-profile { border-color: #35465e; border-radius: 9px; background: #1b293c; box-shadow: none; }
+.modern-grant-application .grant-application-panel-head h3, .modern-grant-application .grant-application-module-editor-head strong { color: #f0edfc; }
+.modern-grant-application .grant-application-panel-head p, .modern-grant-application .grant-application-module-editor-head span { color: #9aabc2; }
+.modern-grant-application .grant-application-module-list button { border-color: #3a4961; border-radius: 7px; color: #aebdd3; background: #202e43; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
+.modern-grant-application .grant-application-module-list button:hover { border-color: #8378c8; background: #2b3952; transform: translateX(2px); }
+.modern-grant-application .grant-application-module-list button.is-active { border-color: #9a89ed; background: #343a58; box-shadow: inset 3px 0 #aa9df5; }
+.modern-grant-application .grant-application-module-list button.is-running { border-color: #9a89ed; background: #303b5b; }
+.modern-grant-application .grant-application-module-list strong { color: #edf0fb; }
+.modern-grant-application .grant-application-module-list em { color: #9aacc3; }
+.modern-grant-application .grant-application-module-list span { border-radius: 5px; color: #b6e7d7; background: #28534e; }
+.modern-grant-application .grant-application-module-editor-head, .modern-grant-application .grant-application-proposal-command-bar, .modern-grant-application .grant-application-visual-options { border-color: #3a4961; border-radius: 8px; background: #202e43; }
+.modern-grant-application .grant-application-module-editor-head em { color: #b7aaf9; }
+.modern-grant-application .grant-application-preview, .modern-grant-application .grant-application-empty { border-color: #3a4961; border-radius: 8px; color: #b8c5d9; background: #182639; }
+.modern-grant-application .grant-application-mode-switch { border-color: #3a4961; background: #182639; }
+.modern-grant-application .grant-application-mode-switch button { color: #aabbd1; }
+.modern-grant-application .grant-application-mode-switch button.is-active { color: #f1edff; background: #625ba5; box-shadow: none; }
+.modern-grant-application .grant-application-output-editor .markdown-editor-textarea, .modern-grant-application .grant-application-module-markdown-editor .markdown-editor-textarea { min-height: 360px; }
+.modern-grant-application .grant-application-module-workspace { grid-template-columns:minmax(160px,205px) minmax(0,1fr); gap:10px; }
+.modern-grant-application .grant-application-module-list { max-height:560px; scrollbar-width:thin; }
+.modern-grant-application .grant-application-side { min-width:0; }
+@container (max-width:1160px) { .modern-shell .modern-grant-application .grant-application-workspace { grid-template-columns: minmax(0,1fr); } .modern-grant-application .grant-application-side { grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); } }
+@container (max-width:1000px) { .modern-shell .modern-grant-application > .grant-application-header { flex-direction: column; } .modern-shell .modern-grant-application .grant-application-header-side { width: 100%; min-width: 0; max-width: none; } .modern-grant-application .grant-application-profile-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@container (max-width:780px) { .modern-grant-journey { grid-template-columns: repeat(2,minmax(0,1fr)); } .modern-grant-application .grant-application-module-workspace { grid-template-columns: minmax(0,1fr); } .modern-grant-application .grant-application-module-list { display: flex; max-height: none; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; } .modern-grant-application .grant-application-module-list button { flex: 0 0 180px; } .modern-grant-application .grant-application-proposal-command-bar { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@container (max-width:480px) { .modern-grant-journey, .modern-grant-application .grant-application-profile-grid, .modern-grant-application .grant-application-proposal-command-bar { grid-template-columns: minmax(0,1fr); } }
+@media (prefers-reduced-motion:reduce) { .modern-grant-journey button, .modern-grant-application .grant-application-module-list button { transition: none; } .modern-grant-journey button:hover, .modern-grant-application .grant-application-module-list button:hover { transform: none; } }
+
+/* 项目摘要与操作横向展开，避免在标题旁堆成窄高卡片。 */
+.modern-shell .modern-grant-application > .grant-application-header { display: grid; grid-template-columns: minmax(0,1fr); gap: 12px; }
+.modern-shell .modern-grant-application .grant-application-header-side {
+  display: grid;
+  grid-template-columns: minmax(260px,1fr) minmax(260px,340px) auto;
+  align-items: center;
+  gap: 4px 18px;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 11px 14px;
+}
+.modern-shell .modern-grant-application .grant-application-header-side > strong { grid-column: 1; grid-row: 1; min-width: 0; max-height: 2.8em; overflow: hidden; color: #e9ecf8; font-size: 12px; line-height: 1.4; }
+.modern-shell .modern-grant-application .grant-application-header-side > span { grid-column: 1; grid-row: 2; font-size: 10px; }
+.modern-shell .modern-grant-application .grant-application-project-row { grid-column: 2; grid-row: 1/3; flex-wrap: nowrap; min-width: 0; }
+.modern-shell .modern-grant-application .grant-application-project-row select { min-width: 0; flex-basis: auto; height: 32px; border-color: #455973; border-radius: 6px; background: #172337; font-size: 11px; }
+.modern-shell .modern-grant-application .grant-application-project-actions { grid-column: 3; grid-row: 1/3; justify-content: flex-end; flex-wrap: nowrap; }
+.modern-shell .modern-grant-application :is(.grant-application-project-row, .grant-application-project-actions) .secondary-action { min-height: 31px; border-radius: 6px; padding: 0 10px; font-size: 10px; white-space: nowrap; }
+@container (max-width: 1100px) {
+  .modern-shell .modern-grant-application .grant-application-header-side { grid-template-columns: minmax(0,1fr) auto; }
+  .modern-shell .modern-grant-application .grant-application-header-side > strong,
+  .modern-shell .modern-grant-application .grant-application-header-side > span { grid-column: 1 / -1; grid-row: auto; }
+  .modern-shell .modern-grant-application .grant-application-project-row { grid-column: 1; grid-row: auto; }
+  .modern-shell .modern-grant-application .grant-application-project-actions { grid-column: 2; grid-row: auto; }
+}
+@container (max-width: 700px) {
+  .modern-shell .modern-grant-application .grant-application-header-side { grid-template-columns: minmax(0,1fr); }
+  .modern-shell .modern-grant-application .grant-application-project-row,
+  .modern-shell .modern-grant-application .grant-application-project-actions { grid-column: 1; justify-content: flex-start; flex-wrap: wrap; }
+}

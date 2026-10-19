@@ -883,12 +883,14 @@
   min-width: 0;
   max-width: 100%;
   min-height: 220px;
+  max-height: clamp(320px, 54vh, 620px);
   padding: 14px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 12px;
   background: #fbfdff;
   box-sizing: border-box;
-  overflow-x: auto;
+  overflow: auto;
+  scrollbar-gutter: stable;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -958,20 +960,20 @@
   display: grid;
   gap: 4px;
   padding: 10px 12px;
-  border: 1px solid rgba(27, 50, 92, 0.08);
+  border: 1px solid var(--yb-control-border);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-control-bg);
 }
 
 .grant-application-help-content strong {
-  color: #1f2a44;
+  color: var(--yb-text);
   font-size: 13px;
 }
 
 .grant-application-help-content p,
 .grant-application-help-note {
   margin: 0;
-  color: #627089;
+  color: var(--yb-text-soft);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -979,8 +981,8 @@
 .grant-application-help-note {
   padding: 10px 12px;
   border-radius: 12px;
-  background: #eef5ff;
-  color: #1d4ed8;
+  background: color-mix(in srgb, var(--yb-primary) 10%, var(--yb-surface));
+  color: var(--yb-primary-deep);
   font-weight: 800;
 }
 
@@ -1195,9 +1197,9 @@
   gap: 10px;
   align-items: center;
   padding: 10px;
-  border: 1px solid rgba(27, 50, 92, 0.08);
+  border: 1px solid var(--yb-control-border);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-control-bg);
 }
 
 .grant-application-step-list span {
@@ -1206,14 +1208,14 @@
   height: 30px;
   place-items: center;
   border-radius: 10px;
-  background: #eef5ff;
-  color: #1d4ed8;
+  background: color-mix(in srgb, var(--yb-primary) 13%, var(--yb-surface));
+  color: var(--yb-primary-deep);
   font-size: 12px;
   font-weight: 900;
 }
 
 .grant-application-step-list strong {
-  color: #26324a;
+  color: var(--yb-text);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -1229,7 +1231,7 @@
 .grant-application-check-list li {
   position: relative;
   padding-left: 18px;
-  color: #536179;
+  color: var(--yb-text-soft);
   font-size: 13px;
   line-height: 1.55;
 }

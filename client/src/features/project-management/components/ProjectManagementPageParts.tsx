@@ -55,7 +55,7 @@ export function ProjectManagementModuleWorkspace<TInput extends object>({
 }: ProjectManagementModuleWorkspaceProps<TInput>) {
   return (
     <div className="project-management-mvp">
-      {beforeInput}
+      {beforeInput && <div className="project-management-before-input">{beforeInput}</div>}
       <section className="project-management-form-panel">
         <div className="project-management-panel-head">
           <div>
@@ -253,14 +253,16 @@ export function ModuleIntro({ module }: { module: ProjectManagementModule }) {
           <h3>{module.title}</h3>
           <p>{module.description}</p>
         </div>
-        <span className="project-management-source">{module.source}</span>
       </div>
-      <div className="project-management-section-grid">
-        <InfoBlock title="核心交付物" items={module.deliverables} />
-        <InfoBlock title="方法框架" items={module.methods} />
-        <InfoBlock title="适用场景" items={module.scenarios} />
-        <InfoBlock title="推荐图表" items={module.diagrams} />
-      </div>
+      <details className="project-management-module-reference">
+        <summary>模块参考 <span>交付物、方法、场景与图表</span></summary>
+        <div className="project-management-section-grid">
+          <InfoBlock title="核心交付物" items={module.deliverables} />
+          <InfoBlock title="方法框架" items={module.methods} />
+          <InfoBlock title="适用场景" items={module.scenarios} />
+          <InfoBlock title="推荐图表" items={module.diagrams} />
+        </div>
+      </details>
     </>
   );
 }
@@ -291,9 +293,9 @@ export function ProjectManagementHelpDialog({ modules, triggerMode = 'button' }:
       <Dialog.Trigger asChild>
         <button
           type="button"
-          className={triggerMode === 'label' ? 'project-management-help-label' : 'secondary-action project-management-help-trigger'}
+          className={`${triggerMode === 'label' ? 'project-management-help-label' : 'project-management-help-trigger'} context-help-trigger`}
         >
-          如何使用？
+          查看管理参考
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>

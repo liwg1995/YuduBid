@@ -6,6 +6,7 @@ interface ProjectMaterialsPanelProps {
   projectId: string;
   state: FeasibilityReportState;
   onStateChange: (state: FeasibilityReportState) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 const fields: Array<{
@@ -39,15 +40,18 @@ function hasDownstreamContent(state: FeasibilityReportState) {
   );
 }
 
-export default function ProjectMaterialsPanel({ projectId, state, onStateChange }: ProjectMaterialsPanelProps) {
+export default function ProjectMaterialsPanel({ projectId, state, onStateChange, onDirtyChange }: ProjectMaterialsPanelProps) {
   const { showToast } = useToast();
   const { confirm } = useAppDialog();
   const [form, setForm] = useState<FeasibilityProjectInfo>(state.projectInfo);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { setForm(state.projectInfo); }, [state.projectInfo]);
+  const savedInfoSignature = JSON.stringify(state.projectInfo);
+  useEffect(() => { setForm(state.projectInfo); }, [projectId, savedInfoSignature]);
 
   const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(state.projectInfo), [form, state.projectInfo]);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => { onDirtyChange?.(false); }, [onDirtyChange]);
 
   const updateField = (key: keyof FeasibilityProjectInfo, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));

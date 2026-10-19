@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { isLibreOfficeRequiredMessage, MarkdownRenderer, useAppDialog, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FileParserProvider, OutlineItem } from '../../../shared/types';
 import type { BackgroundTaskState, TechnicalPlanOriginalPlanFile, TechnicalPlanState, TechnicalPlanTenderFile, TechnicalPlanWorkflowKind } from '../types';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
 import './documentAnalysis.css';
+import './modernDocumentAnalysis.css';
 
 const parserLabels: Record<FileParserProvider, string> = {
   local: '本地解析',
@@ -252,6 +255,53 @@ function DocumentAnalysisPage({
     </section>
   );
 
+  const renderBidSection = () => tenderFile && (!isExpansionWorkflow || bidSections.length > 1 || showExpansionBidSection) ? (
+    <section className="analysis-upload-tile bid-section-selection">
+          <div className="bid-section-copy"><div className="bid-section-heading"><span className="section-kicker">投标范围</span><strong>选择本次投标标段</strong>{isExpansionWorkflow && bidSections.length < 2 && !sectionExtractionRunning && <button type="button" className="analysis-section-collapse" onClick={() => setShowExpansionBidSection(false)}>收起</button>}</div><p>{bidSectionSource === 'evidence' ? '核对识别证据与原文范围后再选择。未明确归属其他标段的通用条款会保留。' : '当前为标题粗识别，连续范围可能包含通用条款或漏掉跨章节要求；建议先按原文证据重新识别。'}</p></div>
+          <button type="button" className="secondary-action modern-inline-operation is-accent" disabled={busy || sectionExtractionRunning} onClick={() => void extractBidSections()}>{sectionExtractionRunning ? `识别中 ${bidSectionExtractionTask?.progress || 0}%` : '按原文证据重新识别'}</button>
+          {bidSections.length > 1 && <select aria-label="本次投标标段" value={selectedBidSectionId} disabled={busy || sectionExtractionRunning} onChange={(event) => void selectBidSection(event.target.value)}>
+            <option value="">整份招标文件</option>
+            {bidSections.map((section) => <option value={section.id} key={section.id}>{section.title}（{section.includeRanges?.length || 1} 处原文）</option>)}
+          </select>}
+          {bidSectionExtractionTask?.status === 'error' && <p className="bid-section-error">{bidSectionExtractionTask.error || '标段识别失败，可使用标题识别结果'}</p>}
+          {bidSections.length > 1 && <div className="bid-section-evidence">
+            {bidSections.map((section) => <details key={section.id} open={section.id === selectedBidSectionId}>
+              <summary>{section.title} · {section.includeRanges?.length || 1} 处原文</summary>
+              <div>{(section.includeRanges || [{ startLine: section.startLine, endLine: section.endLine }]).map((range, index) => <div key={`${range.startLine}-${range.endLine}-${index}`}><p>第 {range.startLine}–{range.endLine} 行{range.reason ? `：${range.reason}` : ''}</p><blockquote>{tenderLines.slice(range.startLine - 1, Math.min(range.endLine, range.startLine + 2)).join('\n').slice(0, 300)}</blockquote></div>)}</div>
+              {section.evidence?.length ? <small>识别证据：{section.evidence.join('；')}</small> : null}
+            </details>)}
+          </div>}
+        </section>
+  ) : null;
+
+  if (getStoredUiAppearance() === 'modern') {
+    return <div className="modern-document-workspace">
+      <div className="modern-document-controls">
+        <header><span>文件与解析</span><h2>{isExpansionWorkflow ? '准备招标文件与原方案' : '准备招标文件'}</h2><p>{isExpansionWorkflow ? '分别导入招标文件和已有技术方案，确认内容后进入下一阶段。' : '导入招标文件技术部分，确认解析后的正文和投标范围。'}</p></header>
+        <section className={`modern-document-source${tenderFile ? ' is-imported' : ''}`} aria-label="招标文件">
+          <div className="modern-document-source-top"><span>招标文件</span><strong>{tenderFile ? '已导入' : '待导入'}</strong></div>
+          <h3>{tenderFile?.fileName || '选择招标文件技术部分'}</h3>
+          <p>{tenderFile ? `${tenderFile.parserLabel || parserLabel} · ${tenderFile.markdownChars} 字` : `当前解析方案：${parserLabel}`}</p>
+          <div><button type="button" onClick={() => setActiveDocument('tender')} disabled={!tenderFile}>查看内容</button><button type="button" className="is-primary" onClick={importDocument} disabled={busy}>{busy ? '解析中...' : tenderFile ? '替换文件' : '选择文件'}</button></div>
+        </section>
+        {isExpansionWorkflow && <section className={`modern-document-source${originalPlanFile ? ' is-imported' : ''}`} aria-label="已有技术方案">
+          <div className="modern-document-source-top"><span>已有技术方案</span><strong>{originalPlanFile ? '已导入' : '待导入'}</strong></div>
+          <h3>{originalPlanFile?.fileName || '选择已有技术方案'}</h3>
+          <p>{originalPlanFile ? `${originalPlanFile.parserLabel || parserLabel} · ${originalPlanFile.markdownChars} 字` : '作为扩写的基础草稿'}</p>
+          <div><button type="button" onClick={() => setActiveDocument('original')} disabled={!originalPlanFile}>查看内容</button><button type="button" className="is-primary" onClick={importOriginalPlan} disabled={busy}>{busy ? '解析中...' : originalPlanFile ? '替换原方案' : '上传原方案'}</button></div>
+        </section>}
+        {isExpansionWorkflow && canImportGeneratedPlan && <button type="button" className="modern-document-import-existing" onClick={importGeneratedOriginalPlan} disabled={busy}>{busy ? '导入中...' : '从技术方案项目导入已有内容'}</button>}
+        {isExpansionWorkflow && tenderFile && bidSections.length < 2 && !showExpansionBidSection && <button type="button" className="modern-document-bid-trigger" onClick={() => setShowExpansionBidSection(true)}>包含多个标段？识别本次投标范围 <span aria-hidden="true">→</span></button>}
+        {renderBidSection()}
+      </div>
+      <section className="modern-document-preview" aria-label="文档内容预览">
+        <header><div><span>文档预览</span><h2>{activeLabel}内容</h2></div><small>{activeFile ? `${activeFile.markdownChars} 字` : '等待导入'}</small></header>
+        {isExpansionWorkflow && <div className="modern-document-preview-tabs" role="tablist" aria-label="预览文档" onKeyDown={handleTabListKeyDown}><button type="button" role="tab" id="modern-document-tab-tender" aria-controls="modern-document-preview-panel" aria-selected={activeDocument === 'tender'} tabIndex={activeDocument === 'tender' ? 0 : -1} className={activeDocument === 'tender' ? 'is-active' : ''} onClick={() => setActiveDocument('tender')}>招标文件</button><button type="button" role="tab" id="modern-document-tab-original" aria-controls="modern-document-preview-panel" aria-selected={activeDocument === 'original'} tabIndex={activeDocument === 'original' ? 0 : -1} className={activeDocument === 'original' ? 'is-active' : ''} onClick={() => setActiveDocument('original')}>已有方案</button></div>}
+        <div className="modern-document-preview-body" id={isExpansionWorkflow ? 'modern-document-preview-panel' : undefined} role={isExpansionWorkflow ? 'tabpanel' : undefined} aria-labelledby={isExpansionWorkflow ? `modern-document-tab-${activeDocument}` : undefined} key={activeDocument}>{activeMarkdown ? <div className="markdown-viewer"><MarkdownRenderer>{activeMarkdown}</MarkdownRenderer></div> : <div className="modern-document-empty"><strong>尚未导入{activeLabel}</strong><p>{activeDocument === 'original' ? '导入已有技术方案后，可在这里核对解析结果。' : '选择招标文件后，解析内容会显示在这里。'}</p></div>}</div>
+      </section>
+    </div>;
+  }
+
   return (
     <div className={`plan-step-body document-analysis-page${isExpansionWorkflow ? ' existing-plan-analysis-page' : ''}`}>
       <section className="analysis-import-card">
@@ -294,24 +344,7 @@ function DocumentAnalysisPage({
         </button>
       )}
 
-      {tenderFile && (!isExpansionWorkflow || bidSections.length > 1 || showExpansionBidSection) && (
-        <section className="analysis-upload-tile bid-section-selection">
-          <div className="bid-section-copy"><div className="bid-section-heading"><span className="section-kicker">投标范围</span><strong>选择本次投标标段</strong>{isExpansionWorkflow && bidSections.length < 2 && !sectionExtractionRunning && <button type="button" className="analysis-section-collapse" onClick={() => setShowExpansionBidSection(false)}>收起</button>}</div><p>{bidSectionSource === 'evidence' ? '核对识别证据与原文范围后再选择。未明确归属其他标段的通用条款会保留。' : '当前为标题粗识别，连续范围可能包含通用条款或漏掉跨章节要求；建议先按原文证据重新识别。'}</p></div>
-          <button type="button" className="secondary-action" disabled={busy || sectionExtractionRunning} onClick={() => void extractBidSections()}>{sectionExtractionRunning ? `识别中 ${bidSectionExtractionTask?.progress || 0}%` : '按原文证据重新识别'}</button>
-          {bidSections.length > 1 && <select aria-label="本次投标标段" value={selectedBidSectionId} disabled={busy || sectionExtractionRunning} onChange={(event) => void selectBidSection(event.target.value)}>
-            <option value="">整份招标文件</option>
-            {bidSections.map((section) => <option value={section.id} key={section.id}>{section.title}（{section.includeRanges?.length || 1} 处原文）</option>)}
-          </select>}
-          {bidSectionExtractionTask?.status === 'error' && <p className="bid-section-error">{bidSectionExtractionTask.error || '标段识别失败，可使用标题识别结果'}</p>}
-          {bidSections.length > 1 && <div className="bid-section-evidence">
-            {bidSections.map((section) => <details key={section.id} open={section.id === selectedBidSectionId}>
-              <summary>{section.title} · {section.includeRanges?.length || 1} 处原文</summary>
-              <div>{(section.includeRanges || [{ startLine: section.startLine, endLine: section.endLine }]).map((range, index) => <div key={`${range.startLine}-${range.endLine}-${index}`}><p>第 {range.startLine}–{range.endLine} 行{range.reason ? `：${range.reason}` : ''}</p><blockquote>{tenderLines.slice(range.startLine - 1, Math.min(range.endLine, range.startLine + 2)).join('\n').slice(0, 300)}</blockquote></div>)}</div>
-              {section.evidence?.length ? <small>识别证据：{section.evidence.join('；')}</small> : null}
-            </details>)}
-          </div>}
-        </section>
-      )}
+      {renderBidSection()}
 
       <section className="analysis-markdown-card">
         <div className="analysis-result-head">

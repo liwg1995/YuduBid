@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { ProjectManagementDictionaries } from '../types';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import '../projectManagement.css';
 
 type DictionaryKind = keyof ProjectManagementDictionaries;
@@ -136,8 +137,36 @@ function ProjectTypesPage() {
     );
   }
 
+  function renderModernPanel(kind: DictionaryKind, number: string, title: string, description: string, placeholder: string) {
+    return (
+      <section className="modern-dictionary-column" key={kind}>
+        <header><span>{number} / CATEGORY</span><strong>{title}</strong><p>{description}</p></header>
+        <div className="modern-dictionary-count"><b>{dictionaries[kind].length}</b><span>当前条目</span></div>
+        <div className="modern-dictionary-add"><input value={drafts[kind]} onChange={(event) => setDrafts((current) => ({ ...current, [kind]: event.target.value }))} placeholder={placeholder} aria-label={`新增${title}`} /><button type="button" onClick={() => void addItem(kind)}>＋ 新增</button></div>
+        <div className="modern-dictionary-items">
+          {dictionaries[kind].length ? dictionaries[kind].map((item, index) => (
+            <article key={item}><span>{String(index + 1).padStart(2, '0')}</span>
+              {editing?.kind === kind && editing.value === item ? <><input value={editingValue} onChange={(event) => setEditingValue(event.target.value)} aria-label="编辑名称" /><button type="button" onClick={() => void submitEdit()}>保存</button><button type="button" onClick={() => setEditing(null)}>取消</button></>
+                : <><strong>{item}</strong><button type="button" onClick={() => { setEditing({ kind, value: item }); setEditingValue(item); }}>编辑</button><button type="button" className="is-danger" onClick={() => void removeItem(kind, item)}>删除</button></>}
+            </article>
+          )) : <p>{kind === 'projectGroups' ? '暂无分组，可按地域、客户类型或业务线创建。' : '暂无项目类型。'}</p>}
+        </div>
+      </section>
+    );
+  }
+
   if (loading) {
     return <div className="project-dictionary-page"><section className="project-dictionary-hero">正在读取项目类型...</section></div>;
+  }
+
+  if (getStoredUiAppearance() === 'modern') {
+    return <div className="modern-dictionary-page">
+      <header className="modern-dictionary-heading"><span>PROJECT CONFIGURATION / DICTIONARY</span><h1>项目类型与分组</h1><p>维护创建项目时使用的分类。修改后会同步到项目管理功能。</p></header>
+      <div className="modern-dictionary-columns">
+        {renderModernPanel('projectTypes', '01', '项目类型', '区分项目的交付形态', '例如：数据治理项目')}
+        {renderModernPanel('projectGroups', '02', '项目分组', '按照业务需要整理项目', '例如：华东区域 / 重点客户')}
+      </div>
+    </div>;
   }
 
   return (

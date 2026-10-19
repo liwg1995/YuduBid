@@ -305,6 +305,7 @@ export interface YuDuBidBridge {
   platform: string;
   getVersion: () => Promise<string>;
   getLatestVersion: (source?: UpdateSource) => Promise<LatestReleaseInfo>;
+  getReleaseHistory: (source: Exclude<UpdateSource, 'auto'>) => Promise<Array<Pick<LatestReleaseInfo, 'version' | 'name' | 'body' | 'published_at'>>>;
   openLogDirectory: () => Promise<{ success: boolean; message?: string }>;
   openExternal: (url: string) => Promise<{ success: boolean; message?: string }>;
   downloadReleaseInstaller: (source?: UpdateSource) => Promise<ReleaseInstallerDownloadResult>;

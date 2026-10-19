@@ -1,0 +1,14 @@
+.activity-waiting { display: flex; min-height: 220px; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border: 1px solid var(--yb-border-soft); border-radius: 8px; padding: 20px; color: var(--yb-text); background: var(--yb-surface); text-align: center; }
+.activity-waiting-mark { display: flex; width: 58px; height: 58px; align-items: center; justify-content: center; gap: 4px; margin-bottom: 4px; border: 1px solid var(--yb-primary); border-radius: 50%; background: var(--yb-control-bg); }
+.activity-waiting-mark span { width: 5px; height: 18px; border-radius: 3px; background: var(--yb-primary); animation: activity-waiting-pulse 1.2s ease-in-out infinite; }
+.activity-waiting-mark span:nth-child(2) { animation-delay: .15s; }
+.activity-waiting-mark span:nth-child(3) { animation-delay: .3s; }
+.activity-waiting strong { font-size: 15px; line-height: 1.4; }
+.activity-waiting p { max-width: 440px; margin: 0; color: var(--yb-text-muted); font-size: 12px; line-height: 1.5; }
+.activity-waiting-progress, .activity-waiting-scan { width: min(100%, 340px); height: 4px; overflow: hidden; margin-top: 10px; border-radius: 4px; background: var(--yb-control-bg); }
+.activity-waiting-progress span, .activity-waiting-scan span { display: block; height: 100%; border-radius: inherit; background: var(--yb-primary); }
+.activity-waiting-progress span { transition: width .3s ease; }
+.activity-waiting-scan span { width: 35%; animation: activity-waiting-scan 1.8s ease-in-out infinite alternate; }
+@keyframes activity-waiting-pulse { 0%, 100% { opacity: .45; transform: scaleY(.6); } 50% { opacity: 1; transform: scaleY(1); } }
+@keyframes activity-waiting-scan { from { transform: translateX(0); } to { transform: translateX(185%); } }
+@media (prefers-reduced-motion: reduce) { .activity-waiting-mark span, .activity-waiting-scan span { animation: none; } .activity-waiting-progress span { transition: none; } }

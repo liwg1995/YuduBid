@@ -920,7 +920,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
   function saveGlobalFacts(globalFacts) {
     const contentStatus = loadTechnicalPlan().contentGenerationTask?.status;
     if (['running', 'pausing', 'stopping'].includes(contentStatus)) {
-      throw new Error('正文正在生成，请先暂停任务，再修改全局事实');
+      throw new Error('正文正在生成，请先暂停任务，再修改全局事实。修改后需重新编排并生成正文。');
     }
     const transaction = db.transaction(() => {
       replaceGlobalFacts(globalFacts);
@@ -958,7 +958,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     const factsPolicyStale = Boolean(current.globalFactsTask?.stats?.globalFactsPolicy
       && current.globalFactsTask.stats.globalFactsPolicy !== (contentGenerationOptions?.missingFactPolicy || 'infer'));
     if (contentSettingsChanged && ['running', 'pausing', 'stopping'].includes(current.contentGenerationTask?.status)) {
-      throw new Error('正文正在生成，请先暂停任务，再修改生成设置');
+      throw new Error('正文正在生成，请先暂停任务，再修改生成设置。修改后需重新编排并生成正文。');
     }
     const transaction = db.transaction(() => {
       if (contentSettingsChanged || policyChanged || (factsPolicyStale && current.contentGenerationTask?.status === 'paused')) clearContentGenerationState();

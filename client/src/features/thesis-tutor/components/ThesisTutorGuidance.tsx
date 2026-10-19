@@ -48,7 +48,7 @@ export function ThesisTutorGuidance({
         </div>
         <Dialog.Root>
           <Dialog.Trigger asChild>
-            <button type="button" className="secondary-action">如何使用？</button>
+            <button type="button" className="context-help-trigger">查看使用参考</button>
           </Dialog.Trigger>
           <Dialog.Portal>
             <Dialog.Overlay className="content-regenerate-modal" />

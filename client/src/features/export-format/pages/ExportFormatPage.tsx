@@ -1,7 +1,11 @@
 import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { AppSwitch, FloatingToolbar, ProgressBar, useToast } from '../../../shared/ui';
+import { AppSwitch, FloatingToolbar, ProgressBar, useAppDialog, useToast } from '../../../shared/ui';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { registerNavigationBlocker } from '../../../shared/navigationBlocker';
+import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
+import DockedActionBar from '../../../shared/ui/DockedActionBar';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type {
   BodyTextStyleConfig,
@@ -47,6 +51,7 @@ import {
   applyExportLayoutPreset,
   applyExportThemePreset,
 } from '../exportFormatPresets';
+import './modernExportTemplate.css';
 
 type TemplateTab = 'quick' | 'layout' | 'cover' | 'heading' | 'body' | 'table' | 'image';
 type TableCellStyleKey = 'header_row' | 'first_column' | 'body_cell';
@@ -66,6 +71,16 @@ const templateTabs: Array<{ id: TemplateTab; label: string }> = [
   { id: 'table', label: '表格样式' },
   { id: 'image', label: '图片设置' },
 ];
+
+const modernTabDescriptions: Record<TemplateTab, string> = {
+  quick: '模板名称与推荐配置',
+  layout: '纸张、页边距与页码',
+  cover: '封面信息与样式',
+  heading: '层级标题与编号',
+  body: '段落、字体与列表',
+  table: '表格边框与单元格',
+  image: '图片尺寸与题注',
+};
 
 interface ExportProgressState {
   open: boolean;
@@ -416,11 +431,13 @@ export function withExportFormatDefaults(source: ExportFormatConfig): ExportForm
 
 function ExportFormatPage({ mode = 'create', templateId = null, onBack }: ExportFormatPageProps) {
   const { showToast } = useToast();
+  const { confirm } = useAppDialog();
   const [activeTab, setActiveTab] = useState<TemplateTab>('quick');
   const [config, setConfig] = useState<ExportFormatConfig>(
     () => mode === 'create' ? createNewTemplateExportFormat() : createDefaultExportFormat(),
   );
   const [savedConfig, setSavedConfig] = useState<ExportFormatConfig | null>(null);
+  const [baselineConfig, setBaselineConfig] = useState<ExportFormatConfig | null>(null);
   const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(templateId);
   const [selectedLayoutPresetId, setSelectedLayoutPresetId] = useState('');
   const [selectedThemePresetId, setSelectedThemePresetId] = useState('');
@@ -458,6 +475,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
           setCurrentTemplateId(template.template_id);
           setConfig(nextConfig);
           setSavedConfig(nextConfig);
+          setBaselineConfig(nextConfig);
           setSelectedLayoutPresetId('');
           setSelectedThemePresetId('');
           return;
@@ -468,6 +486,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
         setCurrentTemplateId(null);
         setConfig(defaultConfig);
         setSavedConfig(null);
+        setBaselineConfig(defaultConfig);
         setSelectedLayoutPresetId('');
         setSelectedThemePresetId('');
       } catch (error) {
@@ -483,6 +502,17 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
   }, [mode, showToast, templateId]);
 
   const isDirty = useMemo(() => !savedConfig || JSON.stringify(config) !== JSON.stringify(savedConfig), [config, savedConfig]);
+  const hasUnsavedChanges = Boolean(loaded && baselineConfig && JSON.stringify(config) !== JSON.stringify(baselineConfig));
+  const confirmLeave = useCallback(async () => getStoredUiAppearance() !== 'modern' || !hasUnsavedChanges || await confirm({
+    title: '模板修改尚未保存',
+    description: '离开后，当前模板尚未保存的排版修改会丢失。',
+    confirmLabel: '放弃修改并继续',
+  }), [hasUnsavedChanges, confirm]);
+  useEffect(() => {
+    if (getStoredUiAppearance() !== 'modern' || !hasUnsavedChanges) return undefined;
+    return registerNavigationBlocker((destination) => destination === 'bid-template-management' ? Promise.resolve(true) : confirmLeave());
+  }, [hasUnsavedChanges, confirmLeave]);
+  const returnToTemplates = () => { void confirmLeave().then((allowed) => { if (allowed) onBack?.(); }); };
   const previewStyle = useMemo<CSSProperties>(() => buildExportFormatCssVars(config), [config]);
   const fontOptions = useMemo(() => mergeFontOptions(FONT_OPTIONS, collectConfigFonts(config), systemFonts), [config, systemFonts]);
 
@@ -594,6 +624,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
       setCurrentTemplateId(template.template_id);
       setConfig(template.config);
       setSavedConfig(template.config);
+      setBaselineConfig(template.config);
       showToast(currentTemplateId ? '模板已保存' : '模板已创建', 'success');
     } catch (error) {
       showToast(`保存失败：${error instanceof Error ? error.message : '未知错误'}`, 'error');
@@ -786,7 +817,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
     ? {
         id: 'template-navigation',
         actions: [
-          { id: 'back', label: '返回我的模板', variant: 'secondary', onClick: onBack },
+          { id: 'back', label: '返回我的模板', variant: 'secondary', onClick: returnToTemplates },
         ],
       }
     : null;
@@ -1252,7 +1283,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
     return (
       <div className="export-template-subsection">
         <strong>{title}</strong>
-        <div className="export-format-heading-grid">
+        <div className="export-format-heading-grid export-template-table-cell-grid">
           <label>
             <span>字体</span>
             <FontPicker value={cell.font} options={fontOptions} onChange={(font) => updateTableCell(cellKey, { font })} />
@@ -1489,7 +1520,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
           <div className="export-template-error-state">
             <strong>模板加载失败</strong>
             <span>{loadError}</span>
-            {onBack ? <button type="button" className="secondary-action" onClick={onBack}>返回我的模板</button> : null}
+            {onBack ? <button type="button" className="secondary-action" onClick={returnToTemplates}>返回我的模板</button> : null}
           </div>
         </div>
       </div>
@@ -1497,9 +1528,48 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
   }
 
   return (
-    <div className="settings-page export-template-page">
+    <div className={`settings-page export-template-page${getStoredUiAppearance() === 'modern' ? ' modern-export-template-page' : ''}`}>
       <div className="settings-page-scroll export-template-scroll">
-        <div className="settings-tab-shell" role="tablist" aria-label="模版设置分类">
+        {getStoredUiAppearance() === 'modern' ? (
+          <div className="modern-template-shell">
+            <aside className="modern-template-navigation">
+              <div className="modern-template-navigation-head">
+                <span>WORD / TEMPLATE</span>
+                <strong>模板设计</strong>
+                <small>调整样式并同步查看页面预览</small>
+              </div>
+              <nav role="tablist" aria-label="模板设置分类" onKeyDown={handleTabListKeyDown}>
+                {templateTabs.map((tab, index) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    id={`modern-template-tab-${tab.id}`}
+                    aria-controls="modern-template-panel"
+                    aria-selected={activeTab === tab.id}
+                    tabIndex={activeTab === tab.id ? 0 : -1}
+                    className={activeTab === tab.id ? 'is-active' : ''}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <b>{String(index + 1).padStart(2, '0')}</b>
+                    <span><strong>{tab.label}</strong><small>{modernTabDescriptions[tab.id]}</small></span>
+                    <em>›</em>
+                  </button>
+                ))}
+              </nav>
+            </aside>
+            <div className="modern-template-main">
+              <header className="modern-template-stage-head">
+                <div><span>当前设置 / {String(templateTabs.findIndex((tab) => tab.id === activeTab) + 1).padStart(2, '0')}</span><h2>{templateTabs.find((tab) => tab.id === activeTab)?.label}</h2><p>{modernTabDescriptions[activeTab]}</p></div>
+                <small>{config.template_name.trim() || (mode === 'create' ? '新模板' : '当前模板')}</small>
+              </header>
+              <div className="export-template-workspace modern-template-workspace" role="tabpanel" id="modern-template-panel" aria-labelledby={`modern-template-tab-${activeTab}`}>
+                <section className="settings-page-section export-template-editor">{renderActiveSettings()}</section>
+                <TemplatePreview config={config} previewStyle={previewStyle} />
+              </div>
+            </div>
+          </div>
+        ) : <><div className="settings-tab-shell" role="tablist" aria-label="模版设置分类">
           {templateTabs.map((tab) => (
             <button
               key={tab.id}
@@ -1518,7 +1588,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
             {renderActiveSettings()}
           </section>
           <TemplatePreview config={config} previewStyle={previewStyle} />
-        </div>
+        </div></>}
       </div>
       <Dialog.Root
         open={exportProgress.open}
@@ -1565,12 +1635,14 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
           <Dialog.Content className="export-template-fullscreen-dialog">
             <Dialog.Title className="export-template-fullscreen-title">全屏预览</Dialog.Title>
             <Dialog.Description className="export-template-fullscreen-description">当前模板的全屏排版预览。</Dialog.Description>
-            <Dialog.Close className="export-template-fullscreen-close" type="button">退出全屏</Dialog.Close>
+            <Dialog.Close className="export-template-fullscreen-close" type="button" onClick={() => setPreviewFullscreenOpen(false)}>退出全屏</Dialog.Close>
             <TemplatePreview config={config} previewStyle={previewStyle} />
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <FloatingToolbar groups={toolbarGroups} label="模版设置保存工具条" />
+      {getStoredUiAppearance() === 'modern'
+        ? <DockedActionBar label="模板编辑操作" leading={[...(navigationToolbarGroup?.actions || []), ...previewToolbarGroup.actions, ...resetToolbarGroup.actions, ...exportTestToolbarGroup.actions]} trailing={isDirty ? saveToolbarGroups[1].actions : []} status={isDirty ? hasUnsavedChanges ? '修改尚未保存' : '新模板尚未创建' : '已保存'} />
+        : <FloatingToolbar groups={toolbarGroups} label="模版设置保存工具条" />}
     </div>
   );
 }

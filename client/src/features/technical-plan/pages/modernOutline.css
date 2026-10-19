@@ -1,0 +1,64 @@
+.modern-outline-page { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; gap: 11px; }
+.modern-outline-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex: 0 0 auto; border-bottom: 1px solid #334258; padding: 2px 2px 16px; }
+.modern-outline-header span, .modern-outline-tree header span, .modern-outline-detail header span { color: #ab9df4; font-size: 10px; font-weight: 800; }
+.modern-outline-header h2 { margin: 6px 0 4px; color: #f1effb; font-size: 19px; }
+.modern-outline-header p { margin: 0; color: #95a7bd; font-size: 11px; }
+.modern-outline-header > button { min-height: 37px; flex: 0 0 auto; border: 1px solid #9286e4; border-radius: 6px; padding: 0 13px; color: #fff; background: #6b60ba; font-size: 11px; font-weight: 700; cursor: pointer; }
+.modern-outline-header > button:disabled { opacity: .5; cursor: not-allowed; }
+.modern-outline-progress { flex: 0 0 auto; border: 1px solid #39485e; border-radius: 7px; background: #1c293d; }
+.modern-outline-progress > div:first-child { display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 7px 12px; }
+.modern-outline-status { color: #a6b7cb; font-size: 11px; }
+.modern-outline-status.is-running { color: #c7b8ff; }
+.modern-outline-status.is-success { color: #8fdfc4; }
+.modern-outline-status.is-error { color: #edabb0; }
+.modern-outline-progress strong { color: #e8e7fa; font-size: 13px; font-variant-numeric: tabular-nums; }
+.modern-outline-progress > div:first-child > div { height: 5px; flex: 1; overflow: hidden; border-radius: 3px; background: #37475d; }
+.modern-outline-progress > div:first-child > div span { display: block; height: 100%; border-radius: inherit; background: #a79bf0; transition: width .3s ease; }
+.modern-outline-progress button { border: 0; color: #ab9ff3; background: transparent; font-size: 10px; cursor: pointer; }
+.modern-outline-progress-detail { border-top: 1px solid #35455b; padding: 9px 13px 12px; }
+.modern-outline-progress-detail > p { margin: 0 0 5px; color: #b4bfd1; font-size: 11px; }
+.modern-outline-progress-detail > small { display: block; color: #8e9fb8; font-size: 10px; }
+.modern-outline-progress-detail > div { max-height: 90px; overflow: auto; margin-top: 8px; color: #8194ae; font-size: 10px; }
+.modern-outline-progress-detail > div p { margin: 4px 0; }
+.modern-outline-progress-detail > div p.is-latest { color: #c3cbea; }
+.modern-outline-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 282px; gap: 12px; min-height: 0; flex: 1; }
+.modern-outline-tree, .modern-outline-detail { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid #39485e; border-radius: 8px; background: #1c2a3d; }
+.modern-outline-tree > header, .modern-outline-detail > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 0 0 auto; border-bottom: 1px solid #35445a; padding: 14px 15px; }
+.modern-outline-tree h3, .modern-outline-detail h3 { margin: 5px 0 0; color: #edeefa; font-size: 15px; }
+.modern-outline-tree h3 small, .modern-outline-detail header small { color: #8799b0; font-size: 10px; font-weight: 500; }
+.modern-outline-tree > header > div:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.modern-outline-tree > header button, .modern-outline-detail-body > div:last-child button { min-height: 31px; border: 1px solid #4b5c73; border-radius: 5px; padding: 0 8px; color: #d3dceb; background: #2b3a50; font-size: 10px; cursor: pointer; }
+.modern-outline-tree > header button:disabled, .modern-outline-detail-body button:disabled { opacity: .45; cursor: not-allowed; }
+.modern-outline-tree-body { min-height: 0; flex: 1; overflow: auto; padding: 10px; }
+.modern-outline-node .modern-outline-node { margin-left: 21px; border-left: 1px solid #475873; padding-left: 12px; }
+.modern-outline-item { display: flex; align-items: stretch; min-height: 67px; margin: 5px 0; border: 1px solid transparent; border-radius: 9px; background: #1d2d42; }
+.modern-outline-node .modern-outline-node > .modern-outline-item { background: #19283c; }
+.modern-outline-node .modern-outline-node .modern-outline-node > .modern-outline-item { background: #172437; }
+.modern-outline-item:hover { border-color: #4a5870; background: #27384d; }
+.modern-outline-item.is-active { border-color: #7e73bc; background: #303650; }
+.modern-outline-expand { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; align-self: center; margin-left: 10px; border: 1px solid #36547a; border-radius: 8px; padding: 0; color: #ac9ff0; background: #223b5a; font-size: 13px; cursor: pointer; }
+.modern-outline-expand:disabled { color: #5d718a; cursor: default; }
+.modern-outline-select { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-content: center; gap: 3px 7px; min-width: 0; flex: 1; border: 0; padding: 9px 12px; color: #e4e9f6; background: transparent; text-align: left; cursor: pointer; }
+.modern-outline-select span { color: #ad9ff0; font-size: 12px; }
+.modern-outline-select strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.modern-outline-select small { grid-column: 2; overflow: hidden; color: #96a7bc; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.modern-outline-detail > header { align-items: flex-start; flex-direction: column; gap: 2px; }
+.modern-outline-detail-body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 12px; overflow: auto; padding: 17px; }
+.modern-outline-detail-body h4 { margin: 0; color: #e9eefa; font-size: 14px; line-height: 1.4; }
+.modern-outline-detail-body p { margin: 0; color: #9cacc2; font-size: 11px; line-height: 1.6; }
+.modern-outline-detail-body small { color: #8ea1b9; font-size: 10px; }
+.modern-outline-detail-body label { display: flex; flex-direction: column; gap: 7px; color: #aab8cc; font-size: 11px; }
+.modern-outline-detail-body input, .modern-outline-detail-body textarea { width: 100%; border: 1px solid #4c5b72; border-radius: 6px; padding: 8px 10px; color: #edf0fa; background: #26364c; font-size: 11px; }
+.modern-outline-detail-body textarea { min-height: 105px; resize: vertical; }
+.modern-outline-detail-body > div:last-child { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.modern-outline-detail-body > div:last-child button.is-primary { border-color: #9488e4; color: #fff; background: #6c62ba; }
+.modern-outline-detail-body > div:last-child button.is-danger { color: #e9a6b0; }
+.modern-outline-lock { border: 1px solid #776644; border-radius: 5px; padding: 8px; color: #e7c99a !important; background: #37322d; }
+.modern-outline-empty { display: flex; min-height: 100%; flex-direction: column; align-items: center; justify-content: center; color: #e6eafa; text-align: center; }
+.modern-outline-empty strong { font-size: 13px; }
+.modern-outline-empty p { max-width: 230px; color: #8fa2b9; font-size: 11px; line-height: 1.5; }
+:root[data-ui-appearance='modern'] .outline-generation-config-card { border: 1px solid #505b76; color: #e9ecf8; background: #1b283b; box-shadow: 0 28px 90px #0009; }
+:root[data-ui-appearance='modern'] .outline-generation-config-section { border-color: #3d4b63; background: #202f44; }
+@media (max-width: 1040px) { .modern-outline-workspace { grid-template-columns: 1fr; overflow: auto; } .modern-outline-tree { min-height: 370px; } .modern-outline-detail { min-height: 270px; } }
+@media (max-width: 790px) { .modern-outline-header { align-items: flex-start; flex-direction: column; } .modern-outline-tree > header { align-items: flex-start; flex-direction: column; } }
+@media (prefers-reduced-motion: reduce) { .modern-outline-progress > div:first-child > div span { transition: none; } }

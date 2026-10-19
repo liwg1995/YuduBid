@@ -208,10 +208,15 @@ const LAYOUT_PROBE = `(async()=>{
     }
   }
   for(const element of body.querySelectorAll('*')){
+    // The document's full-canvas wrapper is a layout surface, not a content panel.
+    // Measuring its text distribution mistakes a valid chart for a half-empty card.
+    if(element.parentElement===body)continue;
     const box=element.getBoundingClientRect();
     if(box.width<240||box.height<200||box.width*box.height<90000)continue;
-    const color=getComputedStyle(element).backgroundColor;
+    const style=getComputedStyle(element);
+    const color=style.backgroundColor;
     if(color==='rgba(0, 0, 0, 0)'||color==='transparent')continue;
+    if(parseFloat(style.borderTopWidth)===0&&parseFloat(style.borderLeftWidth)===0&&parseFloat(style.borderRightWidth)===0&&parseFloat(style.borderBottomWidth)===0)continue;
     const ownText=textRects.filter((entry)=>element.contains(entry.element)&&entry.rect.top>=box.top&&entry.rect.bottom<=box.bottom);
     const visuals=Array.from(element.querySelectorAll('svg,img,canvas')).map((item)=>item.getBoundingClientRect()).filter((rect)=>rect.width>100&&rect.height>100);
     const contentBottom=Math.max(0,...ownText.map((entry)=>entry.rect.bottom),...visuals.map((rect)=>rect.bottom));
@@ -257,7 +262,10 @@ async function renderHtmlToPng(source) {
     if (!layout.text) throw new Error('HTML 图没有可见文字');
     // Chromium may report a few extra pixels for font and border rounding.
     if (layout.width > WIDTH + 8 || layout.height > HEIGHT + 8) throw new Error(`HTML 图内容超出画布（${layout.width}×${layout.height}，画布 ${WIDTH}×${HEIGHT}），请重排内容，不能整体缩小`);
-    if (layout.issues.length) throw new Error(`HTML 图排版需修复：${layout.issues.join('；')}`);
+    if (layout.issues.length) {
+      console.warn(`[html-illustration] layout rejected: canvas=${layout.width}x${layout.height}, text=${layout.text}, issues=${layout.issues.join('；')}, warnings=${layout.warnings.join('；')}`);
+      throw new Error(`HTML 图排版需修复：${layout.issues.join('；')}`);
+    }
     const image = await win.webContents.capturePage({ x: 0, y: 0, width: WIDTH, height: HEIGHT });
     if (image.isEmpty()) throw new Error('HTML 图截图为空');
     return { html, png: image.toPNG(), layoutWarnings: layout.warnings };

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import '../duplicateCheck.css';
+import './modernDuplicateCheck.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
 import { FloatingToolbar, isLibreOfficeRequiredMessage, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type { DuplicateAnalysisStatus, DuplicateAnalysisTabId, DuplicateCheckStep, DuplicateCheckTaskState, DuplicateCheckWorkspaceState, DuplicateContentAnalysisState, DuplicateImageAnalysisState, DuplicateMetadataAnalysisState, DuplicateOutlineAnalysisState, LocalFileSelection } from '../../../shared/types';
@@ -57,6 +60,14 @@ function FilePill({ file, onRemove, disabled = false }: { file: LocalFileSelecti
       <button type="button" onClick={onRemove} aria-label={`删除 ${file.file_name}`} disabled={disabled}>删除</button>
     </article>
   );
+}
+
+function ModernFileRow({ file, code, onRemove, disabled = false }: { file: LocalFileSelection; code: string; onRemove: () => void; disabled?: boolean }) {
+  return <div className="modern-duplicate-file-row">
+    <span className="modern-duplicate-file-code">{code}</span>
+    <div><strong title={file.file_name}>{file.file_name}</strong><small>{formatFileSize(file.size)} · {formatDate(file.modified_at)}</small></div>
+    <button type="button" onClick={onRemove} disabled={disabled} aria-label={`移除 ${file.file_name}`}>移除</button>
+  </div>;
 }
 
 function statusLabel(status: DuplicateAnalysisStatus) {
@@ -508,6 +519,28 @@ function DuplicateAnalysisPane({ activeTab, onTabChange, metadataAnalysis, outli
       : 0;
   const analysisRunning = startingAnalysis || metadataStatus === 'running' || outlineAnalysis?.status === 'running' || contentAnalysis?.status === 'running' || imageAnalysis?.status === 'running';
 
+  if (getStoredUiAppearance() === 'modern') {
+    const result = activeItem.id === 'metadata'
+      ? <DuplicateMetadataPane analysis={metadataAnalysis} bidFiles={bidFiles} />
+      : activeItem.id === 'outline'
+        ? <DuplicateOutlinePane analysis={outlineAnalysis} bidFiles={bidFiles} />
+        : activeItem.id === 'content'
+          ? <DuplicateContentPane analysis={contentAnalysis} bidFiles={bidFiles} />
+          : <DuplicateImagePane analysis={imageAnalysis} bidFiles={bidFiles} />;
+    return <div className="modern-duplicate-results">
+      <header className="modern-duplicate-result-header"><div><span>ANALYSIS / 02</span><h2>查重结果</h2><p>从四个维度查看投标文件之间的重复线索。</p></div><button type="button" onClick={onRerun} disabled={!bidFiles.length || analysisRunning}>{analysisRunning ? '分析进行中…' : '重新查重'}</button></header>
+      <div className="modern-duplicate-result-workspace">
+        <nav className="modern-duplicate-dimensions" role="tablist" aria-orientation="vertical" aria-label="查重维度" onKeyDown={handleTabListKeyDown}><div><span>检查维度</span><strong>04</strong></div>{analysisTabs.map((item, index) => {
+          const analysis = item.id === 'metadata' ? metadataAnalysis : item.id === 'outline' ? outlineAnalysis : item.id === 'content' ? contentAnalysis : imageAnalysis;
+          const status = analysis?.status || 'pending';
+          const progress = status === 'success' || status === 'error' ? 100 : item.id === 'metadata' ? metadataProgress : analysis && 'progress' in analysis ? Number(analysis.progress || 0) : 0;
+          return <button type="button" role="tab" key={item.id} id={`modern-duplicate-tab-${item.id}`} aria-selected={activeTab === item.id} aria-controls="modern-duplicate-panel" tabIndex={activeTab === item.id ? 0 : -1} className={`modern-duplicate-dimension${activeTab === item.id ? ' is-active' : ''}`} onClick={() => onTabChange(item.id)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{item.label}</strong><small className={`is-${status}`}>{statusLabel(status)}</small><i style={{ width: `${progress}%` }} /></button>;
+        })}</nav>
+        <section className="modern-duplicate-result-detail" role="tabpanel" id="modern-duplicate-panel" aria-labelledby={`modern-duplicate-tab-${activeItem.id}`}><div className="modern-duplicate-detail-head"><span>当前维度</span><h3>{activeItem.label}查重</h3><p>{dimensions.find((dimension) => dimension.title === activeItem.label)?.text}</p></div><div className="modern-duplicate-detail-content">{result}</div></section>
+      </div>
+    </div>;
+  }
+
   return (
     <section className="duplicate-analysis-panel">
       <div className="duplicate-page-title duplicate-analysis-title">
@@ -930,6 +963,29 @@ function DuplicateCheckPage() {
       ],
     },
   ];
+
+  if (getStoredUiAppearance() === 'modern') {
+    return <div className="modern-duplicate-page">
+      <div className="modern-duplicate-stepbar" role="tablist" aria-label="标书查重步骤" onKeyDown={handleTabListKeyDown}>
+        <button type="button" role="tab" id="modern-duplicate-step-upload" aria-selected={step === 'upload'} aria-controls="modern-duplicate-page-content" tabIndex={step === 'upload' ? 0 : -1} className={step === 'upload' ? 'is-active' : ''} onClick={() => switchStep('upload')}><span>01</span>选择标书</button>
+        <button type="button" role="tab" id="modern-duplicate-step-analysis" aria-selected={step === 'analysis'} aria-controls="modern-duplicate-page-content" tabIndex={step === 'analysis' ? 0 : -1} className={step === 'analysis' ? 'is-active' : ''} onClick={() => canGoNext && switchStep('analysis')} disabled={!canGoNext}><span>02</span>查重结果</button>
+        <strong role="status">{isAnalysisRunning ? '后台分析中' : step === 'analysis' ? '分析工作区' : '准备分析文件'}</strong>
+      </div>
+      <div className="modern-duplicate-page-content" id="modern-duplicate-page-content" role="tabpanel" aria-labelledby={`modern-duplicate-step-${step}`}>
+        {step === 'upload' ? <div className="modern-duplicate-upload">
+          <header className="modern-duplicate-upload-header"><div><span>DOCUMENT REVIEW / 01</span><h2>选择标书</h2><p>上传需要比较的投标文件；招标文件可辅助排除共同引用内容。</p></div><div><strong>{bidFiles.length}</strong><span>份投标文件</span><small>合计 {formatFileSize(totalSize)}</small></div></header>
+          <div className="modern-duplicate-upload-workspace">
+            <div className="modern-duplicate-file-stage">
+              <section className="modern-duplicate-file-section"><header><div><span>OPTIONAL / 01</span><h3>招标文件</h3><p>可选，仅保留一份。共同引用的招标内容不会计入重复。</p></div><button type="button" onClick={uploadTenderFile} disabled={busy !== null || isAnalysisRunning}>{busy === 'tender' ? '选择中…' : tenderFile ? '替换文件' : '添加文件'}</button></header><div>{tenderFile ? <ModernFileRow file={tenderFile} code="招" disabled={isAnalysisRunning} onRemove={() => { void persistSelectedFiles(null, bidFiles).catch((error) => showToast(error instanceof Error ? error.message : '移除招标文件失败', 'error')); }} /> : <p className="modern-duplicate-file-empty">尚未选择招标文件。可以直接添加投标文件。</p>}</div></section>
+              <section className="modern-duplicate-file-section is-required"><header><div><span>REQUIRED / 02</span><h3>投标文件</h3><p>至少一份，可同时选择多份进行比较。</p></div><button type="button" onClick={uploadBidFiles} disabled={busy !== null || isAnalysisRunning}>{busy === 'bid' ? '选择中…' : '添加投标文件'}</button></header><div>{bidFiles.length ? bidFiles.map((file, index) => <ModernFileRow key={file.file_path} file={file} code={fileIndexLabel(index)} disabled={isAnalysisRunning} onRemove={() => { void persistSelectedFiles(tenderFile, bidFiles.filter((item) => item.file_path !== file.file_path)).catch((error) => showToast(error instanceof Error ? error.message : '移除投标文件失败', 'error')); }} />) : <p className="modern-duplicate-file-empty">还没有投标文件。添加后即可进入查重结果。</p>}</div></section>
+            </div>
+            <aside className="modern-duplicate-guide"><span>分析范围</span><h3>四个维度，一处查看</h3><div>{dimensions.map((item, index) => <section key={item.title}><b>{String(index + 1).padStart(2, '0')}</b><strong>{item.title}</strong><p>{item.text}</p></section>)}</div><details><summary>使用说明</summary><ul>{guideItems.map((item) => <li key={item}>{item}</li>)}</ul></details></aside>
+          </div>
+        </div> : <DuplicateAnalysisPane activeTab={activeAnalysisTab} onTabChange={setActiveAnalysisTab} metadataAnalysis={metadataAnalysis} outlineAnalysis={outlineAnalysis} contentAnalysis={contentAnalysis} imageAnalysis={imageAnalysis} bidFiles={bidFiles} startingAnalysis={startingAnalysis || analysisTask?.status === 'running'} onRerun={() => startDuplicateAnalysis(true)} />}
+      </div>
+      <footer className="modern-duplicate-footer"><div><button type="button" className="is-danger" onClick={resetFiles} disabled={isAnalysisRunning}>重置</button><button type="button" onClick={() => switchStep('upload')}>选择标书</button><button type="button" onClick={() => void exportExcel()} disabled={isAnalysisRunning}>导出 Excel</button></div><div><button type="button" onClick={() => goToOffset(-1)} disabled={activeIndex <= 0}>← 上一步</button><button type="button" className="is-primary" onClick={() => goToOffset(1)} disabled={isNextDisabled} title={nextTooltip}>下一步 →</button></div></footer>
+    </div>;
+  }
 
   return (
     <div className="duplicate-check-page">

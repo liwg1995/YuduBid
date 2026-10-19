@@ -1,10 +1,12 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
+import { MarkdownEditor, MarkdownRenderer, useAppDialog } from '../../../shared/ui';
 import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { AgentHostStatus, AgentRunResult } from '../../../shared/types/ipc';
+import type { CodeGenerationState } from '../../../shared/types/contracts/codeGeneration';
+import { SourceFileWorkspace } from '../../code-generation/components/SourceFileWorkspace';
 import type { SoftwareCopyrightCodeManifest, SoftwareCopyrightCodeMaterialReviewChecks, SoftwareCopyrightConsistencyCheck, SoftwareCopyrightDraftFile, SoftwareCopyrightDraftValidationIssue, SoftwareCopyrightDraftValidationResult, SoftwareCopyrightFields, SoftwareCopyrightManualAssetReviewChecks, SoftwareCopyrightOptions, SoftwareCopyrightState } from '../types';
 import { CodeMaterialReview } from '../components/CodeMaterialReview';
 import { AiIllustrationManager } from '../components/AiIllustrationManager';
@@ -19,6 +21,11 @@ import { SoftwareCopyrightJourneyGuide, type SoftwareCopyrightJourneyStep } from
 import { ManualAssetReviewPanel } from '../components/ManualAssetReviewPanel';
 import SoftwareCopyrightProjectsPage from './SoftwareCopyrightProjectsPage';
 import '../softwareCopyright.css';
+import '../../code-generation/codeGeneration.css';
+import './modernSoftwareCopyright.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { registerNavigationBlocker } from '../../../shared/navigationBlocker';
+import { shouldReduceMotion } from '../../../shared/motionPreference';
 
 const emptyFields: SoftwareCopyrightFields = {
   softwareName: '',
@@ -170,7 +177,11 @@ type SoftwareCopyrightWorkflowSection = 'task' | 'source' | 'fields' | 'drafts' 
 
 function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkbenchProps) {
   const { showToast } = useToast();
+  const { confirm } = useAppDialog();
   const [state, setState] = useState<SoftwareCopyrightState | null>(null);
+  const [sourceSelection, setSourceSelection] = useState<CodeGenerationState | null>(null);
+  const [sourceAdvancedOpen, setSourceAdvancedOpen] = useState(false);
+  const [sourceSelectionSaving, setSourceSelectionSaving] = useState(false);
   const [fields, setFields] = useState<SoftwareCopyrightFields>(emptyFields);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -191,6 +202,19 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
+  const confirmDiscardDraft = useCallback(() => confirm({
+    title: '软著草稿尚未保存',
+    description: '离开后，当前草稿的修改会丢失。',
+    confirmLabel: '放弃修改并继续',
+  }), [confirm]);
+  useEffect(() => {
+    if (getStoredUiAppearance() !== 'modern' || !draftDirty) return undefined;
+    return registerNavigationBlocker((destination) => destination === 'software-copyright' ? Promise.resolve(true) : confirmDiscardDraft());
+  }, [draftDirty, confirmDiscardDraft]);
+  const returnToProjects = () => {
+    if (getStoredUiAppearance() !== 'modern' || !draftDirty) { onBackToProjects(); return; }
+    void confirmDiscardDraft().then((accepted) => { if (accepted) onBackToProjects(); });
+  };
   const [draftViewMode, setDraftViewMode] = useState<'structure' | 'edit' | 'preview' | 'history'>('edit');
   const [validation, setValidation] = useState<SoftwareCopyrightDraftValidationResult | null>(null);
   const [validating, setValidating] = useState(false);
@@ -439,6 +463,14 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
 
   useEffect(() => {
     let mounted = true;
+    window.yibiao?.codeGeneration.loadState()
+      .then((nextState) => { if (mounted) setSourceSelection(nextState); })
+      .catch((error) => showToast(error instanceof Error ? error.message : '读取源码筛选状态失败', 'error'));
+    return () => { mounted = false; };
+  }, [showToast]);
+
+  useEffect(() => {
+    let mounted = true;
     window.yibiao?.agent.getStatus().then((status) => mounted && setAgentStatus(status)).catch(() => mounted && setAgentStatus(null));
     return () => { mounted = false; };
   }, []);
@@ -552,11 +584,66 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
         if (result?.message) showToast(result.message, 'info');
         return;
       }
-      setState(result.state);
-      setFields({ ...emptyFields, ...result.state.fields });
+      const nextState = result.state.options.sourceMode === 'project'
+        ? result.state
+        : await window.yibiao?.softwareCopyright.saveOptions({ ...result.state.options, sourceMode: 'project' });
+      if (nextState) {
+        setState(nextState);
+        setFields({ ...emptyFields, ...nextState.fields });
+      }
+      setSourceSelection(null);
       showToast('项目分析完成', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '选择项目失败', 'error');
+    }
+  }
+
+  async function handleSelectSourceForReview() {
+    setSourceSelectionSaving(true);
+    try {
+      const result = await window.yibiao?.codeGeneration.selectProject();
+      if (!result?.success) return;
+      setSourceSelection(result.state);
+      if (sourceMode === 'code-generation') await refreshWorkbenchState();
+      showToast('源码扫描完成，请确认纳入材料的文件', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '扫描源码失败', 'error');
+    } finally {
+      setSourceSelectionSaving(false);
+    }
+  }
+
+  async function handleSourceSelectionChange(selectedPaths: string[], sortMode?: CodeGenerationState['sortMode']) {
+    setSourceSelectionSaving(true);
+    try {
+      const nextState = await window.yibiao?.codeGeneration.updateSelection({ selectedPaths, sortMode });
+      if (nextState) setSourceSelection(nextState);
+      if (sourceMode === 'code-generation') await refreshWorkbenchState();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '保存源码范围失败', 'error');
+    } finally {
+      setSourceSelectionSaving(false);
+    }
+  }
+
+  async function handleConfirmSourceSelection() {
+    setSourceSelectionSaving(true);
+    try {
+      const nextSelection = await window.yibiao?.codeGeneration.confirmSelection();
+      if (!nextSelection) return;
+      setSourceSelection(nextSelection);
+      const nextState = await window.yibiao?.softwareCopyright.saveOptions({
+        ...(state?.options || defaultOptions),
+        sourceMode: 'code-generation',
+      });
+      if (nextState) setState(nextState);
+      await refreshWorkbenchState();
+      setSourceAdvancedOpen(false);
+      showToast('源码范围已确认，材料将使用所选文件', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '确认源码范围失败', 'error');
+    } finally {
+      setSourceSelectionSaving(false);
     }
   }
 
@@ -784,7 +871,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
 
   async function handleGenerateDraft() {
     if (!canGenerateDraft) {
-      showToast(sourceMode === 'code-generation' ? '请先在源码准备中确认素材，并确认软件全称和版本号' : '请先选择源码目录，并至少确认软件全称和版本号', 'info');
+      showToast(sourceMode === 'code-generation' ? '请先在项目来源中确认源码范围，并确认软件全称和版本号' : '请先选择源码目录，并至少确认软件全称和版本号', 'info');
       return;
     }
     if (missingFields.length) {
@@ -980,6 +1067,11 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
   }
 
   async function handleClear() {
+    if (getStoredUiAppearance() === 'modern' && !await confirm({
+      title: '清空软著工作区？',
+      description: '当前生成状态、草稿和已准备的材料会被清空。',
+      confirmLabel: '确认清空',
+    })) return;
     try {
       const result = await window.yibiao?.softwareCopyright.clear();
       if (!result) return;
@@ -1147,7 +1239,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
 
   function scrollToElement(element: HTMLElement | null) {
     if (!element) return;
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduceMotion = shouldReduceMotion();
     element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
     element.classList.remove('is-readiness-target');
     window.requestAnimationFrame(() => element.classList.add('is-readiness-target'));
@@ -1245,23 +1337,21 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
     return <div className="software-copyright-page"><div className="software-copyright-empty">正在读取软著生成状态...</div></div>;
   }
 
+  const isModern = getStoredUiAppearance() === 'modern';
+
   return (
-    <div className="software-copyright-page">
+    <div className={`software-copyright-page${isModern ? ' modern-software-copyright' : ''}`}>
       <section className="software-copyright-header">
         <div>
-          <span className="section-kicker">材料生成</span>
+          <div className="software-copyright-header-eyebrow">
+            <span className="section-kicker">材料生成</span>
+            <button type="button" className="context-help-trigger" onClick={() => setComplianceNoticeOpen(true)}>查看合规提醒</button>
+          </div>
           <h2>生成申请表信息、操作手册和代码鉴别材料</h2>
           <p>文本生成使用设置中的文本模型；示意图可选使用设置中的生图模型。代码材料只从所选项目真实源码中抽取。</p>
-          <div className="software-copyright-format-notice">
-            导出材料格式需根据当地受理要求人为微调，请勿直接使用！
-          </div>
-          <button type="button" className="software-copyright-compliance-link" onClick={() => setComplianceNoticeOpen(true)}>
-            软著AI合规提醒
-          </button>
         </div>
         <div className="software-copyright-header-actions">
-          <button type="button" className="secondary-action" onClick={onBackToProjects} disabled={Boolean(isRunning || draftDirty)}>返回项目列表</button>
-          <button type="button" className="secondary-action" onClick={handleSelectProject} disabled={isRunning}>选择源码目录</button>
+          <button type="button" className="secondary-action" onClick={returnToProjects} disabled={Boolean(isRunning || (!isModern && draftDirty))}>返回项目列表</button>
           <button type="button" className="secondary-action" onClick={handleOpenOutputDir}>打开输出目录</button>
           <button type="button" className="danger-action" onClick={handleClear} disabled={isRunning}>清空</button>
         </div>
@@ -1274,7 +1364,20 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
         </AgentFloatingPanel>
       )}
 
-      <nav className="software-copyright-workflow-nav" aria-label="软著材料工作阶段">
+      {isModern && <section className="modern-software-navigation" aria-label="软著材料工作阶段">
+        <div className="modern-software-navigation-head"><div><span>材料流程 / 01—05</span><strong>按阶段准备、审阅与导出</strong></div><small className={draftDirty ? 'is-dirty' : undefined}>{draftDirty ? '当前草稿未保存' : state?.draftConfirmed ? '草稿已确认' : hasDrafts ? '草稿待审阅' : '准备材料中'}</small></div>
+        <nav>
+          {([
+            { id: 'source', label: '项目源码', hint: '目录、素材与代码范围', target: sourceSectionRef, enabled: true },
+            { id: 'fields', label: '登记信息', hint: '申请字段与功能说明', target: fieldsSectionRef, enabled: true },
+            { id: 'task', label: '生成控制', hint: '生成、检查与确认', target: taskSectionRef, enabled: true },
+            { id: 'drafts', label: '草稿审阅', hint: hasDrafts ? `${draftEntries.length} 份材料待核对` : '生成后可审阅', target: draftsSectionRef, enabled: hasDrafts },
+            { id: 'result', label: '总检与导出', hint: state?.outputs?.length ? `${state.outputs.length} 项输出` : preExportReady ? '可正式导出' : '总检通过后导出', target: finalExportSectionRef, enabled: true },
+          ] as const).map((item, index) => <button key={item.id} type="button" className={activeWorkflowSection === item.id ? 'is-active' : ''} aria-current={activeWorkflowSection === item.id ? 'step' : undefined} onClick={() => handleWorkflowNavigate(item.id, item.target.current)} disabled={!item.enabled}><b>{String(index + 1).padStart(2, '0')}</b><span><strong>{item.label}</strong><small>{item.hint}</small></span><em>{activeWorkflowSection === item.id ? '●' : '›'}</em></button>)}
+        </nav>
+      </section>}
+
+      {!isModern && <nav className="software-copyright-workflow-nav" aria-label="软著材料工作阶段">
         <button
           type="button"
           className={activeWorkflowSection === 'source' ? 'is-active' : ''}
@@ -1316,7 +1419,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
         >
           <span>总检与导出</span><small>{state?.outputs?.length ? `${state.outputs.length} 项输出` : preExportReady ? '可正式导出' : '总检通过后导出'}</small>
         </button>
-      </nav>
+      </nav>}
 
       <SoftwareCopyrightJourneyGuide steps={journeySteps} />
 
@@ -1329,26 +1432,19 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
                 <h3>{sourceMode === 'code-generation' ? state?.codeGeneration?.project?.name || '尚未确认代码素材' : state?.project?.name || '尚未选择项目'}</h3>
               </div>
               {sourceMode === 'code-generation'
-                ? state?.codeGeneration?.project && <span className="demo-soft-pill">{state.codeGeneration.project.path}</span>
-                : state?.project && <span className="demo-soft-pill">{state.project.path}</span>}
+                ? state?.codeGeneration?.project && <span className="demo-soft-pill software-copyright-source-path" title={state.codeGeneration.project.path}>{state.codeGeneration.project.path}</span>
+                : state?.project && <span className="demo-soft-pill software-copyright-source-path" title={state.project.path}>{state.project.path}</span>}
             </div>
-            <div className="software-copyright-source-switch">
-              <button
-                type="button"
-                className={sourceMode === 'project' ? 'is-active' : ''}
-                onClick={() => void handleSourceModeChange('project')}
-                disabled={isRunning}
-              >
-                选择源码目录
-              </button>
-              <button
-                type="button"
-                className={sourceMode === 'code-generation' ? 'is-active' : ''}
-                onClick={() => void handleSourceModeChange('code-generation')}
-                disabled={isRunning || !state?.codeGeneration?.available}
-              >
-                使用源码准备结果
-              </button>
+            <div className="software-copyright-source-actions">
+              <div>
+                <strong>{sourceMode === 'code-generation' && state?.codeGeneration?.available ? '已确认筛选范围' : state?.project ? '已选择源码目录' : '从源码目录开始'}</strong>
+                <span>{sourceMode === 'code-generation' && state?.codeGeneration?.available ? '生成材料时只使用已确认的文件和排序' : '可直接使用整个目录，也可展开高级筛选指定文件范围'}</span>
+              </div>
+              <div className="software-copyright-source-action-buttons">
+                <button type="button" className="secondary-action" onClick={() => void handleSelectProject()} disabled={isRunning || sourceSelectionSaving}>{state?.project ? '更换目录' : '选择源码目录'}</button>
+                {sourceMode === 'code-generation' && state?.project && <button type="button" className="secondary-action" onClick={() => void handleSourceModeChange('project')} disabled={isRunning || sourceSelectionSaving}>使用整个目录</button>}
+                <button type="button" className="secondary-action" aria-expanded={sourceAdvancedOpen} onClick={() => setSourceAdvancedOpen((open) => !open)} disabled={isRunning || sourceSelectionSaving}>高级筛选 {sourceAdvancedOpen ? '⌃' : '⌄'}</button>
+              </div>
             </div>
             {sourceMode === 'project' && state?.analysis ? (
               <div className="software-copyright-stats">
@@ -1365,8 +1461,23 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
                 <article><span>确认时间</span><strong>{state.codeGeneration.confirmedAt ? new Date(state.codeGeneration.confirmedAt).toLocaleString() : '已确认'}</strong></article>
               </div>
             ) : (
-              <div className="software-copyright-empty">{sourceMode === 'code-generation' ? '请先到源码准备页面选择当前项目的源码目录并确认素材。' : '请选择当前软著项目对应的源码目录。'}</div>
+              <div className="software-copyright-empty">请选择当前软著项目对应的源码目录。</div>
             )}
+            {sourceAdvancedOpen && <div className="software-copyright-source-advanced">
+              <div className="software-copyright-source-advanced-head">
+                <div>
+                  <strong>文件范围与排序</strong>
+                  <span>{sourceSelection?.analysis ? `${sourceSelection.project?.name || '当前目录'} · 已选 ${sourceSelection.summary.selectedCount} 个文件，${sourceSelection.summary.selectedLineCount.toLocaleString()} 行` : '选择源码目录后，可筛选文件并调整导出顺序'}</span>
+                </div>
+                <div className="software-copyright-source-action-buttons">
+                  <button type="button" className="secondary-action" onClick={() => void handleSelectSourceForReview()} disabled={sourceSelectionSaving || isRunning}>{sourceSelection?.analysis ? '更换筛选目录' : '扫描源码目录'}</button>
+                  {sourceSelection?.analysis && <button type="button" className="primary-action" onClick={() => void handleConfirmSourceSelection()} disabled={sourceSelectionSaving || isRunning || !sourceSelection.selectedPaths.length}>{sourceSelectionSaving ? '正在保存…' : '确认使用所选文件'}</button>}
+                </div>
+              </div>
+              {sourceSelection?.analysis && <div className="software-copyright-source-file-workspace">
+                <SourceFileWorkspace analysis={sourceSelection.analysis} selectedPaths={sourceSelection.selectedPaths} sortMode={sourceSelection.sortMode} disabled={sourceSelectionSaving || isRunning} onChange={(paths, sortMode) => void handleSourceSelectionChange(paths, sortMode)} />
+              </div>}
+            </div>}
           </section>
 
           {state?.options.screenshotMode === 'manual' && (
@@ -1872,6 +1983,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
                     <button
                       type="button"
                       className={activeDraftKey === key ? 'is-active' : ''}
+                      aria-pressed={activeDraftKey === key}
                       onClick={() => handleSelectDraft(key)}
                       disabled={draftLoading || draftSaving}
                       key={key}
@@ -1880,6 +1992,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
                     </button>
                   ))}
                 </div>
+                <div className="software-copyright-draft-content">
                 <div className="software-copyright-draft-meta">
                   <span>{draftFile?.name || '正在读取草稿'}</span>
                   {draftFile?.updatedAt && <span>{new Date(draftFile.updatedAt).toLocaleString()}</span>}
@@ -1932,6 +2045,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
                   </button>
                 )}
                 <span className="software-copyright-draft-path">{draftFile?.path}</span>
+                </div>
               </div>
             ) : (
               <div className="software-copyright-empty">生成草稿后会显示业务理解、申请表信息、操作手册、代码提取清单和代码材料 Markdown。</div>

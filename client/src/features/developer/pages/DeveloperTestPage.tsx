@@ -4,6 +4,9 @@ import type { AgentActionPreview, AgentApprovalDraft, AgentApprovalDraftAuditLog
 import { useToast } from '../../../shared/ui/ToastProvider';
 import { getBidAnalysisTasks } from '../../technical-plan/services/bidAnalysisWorkflow';
 import { requestOutlineGeneration } from '../../technical-plan/services/outlineWorkflow';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
+import './modernDeveloperTest.css';
 
 type RunningMode = 'text' | 'json' | null;
 type AgentWorkflowKind = 'technical-plan' | 'existing-plan-expansion' | 'presales' | 'official-document' | 'grant-application' | 'project-management' | 'thesis-tutor' | 'software-copyright' | 'patent-generation';
@@ -41,6 +44,7 @@ const textSystemPrompt = `你是专业的招标文件分析助手。请严格基
 function DeveloperTestPage() {
   const { showToast } = useToast();
   const [runningMode, setRunningMode] = useState<RunningMode>(null);
+  const [modernSection, setModernSection] = useState<'requests' | 'agent' | 'logs'>('requests');
   const [events, setEvents] = useState<string[]>([]);
   const [content, setContent] = useState('');
   const [result, setResult] = useState('');
@@ -99,6 +103,7 @@ function DeveloperTestPage() {
     }
 
     resetOutput();
+    setModernSection('logs');
     setRunningMode('text');
     appendEvent(`调用通用 AI 文本请求：aiClient.chat(${textTask.label})。`);
 
@@ -124,6 +129,7 @@ function DeveloperTestPage() {
 
   const runJsonTest = async () => {
     resetOutput();
+    setModernSection('logs');
     setRunningMode('json');
     appendEvent('调用项目真实 JSON 请求：requestOutlineGeneration。');
 
@@ -272,7 +278,7 @@ function DeveloperTestPage() {
   const running = runningMode !== null;
 
   return (
-    <div className="page-stack developer-test-page">
+    <div className={`page-stack developer-test-page${getStoredUiAppearance() === 'modern' ? ' modern-developer-test' : ''}`} data-modern-section={modernSection}>
       <section className="panel developer-test-hero">
         <div className="hero-copy">
           <span className="eyebrow">Developer Reproduction</span>
@@ -290,6 +296,8 @@ function DeveloperTestPage() {
           </div>
         </div>
       </section>
+
+      {getStoredUiAppearance() === 'modern' && <nav className="modern-developer-tabs" role="tablist" aria-label="开发测试分类" onKeyDown={handleTabListKeyDown}>{([['requests', '请求样例'], ['agent', 'Agent 诊断'], ['logs', '运行日志']] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={modernSection === value} tabIndex={modernSection === value ? 0 : -1} className={modernSection === value ? 'is-active' : ''} onClick={() => setModernSection(value)}>{label}</button>)}</nav>}
 
       <div className="developer-test-grid">
         <section className="panel developer-test-panel is-wide developer-agent-diagnostic">
@@ -436,7 +444,7 @@ function DeveloperTestPage() {
           )}
         </section>
 
-        <section className="panel developer-test-panel">
+        <section className="panel developer-test-panel developer-request-reference">
           <div className="settings-section-title">
             <span />
             <strong>文本复用入口</strong>
@@ -444,7 +452,7 @@ function DeveloperTestPage() {
           <pre>{JSON.stringify({ service: 'aiClient.chat', task: textTask?.id, sample: sampleTenderContent }, null, 2)}</pre>
         </section>
 
-        <section className="panel developer-test-panel">
+        <section className="panel developer-test-panel developer-request-reference">
           <div className="settings-section-title">
             <span />
             <strong>JSON 复用入口</strong>
@@ -452,7 +460,7 @@ function DeveloperTestPage() {
           <pre>{JSON.stringify({ service: 'requestOutlineGeneration', input: sampleOutlineInput }, null, 2)}</pre>
         </section>
 
-        <section className="panel developer-test-panel is-wide">
+        <section className="panel developer-test-panel is-wide developer-log-panel">
           <div className="settings-section-title">
             <span />
             <strong>事件日志</strong>
@@ -460,7 +468,7 @@ function DeveloperTestPage() {
           <pre>{events.length ? events.join('\n') : '尚未开始请求。'}</pre>
         </section>
 
-        <section className="panel developer-test-panel is-wide">
+        <section className="panel developer-test-panel is-wide developer-log-panel">
           <div className="settings-section-title">
             <span />
             <strong>返回内容</strong>

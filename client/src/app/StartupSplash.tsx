@@ -1,3 +1,5 @@
+import logoUrl from '../../assets/icon_256.png';
+
 interface StartupSplashProps {
   progress: number;
   message: string;
@@ -19,12 +21,18 @@ function StartupSplash({ progress, message }: StartupSplashProps) {
       </div>
       <div className="startup-card">
         <div className="startup-brand">
+          <img className="startup-modern-logo" src={logoUrl} alt="" />
           <span>禹都</span>
           <strong>AI解决方案助手</strong>
         </div>
         <div className="startup-copy">
+          <span className="startup-modern-kicker">启象 · 智能工作空间</span>
           <h1>正在打开工作台</h1>
           <p>{message}</p>
+        </div>
+        <div className="startup-modern-visual" aria-hidden="true">
+          <div className="startup-visual-orbit"><i /><i /><i /></div>
+          <div className="startup-visual-core"><span>资料输入</span><b>→</b><span>智能处理</span><b>→</b><span>成果交付</span></div>
         </div>
         <div className="startup-progress-head">
           <span>加载进度</span>

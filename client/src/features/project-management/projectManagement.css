@@ -551,7 +551,7 @@
 
 .project-management-detail-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   align-items: start;
   padding-bottom: 16px;
@@ -574,22 +574,16 @@
   line-height: 1.7;
 }
 
-.project-management-source {
-  display: block;
-  padding: 12px;
-  border: 1px solid rgba(37, 99, 235, 0.14);
-  border-radius: 12px;
-  background: #f4f8ff;
-  color: #31527f;
-  font-size: 13px;
-  line-height: 1.6;
-}
+.project-management-module-reference { margin-top: 10px; }
+.project-management-module-reference summary { width: fit-content; color: var(--yb-primary); font-size: 12px; font-weight: 700; cursor: pointer; }
+.project-management-module-reference summary span { margin-left: 6px; color: var(--yb-text-muted); font-size: 11px; font-weight: 500; }
+.project-management-module-reference summary:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 3px; }
 
 .project-management-section-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .project-management-section-grid section {

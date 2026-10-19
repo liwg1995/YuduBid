@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { dialog, ipcMain, net, shell } = require('electron');
+const { dialog, ipcMain, shell } = require('electron');
 const { registerAiIpc } = require('./aiIpc.cjs');
 const { registerAgentIpc } = require('./agentIpc.cjs');
 const { registerBidOpportunityIpc } = require('./bidOpportunityIpc.cjs');
@@ -67,7 +67,6 @@ const { registerUsageStatsIpc } = require('./usageStatsIpc.cjs');
 const { isOfficialReleaseDownloadUrl } = require('../utils/updateIntegrity.cjs');
 const { createAppLogger } = require('../utils/appLogger.cjs');
 
-const latestReleaseApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases/latest';
 const releasesApiUrl = 'https://api.github.com/repos/liwg1995/YuduBid/releases';
 const gitcodeReleasesApiUrl = 'https://api.gitcode.com/api/v5/repos/oleime/YuduBid/releases';
 const updateSources = new Set(['auto', 'github', 'gitcode']);
@@ -583,48 +582,109 @@ async function fetchReleaseJson(url, signal, source = 'github') {
   return response.json();
 }
 
-async function fetchReleaseByTag(tagName, signal) {
-  const tag = String(tagName || '').trim();
-  if (!tag) {
-    return null;
-  }
-  return fetchReleaseJson(`${releasesApiUrl}/tags/${encodeURIComponent(tag)}`, signal);
-}
-
 function shouldIncludePrerelease(app) {
   return String(app?.getVersion?.() || '').includes('-') || process.env.YIBIAO_INCLUDE_PRERELEASE_UPDATE === '1';
 }
 
-async function fetchGitcodeReleaseInfo(includePrerelease, signal) {
-  const payload = await fetchReleaseJson(includePrerelease
-    ? `${gitcodeReleasesApiUrl}?per_page=20&direction=desc`
-    : `${gitcodeReleasesApiUrl}/latest`, signal, 'gitcode');
-  const release = Array.isArray(payload)
-    ? payload.find((item) => item && (includePrerelease || !item.prerelease))
-    : payload;
-  if (!release?.tag_name) throw releaseSyncPending('GitCode 尚未发布可用版本');
+function compareReleaseVersions(left, right) {
+  const parse = (value) => {
+    const [numbers, suffix = ''] = normalizeVersion(value).split('-', 2);
+    return { parts: numbers.split('.').map(Number), suffix };
+  };
+  const a = parse(left);
+  const b = parse(right);
+  for (let index = 0; index < 3; index += 1) {
+    if (a.parts[index] !== b.parts[index]) return a.parts[index] - b.parts[index];
+  }
+  if (!a.suffix && b.suffix) return 1;
+  if (a.suffix && !b.suffix) return -1;
+  return a.suffix.localeCompare(b.suffix, undefined, { numeric: true });
+}
 
-  const assets = (Array.isArray(release.assets) ? release.assets : []).map(normalizeReleaseAsset);
+function releaseAssets(release) {
+  return (Array.isArray(release?.assets) ? release.assets : []).map(normalizeReleaseAsset);
+}
+
+function releasePackageAssets(release) {
+  return releaseAssets(release).filter((asset) => /\.(exe|msi|dmg|zip)$/i.test(asset.name)
+    && isOfficialReleaseDownloadUrl(asset.browser_download_url));
+}
+
+function checksumAsset(release, platform) {
+  const name = `YuDuBid-${normalizeVersion(release.tag_name)}-${platform}-sha256.txt`;
+  return releaseAssets(release).find((asset) => asset.name === name && isOfficialReleaseDownloadUrl(asset.browser_download_url));
+}
+
+function releaseIsSynchronized(githubRelease, gitcodeRelease) {
+  const githubPackages = releasePackageAssets(githubRelease);
+  const gitcodePackages = new Map(releasePackageAssets(gitcodeRelease).map((asset) => [asset.name, asset]));
+  if (!githubPackages.some((asset) => /\.exe$/i.test(asset.name))
+    || !githubPackages.some((asset) => /\.dmg$/i.test(asset.name))) return false;
+  if (githubPackages.some((asset) => {
+    const mirror = gitcodePackages.get(asset.name);
+    return !mirror || !/^sha256:[a-f0-9]{64}$/i.test(asset.digest);
+  })) return false;
+
+  if (['Windows', 'macOS'].some((platform) => !checksumAsset(githubRelease, platform)
+    || !checksumAsset(gitcodeRelease, platform))) return false;
+  return new Map(githubPackages.map((asset) => [asset.name, asset.digest]));
+}
+
+async function verifyGitcodeReleaseChecksums(release, verifiedDigests, signal) {
+  const checksumFiles = ['Windows', 'macOS'].map((platform) => checksumAsset(release, platform));
+  const contents = await Promise.all(checksumFiles.map(async (asset) => {
+    const response = await fetch(asset.browser_download_url, {
+      signal,
+      headers: { 'User-Agent': 'YuDuBid-Client' },
+    });
+    if (!response.ok) return null;
+    const body = await response.text();
+    return body.length <= 16384 ? body : null;
+  }));
+  if (contents.some((body) => body === null)) return false;
+  const checksums = new Map();
+  for (const body of contents) {
+    for (const line of body.split(/\r?\n/)) {
+      const match = /^([a-f0-9]{64})\s+\*?(.+)$/i.exec(line.trim());
+      if (match) checksums.set(match[2], `sha256:${match[1].toLowerCase()}`);
+    }
+  }
+  return [...verifiedDigests].every(([name, digest]) => checksums.get(name) === digest.toLowerCase());
+}
+
+async function fetchSynchronizedReleases(includePrerelease, signal, logger, limit = 1) {
+  const [githubPayload, gitcodePayload] = await Promise.all([
+    fetchReleaseJson(`${releasesApiUrl}?per_page=100`, signal),
+    fetchReleaseJson(`${gitcodeReleasesApiUrl}?per_page=100&direction=desc`, signal, 'gitcode'),
+  ]);
+  const eligible = (release) => release?.tag_name && !release.draft
+    && (includePrerelease || !release.prerelease)
+    && /^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/i.test(normalizeVersion(release.tag_name));
+  const gitcodeByVersion = new Map((Array.isArray(gitcodePayload) ? gitcodePayload : [])
+    .filter(eligible).map((release) => [normalizeVersion(release.tag_name), release]));
+  const githubReleases = (Array.isArray(githubPayload) ? githubPayload : [])
+    .filter(eligible).sort((left, right) => compareReleaseVersions(right.tag_name, left.tag_name));
+  const synchronized = [];
+  for (const githubRelease of githubReleases) {
+    const gitcodeRelease = gitcodeByVersion.get(normalizeVersion(githubRelease.tag_name));
+    if (!gitcodeRelease) continue;
+    const verifiedDigests = releaseIsSynchronized(githubRelease, gitcodeRelease);
+    if (verifiedDigests && await verifyGitcodeReleaseChecksums(gitcodeRelease, verifiedDigests, signal)) {
+      synchronized.push({ githubRelease, gitcodeRelease, verifiedDigests });
+      if (synchronized.length >= limit) break;
+    } else {
+      logger?.info('update-release-sync-pending', { version: normalizeVersion(githubRelease.tag_name) });
+    }
+  }
+  return synchronized;
+}
+
+function gitcodeReleaseInfo(release, verifiedDigests) {
+  const assets = releaseAssets(release);
   const downloadAsset = pickReleaseDownloadAsset(assets);
-  if (!downloadAsset) throw releaseSyncPending('GitCode 当前系统安装包尚未同步完成');
-
-  const checksumName = `YuDuBid-${normalizeVersion(release.tag_name)}-${process.platform === 'darwin' ? 'macOS' : 'Windows'}-sha256.txt`;
-  const checksumAsset = assets.find((asset) => asset.name === checksumName && isOfficialReleaseDownloadUrl(asset.browser_download_url));
-  if (!checksumAsset) throw releaseSyncPending('GitCode 安装包校验文件尚未同步完成');
-  const checksumResponse = await fetch(checksumAsset.browser_download_url, { signal, headers: { 'User-Agent': 'YuDuBid-Client' } });
-  if (!checksumResponse.ok) {
-    if (checksumResponse.status === 404) throw releaseSyncPending('GitCode 安装包校验文件尚未同步完成');
-    throw new Error(`GitCode 校验文件返回 ${checksumResponse.status}`);
+  for (const asset of assets) {
+    if (verifiedDigests.has(asset.name)) asset.digest = verifiedDigests.get(asset.name);
   }
-  const checksumText = await checksumResponse.text();
-  if (checksumText.length > 16384) throw new Error('GitCode 校验文件大小异常');
-  for (const line of checksumText.split(/\r?\n/)) {
-    const match = /^([a-f0-9]{64})\s+\*?(.+)$/i.exec(line.trim());
-    if (match && match[2] === downloadAsset.name) downloadAsset.digest = `sha256:${match[1].toLowerCase()}`;
-  }
-  if (!downloadAsset.digest) throw releaseSyncPending('GitCode 校验文件缺少当前安装包摘要');
-  const selectedAsset = assets.find((asset) => asset.name === downloadAsset.name && asset.browser_download_url === downloadAsset.browser_download_url);
-  if (selectedAsset) selectedAsset.digest = downloadAsset.digest;
 
   return {
     version: normalizeVersion(release.tag_name),
@@ -641,71 +701,25 @@ async function fetchGitcodeReleaseInfo(includePrerelease, signal) {
   };
 }
 
-async function fetchGithubReleaseInfo(includePrerelease, signal, logger) {
-    const payload = await fetchReleaseJson(includePrerelease ? `${releasesApiUrl}?per_page=20` : latestReleaseApiUrl, signal);
-    let release = Array.isArray(payload)
-      ? payload.find((item) => item && !item.draft && (includePrerelease || !item.prerelease))
-      : payload;
-    if (!release) throw new Error('未找到可用版本');
-    let assets = Array.isArray(release.assets) ? release.assets : [];
-    let downloadAsset = pickReleaseDownloadAsset(assets);
-    if (!downloadAsset && release.tag_name) {
-      const tagRelease = await fetchReleaseByTag(release.tag_name, signal);
-      if (tagRelease && !tagRelease.draft) {
-        release = tagRelease;
-        assets = Array.isArray(release.assets) ? release.assets : [];
-        downloadAsset = pickReleaseDownloadAsset(assets);
-      }
-    }
-    if (!downloadAsset) logger?.warning('update-asset-unavailable', { version: normalizeVersion(release.tag_name || ''), platform: process.platform, arch: process.arch });
-    return {
-      version: normalizeVersion(release.tag_name || release.name || ''),
-      name: String(release.name || release.tag_name || ''),
-      body: String(release.body || ''),
-      published_at: String(release.published_at || ''),
-      html_url: String(release.html_url || 'https://github.com/liwg1995/YuduBid/releases/latest'),
-      download_url: downloadAsset ? downloadAsset.browser_download_url : '',
-      download_name: String(downloadAsset?.name || ''),
-      platform: process.platform,
-      arch: process.arch,
-      source: 'github',
-      assets: assets.map(normalizeReleaseAsset),
-    };
-}
-
-async function fetchGithubLatestVersion(signal) {
-  const location = await new Promise((resolve, reject) => {
-    const request = net.request({
-      url: 'https://github.com/liwg1995/YuduBid/releases/latest',
-      redirect: 'manual',
-      headers: { 'User-Agent': 'YuDuBid-Client' },
-    });
-    const onAbort = () => { request.abort(); reject(new Error('GitHub 版本核对超时')); };
-    signal.addEventListener('abort', onAbort, { once: true });
-    const finish = (callback, value) => {
-      signal.removeEventListener('abort', onAbort);
-      callback(value);
-    };
-    request.on('redirect', (_status, _method, redirectUrl) => finish(resolve, redirectUrl));
-    request.on('response', (response) => {
-      finish(reject, new Error(`GitHub Release 页面返回 ${response.statusCode}`));
-      request.abort();
-    });
-    request.on('error', (error) => finish(reject, error));
-    request.end();
-  });
-  const url = new URL(location);
-  const parts = url.pathname.split('/').filter(Boolean);
-  if (url.origin !== 'https://github.com' || parts.length !== 5
-    || parts[0] !== 'liwg1995' || parts[1] !== 'YuduBid'
-    || parts[2] !== 'releases' || parts[3] !== 'tag') {
-    throw new Error('GitHub 最新版本跳转地址无效');
+function githubReleaseInfo(release, verifiedDigests) {
+  const assets = releaseAssets(release);
+  for (const asset of assets) {
+    if (verifiedDigests.has(asset.name)) asset.digest = verifiedDigests.get(asset.name);
   }
-  const version = normalizeVersion(decodeURIComponent(parts[4]));
-  if (!/^\d+\.\d+\.\d+(?:[-.][a-z0-9.-]+)?$/i.test(version)) {
-    throw new Error('GitHub 最新版本号无效');
-  }
-  return version;
+  const downloadAsset = pickReleaseDownloadAsset(assets);
+  return {
+    version: normalizeVersion(release.tag_name || release.name || ''),
+    name: String(release.name || release.tag_name || ''),
+    body: String(release.body || ''),
+    published_at: String(release.published_at || ''),
+    html_url: String(release.html_url || 'https://github.com/liwg1995/YuduBid/releases/latest'),
+    download_url: downloadAsset ? downloadAsset.browser_download_url : '',
+    download_name: String(downloadAsset?.name || ''),
+    platform: process.platform,
+    arch: process.arch,
+    source: 'github',
+    assets,
+  };
 }
 
 async function fetchLatestReleaseInfo(options = {}) {
@@ -713,92 +727,18 @@ async function fetchLatestReleaseInfo(options = {}) {
   const logger = options.logger;
   const source = normalizeUpdateSource(options.source);
   const includePrerelease = Boolean(options.includePrerelease);
-  const fetchSource = async (candidate) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
-    try {
-      return candidate === 'gitcode'
-        ? await fetchGitcodeReleaseInfo(includePrerelease, controller.signal)
-        : await fetchGithubReleaseInfo(includePrerelease, controller.signal, logger);
-    } finally {
-      clearTimeout(timer);
-    }
-  };
-  const fetchGithubVersion = async () => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
-    try {
-      return includePrerelease
-        ? (await fetchGithubReleaseInfo(true, controller.signal, logger)).version
-        : await fetchGithubLatestVersion(controller.signal);
-    } finally {
-      clearTimeout(timer);
-    }
-  };
-
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
   try {
     logger?.info('update-check-started', { includePrerelease, source });
-    if (source !== 'auto') {
-      const release = await fetchSource(source);
-      logger?.info('update-check-succeeded', { source, version: release.version, durationMs: Date.now() - startedAt });
-      return release;
-    }
-
-    let gitcodeRelease;
-    try {
-      gitcodeRelease = await fetchSource('gitcode');
-    } catch (error) {
-      logger?.warning('update-source-failed', { source: 'gitcode', message: error?.message || String(error) });
-      if (error?.syncPending) {
-        const githubVersion = await fetchGithubVersion();
-        return {
-          version: githubVersion,
-          name: `v${githubVersion}`,
-          body: '',
-          published_at: '',
-          html_url: `https://gitcode.com/oleime/YuduBid/releases`,
-          download_url: '',
-          download_name: '',
-          platform: process.platform,
-          arch: process.arch,
-          source: 'gitcode',
-          assets: [],
-          syncPending: true,
-          syncMessage: `GitCode 版本 ${githubVersion} 尚未同步完成，请稍后刷新。`,
-        };
-      }
-      const githubRelease = await fetchSource('github');
-      logger?.info('update-check-succeeded', { source: 'github', version: githubRelease.version, durationMs: Date.now() - startedAt });
-      return githubRelease;
-    }
-
-    let githubVersion;
-    try {
-      githubVersion = await fetchGithubVersion();
-    } catch (error) {
-      logger?.warning('update-sync-check-failed', { message: error?.message || String(error) });
-      return {
-        ...gitcodeRelease,
-        download_url: '',
-        syncPending: true,
-        syncMessage: '暂时无法确认 GitHub 与 GitCode 的版本是否一致，请稍后刷新，或手动选择更新渠道。',
-      };
-    }
-
-    if (githubVersion !== gitcodeRelease.version) {
-      logger?.info('update-sync-pending', { githubVersion, gitcodeVersion: gitcodeRelease.version });
-      return {
-        ...gitcodeRelease,
-        version: githubVersion,
-        name: `v${githubVersion}`,
-        body: '',
-        download_url: '',
-        syncPending: true,
-        syncMessage: `GitHub 版本 ${githubVersion} 与 GitCode 版本 ${gitcodeRelease.version} 尚未同步一致，请稍后刷新。`,
-      };
-    }
-    logger?.info('update-check-succeeded', { source: 'gitcode', version: gitcodeRelease.version, durationMs: Date.now() - startedAt });
-    return gitcodeRelease;
+    const synchronized = await fetchSynchronizedReleases(includePrerelease, controller.signal, logger);
+    if (!synchronized.length) throw releaseSyncPending('暂未找到 GitHub 与 GitCode 产物均已同步的版本，请稍后再检查。');
+    const latest = synchronized[0];
+    const release = source === 'github'
+      ? githubReleaseInfo(latest.githubRelease, latest.verifiedDigests)
+      : gitcodeReleaseInfo(latest.gitcodeRelease, latest.verifiedDigests);
+    logger?.info('update-check-succeeded', { source: release.source, version: release.version, durationMs: Date.now() - startedAt });
+    return release;
   } catch (error) {
     logger?.error('update-check-failed', {
       errorName: error?.name || 'Error',
@@ -807,6 +747,8 @@ async function fetchLatestReleaseInfo(options = {}) {
       durationMs: Date.now() - startedAt,
     });
     throw error;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -1064,6 +1006,21 @@ function registerIpcHandlers({ app, mainWindow, appLogger = createAppLogger(app)
   });
 
   ipcMain.handle('app:get-latest-version', (_event, source) => fetchLatestReleaseInfo({ includePrerelease: shouldIncludePrerelease(app), logger: appLogger, source }));
+  ipcMain.handle('app:get-release-history', async (_event, source) => {
+    const channel = source === 'gitcode' ? 'gitcode' : 'github';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    try {
+      const url = channel === 'gitcode' ? `${gitcodeReleasesApiUrl}?per_page=100&direction=desc` : `${releasesApiUrl}?per_page=100`;
+      const payload = await fetchReleaseJson(url, controller.signal, channel);
+      return (Array.isArray(payload) ? payload : [])
+        .filter((release) => release?.tag_name && !release.draft && (shouldIncludePrerelease(app) || !release.prerelease))
+        .map((release) => ({ version: normalizeVersion(release.tag_name), name: String(release.name || release.tag_name), body: String(release.body || ''), published_at: String(release.published_at || release.created_at || '') }))
+        .filter((release) => /^\d+\.\d+\.\d+/.test(release.version));
+    } finally {
+      clearTimeout(timer);
+    }
+  });
   ipcMain.handle('app:open-log-directory', async () => {
     fs.mkdirSync(appLogger.directory, { recursive: true });
     const error = await shell.openPath(appLogger.directory);

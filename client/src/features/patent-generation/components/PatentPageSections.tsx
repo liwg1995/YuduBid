@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import { toChineseErrorMessage } from '../../../shared/utils/userFacingError';
 import type { PatentApplicationType, PatentCaseInfo, PatentClaimForm, PatentDisclosureDraftFile, PatentGenerationState, PatentPoint, PatentTaskState } from '../types';
 import { getConfirmedFactSupplements, getUnresolvedMissingFacts } from '../factSupplements';
@@ -182,7 +183,7 @@ function PatentUsageHelp() {
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
-        <button type="button" className="patent-usage-help-trigger">如何使用？</button>
+        <button type="button" className="patent-usage-help-trigger context-help-trigger">查看使用参考</button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="content-regenerate-modal" />
@@ -260,7 +261,7 @@ function PatentWorkflowHelp({ kicker, steps }: { kicker: string; steps: PatentSt
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
-        <button type="button" className="patent-workflow-help-trigger">流程规划</button>
+        <button type="button" className="patent-workflow-help-trigger context-help-trigger">查看流程参考</button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="content-regenerate-modal" />
@@ -817,11 +818,11 @@ export function PatentResultPanel({ previewTitle, items, enablePatentPointSelect
               {enablePatentPointSelection && item.id && (
               <button
                 type="button"
-                className="secondary-action patent-select-point-action"
+                className={`secondary-action patent-select-point-action${item.status === '已选' ? ' is-current' : ''}`}
                 onClick={() => onSelectPatentPoint(item.id || '')}
                 disabled={selectingPointId === item.id || item.status === '已选'}
               >
-                {item.status === '已选' ? '主专利点' : selectingPointId === item.id ? '设置中...' : '设为主专利点'}
+                {item.status === '已选' ? <><span className="patent-selected-check" aria-hidden="true">✓</span>主专利点</> : selectingPointId === item.id ? '设置中...' : '设为主专利点'}
               </button>
               )}
             </div>
@@ -1059,13 +1060,13 @@ export function PatentPriorArtPanels({
             <h3>现有技术与区别点</h3>
           </div>
           <div className="patent-draft-actions">
-            <button type="button" className={viewMode === 'edit' ? 'primary-action' : 'secondary-action'} onClick={() => onViewModeChange('edit')}>
+            <button type="button" className={viewMode === 'edit' ? 'primary-action' : 'secondary-action'} onClick={() => onViewModeChange('edit')} disabled={!markdown}>
               编辑
             </button>
-            <button type="button" className={viewMode === 'preview' ? 'primary-action' : 'secondary-action'} onClick={() => onViewModeChange('preview')}>
+            <button type="button" className={viewMode === 'preview' ? 'primary-action' : 'secondary-action'} onClick={() => onViewModeChange('preview')} disabled={!markdown}>
               预览
             </button>
-            <button type="button" className="secondary-action" onClick={onSave} disabled={saving}>
+            <button type="button" className="secondary-action" onClick={onSave} disabled={saving || !markdown}>
               {saving ? '保存中...' : '保存分析'}
             </button>
           </div>
@@ -1079,7 +1080,17 @@ export function PatentPriorArtPanels({
             </div>
           )
         ) : (
-          <p className="patent-empty-tip">粘贴现有技术资料后点击“生成查新分析”，结果会用于后续交底书第一章。</p>
+          getStoredUiAppearance() === 'modern' ? (
+            <div className="modern-patent-analysis-empty">
+              <span className="modern-patent-empty-mark" aria-hidden="true">◇</span>
+              <div>
+                <strong>等待查新分析</strong>
+                <p>整理公开资料后点击“生成查新分析”，这里会展示可编辑的现有技术与区别点。</p>
+              </div>
+            </div>
+          ) : (
+            <p className="patent-empty-tip">粘贴现有技术资料后点击“生成查新分析”，结果会用于后续交底书第一章。</p>
+          )
         )}
       </section>
     </>
@@ -1132,6 +1143,18 @@ export function PatentRevisionPanels({
             <input value={state?.activeDraftId ? '已选择当前交底书草稿' : '尚未生成交底书草稿'} readOnly />
           </label>
         </div>
+        {getStoredUiAppearance() === 'modern' && <div className="patent-revision-prompts" aria-label="常见修订方向">
+          <span>快速填写修订方向</span>
+          {[
+            ['补充实施例', '请补充一个可复现的实施例，写清输入、处理步骤、输出结果及关键参数。'],
+            ['纠正技术事实', '请依据以下材料纠正现有草稿中的技术事实，保留可核验的依据：'],
+            ['强化保护点', '请梳理核心技术手段及其作用，突出与现有方案的区别，并避免引入未经证实的效果。'],
+          ].map(([label, content]) => (
+            <button key={label} type="button" onClick={() => onRevisionInstructionChange(revisionInstruction.trim() ? `${revisionInstruction.trim()}\n\n${content}` : content)}>
+              ＋ {label}
+            </button>
+          ))}
+        </div>}
         <textarea
           className="patent-prior-art-source"
           value={revisionInstruction}
@@ -1161,7 +1184,17 @@ export function PatentRevisionPanels({
             ))}
           </div>
         ) : (
-          <p className="patent-empty-tip">暂无修订记录。生成修订版本后，会在这里保留摘要和时间。</p>
+          getStoredUiAppearance() === 'modern' ? (
+            <div className="modern-patent-revision-empty">
+              <span className="modern-patent-empty-mark" aria-hidden="true">◇</span>
+              <div>
+                <strong>尚无修订版本</strong>
+                <p>生成新版后，修订类型、摘要和时间会依次保存在这里。</p>
+              </div>
+            </div>
+          ) : (
+            <p className="patent-empty-tip">暂无修订记录。生成修订版本后，会在这里保留摘要和时间。</p>
+          )
         )}
       </section>
     </>

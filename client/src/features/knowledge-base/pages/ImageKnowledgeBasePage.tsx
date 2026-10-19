@@ -3,6 +3,8 @@ import * as Popover from '@radix-ui/react-popover';
 import type { KnowledgeImage, KnowledgeImageFolder } from '../../../shared/types/contracts/knowledgeBase';
 import { useAppDialog, useToast } from '../../../shared/ui';
 import '../imageKnowledgeBase.css';
+import { getStoredUiAppearance } from '../../../shared/uiAppearance';
+import './modernImageKnowledgeBase.css';
 
 function formatSize(bytes: number) {
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -141,6 +143,43 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
     catch (error) { showToast(error instanceof Error ? error.message : '添加标签失败', 'error'); }
   };
 
+  const editDialog = (
+    <>{editing && <div className="image-edit-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}><section className="image-edit-dialog" role="dialog" aria-modal="true" aria-label="编辑图片信息"><h2>编辑图片信息</h2><img src={dataUrls[editing.id]} alt={editing.name}/><label>名称<input value={draft.name} onChange={(event) => setDraft((value) => ({ ...value, name: event.target.value }))}/></label><label>说明<textarea rows={3} value={draft.description} onChange={(event) => setDraft((value) => ({ ...value, description: event.target.value }))}/></label><label>标签<input value={draft.tags} onChange={(event) => setDraft((value) => ({ ...value, tags: event.target.value }))} placeholder="用逗号分隔"/></label><div className="image-edit-actions"><button className="button secondary" onClick={() => setEditing(null)}>取消</button><button className="button primary" onClick={() => void saveEdit()}>保存</button></div></section></div>}</>
+  );
+
+  if (getStoredUiAppearance() === 'modern') {
+    return <div className="modern-image-page">
+      <header className="modern-image-header">
+        <div><span>ASSET LIBRARY / 图片素材</span><h2>{activeFolder?.name || '图片素材库'}</h2><p>集中管理可用于技术方案的本地图片，并复制正文引用。</p></div>
+        <button type="button" onClick={() => void upload()} disabled={busy || !activeFolderId}>{busy ? '正在导入…' : '导入图片'}</button>
+      </header>
+      <div className="modern-image-workspace">
+        <aside className="modern-image-folders">
+          <div className="modern-image-folders-head"><div><span>COLLECTIONS</span><strong>文件夹</strong></div><button type="button" onClick={() => void createFolder()} aria-label="新建图片文件夹">＋ 新建</button></div>
+          <div className="modern-image-folder-list">{folders.length ? folders.map((folder) => <div key={folder.id} className={`modern-image-folder${folder.id === activeFolderId ? ' is-active' : ''}`}>
+            <button type="button" className="modern-image-folder-select" onClick={() => setActiveFolderId(folder.id)}><span aria-hidden="true">▧</span><strong>{folder.name}</strong>{folder.id === activeFolderId && <small>{images.length}</small>}</button>
+            <div><button type="button" onClick={() => void renameFolder(folder)} aria-label={`重命名 ${folder.name}`} title="重命名">✎</button><button type="button" onClick={() => void deleteFolder(folder)} aria-label={`删除 ${folder.name}`} title="删除">×</button></div>
+          </div>) : <div className="modern-image-folder-empty">还没有文件夹。创建一个文件夹以开始整理图片。</div>}</div>
+          <div className="modern-image-folder-foot">{folders.length} 个文件夹 · {images.length} 张当前图片</div>
+        </aside>
+        <main className="modern-image-main">
+          <div className="modern-image-toolbar"><div><span>当前素材</span><strong>{activeFolder?.name || '请选择文件夹'}</strong><small>{images.length} 张</small></div><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索名称、说明或标签" aria-label="搜索图片素材" /></div>
+          {selectedIds.length > 0 && <div className="modern-image-selection">
+            <strong>已选 {selectedIds.length} 张图片</strong>
+            <Popover.Root><Popover.Trigger asChild><button type="button" disabled={!folders.some((folder) => folder.id !== activeFolderId)}>移动到文件夹</button></Popover.Trigger><Popover.Portal><Popover.Content className="image-move-popover" side="bottom" align="end" sideOffset={8}><div className="image-move-popover-head"><strong>选择目标文件夹</strong><small>图片将从当前文件夹移出</small></div><div className="image-move-folder-list">{folders.filter((folder) => folder.id !== activeFolderId).map((folder) => <Popover.Close asChild key={folder.id}><button type="button" onClick={() => void moveSelected(folder.id)}><span aria-hidden="true">F</span><strong>{folder.name}</strong><small>移动到此处</small></button></Popover.Close>)}</div><Popover.Arrow className="image-move-popover-arrow" /></Popover.Content></Popover.Portal></Popover.Root>
+            <button type="button" onClick={() => void tagSelected()}>添加标签</button><button type="button" className="is-danger" onClick={() => void deleteSelected()}>删除所选</button><button type="button" onClick={() => setSelectedIds([])}>取消</button>
+          </div>}
+          {!activeFolderId ? <div className="modern-image-empty"><span>▧</span><strong>先创建文件夹</strong><p>按项目或图片用途分类，之后即可导入素材。</p><button type="button" onClick={() => void createFolder()}>新建文件夹</button></div> : images.length === 0 ? <div className="modern-image-empty"><span>◇</span><strong>{query ? '没有匹配的图片' : '文件夹还没有图片'}</strong><p>{query ? '尝试更换关键词。' : '导入图片后，可在这里查看、编辑并复制引用。'}</p>{!query && <button type="button" onClick={() => void upload()} disabled={busy}>导入图片</button>}</div> : <div className="modern-image-gallery">{images.map((item) => <article key={item.id} className={`modern-image-card${selectedIds.includes(item.id) ? ' is-selected' : ''}`}>
+            <div className="modern-image-thumb"><button type="button" onClick={() => openEdit(item)} aria-label={`编辑 ${item.name}`}><img src={dataUrls[item.id]} alt={item.name} /></button><label><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelection(item.id)} aria-label={`选择 ${item.name}`} /><span aria-hidden="true">✓</span></label></div>
+            <div className="modern-image-card-info"><strong title={item.name}>{item.name}</strong><small>{formatSize(item.size)} · {item.mime_type.replace('image/', '').toUpperCase()}</small>{item.description && <p>{item.description}</p>}{item.tags.length > 0 && <div>{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}</div>
+            <div className="modern-image-card-actions"><button type="button" onClick={() => void copyMarkdown(item)}>复制引用</button><button type="button" onClick={() => openEdit(item)}>编辑</button><button type="button" className="is-danger" onClick={() => void removeImage(item)}>删除</button></div>
+          </article>)}</div>}
+        </main>
+      </div>
+      {editDialog}
+    </div>;
+  }
+
   return <div className="image-library-page">
     <section className="image-library-workspace-bar">
       <div className="image-library-breadcrumb">
@@ -168,6 +207,6 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
       </article>)}</div>}
       </main>
     </section>
-    {editing && <div className="image-edit-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}><section className="image-edit-dialog" role="dialog" aria-modal="true" aria-label="编辑图片信息"><h2>编辑图片信息</h2><img src={dataUrls[editing.id]} alt={editing.name}/><label>名称<input value={draft.name} onChange={(event) => setDraft((value) => ({ ...value, name: event.target.value }))}/></label><label>说明<textarea rows={3} value={draft.description} onChange={(event) => setDraft((value) => ({ ...value, description: event.target.value }))}/></label><label>标签<input value={draft.tags} onChange={(event) => setDraft((value) => ({ ...value, tags: event.target.value }))} placeholder="用逗号分隔"/></label><div className="image-edit-actions"><button className="button secondary" onClick={() => setEditing(null)}>取消</button><button className="button primary" onClick={() => void saveEdit()}>保存</button></div></section></div>}
+    {editDialog}
   </div>;
 }

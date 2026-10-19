@@ -12,7 +12,7 @@ interface SidebarProps {
   onSectionChange: (section: SectionId) => void;
 }
 
-const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>> = {
+export const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>> = {
   home: HomeIcon,
   'presales-projects': ProjectManagementIcon,
   'presales-workbench': BriefcaseIcon,
