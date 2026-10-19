@@ -1061,7 +1061,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
           <Dialog.Content className="official-document-agent-dialog">
             <div className="official-document-agent-dialog-head">
               <span className="section-kicker">智能助手 · 单步执行</span>
-              <Dialog.Title>执行下一步建议</Dialog.Title>
+              <Dialog.Title>确认执行 Agent 建议</Dialog.Title>
               <Dialog.Description>即将执行“{officialAgentActionLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一步'}”，并更新当前公文工作区。</Dialog.Description>
             </div>
             <p className="official-document-agent-dialog-note">此操作可能调用文本模型并产生费用。执行前请确认当前草稿已保存。</p>

@@ -15,6 +15,14 @@
   <img src="https://img.shields.io/badge/Workspace-Local-10b981.svg" alt="Local Workspace" />
 </p>
 
+## ✨ 全新工作空间
+
+新版 UI 以「资料输入 → 智能处理 → 成果交付」为线索，重新组织业务入口与编写流程。更清晰的层级、进度和操作反馈，让复杂任务也能从容推进；原有项目与设置继续保留。
+
+| 工作空间首页 | 技术方案目录 | 版本更新 |
+| --- | --- | --- |
+| ![新版工作空间首页](./docs/images/modern-ui-home.png) | ![技术方案目录生成](./docs/images/modern-ui-outline.png) | ![新版版本更新界面](./docs/images/modern-ui-update.png) |
+
 ## 📦 客户端下载
 
 前往 [GitHub Releases](https://github.com/liwg1995/YuduBid/releases) 下载 Windows 或 macOS 客户端安装包。
