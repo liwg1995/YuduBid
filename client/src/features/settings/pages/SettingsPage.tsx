@@ -187,8 +187,15 @@ const textProviderDefaults: TextModelProfiles = {
 };
 
 const agnesPaidTextModelNames = new Set(['agnes-2.5-pro', 'agnes-2.5-pro-beta', 'agnes-2.5-pro-alpha']);
-const senseNovaTextModelNames = ['sensenova-6.8-flash-lite', 'deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2', 'kimi-k3'];
-const senseNovaImageModelNames = ['sensenova-u1.5-lite', 'sensenova-u1-fast'];
+const senseNovaTextModelNames = ['sensenova-6.8-flash-lite', 'deepseek-v4-flash', 'deepseek-flash', 'glm-5.2', 'kimi-k3'];
+const senseNovaImageModelNames = ['sensenova-u1.5-lite', 'sensenova-u1.5-fast'];
+const senseNovaOutputLimits: Record<string, number> = {
+  'sensenova-6.8-flash-lite': 65536,
+  'deepseek-v4-flash': 131072,
+  'deepseek-flash': 393216,
+  'glm-5.2': 131072,
+  'kimi-k3': 131072,
+};
 
 const textProviderApiKeyUrls: Partial<Record<TextModelProvider, string>> = {
   'agnes-ai-cn': agnesAiCnRegisterUrl,
@@ -446,7 +453,7 @@ function getImageBaseUrlDescription(provider: ImageModelProvider) {
 
 function getImageApiKeyDescription(provider: ImageModelProvider) {
   if (provider === 'agnes-ai-cn' || provider === 'agnes-ai-global') return '用于调用 agnes-ai 图片生成 API';
-  if (provider === 'sensenova') return '用于调用日日新 U1.5 Lite / U1 Fast 图片生成 API';
+  if (provider === 'sensenova') return '用于调用日日新 U1.5 Lite / U1.5 Fast 图片生成 API';
   if (provider === 'volcengine') return '用于调用火山方舟图片生成 API';
   if (provider === 'ollama') return '本地 Ollama 不需要 API Key，可留空';
   if (provider === 'comfyui') return '本地 ComfyUI 不需要 API Key，可留空';
@@ -1278,6 +1285,8 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       ...prev,
       ...(() => {
         const textModel = { ...prev.textModel, ...partial };
+        const senseNovaLimit = prev.textModel.provider === 'sensenova' ? senseNovaOutputLimits[textModel.model_name] : undefined;
+        if (senseNovaLimit && Number(textModel.output_token_limit || 0) > senseNovaLimit) textModel.output_token_limit = senseNovaLimit;
         return {
           textModel,
           textModelProfiles: {
@@ -1339,13 +1348,13 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       setTestingTextModel(true);
       const config = createClientConfig();
       const result = await window.yibiao?.config.save(config);
-      if (result?.success) {
-        setSavedConfig(config);
-      }
+      if (!result?.success) throw new Error(result?.message || '保存文本模型配置失败');
+      setSavedConfig(config);
       const content = await window.yibiao?.ai.chat({
         messages: [{ role: 'user', content: 'hi' }],
         temperature: 0,
-        timeout_ms: 30000,
+        timeout_ms: state.textModel.provider === 'sensenova' ? 60000 : 30000,
+        ...(state.textModel.provider === 'sensenova' && state.textModel.model_name !== 'kimi-k3' ? { reasoning_effort: 'none' } : {}),
         timeout_message: '文本模型测试超时，请检查 Base URL、API Key 或模型名称',
         logTitle: '文本模型测试',
       });
@@ -1509,9 +1518,9 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
       const result = await window.yibiao?.config.listModels(createClientConfig());
       const builtInModels = getBuiltInTextModels(state.textModel.provider);
       const remoteModels = filterRemoteTextModels(state.textModel.provider, result?.models || []);
-      const availableSenseNovaModels = remoteModels.filter((model) => builtInModels.includes(model));
+      const availableSenseNovaModels = remoteModels.filter((model) => !model.startsWith('sensenova-u1.'));
       const models = state.textModel.provider === 'sensenova'
-        ? availableSenseNovaModels.length > 0 ? availableSenseNovaModels : builtInModels
+        ? result?.success ? availableSenseNovaModels : builtInModels
         : remoteModels;
       setTextModels(models);
       if (result?.success) {
@@ -1616,9 +1625,9 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
 
         const builtInModels = getAgnesImageModels(state.imageModel.provider);
         const remoteModels = filterRemoteImageModels(state.imageModel.provider, result.models || []);
-        const availableSenseNovaModels = remoteModels.filter((model) => builtInModels.includes(model));
+        const availableSenseNovaModels = remoteModels.filter((model) => model.startsWith('sensenova-u1.'));
         const models = state.imageModel.provider === 'sensenova'
-          ? availableSenseNovaModels.length > 0 ? availableSenseNovaModels : builtInModels
+          ? result?.success ? availableSenseNovaModels : builtInModels
           : remoteModels;
         setImageModels(models);
         setModelListCache((prev) => ({
@@ -2161,10 +2170,10 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
               <span>高级参数</span>
               <button type="button" className="inline-action" onClick={() => { void fillTextModelParameters(); }} disabled={loadingModelInfo}>{loadingModelInfo ? '填充中' : '自动填充高级参数'}</button>
             </div>
-            <div className="settings-row">
+            <label className="settings-row settings-multimodal-row">
               <div className="settings-row-copy"><strong>支持多模态</strong><span>开启后允许文本模型接收图片；关闭时拦截带图片的请求。</span></div>
               <input className="settings-advanced-checkbox" type="checkbox" checked={state.textModel.multimodal_enabled === true} onChange={(event) => updateTextModelConfig({ multimodal_enabled: event.target.checked })} aria-label="支持多模态" />
-            </div>
+            </label>
             <label className="settings-row">
               <div className="settings-row-copy"><strong>模型思考强度</strong><span>留空使用服务商默认值；自动填充后可选择模型支持的档位。</span></div>
               {reasoningEfforts.length ? (

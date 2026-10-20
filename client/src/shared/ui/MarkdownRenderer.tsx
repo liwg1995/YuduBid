@@ -134,7 +134,7 @@ function MermaidBlock({ code }: { code: string }) {
   return (
     <figure className={`mermaid-preview-card is-${status}`}>
       {status === 'loading' && <span>正在渲染 Mermaid 图...</span>}
-      {status === 'error' && <div className="mermaid-preview-error"><strong>Mermaid 图渲染失败</strong><small>{errorMessage}</small><pre>{code}</pre></div>}
+      {status === 'error' && <div className="mermaid-preview-error"><strong>Mermaid 图渲染失败</strong><small>{errorMessage}</small><details><summary>查看 Mermaid 源码</summary><pre>{code}</pre></details></div>}
       <div ref={containerRef} className="mermaid-preview-canvas" aria-hidden={status !== 'success'} />
     </figure>
   );
@@ -156,7 +156,7 @@ function mergeMarkdownComponents(components?: Components, enableMermaid = false)
   return { ...defaultMarkdownComponents, ...mermaidComponents, ...(components || {}) };
 }
 
-function MarkdownRenderer({ children, components, allowRawHtml = false, enableGfm = true, enableMermaid = false }: MarkdownRendererProps) {
+function MarkdownRenderer({ children, components, allowRawHtml = false, enableGfm = true, enableMermaid = true }: MarkdownRendererProps) {
   const visibleMarkdown = stripIllustrationMarkers(children);
   const normalizedChildren = allowRawHtml ? visibleMarkdown : normalizeLegacyHtmlTables(visibleMarkdown);
 

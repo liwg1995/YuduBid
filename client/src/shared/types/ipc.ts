@@ -745,6 +745,9 @@ export interface YuDuBidBridge {
     startBidSectionExtraction: (payload: unknown) => Promise<unknown>;
     startBidAnalysis: (payload: unknown) => Promise<unknown>;
     startOutlineGeneration: (payload: unknown) => Promise<unknown>;
+    pauseOutlineGeneration: (payload: unknown) => Promise<unknown>;
+    resumeOutlineGeneration: (payload: unknown) => Promise<unknown>;
+    stopOutlineGeneration: (payload: unknown) => Promise<unknown>;
     startGlobalFactsGeneration: (payload: unknown) => Promise<unknown>;
     startContentGeneration: (payload: unknown) => Promise<unknown>;
     pauseContentGeneration: (payload?: unknown) => Promise<unknown>;

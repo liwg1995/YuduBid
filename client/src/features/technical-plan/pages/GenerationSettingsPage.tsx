@@ -45,7 +45,7 @@ interface GenerationSettingsPageProps {
 
 const defaults: ContentGenerationOptions = {
   useAiImages: false, aiImageStyle: 'auto', maxAiImages: 6,
-  useMermaidImages: true, useHtmlImages: true, maxHtmlImages: 10, useTechnicalDiagrams: false,
+  useMermaidImages: true, illustrateEverySection: false, useHtmlImages: true, maxHtmlImages: 10, useTechnicalDiagrams: false,
   tableRequirement: 'heavy', minimumWords: 0, maximumWords: 0, sectionWords: 0, wordCountRepair: false, layoutCheck: false, contentConcurrency: 5,
   enableConsistencyAudit: true, enableOriginalPlanCoverageAudit: false,
   missingFactPolicy: 'infer',
@@ -55,7 +55,7 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<SettingsTab>('content');
   const pageRef = useRef<HTMLDivElement>(null);
-  const [draft, setDraft] = useState<ContentGenerationOptions>({ ...defaults, ...options });
+  const [draft, setDraft] = useState<ContentGenerationOptions>({ ...defaults, ...options, illustrateEverySection: options?.illustrateEverySection ?? Boolean(options) });
   const [wordCountInputs, setWordCountInputs] = useState(() => wordCountInputsFromOptions(options));
   const [draftKnowledgeIds, setDraftKnowledgeIds] = useState<string[]>(referenceKnowledgeDocumentIds);
   const [knowledgeIndex, setKnowledgeIndex] = useState<KnowledgeBaseIndex | null>(null);
@@ -73,12 +73,12 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
   const savePromiseRef = useRef<Promise<boolean> | null>(null);
   const savedSignatureRef = useRef('');
   const draftSignature = JSON.stringify({ draft, draftKnowledgeIds });
-  const changed = JSON.stringify({ ...defaults, ...options }) !== JSON.stringify(draft)
+  const changed = JSON.stringify({ ...defaults, ...options, illustrateEverySection: options?.illustrateEverySection ?? Boolean(options) }) !== JSON.stringify(draft)
     || JSON.stringify(referenceKnowledgeDocumentIds) !== JSON.stringify(draftKnowledgeIds);
   useEffect(() => { onDraftDirtyChange?.(changed); }, [changed, onDraftDirtyChange]);
   useEffect(() => () => { onDraftDirtyChange?.(false); }, [onDraftDirtyChange]);
   useEffect(() => {
-    setDraft({ ...defaults, ...options });
+    setDraft({ ...defaults, ...options, illustrateEverySection: options?.illustrateEverySection ?? Boolean(options) });
     setWordCountInputs(wordCountInputsFromOptions(options));
   }, [options]);
   useEffect(() => setDraftKnowledgeIds(referenceKnowledgeDocumentIds), [referenceKnowledgeDocumentIds]);
@@ -252,6 +252,7 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
             <div className="modern-generation-field"><div><strong>字数不达标修复</strong><small>正文完成后按全文字数范围扩写或精简。</small></div><AppSwitch checked={Boolean(draft.wordCountRepair)} disabled={generationRunning} onCheckedChange={(checked) => setDraft((current) => ({ ...current, wordCountRepair: checked }))} aria-label="字数不达标修复" /></div>
           </div>}
           {activeTab === 'illustration' && <div className="modern-generation-stack">
+            <div className="modern-generation-field"><div><strong>每小节至少配一张图</strong><small>关闭后由模型判断；开启时需启用 Mermaid、技术图谱或 AI 生图。</small></div><AppSwitch checked={Boolean(draft.illustrateEverySection)} onCheckedChange={(checked) => setDraft((current) => ({ ...current, illustrateEverySection: checked }))} aria-label="每小节至少配一张图" /></div>
             <div className="modern-generation-field"><div><strong>使用 AI 生图</strong><small>{imageModelStatus === 'available' ? '已配置可用生图模型。' : '请先在设置中配置并测试生图模型。'}</small></div><AppSwitch checked={draft.useAiImages} disabled={imageModelStatus !== 'available'} onCheckedChange={(checked) => setDraft((current) => ({ ...current, useAiImages: checked }))} aria-label="使用 AI 生图" /></div>
             <div className="modern-generation-field"><div><strong>生成 Mermaid 图</strong><small>适合简单流程、层级和关系图。</small></div><AppSwitch checked={draft.useMermaidImages} onCheckedChange={(checked) => setDraft((current) => ({ ...current, useMermaidImages: checked }))} aria-label="生成 Mermaid 图" /></div>
             <div className="modern-generation-field"><div><strong>生成 HTML 图</strong><small>根据小节内容匹配甘特、WBS、拓扑等图型。</small></div><AppSwitch checked={Boolean(draft.useHtmlImages)} onCheckedChange={(checked) => setDraft((current) => ({ ...current, useHtmlImages: checked }))} aria-label="生成 HTML 图" /></div>
@@ -387,6 +388,7 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
         </section>}
 
         {activeTab === 'illustration' && <section className="generation-settings-section generation-settings-illustration">
+          <div className="generation-settings-row"><span><strong>每小节至少配一张图</strong><small>关闭后由模型判断；开启时需启用 Mermaid、技术图谱或 AI 生图。</small></span><AppSwitch checked={Boolean(draft.illustrateEverySection)} onCheckedChange={(checked) => setDraft((current) => ({ ...current, illustrateEverySection: checked }))} aria-label="每小节至少配一张图" /></div>
           <div className="generation-settings-row"><span><strong>使用 AI 生图</strong><small>{imageModelStatus === 'available' ? '已配置可用生图模型。' : '请先在设置中配置并测试生图模型。'}</small></span><AppSwitch checked={draft.useAiImages} disabled={imageModelStatus !== 'available'} onCheckedChange={(checked) => setDraft((current) => ({ ...current, useAiImages: checked }))} aria-label="使用 AI 生图" /></div>
           <div className="generation-settings-row"><span><strong>生成 Mermaid 图</strong><small>适合简单流程、层级和关系图；预览与 Word 图片转换在本地完成。</small></span><AppSwitch checked={draft.useMermaidImages} onCheckedChange={(checked) => setDraft((current) => ({ ...current, useMermaidImages: checked }))} aria-label="生成 Mermaid 图" /></div>
           <div className="generation-settings-row"><span><strong>生成 HTML 图</strong><small>小节正文同时具备图型所需的两组线索时，匹配甘特、WBS、拓扑、组织、矩阵等图型；优先选择匹配度高的小节，插在相关段落后。</small></span><AppSwitch checked={Boolean(draft.useHtmlImages)} onCheckedChange={(checked) => setDraft((current) => ({ ...current, useHtmlImages: checked }))} aria-label="生成 HTML 图" /></div>

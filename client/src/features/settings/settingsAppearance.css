@@ -72,6 +72,7 @@
 .modern-shell .settings-page .settings-section-title { border-bottom: 1px solid #2b384b; color: #e9edf8; }
 .modern-shell .settings-page .settings-row { border-color: #2b384b; color: #e9edf8; background: transparent; }
 .modern-shell .settings-page .settings-row { grid-template-columns: minmax(0, 1fr); gap: 13px; padding: 22px 26px; }
+.modern-shell .settings-page .settings-multimodal-row { grid-template-columns: minmax(0, 1fr) 20px; align-items: center; min-height: 68px; gap: 16px; padding: 12px 26px; }
 .modern-shell .settings-page .settings-developer-action-row { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; min-height: 74px; padding: 12px 26px; }
 .modern-shell .settings-page .settings-developer-action-row .settings-row-copy { gap: 3px; }
 .modern-shell .settings-page .settings-developer-action-row .settings-row-copy strong { font-size: 13px; }

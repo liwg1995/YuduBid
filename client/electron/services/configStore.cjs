@@ -257,6 +257,15 @@ function normalizeTextModelProfile(provider, profile) {
   const sourceBaseUrl = provider === 'custom' || provider === 'ollama'
     ? source.base_url !== undefined ? source.base_url : defaults.base_url
     : defaults.base_url;
+  const senseNovaOutputLimits = {
+    'sensenova-6.8-flash-lite': 65536,
+    'deepseek-v4-flash': 131072,
+    'deepseek-flash': 393216,
+    'glm-5.2': 131072,
+    'kimi-k3': 131072,
+  };
+  const modelName = source.model_name || defaults.model_name;
+  const configuredOutputLimit = Number.isFinite(Number(source.output_token_limit)) ? Math.max(0, Math.floor(Number(source.output_token_limit))) : 0;
   return {
     api_key: source.api_key !== undefined ? source.api_key : defaults.api_key,
     base_url: provider === 'xiaomi' && sourceBaseUrl === oldXiaomiBaseUrl ? defaults.base_url : sourceBaseUrl,
@@ -266,7 +275,9 @@ function normalizeTextModelProfile(provider, profile) {
     multimodal_enabled: source.multimodal_enabled === true,
     reasoning_effort: String(source.reasoning_effort || '').trim().slice(0, 40),
     context_length_limit: Number.isFinite(Number(source.context_length_limit)) ? Math.max(0, Math.floor(Number(source.context_length_limit))) : 0,
-    output_token_limit: Number.isFinite(Number(source.output_token_limit)) ? Math.max(0, Math.floor(Number(source.output_token_limit))) : 0,
+    output_token_limit: provider === 'sensenova' && senseNovaOutputLimits[modelName]
+      ? Math.min(configuredOutputLimit, senseNovaOutputLimits[modelName])
+      : configuredOutputLimit,
     concurrency_limit: Number.isFinite(Number(source.concurrency_limit)) ? Math.max(1, Math.min(100, Math.floor(Number(source.concurrency_limit)))) : 10,
     temperature_enabled: source.temperature_enabled === true,
     temperature: Number.isFinite(Number(source.temperature)) ? Math.max(0, Math.min(2, Number(source.temperature))) : 0.7,

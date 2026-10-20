@@ -847,6 +847,9 @@ function registerUnavailableTechnicalPlanIpc(error) {
     'knowledge-image:get-thumbnail-data-url',
     'tasks:start-bid-analysis',
     'tasks:start-outline-generation',
+    'tasks:pause-outline-generation',
+    'tasks:resume-outline-generation',
+    'tasks:stop-outline-generation',
     'tasks:start-global-facts-generation',
     'tasks:start-content-generation',
     'tasks:pause-content-generation',
@@ -974,7 +977,7 @@ function registerIpcHandlers({ app, mainWindow, appLogger = createAppLogger(app)
     registerCredentialLibraryIpc({ credentialLibraryService, configStore });
     registerTemplateIpc({ templateStore });
     registerBidOpportunityIpc({ bidOpportunityService });
-    registerTechnicalPlanIpc({ technicalPlanStore: technicalPlanStoreRouter });
+    registerTechnicalPlanIpc({ technicalPlanStore: technicalPlanStoreRouter, taskService });
     registerFeasibilityReportIpc({ feasibilityReportStore: feasibilityReportStoreRouter, feasibilityReportTaskService });
     registerDuplicateCheckIpc({ duplicateCheckStore, checkResultExportService });
     registerRejectionCheckIpc({ rejectionCheckStore, checkResultExportService });

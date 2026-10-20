@@ -16,6 +16,7 @@ export interface ContentGenerationOptions {
   aiImageStyle?: ContentAiImageStyle;
   maxAiImages: number;
   useMermaidImages: boolean;
+  illustrateEverySection?: boolean;
   useHtmlImages?: boolean;
   maxHtmlImages?: number;
   useTechnicalDiagrams: boolean;

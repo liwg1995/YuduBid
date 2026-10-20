@@ -13,6 +13,18 @@ function registerTaskIpc({ taskService }) {
     taskService.subscribe(event.sender);
     return taskService.startOutlineGeneration(payload);
   });
+  ipcMain.handle('tasks:pause-outline-generation', (event, payload) => {
+    taskService.subscribe(event.sender);
+    return taskService.pauseOutlineGeneration(payload);
+  });
+  ipcMain.handle('tasks:resume-outline-generation', (event, payload) => {
+    taskService.subscribe(event.sender);
+    return taskService.resumeOutlineGeneration(payload);
+  });
+  ipcMain.handle('tasks:stop-outline-generation', (event, payload) => {
+    taskService.subscribe(event.sender);
+    return taskService.stopOutlineGeneration(payload);
+  });
   ipcMain.handle('tasks:start-global-facts-generation', (event, payload) => {
     taskService.subscribe(event.sender);
     return taskService.startGlobalFactsGeneration(payload);

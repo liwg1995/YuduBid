@@ -16,6 +16,7 @@ export interface ChatRequestOptions {
   response_format?: { type: 'json_object' };
   chat_template_kwargs?: Record<string, unknown>;
   thinking?: Record<string, unknown>;
+  reasoning_effort?: string;
   timeout_ms?: number;
   timeout_message?: string;
   logTitle?: string;

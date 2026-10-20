@@ -66,6 +66,13 @@ const OPENAI_IMAGE_PROVIDER_META = {
 };
 const AGNES_IMAGE_PROVIDERS = new Set(['agnes-ai-cn', 'agnes-ai-global']);
 const SENSENOVA_IMAGE_PROVIDER = 'sensenova';
+const SENSENOVA_OUTPUT_LIMITS = {
+  'sensenova-6.8-flash-lite': 65536,
+  'deepseek-v4-flash': 131072,
+  'deepseek-flash': 393216,
+  'glm-5.2': 131072,
+  'kimi-k3': 131072,
+};
 const textRequestQueue = { active: 0, pending: [] };
 
 function runWithTextRequestSlot(limit, signal, runner) {
@@ -665,8 +672,8 @@ function normalizeJsonPayload(request, parsed) {
   return normalized;
 }
 
-async function repairJsonResponse(app, config, invalidContent, issues, temperature, responseFormat, progressCallback, progressLabel, repairMessagesBuilder, logTitle, usageStatsStore, signal, abortMessage) {
-  await emitProgress(progressCallback, `${progressLabel}格式校验失败，正在基于当前结果进行修复。`);
+async function repairJsonResponse(app, config, invalidContent, issues, temperature, responseFormat, progressCallback, progressLabel, repairMessagesBuilder, logTitle, usageStatsStore, signal, abortMessage, responseMetaCallback) {
+  await emitProgress(progressCallback, `${progressLabel}校验未通过：${issues.join('；').slice(0, 200)}。正在修复当前结果。`);
   return chatWithConfig(app, config, {
     messages: repairMessagesBuilder
       ? repairMessagesBuilder({ invalidContent, issues, progressLabel })
@@ -676,6 +683,7 @@ async function repairJsonResponse(app, config, invalidContent, issues, temperatu
     logTitle: logTitle ? `${logTitle}修复` : `${progressLabel}修复`,
     signal,
     abort_message: abortMessage,
+    responseMetaCallback,
   }, usageStatsStore);
 }
 
@@ -724,6 +732,7 @@ async function collectJsonResponseWithConfig(app, config, request, usageStatsSto
   let lastError = null;
 
   for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
+    let responseMeta = null;
     const content = await chatWithConfig(app, config, {
       messages: request.messages,
       temperature,
@@ -735,16 +744,35 @@ async function collectJsonResponseWithConfig(app, config, request, usageStatsSto
       logTitle,
       signal: request.signal,
       abort_message: request.abort_message,
+      responseMetaCallback: (meta) => { responseMeta = meta; },
     }, usageStatsStore);
 
+    if (request.fail_on_truncated_output && responseMeta?.finishReason === 'length') {
+      await emitProgress(request.progressCallback, `${progressLabel}输出达到 Token 上限（${content.length} 字），跳过整份修复。`);
+      const error = new Error(failureMessage);
+      error.code = 'JSON_OUTPUT_TRUNCATED';
+      throw error;
+    }
+
+    let parsedSuccessfully = false;
     try {
       const parsed = parseJsonContent(content);
+      parsedSuccessfully = true;
       return normalizeJsonPayload(request, parsed);
     } catch (error) {
       lastError = error;
       const issues = formatJsonIssues(error);
+      const finishReason = responseMeta?.finishReason || '未提供';
+      await emitProgress(request.progressCallback, `${progressLabel}第 ${attempt + 1}/${totalAttempts} 轮校验问题：${issues.join('；').slice(0, 200)}（输出 ${content.length} 字，结束原因 ${finishReason}）。`);
+      if (parsedSuccessfully && request.repair_syntax_only) {
+        await emitProgress(request.progressCallback, `${progressLabel}结构不符合要求，跳过整份修复并改用分步生成。`);
+        const failure = new Error(failureMessage);
+        failure.code = 'JSON_STRUCTURE_INVALID';
+        throw failure;
+      }
 
       try {
+        let repairMeta = null;
         const repairedContent = await repairJsonResponse(
           app,
           config,
@@ -759,11 +787,16 @@ async function collectJsonResponseWithConfig(app, config, request, usageStatsSto
           usageStatsStore,
           request.signal,
           request.abort_message,
+          (meta) => { repairMeta = meta; },
         );
+        if (request.fail_on_truncated_output && repairMeta?.finishReason === 'length') {
+          throw new Error(`修复结果达到 Token 上限（${repairedContent.length} 字）`);
+        }
         const repairedParsed = parseJsonContent(repairedContent);
         return normalizeJsonPayload(request, repairedParsed);
       } catch (repairError) {
         lastError = repairError;
+        await emitProgress(request.progressCallback, `${progressLabel}第 ${attempt + 1}/${totalAttempts} 轮修复未通过：${formatJsonIssues(repairError).join('；').slice(0, 200)}。`);
 
         if (attempt === maxRetries) {
           await emitProgress(request.progressCallback, `${progressLabel}连续 ${totalAttempts} 次校验失败。`);
@@ -786,11 +819,13 @@ function createChatRequestBody(config, request, options = {}) {
   };
 
   if (profile.temperature_enabled) body.temperature = Number(profile.temperature ?? request.temperature ?? 0.7);
-  if (profile.reasoning_effort) body.reasoning_effort = profile.reasoning_effort;
+  if (request.reasoning_effort || profile.reasoning_effort) body.reasoning_effort = request.reasoning_effort || profile.reasoning_effort;
   const outputLimit = Number(request.output_token_limit) > 0 ? Number(request.output_token_limit) : Number(profile.output_token_limit);
   if (outputLimit > 0) {
-    const field = config.text_model_provider === 'custom' && profile.reasoning_effort ? 'max_completion_tokens' : 'max_tokens';
-    body[field] = Math.floor(outputLimit);
+    const isSenseNovaKimi = config.text_model_provider === 'sensenova' && config.model_name === 'kimi-k3';
+    const field = isSenseNovaKimi || (config.text_model_provider === 'custom' && profile.reasoning_effort) ? 'max_completion_tokens' : 'max_tokens';
+    const providerLimit = config.text_model_provider === 'sensenova' ? SENSENOVA_OUTPUT_LIMITS[config.model_name] : undefined;
+    body[field] = Math.floor(providerLimit ? Math.min(outputLimit, providerLimit) : outputLimit);
   }
   if (profile.request_mode === 'stream') body.stream = true;
 
@@ -970,6 +1005,7 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
     }));
     responseData = result.data;
     const content = result.content;
+    request.responseMetaCallback?.({ finishReason: result.finishReason || '', outputChars: content.length });
     if (request.reject_truncated_output && result.finishReason === 'length') {
       throw new Error('模型输出达到 Token 上限被截断，本次结果未保存。请提高输出上限后重试。');
     }

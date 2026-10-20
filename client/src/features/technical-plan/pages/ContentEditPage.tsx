@@ -119,6 +119,7 @@ const defaultContentGenerationOptions: ContentGenerationOptions = {
   aiImageStyle: 'auto',
   maxAiImages: 6,
   useMermaidImages: true,
+  illustrateEverySection: false,
   useHtmlImages: true,
   maxHtmlImages: 10,
   useTechnicalDiagrams: true,
@@ -161,6 +162,7 @@ function normalizeGenerationOptions(options: ContentGenerationOptions | undefine
     aiImageStyle: options?.aiImageStyle ?? 'auto',
     maxAiImages: Math.max(0, Math.min(Number.isFinite(requestedMaxAiImages) ? Math.round(requestedMaxAiImages) : fallback.maxAiImages, maxAiImagesLimit)),
     useMermaidImages: Boolean(options?.useMermaidImages ?? fallback.useMermaidImages),
+    illustrateEverySection: Boolean(options?.illustrateEverySection ?? (options ? true : fallback.illustrateEverySection)),
     useHtmlImages: Boolean(options?.useHtmlImages ?? fallback.useHtmlImages),
     maxHtmlImages: Math.max(0, Math.min(30, Math.round(Number(options?.maxHtmlImages ?? fallback.maxHtmlImages) || 0))),
     useTechnicalDiagrams: Boolean(options?.useTechnicalDiagrams ?? fallback.useTechnicalDiagrams) && technicalDiagramAvailable,
@@ -1085,6 +1087,10 @@ function ContentEditPage({
                   }))}
                 />
               </div>
+              <label className="content-generation-config-row">
+                <span><strong>每小节至少配一张图</strong><small>关闭后由模型判断；开启时需启用 Mermaid、技术图谱或 AI 生图。</small></span>
+                <Switch.Root className="content-generation-switch" checked={Boolean(draftGenerationOptions.illustrateEverySection)} disabled={generationStrategyLocked} onCheckedChange={(checked) => setDraftGenerationOptions((prev) => ({ ...prev, illustrateEverySection: checked }))} aria-label="每小节至少配一张图"><Switch.Thumb className="content-generation-switch-thumb" /></Switch.Root>
+              </label>
               <label className="content-generation-config-row">
                 <span>
                   <strong>使用 AI 生图</strong>

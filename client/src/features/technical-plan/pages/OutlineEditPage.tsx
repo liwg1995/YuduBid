@@ -40,6 +40,11 @@ function isMissingTechnicalScoreItems(content: string) {
   return /^(没有提及|未提取到|未提及|未提及技术评分项)[。\s]*$/.test(section?.[1]?.trim() || '');
 }
 
+function hasResponseFileOutline(content: string) {
+  const text = content.trim().replace(/^#{1,6}\s*响应文件要求\s*/u, '').trim();
+  return Boolean(text) && !/^(?:原文未明确技术文件目录|未提及|没有提及|未提取到)[。\s]*$/u.test(text);
+}
+
 function collectOutlineIds(items: OutlineItem[], ids = new Set<string>()) {
   items.forEach((item) => {
     ids.add(item.id);
@@ -142,11 +147,15 @@ function OutlineEditPage({
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [startingOutline, setStartingOutline] = useState(false);
+  const [taskActionPending, setTaskActionPending] = useState(false);
   const [progressCollapsed, setProgressCollapsed] = useState(true);
   const [generationDialogOpen, setGenerationDialogOpen] = useState(false);
   const [draftOutlineMode, setDraftOutlineMode] = useState<OutlineMode>(outlineMode);
-  const [noScoreConfirmed, setNoScoreConfirmed] = useState(false);
   const noTechnicalScoreMode = isMissingTechnicalScoreItems(techRequirements);
+  const responseFileAvailable = hasResponseFileOutline(responseFileRequirements);
+  const initialOutlineMode = noTechnicalScoreMode && (outlineMode === 'aligned' || (outlineMode === 'response-file' && !responseFileAvailable))
+    ? 'free'
+    : outlineMode;
   const [draftKnowledgeDocumentIds, setDraftKnowledgeDocumentIds] = useState<string[]>(referenceKnowledgeDocumentIds);
   const [knowledgeSearch, setKnowledgeSearch] = useState('');
   const [expandedKnowledgeFolderIds, setExpandedKnowledgeFolderIds] = useState<Set<string>>(new Set());
@@ -157,26 +166,27 @@ function OutlineEditPage({
   const logListRef = useRef<HTMLDivElement | null>(null);
   const { showToast } = useToast();
   const selectedItem = outlineData && selectedItemId ? findOutlineItem(outlineData.outline, selectedItemId) : null;
-  const taskRunning = task?.status === 'running';
+  const taskRunning = ['running', 'pausing', 'stopping'].includes(task?.status || '');
+  const taskPaused = task?.status === 'paused';
   const taskFailed = task?.status === 'error';
-  const generating = startingOutline || taskRunning;
+  const generating = startingOutline || taskRunning || taskPaused;
   const progressLogs = task?.logs || [];
   const latestLog = progressLogs[progressLogs.length - 1];
-  const progress = generating
+  const progress = generating || task?.status === 'stopped'
     ? Math.max(5, Math.min(99, task?.progress || 5))
     : taskFailed
       ? Math.max(0, Math.min(99, task?.progress || 0))
       : outlineData || task?.status === 'success'
         ? 100
         : 0;
-  const statusText = generating ? '运行中' : taskFailed ? '失败' : outlineData ? '已完成' : '未开始';
+  const statusText = task?.status === 'pausing' ? '暂停中' : taskPaused ? '已暂停' : task?.status === 'stopping' ? '停止中' : task?.status === 'stopped' ? '已停止' : generating ? '运行中' : taskFailed ? '失败' : outlineData ? '已完成' : '未开始';
   const aiStatusTitle = generating ? 'AI 正在工作' : taskFailed ? '生成失败' : outlineData ? '目录已生成' : '等待生成';
   const statusMessage = taskFailed ? task?.error || latestLog || '目录生成失败，请查看开发者日志。' : latestLog || '点击生成目录后，这里会显示目录生成、审核和修正过程。';
   const startedAt = task?.started_at ? Date.parse(task.started_at) : NaN;
   const updatedAt = task?.updated_at ? Date.parse(task.updated_at) : NaN;
   const effectiveStartedAt = Number.isFinite(startedAt) ? startedAt : localStartAt;
-  const elapsedText = generating && effectiveStartedAt ? `已运行 ${formatDuration(nowTick - effectiveStartedAt)}` : '';
-  const staleText = generating && Number.isFinite(updatedAt) ? `最近更新 ${Math.floor(Math.max(0, nowTick - updatedAt) / 1000)} 秒前` : '';
+  const elapsedText = taskRunning && effectiveStartedAt ? `已运行 ${formatDuration(nowTick - effectiveStartedAt)}` : '';
+  const staleText = taskRunning && Number.isFinite(updatedAt) ? `最近更新 ${Math.floor(Math.max(0, nowTick - updatedAt) / 1000)} 秒前` : '';
 
   useEffect(() => {
     if (outlineData?.outline?.length) {
@@ -196,7 +206,7 @@ function OutlineEditPage({
   useEffect(() => {
     if (task?.status) {
       setStartingOutline(false);
-      if (task.status !== 'running') {
+      if (!['running', 'pausing', 'stopping'].includes(task.status)) {
         setLocalStartAt(null);
       }
     }
@@ -222,11 +232,11 @@ function OutlineEditPage({
       return;
     }
 
-    setDraftOutlineMode(noTechnicalScoreMode ? 'free' : outlineMode);
+    setDraftOutlineMode(initialOutlineMode);
     setDraftKnowledgeDocumentIds(referenceKnowledgeDocumentIds);
     setKnowledgeSearch('');
     void loadKnowledgeIndex();
-  }, [generationDialogOpen, outlineMode, referenceKnowledgeDocumentIds]);
+  }, [generationDialogOpen, initialOutlineMode, referenceKnowledgeDocumentIds]);
 
   const loadKnowledgeIndex = async () => {
     try {
@@ -249,8 +259,7 @@ function OutlineEditPage({
       return;
     }
 
-    setDraftOutlineMode(outlineMode);
-    setNoScoreConfirmed(false);
+    setDraftOutlineMode(initialOutlineMode);
     setDraftKnowledgeDocumentIds(referenceKnowledgeDocumentIds);
     setKnowledgeSearch('');
     setGenerationDialogOpen(true);
@@ -263,6 +272,10 @@ function OutlineEditPage({
 
   const saveOutlineConfig = async () => {
     try {
+      if (draftOutlineMode === 'response-file' && !responseFileAvailable && noTechnicalScoreMode) {
+        showToast('未找到明确的响应文件技术目录，请选择自由生成', 'info');
+        return;
+      }
       await onOutlineConfigChange(draftOutlineMode, draftKnowledgeDocumentIds);
       setGenerationDialogOpen(false);
       showToast('目录生成配置已保存', 'success');
@@ -276,8 +289,12 @@ function OutlineEditPage({
       showToast('请先完成招标文件解析', 'info');
       return;
     }
-    if (noTechnicalScoreMode && !noScoreConfirmed) {
-      showToast('请先确认无技术评分项模式', 'info');
+    if (noTechnicalScoreMode && draftOutlineMode === 'aligned') {
+      showToast('没有技术评分项，无法按评分项对齐', 'info');
+      return;
+    }
+    if (draftOutlineMode === 'response-file' && !responseFileAvailable && noTechnicalScoreMode) {
+      showToast('未找到明确的响应文件技术目录，请选择自由生成', 'info');
       return;
     }
 
@@ -286,13 +303,12 @@ function OutlineEditPage({
       setStartingOutline(true);
       setLocalStartAt(startedNow);
       setNowTick(startedNow);
-      await onOutlineConfigChange(noTechnicalScoreMode ? 'free' : draftOutlineMode, draftKnowledgeDocumentIds);
+      await onOutlineConfigChange(draftOutlineMode, draftKnowledgeDocumentIds);
       setGenerationDialogOpen(false);
       await window.yibiao?.tasks.startOutlineGeneration({
         workflowKind,
         projectId,
-        mode: noTechnicalScoreMode ? 'free' : draftOutlineMode,
-        noTechnicalScoreMode: noTechnicalScoreMode && noScoreConfirmed,
+        mode: draftOutlineMode,
         responseFileRequirements,
         reference_knowledge_document_ids: draftKnowledgeDocumentIds,
       });
@@ -303,6 +319,34 @@ function OutlineEditPage({
       showToast(error instanceof Error ? error.message : '启动目录生成任务失败', 'error');
     }
   };
+
+  const controlOutline = async (action: 'pause' | 'resume' | 'stop') => {
+    if (taskActionPending) return;
+    setTaskActionPending(true);
+    try {
+      const tasks = window.yibiao?.tasks;
+      if (!tasks) throw new Error('后台任务服务不可用，请重启客户端');
+      const target = { workflowKind, projectId };
+      if (action === 'pause') await tasks.pauseOutlineGeneration(target);
+      if (action === 'resume') await tasks.resumeOutlineGeneration(target);
+      if (action === 'stop') await tasks.stopOutlineGeneration(target);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '操作目录任务失败', 'error');
+    } finally {
+      setTaskActionPending(false);
+    }
+  };
+
+  const taskControls = ['running', 'pausing', 'paused', 'stopping'].includes(task?.status || '') ? (
+    <div className="outline-task-controls" aria-label="目录生成任务操作">
+      {task?.status === 'running' && <button type="button" onClick={() => void controlOutline('pause')} disabled={taskActionPending}>暂停</button>}
+      {task?.status === 'pausing' && <button type="button" disabled>暂停中…</button>}
+      {taskPaused && <button type="button" className="is-primary" onClick={() => void controlOutline('resume')} disabled={taskActionPending}>继续</button>}
+      {task?.status === 'stopping'
+        ? <button type="button" disabled>停止中…</button>
+        : <button type="button" className="is-danger" onClick={() => void controlOutline('stop')} disabled={taskActionPending}>停止</button>}
+    </div>
+  ) : null;
 
   const toggleDraftKnowledgeDocument = (document: KnowledgeDocument) => {
     if (document.status !== 'success' || generating) {
@@ -592,9 +636,9 @@ function OutlineEditPage({
             <section className="outline-generation-config-section">
               <div className="outline-generation-config-head">
                 <strong>生成方式</strong>
-                <span>{noTechnicalScoreMode ? '无技术评分项' : outlineModeLabels[draftOutlineMode]}</span>
+                <span>{noTechnicalScoreMode ? `无技术评分项 · ${outlineModeLabels[draftOutlineMode]}` : outlineModeLabels[draftOutlineMode]}</span>
               </div>
-              {!noTechnicalScoreMode ? <div className="outline-generation-mode-list" role="radiogroup" aria-label="目录生成方式">
+              <div className="outline-generation-mode-list" role="radiogroup" aria-label="目录生成方式">
                 <button
                   type="button"
                   className={`outline-generation-mode-card${draftOutlineMode === 'free' ? ' is-active' : ''}`}
@@ -602,13 +646,13 @@ function OutlineEditPage({
                   disabled={generating}
                 >
                   <strong>自由生成</strong>
-                  <span>完全由 AI 分析并生成目录，标题贴近技术评分项语义，但不完全一致。</span>
+                  <span>{noTechnicalScoreMode ? '根据项目概述和已有技术要求组织目录，不依赖评分项。' : '完全由 AI 分析并生成目录，标题贴近技术评分项语义，但不完全一致。'}</span>
                 </button>
                 <button
                   type="button"
                   className={`outline-generation-mode-card${draftOutlineMode === 'aligned' ? ' is-active' : ''}`}
                   onClick={() => setDraftOutlineMode('aligned')}
-                  disabled={generating}
+                  disabled={generating || noTechnicalScoreMode}
                 >
                   <strong>按评分项对齐</strong>
                   <span>一级目录完全和技术评分项要求一致，二三级目录由 AI 生成。</span>
@@ -617,17 +661,17 @@ function OutlineEditPage({
                   type="button"
                   className={`outline-generation-mode-card${draftOutlineMode === 'response-file' ? ' is-active' : ''}`}
                   onClick={() => setDraftOutlineMode('response-file')}
-                  disabled={generating}
+                  disabled={generating || (noTechnicalScoreMode && !responseFileAvailable)}
                 >
                   <strong>按响应文件目录</strong>
                   <span>优先按招标文件中的技术文件组成和编制要求组织一级目录，二三级目录由 AI 生成。</span>
                 </button>
-              </div> : null}
+              </div>
               {noTechnicalScoreMode ? (
-                <label className="outline-generation-config-hint">
-                  <input type="checkbox" checked={noScoreConfirmed} onChange={(event) => setNoScoreConfirmed(event.target.checked)} disabled={generating} />
-                  已确认招标文件没有技术评分项，按技术要求和项目概述生成目录
-                </label>
+                <div className="outline-generation-no-score">
+                  <strong>未检测到技术评分项</strong>
+                  <span>{responseFileAvailable ? '可选择自由生成或按响应文件目录生成。' : '未找到明确的技术文件目录，当前可使用自由生成。'}</span>
+                </div>
               ) : null}
             </section>
 
@@ -644,10 +688,10 @@ function OutlineEditPage({
               <button type="button" className="secondary-action" onClick={saveOutlineConfig} disabled={generating}>
                 保存配置
               </button>
-              {draftOutlineMode === 'response-file' && !responseFileRequirements ? (
+              {!noTechnicalScoreMode && draftOutlineMode === 'response-file' && !responseFileAvailable ? (
                 <span className="outline-generation-config-hint">未找到独立的响应文件要求，将退回使用技术评分要求。</span>
               ) : null}
-              <button type="button" className="primary-action" onClick={generateOutline} disabled={generating || !projectOverview || !techRequirements || (noTechnicalScoreMode && !noScoreConfirmed)}>
+              <button type="button" className="primary-action" onClick={generateOutline} disabled={generating || !projectOverview || !techRequirements}>
                 开始生成
               </button>
             </div>
@@ -672,6 +716,7 @@ function OutlineEditPage({
     return <div className="modern-outline-page">
       <header className="modern-outline-header"><div><span>目录结构工作台</span><h2>组织技术方案章节</h2><p>当前参考知识库：{referenceKnowledgeDocumentIds.length ? `已选 ${referenceKnowledgeDocumentIds.length} 个文档` : '未选择文档'}。</p></div><button type="button" onClick={openGenerationDialog} disabled={generating || !projectOverview || !techRequirements}>{generating ? 'AI 正在生成目录' : outlineData ? '重新生成目录' : '生成目录'}</button></header>
       <section className="modern-outline-progress"><div><span className={`modern-outline-status is-${taskFailed ? 'error' : generating ? 'running' : outlineData ? 'success' : 'idle'}`}>{statusText}</span><strong>{progress}%</strong><div role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="目录生成进度"><span style={{ width: `${progress}%` }} /></div><button type="button" onClick={() => setProgressCollapsed((value) => !value)} aria-expanded={!progressCollapsed}>{progressCollapsed ? '查看过程' : '收起过程'}</button></div>{!progressCollapsed && <div className="modern-outline-progress-detail"><p>{statusMessage}</p>{(elapsedText || staleText) && <small>{[elapsedText, staleText].filter(Boolean).join(' · ')}</small>}{taskFailed && <small>{task?.error || latestLog || '目录生成失败'}</small>}<div ref={logListRef}>{progressLogs.length ? progressLogs.map((item, index) => <p key={`${item}-${index}`} className={index === progressLogs.length - 1 ? 'is-latest' : ''}>{item}</p>) : <p>等待生成任务启动。</p>}</div></div>}</section>
+      {taskControls}
       <div className="modern-outline-workspace"><section className="modern-outline-tree"><header><div><span>CHAPTER STRUCTURE</span><h3>目录结构 <small>{outlineData?.outline?.length || 0} 个一级目录</small></h3></div><div><button type="button" onClick={addRootItem} disabled={!outlineData || generating}>新增一级目录</button><button type="button" onClick={expandAllItems} disabled={!outlineData?.outline?.length}>全部展开</button><button type="button" onClick={collapseAllItems} disabled={!outlineData?.outline?.length}>全部折叠</button></div></header><div className="modern-outline-tree-body">{outlineData?.outline?.length ? outlineData.outline.map((item) => renderModernItem(item)) : generating ? <ActivityWaiting title="正在生成目录" description={statusMessage || "正在组织技术方案章节，生成后将在这里显示目录结构。"} progress={progress} /> : <div className="modern-outline-empty"><strong>尚未生成目录</strong><p>完成招标文件解析后，点击“生成目录”。</p></div>}</div></section>
         <aside className="modern-outline-detail"><header><span>CHAPTER DETAIL</span><h3>目录项详情</h3><small>{selectedItem?.id || '未选择'}</small></header>{selectedItem ? <div className="modern-outline-detail-body">{generating && <p className="modern-outline-lock">目录生成中，暂不可编辑，以免覆盖后台结果。</p>}{editingItemId === selectedItem.id ? <><label>标题<input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} disabled={generating} /></label><label>描述<textarea value={editDescription} onChange={(event) => setEditDescription(event.target.value)} disabled={generating} /></label><div><button type="button" className="is-primary" onClick={saveEditing} disabled={generating}>保存</button><button type="button" onClick={() => setEditingItemId(null)}>取消</button></div></> : <><h4>{selectedItem.title}</h4><p>{selectedItem.description || '无描述'}</p>{selectedItem.source_requirement_title && <small>来源评分项：{selectedItem.source_requirement_title}</small>}<div><button type="button" className="is-primary" onClick={() => startEditing(selectedItem)} disabled={generating}>编辑</button><button type="button" onClick={() => addChildItem(selectedItem.id)} disabled={generating}>添加子目录</button><button type="button" className="is-danger" onClick={() => removeItem(selectedItem.id)} disabled={generating}>删除</button></div></>}</div> : <div className="modern-outline-empty"><strong>选择目录项</strong><p>选择左侧章节后，可以查看和编辑标题与描述。</p></div>}</aside>
       </div>
@@ -735,6 +780,7 @@ function OutlineEditPage({
               </div>
             )}
           </div>
+          {taskControls}
           <div className="outline-progress-log" ref={logListRef}>
             {progressLogs.length ? progressLogs.map((item, index) => (
               <p className={index === progressLogs.length - 1 ? 'is-latest' : ''} key={`${item}-${index}`}>{item}</p>
