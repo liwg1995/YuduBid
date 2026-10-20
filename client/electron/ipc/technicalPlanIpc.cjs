@@ -1,6 +1,6 @@
 const { ipcMain } = require('electron');
 
-function registerTechnicalPlanIpc({ technicalPlanStore }) {
+function registerTechnicalPlanIpc({ technicalPlanStore, taskService }) {
   ipcMain.handle('technical-plan:list-projects', (_event, workflowKind) => technicalPlanStore.listProjects(workflowKind));
   ipcMain.handle('technical-plan:create-project', (_event, payload) => technicalPlanStore.createProject(payload));
   ipcMain.handle('technical-plan:rename-project', (_event, payload) => technicalPlanStore.renameProject(payload));
@@ -21,7 +21,10 @@ function registerTechnicalPlanIpc({ technicalPlanStore }) {
   ipcMain.handle('technical-plan:save-global-facts', (_event, globalFacts) => technicalPlanStore.saveGlobalFacts(globalFacts));
   ipcMain.handle('technical-plan:save-content-generation-options', (_event, options) => technicalPlanStore.saveContentGenerationOptions(options));
   ipcMain.handle('technical-plan:save-chapter-content', (_event, payload) => technicalPlanStore.saveChapterContent(payload));
-  ipcMain.handle('technical-plan:clear', (_event, workflowKind) => technicalPlanStore.clearTechnicalPlan(workflowKind));
+  ipcMain.handle('technical-plan:clear', async (_event, workflowKind) => {
+    await taskService?.prepareTechnicalPlanReset(workflowKind);
+    return technicalPlanStore.clearTechnicalPlan(workflowKind);
+  });
 }
 
 module.exports = {

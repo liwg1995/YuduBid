@@ -54,8 +54,10 @@ function AppShell({ appearance, activeSection, children, developerMode, featureM
         <Sidebar activeSection={activeSection} developerMode={developerMode} featureModuleSettings={featureModuleSettings} onSectionChange={onSectionChange} />
 
         <main className="main-area">
-          <ThemeSwitcher />
-          <TaskMonitor />
+          <div className="main-topbar">
+            <TaskMonitor />
+            <ThemeSwitcher />
+          </div>
           <section className="content-shell" aria-label="主内容">
             {children}
           </section>

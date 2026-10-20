@@ -61,6 +61,11 @@ function isMissingTechnicalScoreItems(content) {
   return /^(没有提及|未提取到|未提及|未提及技术评分项)[。\s]*$/.test(section?.[1]?.trim() || '');
 }
 
+function hasResponseFileOutline(content) {
+  const text = String(content || '').trim().replace(/^#{1,6}\s*响应文件要求\s*/u, '').trim();
+  return Boolean(text) && !/^(?:原文未明确技术文件目录|未提及|没有提及|未提取到)[。\s]*$/u.test(text);
+}
+
 function formatKnowledgeAdditionParents(parents) {
   return (parents || []).map((item) => [
     `- ${item.id} ${item.title || '未命名二级目录'}（所属一级：${item.parentTitle || '未命名一级目录'}）`,
@@ -234,7 +239,7 @@ function generateAlignedChildrenMessages({ overview, requirements, outlineMode, 
   const messages = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: `项目概述：\n${overview}` },
-    { role: 'user', content: `技术评分要求原文：\n${requirements}` },
+    { role: 'user', content: `${responseFileMode ? '响应文件技术目录原文' : '技术评分要求原文'}：\n${requirements}` },
     { role: 'user', content: `当前固定一级目录：\n编号：${parentItem.id}\n标题：${parentItem.title}\n描述：${parentItem.description || ''}` },
     { role: 'user', content: `当前对应的${sourceLabel}：\nrequirement_id：${group.requirement_id}\n标题：${group.title}\n描述：${group.description}\n细项：\n${detailContent}` },
     ...((minimumWords || maximumWords || sectionWords) ? [{ role: 'user', content: wordBudgetGuidance({ minimumWords, maximumWords, sectionWords }) }] : []),
@@ -395,10 +400,11 @@ function normalizeKnowledgeItemIds(value, allowedKnowledgeIds) {
 
 function normalizeOutlineItem(item, path = 'outline[]', allowedKnowledgeIds) {
   const raw = requireObject(item, path);
+  const title = requireField(raw.title, `${path}.title`);
   const normalized = {
     id: requireField(raw.id, `${path}.id`),
-    title: requireField(raw.title, `${path}.title`),
-    description: requireField(raw.description, `${path}.description`),
+    title,
+    description: String(raw.description || title),
   };
 
   if (raw.source_requirement_id !== undefined && raw.source_requirement_id !== null) {
@@ -427,13 +433,13 @@ function normalizeOutlineItem(item, path = 'outline[]', allowedKnowledgeIds) {
 function normalizeOutlineResponse(payload, allowedKnowledgeIds) {
   const raw = requireObject(payload, 'OutlineResponse');
   const outline = requireArray(raw.outline, 'outline');
-  return { outline: outline.map((item, index) => normalizeOutlineItem(item, `outline[${index}]`, allowedKnowledgeIds)) };
+  return { outline: renumber(outline).map((item, index) => normalizeOutlineItem(item, `outline[${index}]`, allowedKnowledgeIds)) };
 }
 
-function normalizeChildrenResponse(payload, allowedKnowledgeIds) {
+function normalizeChildrenResponse(payload, allowedKnowledgeIds, parentId = '') {
   const raw = requireObject(payload, 'OutlineChildrenResponse');
   const children = requireArray(raw.children, 'children');
-  return { children: children.map((item, index) => normalizeOutlineItem(item, `children[${index}]`, allowedKnowledgeIds)) };
+  return { children: renumber(children, parentId).map((item, index) => normalizeOutlineItem(item, `children[${index}]`, allowedKnowledgeIds)) };
 }
 
 function normalizeReviewResponse(payload) {
@@ -763,9 +769,12 @@ async function generateFull(aiService, payload, suggestions, log, progress = 20)
   return collectJson(aiService, {
     messages: generateOutlineMessages({ ...payload, suggestions }),
     temperature: 0.7,
+    max_retries: 0,
+    fail_on_truncated_output: true,
+    repair_syntax_only: true,
     normalizer: (value) => normalizeOutlineResponse(value, new Set()),
     validator: validateCompleteOutline,
-    progressCallback: (message) => log(message, progress),
+    progressCallback: (message) => log(message, message.includes('修复') ? progress + 2 : progress + 1),
     progressLabel: '完整目录',
     failureMessage: '模型返回的目录数据格式无效',
   });
@@ -787,7 +796,7 @@ async function generateChildren(aiService, payload, parentItem, suggestions, log
   const response = await collectJson(aiService, {
     messages: generateChildrenMessages({ ...payload, parentItem, suggestions }),
     temperature: 0.7,
-    normalizer: (value) => normalizeChildrenResponse(value, new Set()),
+    normalizer: (value) => normalizeChildrenResponse(value, new Set(), parentItem.id),
     validator: validateChildrenOutline,
     progressCallback: (message) => log(message, progress),
     progressLabel: `章节 ${parentItem.title || '未命名章节'} 子目录`,
@@ -905,7 +914,7 @@ async function generateAlignedChildrenForGroup(aiService, payload, parentItem, g
   const response = await collectJson(aiService, {
     messages: generateAlignedChildrenMessages({ ...payload, parentItem, group, suggestions }),
     temperature: 0.7,
-    normalizer: (value) => normalizeChildrenResponse(value, new Set()),
+    normalizer: (value) => normalizeChildrenResponse(value, new Set(), parentItem.id),
     validator: validateChildrenOutline,
     progressCallback: (message) => log(message, progress),
     progressLabel: `章节 ${parentItem.title || '未命名章节'} 子目录`,
@@ -920,12 +929,12 @@ async function buildAligned(aiService, payload, groups, suggestions, log, progre
   const assembled = [];
   for (const [index, item] of top.entries()) {
     const progress = progressRange.start + Math.round((index / Math.max(top.length, 1)) * (progressRange.end - progressRange.start));
-    log(`正在生成第 ${index + 1}/${top.length} 个评分大类的二三级目录：${item.title || '未命名章节'}。`, progress);
+    log(`正在生成第 ${index + 1}/${top.length} 个${payload.mode === 'response-file' ? '技术文件目录大类' : '评分大类'}的二三级目录：${item.title || '未命名章节'}。`, progress);
     const childrenResponse = await generateAlignedChildrenForGroup(aiService, payload, item, groups[index], suggestions, log, progress);
     const children = childrenResponse.children || [];
     assembled.push({ ...item, ...(children.length ? { children } : {}) });
   }
-  log('评分项对齐目录生成完成，正在整理目录编号。', progressRange.end);
+  log(`${payload.mode === 'response-file' ? '响应文件目录' : '评分项对齐目录'}生成完成，正在整理目录编号。`, progressRange.end);
   const outline = normalizeOutlineResponse({ outline: renumber(assembled) }, new Set());
   validateCompleteOutline(outline);
   validateAlignedTopLevelMapping(outline.outline || [], groups);
@@ -1019,7 +1028,17 @@ async function enhanceOutlineWithKnowledgeAdditions(aiService, payload, outline,
   return enhanced;
 }
 
-async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBaseService, updateTask, payload }) {
+async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBaseService, updateTask, payload, taskControl }) {
+  const requestJson = aiService.collectJsonResponse || aiService.requestJson;
+  const controlledAiService = {
+    ...aiService,
+    async collectJsonResponse(options) {
+      await taskControl?.checkpoint?.();
+      const result = await requestJson.call(aiService, { ...options, signal: taskControl?.signal });
+      await taskControl?.checkpoint?.();
+      return result;
+    },
+  };
   let logs = ['开始生成目录。'];
   let currentProgress = 5;
   function log(message, progress = currentProgress) {
@@ -1033,7 +1052,8 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
   const storedPlan = workspaceStore.loadTechnicalPlan() || {};
   const overview = storedPlan.projectOverview || '';
   const responseFileRequirements = String(payload.responseFileRequirements || storedPlan.responseFileRequirements || '').trim();
-  const requirements = payload.mode === 'response-file' && responseFileRequirements
+  const responseFileAvailable = hasResponseFileOutline(responseFileRequirements);
+  const requirements = payload.mode === 'response-file' && responseFileAvailable
     ? responseFileRequirements
     : storedPlan.techRequirements || '';
   const missingRequiredBidAnalysisLabels = getMissingRequiredBidAnalysisLabels(storedPlan);
@@ -1041,8 +1061,11 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
     throw new Error(`请先完成关键招标文件解析项：${missingRequiredBidAnalysisLabels.join('、')}`);
   }
   const technicalScoreMissing = isMissingTechnicalScoreItems(storedPlan.bidAnalysisTasks?.techRequirements?.content || storedPlan.techRequirements);
-  if (technicalScoreMissing && payload.noTechnicalScoreMode !== true) {
-    throw new Error('请先确认以无技术评分项模式生成目录');
+  if (technicalScoreMissing && payload.mode === 'aligned') {
+    throw new Error('没有技术评分项，无法按评分项对齐');
+  }
+  if (technicalScoreMissing && payload.mode === 'response-file' && !responseFileAvailable) {
+    throw new Error('未找到明确的响应文件技术目录，请选择自由生成');
   }
   let technicalPlan = workspaceStore.updateTechnicalPlan({
     outlineMode: payload.mode,
@@ -1052,7 +1075,7 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
   updateTask({ status: 'running', progress: 5, logs }, technicalPlan);
   const taskPayload = {
     ...payload,
-    mode: payload.mode === 'response-file' && !responseFileRequirements ? 'aligned' : payload.mode,
+    mode: payload.mode === 'response-file' && !responseFileAvailable ? 'aligned' : payload.mode,
     overview,
     requirements,
     responseFileRequirements,
@@ -1062,14 +1085,13 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
     reference_knowledge_document_ids: referenceKnowledgeDocumentIds,
   };
   taskPayload.noTechnicalScoreMode = technicalScoreMissing;
-  if (technicalScoreMissing && responseFileRequirements) taskPayload.requirements = responseFileRequirements;
-  let outline = technicalScoreMissing
-    ? await freeWorkflow(aiService, taskPayload, log)
-    : taskPayload.mode === 'aligned' || taskPayload.mode === 'response-file'
-      ? await alignedWorkflow(aiService, taskPayload, log)
-      : await freeWorkflow(aiService, taskPayload, log);
+  if (technicalScoreMissing && responseFileAvailable) taskPayload.requirements = responseFileRequirements;
+  let outline = taskPayload.mode === 'response-file' || (!technicalScoreMissing && taskPayload.mode === 'aligned')
+    ? await alignedWorkflow(controlledAiService, taskPayload, log)
+    : await freeWorkflow(controlledAiService, taskPayload, log);
   const knowledgeItems = loadOutlineKnowledgeItems(knowledgeBaseService, referenceKnowledgeDocumentIds, log);
-  outline = await enhanceOutlineWithKnowledgeAdditions(aiService, taskPayload, outline, knowledgeItems, log);
+  outline = await enhanceOutlineWithKnowledgeAdditions(controlledAiService, taskPayload, outline, knowledgeItems, log);
+  await taskControl?.checkpoint?.();
   technicalPlan = workspaceStore.updateTechnicalPlan({
     outlineData: { ...outline, project_overview: overview },
     generationSettingsSnapshot: {
@@ -1088,4 +1110,4 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
   updateTask({ status: 'success', progress: 100, logs: [...logs, '目录生成完成。'] }, technicalPlan);
 }
 
-module.exports = { runOutlineGenerationTask, isMissingTechnicalScoreItems };
+module.exports = { runOutlineGenerationTask, isMissingTechnicalScoreItems, hasResponseFileOutline };

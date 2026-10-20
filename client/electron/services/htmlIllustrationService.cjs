@@ -33,7 +33,7 @@ const CHART_LAYOUT_GUIDANCE = {
 };
 const WIDTH = 1240;
 const HEIGHT = 827;
-const MAX_GENERATION_ATTEMPTS = 4;
+const MAX_GENERATION_ATTEMPTS = 2;
 let renderWindow = null;
 let renderQueue = Promise.resolve();
 app?.once?.('before-quit', () => {
@@ -108,6 +108,17 @@ function renderBodyAttributes(source) {
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+}
+
+function stripPositionNumber(title) {
+  const text = String(title || '').trim();
+  return text.replace(/^(?:\d+(?:\.\d+){1,5}|第[一二三四五六七八九十百千\d]+[章节]|图\s*\d+(?:\.\d+)*)(?:[\s\u00a0、.．:：-]+|(?=[\u3400-\u9fff])|$)/, '').trim() || text;
+}
+
+function removePositionNumberFromHtml(source) {
+  const prefix = /^(\s*)(?:\d+(?:\.\d+){1,5}|第[一二三四五六七八九十百千\d]+[章节]|图\s*\d+(?:\.\d+)*)(?:(?:\s|&nbsp;|&#160;|[、.．:：-])+|(?=[\u3400-\u9fff])|(?=$))/;
+  return String(source || '').replace(/(<(?:h[1-6]|div|span|p|header|strong|b|small|label|text)\b[^>]*>)([^<]*)/gi,
+    (match, tag, value) => `${tag}${value.replace(prefix, '$1')}`);
 }
 
 function extractSourceFacts(focusText, content) {
@@ -286,6 +297,7 @@ async function renderHtmlToPng(source) {
 async function generateHtmlIllustration({ app, aiService, title, content, chartType, itemId, focusText = '' }) {
   const dir = getGeneratedImagesDir(app);
   fs.mkdirSync(dir, { recursive: true });
+  const chartTitle = stripPositionNumber(title);
   let lastError;
   let lastSource = '';
   for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
@@ -295,11 +307,12 @@ async function generateHtmlIllustration({ app, aiService, title, content, chartT
         ? `前面的 HTML 图未通过本地检查：${lastError?.message || '模型请求失败'}。这次从头绘制简化版，不复用旧 HTML。只保留 2～4 个最重要的原文要点，用整齐的 Grid 卡片排版；如果关系没有明确依据，就不要画箭头。必须完整放在 ${WIDTH}×${HEIGHT} 画布内。`
         : `上一版${chartType}的 HTML 未通过本地检查：${lastError?.message || '模型请求失败'}。图型版式：${CHART_LAYOUT_GUIDANCE[chartType] || '使用整齐对齐的卡片和清晰的主次层级。'}请重新安排节点、面板尺寸和间距，减少次要说明，修复问题；不要整体缩小或用空白面板填充画布。保持已核实的事实和图型。旧版 HTML 供定位问题：\n${lastSource.slice(0, 22000)}`;
       response = await aiService.chat({
+        max_request_attempts: 1,
         messages: [
-          { role: 'system', content: `你是投标文件图表设计师。只输出 HTML 片段及内嵌 CSS，不输出代码围栏、解释、脚本、外链或图片。body 是 ${WIDTH}×${HEIGHT} 像素固定画布；用 CSS Grid/Flex 将标题、主图、必要图例排成稳定的纵向区域，四周留 40px；不要让任何模块靠绝对定位覆盖别的模块，不要使用固定定位或 overflow:hidden 裁切内容。所有内容必须在画布内，禁止依赖整体 transform:scale 缩小来塞入画布。主图应使用画布主要面积，避免固定高大面板里只有上半部内容、大片白边或空卡片。主标题至少 30px，节点/正文至少 18px，图注至少 16px；卡片文字必须完整留在边框内，不能重叠或穿过连线。拓扑图的箭头必须连接具体节点，不能在空白区域悬浮；不确定的连接关系不要绘制。只保留能看清的关键节点与关系，颜色控制在蓝灰主色加一两种强调色，节点间距与对齐一致。禁止 script、事件属性、src/href、外部 CSS url()、data: 资源；SVG 箭头可使用图内 marker 的 url(#id)。只使用正文能证实的事实；缺少日期、工期、人员或连接关系时标注“待确认”，不得编造。` },
+          { role: 'system', content: `你是投标文件图表设计师。只输出 HTML 片段及内嵌 CSS，不输出代码围栏、解释、脚本、外链或图片。body 是 ${WIDTH}×${HEIGHT} 像素固定画布；用 CSS Grid/Flex 将标题、主图、必要图例排成稳定的纵向区域，四周留 40px；不要让任何模块靠绝对定位覆盖别的模块，不要使用固定定位或 overflow:hidden 裁切内容。所有内容必须在画布内，禁止依赖整体 transform:scale 缩小来塞入画布。主图应使用画布主要面积，避免固定高大面板里只有上半部内容、大片白边或空卡片。主标题至少 30px，节点/正文至少 18px，图注至少 16px；卡片文字必须完整留在边框内，不能重叠或穿过连线。图内不得出现章节编号、图号或页码，例如“3.2.1”“图6”；标题只写主题名称。流程步骤自身的序号可以保留。拓扑图的箭头必须连接具体节点，不能在空白区域悬浮；不确定的连接关系不要绘制。只保留能看清的关键节点与关系，颜色控制在蓝灰主色加一两种强调色，节点间距与对齐一致。禁止 script、事件属性、src/href、外部 CSS url()、data: 资源；SVG 箭头可使用图内 marker 的 url(#id)。只使用正文能证实的事实；缺少日期、工期、人员或连接关系时标注“待确认”，不得编造。` },
           { role: 'user', content: lastError
             ? `${retryInstruction}\n\n相关段落：\n${String(focusText).slice(0, 5000)}\n\n章节正文：\n${String(content).slice(0, 12000)}\n\n请输出完整 HTML。`
-            : `根据以下正文绘制一张${chartType}，标题为“${title}”。图型版式：${CHART_LAYOUT_GUIDANCE[chartType] || '使用整齐对齐的卡片和清晰的主次层级。'}优先表达已匹配的相关段落，其他正文只作事实核对。\n\n相关段落：\n${String(focusText).slice(0, 8000)}\n\n章节正文：\n${String(content).slice(0, 20000)}` },
+            : `根据以下正文绘制一张${chartType}，图内标题为“${chartTitle}”。图型版式：${CHART_LAYOUT_GUIDANCE[chartType] || '使用整齐对齐的卡片和清晰的主次层级。'}优先表达已匹配的相关段落，其他正文只作事实核对。正文中的章节编号仅用于定位，不要写进图片。\n\n相关段落：\n${String(focusText).slice(0, 8000)}\n\n章节正文：\n${String(content).slice(0, 20000)}` },
         ],
         temperature: 0.25,
         logTitle: `HTML配图-${itemId}-${chartType}${attempt ? '-修复' : ''}`,
@@ -312,10 +325,10 @@ async function generateHtmlIllustration({ app, aiService, title, content, chartT
       continue;
     }
     const name = `html-${crypto.randomUUID()}`;
-    lastSource = String(response);
-    fs.writeFileSync(path.join(dir, `${name}.html`), String(response), 'utf8');
+    lastSource = removePositionNumberFromHtml(response);
+    fs.writeFileSync(path.join(dir, `${name}.html`), lastSource, 'utf8');
     try {
-      const { png, layoutWarnings } = await renderHtmlToPng(response);
+      const { png, layoutWarnings } = await renderHtmlToPng(lastSource);
       if (layoutWarnings.length) throw new Error(`HTML 图排版质量需修复：${layoutWarnings.join('；')}`);
       fs.writeFileSync(path.join(dir, `${name}.png`), png);
       return { asset_url: `yibiao-asset://generated-images/${name}.png`, file_path: path.join(dir, `${name}.png`), layout_warnings: [] };
@@ -324,7 +337,7 @@ async function generateHtmlIllustration({ app, aiService, title, content, chartT
       console.warn(`[html-illustration] item=${itemId} type=${chartType} attempt=${attempt + 1}/${MAX_GENERATION_ATTEMPTS}: ${error.message || error}`);
     }
   }
-  const fallbackHtml = buildSourceFactsHtml(title, focusText, content);
+  const fallbackHtml = removePositionNumberFromHtml(buildSourceFactsHtml(chartTitle, focusText, content));
   if (fallbackHtml) {
     const name = `html-${crypto.randomUUID()}`;
     try {

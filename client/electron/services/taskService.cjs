@@ -3,7 +3,7 @@ const { runBidAnalysisTask } = require('./bidAnalysisTask.cjs');
 const { runBidSectionExtractionTask } = require('./bidSectionExtractionTask.cjs');
 const { runContentGenerationTask, assertGenerationSettingsMatch } = require('./contentGenerationTask.cjs');
 const { runGlobalFactsTask } = require('./globalFactsTask.cjs');
-const { runOutlineGenerationTask, isMissingTechnicalScoreItems } = require('./outlineGenerationTask.cjs');
+const { runOutlineGenerationTask, isMissingTechnicalScoreItems, hasResponseFileOutline } = require('./outlineGenerationTask.cjs');
 const { runRejectionCheckTask, runRejectionItemsExtractionTask } = require('./rejectionCheckTask.cjs');
 const { runWithAiRequestActivity } = require('../utils/aiRequestActivity.cjs');
 
@@ -239,6 +239,7 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
   const subscribers = new Set();
   const activeTasks = new Map();
   const activeTaskControls = new Map();
+  const activeTaskRuns = new Map();
 
   function emit(task, snapshot) {
     const event = { task, ...snapshot };
@@ -397,7 +398,7 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
 
     const nextScopeId = getScopeId(payload);
     for (const task of activeTasks.values()) {
-      if (!isActiveTaskStatus(task.status) || task.type === type) {
+      if (!(isActiveTaskStatus(task.status) || (task.type === 'outline-generation' && task.status === 'paused')) || task.type === type) {
         continue;
       }
 
@@ -467,7 +468,7 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
 
   function startManagedTask(type, payload, runner, initialPartial = {}) {
     const existingTask = activeTasks.get(type);
-    if (existingTask && isActiveTaskStatus(existingTask.status)) {
+    if (existingTask && (isActiveTaskStatus(existingTask.status) || (type === 'outline-generation' && existingTask.status === 'paused'))) {
       const nextWorkflowKind = getWorkflowKind(payload);
       const nextProjectId = getProjectId(payload);
       if (existingTask.workflow_kind && existingTask.workflow_kind !== nextWorkflowKind) {
@@ -496,9 +497,12 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     activeTasks.set(type, task);
     const taskField = getTaskField(type);
     let currentTask = task;
+    const outlineAbortController = type === 'outline-generation' ? new AbortController() : null;
+    let releaseOutlinePause = null;
     const taskControl = {
       pauseRequested: false,
       stopRequested: false,
+      signal: outlineAbortController?.signal,
       isPauseRequested() {
         return this.pauseRequested;
       },
@@ -506,30 +510,60 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
         return this.stopRequested;
       },
       requestPause() {
+        if (this.pauseRequested) return currentTask;
         this.pauseRequested = true;
-        const pausedLogs = currentTask.logs?.length
-          ? currentTask.logs
-          : ['已请求暂停，正在等待当前 AI 请求完成。'];
+        const pausedLogs = [...(currentTask.logs || []).slice(-199), '已请求暂停，正在等待当前 AI 请求完成。'];
         const pausingTask = updateTask({ status: 'pausing', pause_requested: true, logs: pausedLogs });
         const state = updateWorkspaceState(definition, { [taskField]: pausingTask }, taskWorkflowKind, taskProjectId);
         emit(pausingTask, buildSnapshot(definition, state, pausingTask));
         return pausingTask;
       },
       requestStop() {
+        if (this.stopRequested) return currentTask;
         this.stopRequested = true;
-        const stoppingLogs = currentTask.logs?.length
-          ? currentTask.logs
-          : ['已请求停止，正在等待当前 AI 请求完成。'];
+        const stoppingMessage = outlineAbortController
+          ? '已请求停止，正在取消当前 AI 请求。'
+          : '已请求停止，等待当前 AI 请求完成。';
+        const stoppingLogs = [...(currentTask.logs || []).slice(-199), stoppingMessage];
         const stoppingTask = updateTask({ status: 'stopping', stop_requested: true, logs: stoppingLogs });
         const state = updateWorkspaceState(definition, { [taskField]: stoppingTask }, taskWorkflowKind, taskProjectId);
         emit(stoppingTask, buildSnapshot(definition, state, stoppingTask));
+        outlineAbortController?.abort();
+        releaseOutlinePause?.();
+        releaseOutlinePause = null;
         return stoppingTask;
+      },
+      async checkpoint() {
+        if (this.stopRequested) throw new Error('目录生成已停止');
+        if (type !== 'outline-generation' || !this.pauseRequested) return;
+        const pausedTask = updateTask({
+          status: 'paused',
+          logs: [...(currentTask.logs || []).slice(-199), '目录生成已暂停，点击继续后接着执行。'],
+        });
+        const state = updateWorkspaceState(definition, { [taskField]: pausedTask }, taskWorkflowKind, taskProjectId);
+        emit(pausedTask, buildSnapshot(definition, state, pausedTask));
+        await new Promise((resolve) => { releaseOutlinePause = resolve; });
+        releaseOutlinePause = null;
+        if (this.stopRequested) throw new Error('目录生成已停止');
+      },
+      resume() {
+        this.pauseRequested = false;
+        const runningTask = updateTask({
+          status: 'running',
+          pause_requested: false,
+          logs: [...(currentTask.logs || []).slice(-199), '目录生成已继续。'],
+        });
+        const state = updateWorkspaceState(definition, { [taskField]: runningTask }, taskWorkflowKind, taskProjectId);
+        emit(runningTask, buildSnapshot(definition, state, runningTask));
+        releaseOutlinePause?.();
+        releaseOutlinePause = null;
+        return runningTask;
       },
     };
     activeTaskControls.set(type, taskControl);
 
     const updateTask = (partial, workspaceState, eventPatch) => {
-      const nextStatus = ['pausing', 'stopping'].includes(currentTask.status) && partial.status === 'running'
+      const nextStatus = ['pausing', 'stopping'].includes(currentTask.status) && partial.status === 'running' && partial.pause_requested !== false
         ? currentTask.status
         : partial.status || currentTask.status;
       currentTask = {
@@ -587,14 +621,21 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
       : definition.stateKey === 'rejectionCheck'
         ? rejectionCheckStore
         : duplicateCheckStore;
-    runWithAiRequestActivity(aiActivity, () => runner({ aiService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, updateTask, payload, taskControl, previousState })).catch((error) => {
-      const failedTask = updateTask({ status: 'error', error: error.message || '任务执行失败' });
-      const nextState = updateWorkspaceState(definition, { [taskField]: failedTask }, taskWorkflowKind, taskProjectId);
-      emit(failedTask, buildSnapshot(definition, nextState, failedTask));
+    const runPromise = runWithAiRequestActivity(aiActivity, () => runner({ aiService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, updateTask, payload, taskControl, previousState })).catch((error) => {
+      const stopped = type === 'outline-generation' && taskControl.stopRequested;
+      const finalTask = updateTask(stopped
+        ? { status: 'stopped', pause_requested: false, stop_requested: false, logs: [...(currentTask.logs || []).slice(-199), '目录生成已停止。'] }
+        : { status: 'error', error: error.message || '任务执行失败' });
+      const nextState = updateWorkspaceState(definition, { [taskField]: finalTask }, taskWorkflowKind, taskProjectId);
+      emit(finalTask, buildSnapshot(definition, nextState, finalTask));
     }).finally(() => {
-      activeTasks.delete(type);
-      activeTaskControls.delete(type);
+      if (activeTasks.get(type)?.task_id === task.task_id) {
+        activeTasks.delete(type);
+        activeTaskControls.delete(type);
+        activeTaskRuns.delete(type);
+      }
     });
+    activeTaskRuns.set(type, runPromise);
 
     return currentTask;
   }
@@ -670,6 +711,32 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     };
     const state = technicalPlanStore.updateTechnicalPlan({ workflowKind: 'technical-plan', globalFactsTask: recoveredTask });
     emit(recoveredTask, buildSnapshot(getTaskDefinition('global-facts-generation'), state, recoveredTask));
+  }
+
+  function recoverInterruptedOutlineTasks() {
+    for (const workflowKind of ['technical-plan', 'existing-plan-expansion']) {
+      const projects = technicalPlanStore.listProjects?.(workflowKind)?.projects || [];
+      const projectIds = new Set(['default', ...projects.map((project) => project.id)]);
+      for (const projectId of projectIds) {
+        const active = activeTasks.get('outline-generation');
+        if (active && active.workflow_kind === workflowKind && (active.project_id || 'default') === projectId) continue;
+        const plan = technicalPlanStore.loadTechnicalPlan({ workflowKind, projectId }) || {};
+        const task = plan.outlineGenerationTask;
+        if (!task || !['running', 'pausing', 'stopping', 'paused'].includes(task.status)) continue;
+        const message = '上次目录生成因应用关闭而中断，请重新生成目录。';
+        const recovered = {
+          ...task,
+          status: 'error',
+          error: message,
+          pause_requested: false,
+          stop_requested: false,
+          logs: [...(task.logs || []), message],
+          updated_at: now(),
+        };
+        const state = technicalPlanStore.updateTechnicalPlan({ workflowKind, projectId, outlineGenerationTask: recovered });
+        emit(recovered, buildSnapshot(getTaskDefinition('outline-generation'), state, recovered));
+      }
+    }
   }
 
   function recoverInterruptedBidSectionExtractionTask() {
@@ -766,6 +833,15 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     emit(nextState.analysisTask || recoveredTask, { duplicateCheck: nextState });
   }
 
+  function getMatchingOutlineTask(payload) {
+    const task = activeTasks.get('outline-generation');
+    if (!task) return null;
+    const requested = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
+    const requestedWorkflow = normalizeWorkflowKind(requested.workflowKind || getWorkflowKind(payload));
+    const requestedProjectId = requested.projectId || getProjectId(payload) || 'default';
+    return task.workflow_kind === requestedWorkflow && (task.project_id || 'default') === requestedProjectId ? task : null;
+  }
+
   return {
     subscribe,
     startBidSectionExtraction(payload) {
@@ -784,8 +860,13 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     startOutlineGeneration(payload) {
       const technicalPlan = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
       const scoreContent = technicalPlan.bidAnalysisTasks?.techRequirements?.content || technicalPlan.techRequirements;
-      if (isMissingTechnicalScoreItems(scoreContent) && payload?.noTechnicalScoreMode !== true) {
-        throw new Error('请先确认以无技术评分项模式生成目录');
+      if (isMissingTechnicalScoreItems(scoreContent)) {
+        if (payload?.mode === 'aligned') {
+          throw new Error('没有技术评分项，无法按评分项对齐');
+        }
+        if (payload?.mode === 'response-file' && !hasResponseFileOutline(payload.responseFileRequirements || technicalPlan.responseFileRequirements)) {
+          throw new Error('未找到明确的响应文件技术目录，请选择自由生成');
+        }
       }
       return startManagedTask('outline-generation', payload, runOutlineGenerationTask, {
         outlineMode: payload?.mode,
@@ -798,6 +879,42 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
         contentGenerationPlans: {},
         contentGenerationRuntime: undefined,
       });
+    },
+    pauseOutlineGeneration(payload) {
+      const task = getMatchingOutlineTask(payload);
+      const control = activeTaskControls.get('outline-generation');
+      if (task?.status === 'paused' || task?.status === 'pausing') return task;
+      if (task?.status !== 'running' || !control) throw new Error('当前没有正在生成的目录任务。');
+      return control.requestPause();
+    },
+    resumeOutlineGeneration(payload) {
+      const task = getMatchingOutlineTask(payload);
+      const control = activeTaskControls.get('outline-generation');
+      if (task?.status === 'running') return task;
+      if (!['paused', 'pausing'].includes(task?.status) || !control) throw new Error('当前没有已暂停的目录任务。');
+      return control.resume();
+    },
+    stopOutlineGeneration(payload) {
+      const task = getMatchingOutlineTask(payload);
+      const control = activeTaskControls.get('outline-generation');
+      if (task?.status === 'stopping') return task;
+      if (!task || !['running', 'pausing', 'paused'].includes(task.status) || !control) throw new Error('当前没有可停止的目录任务。');
+      return control.requestStop();
+    },
+    async prepareTechnicalPlanReset(payload) {
+      const requested = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
+      const requestedWorkflow = normalizeWorkflowKind(requested.workflowKind || getWorkflowKind(payload));
+      const requestedProjectId = requested.projectId || getProjectId(payload) || 'default';
+      const matching = Array.from(activeTasks.values()).filter((task) => task.group === 'technical-plan'
+        && task.workflow_kind === requestedWorkflow && (task.project_id || 'default') === requestedProjectId
+        && (isActiveTaskStatus(task.status) || (task.type === 'outline-generation' && task.status === 'paused')));
+      const unsupported = matching.find((task) => task.type !== 'outline-generation');
+      if (unsupported) throw new Error(`请先结束“${getTaskDefinition(unsupported.type).label}”后台任务，再重置项目。`);
+      const outline = matching.find((task) => task.type === 'outline-generation');
+      if (outline) {
+        activeTaskControls.get('outline-generation')?.requestStop();
+        await activeTaskRuns.get('outline-generation');
+      }
     },
     startGlobalFactsGeneration(payload) {
       return startManagedTask('global-facts-generation', payload, runGlobalFactsTask, {
@@ -859,6 +976,7 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     },
     getActiveTasks() {
       recoverInterruptedBidSectionExtractionTask();
+      recoverInterruptedOutlineTasks();
       recoverInterruptedContentGenerationTask();
       recoverInterruptedGlobalFactsTask();
       recoverInterruptedRejectionCheckTasks();

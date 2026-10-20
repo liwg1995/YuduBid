@@ -47,6 +47,7 @@ function statusLabel(status: string): string {
   if (status === 'paused') return '已暂停';
   if (status === 'pausing') return '暂停中';
   if (status === 'stopping') return '停止中';
+  if (status === 'stopped') return '已停止';
   return '运行中';
 }
 
@@ -79,6 +80,7 @@ export default function TaskMonitor() {
       if (!next || !mounted) return;
       setTasks((current) => {
         const index = current.findIndex((item) => item.type === next.type);
+        if (next.status === 'stopped') return current.filter((item) => item.type !== next.type);
         if (['success', 'error', 'paused'].includes(next.status)) {
           return index >= 0 ? current.map((item, itemIndex) => itemIndex === index ? next : item) : current;
         }
@@ -93,6 +95,7 @@ export default function TaskMonitor() {
   }, []);
 
   const activeCount = useMemo(() => tasks.filter((task) => ['running', 'pausing', 'stopping'].includes(task.status)).length, [tasks]);
+  const pausedCount = useMemo(() => tasks.filter((task) => task.status === 'paused').length, [tasks]);
   useEffect(() => {
     if (!open || !activeCount) return undefined;
     setNowMs(Date.now());
@@ -122,12 +125,12 @@ export default function TaskMonitor() {
     <div className="task-monitor" ref={monitorRef}>
       <button type="button" ref={triggerRef} className={`task-monitor-trigger${activeCount ? ' is-active' : ''}`} onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-controls="task-monitor-panel">
         <span className="task-monitor-dot" aria-hidden="true" />
-        <span>{activeCount ? `${activeCount} 个任务运行中` : '后台任务'}</span>
-        <span className={`task-monitor-chevron${open ? ' is-open' : ''}`} aria-hidden="true">⌄</span>
+        <span>{activeCount ? `${activeCount} 个任务运行中` : pausedCount ? `${pausedCount} 个任务已暂停` : '后台任务'}</span>
+        <span className={`task-monitor-chevron${open ? ' is-open' : ''}`} aria-hidden="true" />
       </button>
       {open && (
         <div className="task-monitor-panel" id="task-monitor-panel" role="region" aria-label="后台任务状态">
-          <div className="task-monitor-head"><div><strong>后台任务</strong><span>页面切换后继续运行</span></div><b>{activeCount} 项进行中</b></div>
+          <div className="task-monitor-head"><div><strong>后台任务</strong><span>页面切换后继续运行</span></div><b>{activeCount ? `${activeCount} 项进行中` : `${pausedCount} 项已暂停`}</b></div>
           {tasks.map((task) => (
             <div className="task-monitor-item" key={task.type}>
               <div className="task-monitor-item-head"><strong>{task.label}</strong><span className={`task-monitor-state is-${task.status}`}>{statusLabel(task.status)}</span></div>

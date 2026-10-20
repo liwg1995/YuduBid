@@ -17,6 +17,7 @@ const TECHNICAL_DIAGRAM_STYLES = new Set(['document', 'blueprint', 'clean']);
 const DEFAULT_CONTENT_CONCURRENCY = 5;
 const MERMAID_REPAIR_ATTEMPTS = 3;
 const AI_IMAGE_CONCURRENCY = 2;
+const HTML_IMAGE_CONCURRENCY = 2;
 const MERMAID_IMAGE_CONCURRENCY = 5;
 const TECHNICAL_DIAGRAM_CONCURRENCY = 3;
 const DEFAULT_MAX_TECHNICAL_DIAGRAMS = 6;
@@ -300,6 +301,7 @@ function normalizeContentPlan(value, allowedKnowledgeItemIds, allowedFactTitles)
   const diagramNeeded = Boolean(diagram.needed) && Boolean(diagramType && diagramTitle && diagramPrompt);
 
   return {
+    illustration_needed: Boolean(source.illustration_needed ?? source.illustrationNeeded) || mermaidNeeded || imageNeeded || diagramNeeded,
     knowledge: {
       item_ids: normalizeKnowledgeItemIds(rawKnowledgeItemIds, allowedKnowledgeItemIds),
     },
@@ -520,7 +522,7 @@ function renderKnowledgeItemsForPrompt(items) {
   })).filter((item) => item.id && item.title && item.resume), null, 2);
 }
 
-function buildChapterContentPlanMessages({ chapter, parentChapters, siblingChapters, projectOverview, bidAnalysisFactsText, globalFactTitlesText, regenerateRequirement, tableRequirement, maxTables, tableTotalSections, imageGenerationAvailable, mermaidGenerationAvailable, technicalDiagramAvailable, maxAiImages, maxTechnicalDiagrams, totalSections, knowledgeItems }) {
+function buildChapterContentPlanMessages({ chapter, parentChapters, siblingChapters, projectOverview, bidAnalysisFactsText, globalFactTitlesText, regenerateRequirement, tableRequirement, maxTables, tableTotalSections, imageGenerationAvailable, mermaidGenerationAvailable, technicalDiagramAvailable, htmlGenerationAvailable, illustrateEverySection, maxAiImages, maxTechnicalDiagrams, totalSections, knowledgeItems }) {
   const chapterId = chapter.id || 'unknown';
   const chapterTitle = chapter.title || '未命名章节';
   const chapterDescription = chapter.description || '';
@@ -538,15 +540,15 @@ function buildChapterContentPlanMessages({ chapter, parentChapters, siblingChapt
 
 要求：
 1. 只返回 JSON，不要输出解释、总结或 Markdown。
-2. ${tablePlanningAllowed ? '由你自行判断是否适合使用表格或配图，判断要克制、合情合理，不要为了形式而硬插。' : '本次不编排表格，table.needed 必须为 false；仍可判断是否适合配图。'}
+2. ${tablePlanningAllowed ? '由你自行判断是否适合使用表格；配图按本次覆盖要求判断，优先表达有事实依据的关系。' : '本次不编排表格，table.needed 必须为 false；配图按本次覆盖要求判断。'}
 3. ${tableLimitInstruction}
 4. ${tablePlanningAllowed ? '表格仅在能明显提升表达清晰度时使用，例如归纳职责、步骤、参数、风险、措施、成果等。' : '不要为了满足 JSON 格式而编造表格目的。'}
-5. ${mermaidGenerationAvailable ? '本次已勾选生成 Mermaid 图，mermaid.needed 必须为 true，并填写完整标题和合法代码；Mermaid 适合简单、抽象、文本节点型流程、层级、时间线或职责关系。' : '当前未启用 Mermaid 图，mermaid.needed 必须为 false。'}
-6. ${technicalDiagramAvailable ? `本次已勾选生成技术图谱，diagram.needed 必须为 true，并填写完整的类型、标题和图谱说明；技术图谱适合系统架构、部署拓扑、数据流、业务流程、运维流程、模块关系和复杂工程步骤。本次技术图谱上限为 ${maxTechnicalDiagrams || 0} 张。` : '当前未启用 technical-diagram 技能，diagram.needed 必须为 false。'}
-7. ${imageGenerationAvailable ? '本次已勾选使用 AI 生图，image.needed 必须为 true，并填写完整的风格、标题和生图提示词；AI 生图适合设备、现场、机柜、电池、施工/运维实景、工程空间关系和实物示意。' : '当前未启用或不可用 AI 生图，image.needed 必须为 false。'}
-8. Mermaid 图、技术图谱和 AI 生图都是独立候选，可以同时为 true；如果多个配图字段为 true，系统会分别执行并将三类结果都插入正文。
-9. ${imageGenerationAvailable ? `image.needed 必须保持为 true；本次 AI 生图上限为 ${maxAiImages || 0} 张，共 ${totalSections || 0} 个小节，达到上限时按章节优先级择优执行。` : '由于 AI 生图不可用，image 字段只需返回不需要。'}
-10. ${imageGenerationAvailable ? 'AI 生图提示词要围绕当前章节的具象工程对象或现场场景；即使与 Mermaid、技术图谱同时需要，也要单独填写完整提示词。' : '不要为了满足格式而编造 AI 生图需求。'}
+5. ${illustrateEverySection ? '本次要求每个小节至少一张图；请优先选择一种最合适的图，不要为了覆盖而同时选择多种。' : '由你判断本小节是否真正需要配图；不需要时 illustration_needed 和所有配图 needed 均为 false，允许本小节没有图。'}
+6. ${mermaidGenerationAvailable ? '可选择 Mermaid 表达简单流程、层级、时间线或职责关系；仅适合时将 mermaid.needed 设为 true 并填写合法代码。' : '当前未启用 Mermaid 图，mermaid.needed 必须为 false。'}
+7. ${technicalDiagramAvailable ? `可选择技术图谱表达复杂架构、拓扑、数据流或模块关系；仅适合时将 diagram.needed 设为 true。本次技术图谱上限为 ${maxTechnicalDiagrams || 0} 张。` : '当前未启用 technical-diagram 技能，diagram.needed 必须为 false。'}
+8. ${imageGenerationAvailable ? `可选择 AI 生图表达具象工程对象或现场场景；仅适合时将 image.needed 设为 true。本次 AI 生图上限为 ${maxAiImages || 0} 张，共 ${totalSections || 0} 个小节。` : '当前未启用或不可用 AI 生图，image.needed 必须为 false。'}
+9. ${htmlGenerationAvailable ? 'HTML 图可在正文完成后表达有明确事实依据的甘特、WBS、拓扑等结构。若本节只适合 HTML 图，可以将 illustration_needed 设为 true，其他图的 needed 为 false。' : '当前未启用 HTML 图。'}
+10. ${imageGenerationAvailable ? '选择 AI 生图时，提示词要围绕当前章节的具象工程对象或现场场景，并填写完整。' : '不要为了满足格式而编造 AI 生图需求。'}
 11. priority 含义：3 表示有价值候选，4 表示推荐，5 表示强推荐；只有达到 3 才将对应配图的 needed 设为 true。
 12. image.style 从以下画面风格中按内容选择：${Object.entries(AI_IMAGE_STYLES).map(([key, value]) => `${key}（${value.label}）`).join('、')}。
 13. 优先选择与章节对象相符的画面风格，不要在图中生成需要精确核验的文字或参数。
@@ -607,6 +609,7 @@ ${renderKnowledgeItemsForPrompt(knowledgeItems)}`,
 
 JSON 格式：
 {
+  "illustration_needed": false,
   "knowledge": {
     "item_ids": ["从参考知识库轻量条目中选择的 id；没有合适条目时返回空数组"]
   },
@@ -2502,12 +2505,16 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
   const aiImagesEnabled = Boolean(generationOptions.useAiImages ?? generationOptions.use_ai_images ?? imageAvailability.available) && imageAvailability.available;
   const mermaidImagesEnabled = Boolean(generationOptions.useMermaidImages ?? generationOptions.use_mermaid_images ?? Boolean(targetItemId));
   const htmlImagesEnabled = Boolean(generationOptions.useHtmlImages);
+  const illustrateEverySection = Boolean(generationOptions.illustrateEverySection ?? (storedPlan.contentGenerationOptions && !Object.prototype.hasOwnProperty.call(storedPlan.contentGenerationOptions, 'illustrateEverySection')));
   const maxHtmlImages = htmlImagesEnabled ? Math.max(0, Math.min(30, Math.round(Number(generationOptions.maxHtmlImages ?? 10) || 0))) : 0;
   const technicalDiagramEnabled = Boolean(
     technicalDiagramService?.generateDiagram
     && aiService.isSkillEnabled?.('technical-diagram')
     && (generationOptions.useTechnicalDiagrams ?? generationOptions.use_technical_diagrams ?? true),
   );
+  if (illustrateEverySection && !mermaidImagesEnabled && !technicalDiagramEnabled && !aiImagesEnabled) {
+    throw new Error('每小节至少配一张图需要启用 Mermaid、技术图谱或 AI 生图；HTML 图只匹配具备图型依据的小节。');
+  }
   const enableConsistencyAudit = Boolean(generationOptions.enableConsistencyAudit ?? generationOptions.enable_consistency_audit ?? true);
   const requestedMaxImages = Number(generationOptions.maxAiImages ?? generationOptions.max_ai_images);
   const configuredMaxAiImages = aiImagesEnabled
@@ -2876,8 +2883,8 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
   }
 
   function getPrimaryIllustrationType() {
-    if (technicalDiagramEnabled) return 'diagram';
     if (mermaidImagesEnabled) return 'mermaid';
+    if (technicalDiagramEnabled) return 'diagram';
     if (aiImagesEnabled) return 'ai';
     return 'none';
   }
@@ -2898,7 +2905,7 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
           style: 'document',
           title: `${title}技术图谱`,
           prompt: `请围绕“${title}”生成一张结构清晰的技术架构图，至少包含输入、核心处理和输出/验收三个层次，节点名称简短，箭头表达主要数据流或控制流。`,
-          priority: 5,
+          priority: 3,
           reason: '每个章节至少保留一种统一的基础配图形式。',
         }
         : primaryType === 'mermaid'
@@ -2906,7 +2913,7 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
             needed: true,
             title: `${title}流程图`,
             code: `flowchart LR\n  start["${title}"] --> process["实施要点"]\n  process --> result["验收成果"]`,
-            priority: 5,
+            priority: 3,
             reason: '每个章节至少保留一种统一的基础配图形式。',
           }
           : {
@@ -2914,7 +2921,7 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
             style: 'engineering_diagram',
             title: `${title}工程示意图`,
             prompt: `请生成与“${title}”相关的专业工程示意图，突出实施对象、关键组成和现场关系，避免添加无法从章节内容确认的具体参数。`,
-            priority: 5,
+            priority: 3,
             reason: '每个章节至少保留一种统一的基础配图形式。',
           };
       contentPlans.set(context.item.id, { ...currentPlan, [primaryType]: fallbackPlan });
@@ -2959,6 +2966,32 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
     imageStats.diagram.planned = technicalDiagramTargets.length;
   }
 
+  function retainOneIllustrationPerItem() {
+    const candidates = new Map();
+    for (const [kind, targets] of [
+      ['ai', aiImageTargets],
+      ['diagram', technicalDiagramTargets],
+      ['mermaid', mermaidImageTargets],
+    ]) {
+      for (const context of targets) {
+        const plan = contentPlans.get(context.item.id);
+        const priority = Number(plan?.[kind]?.priority) || 0;
+        const current = candidates.get(context.item.id);
+        if (!current || priority > current.priority || (priority === current.priority && kind === 'mermaid')) {
+          candidates.set(context.item.id, { kind, priority });
+        }
+      }
+    }
+    aiImageTargets = aiImageTargets.filter(({ item }) => candidates.get(item.id)?.kind === 'ai');
+    technicalDiagramTargets = technicalDiagramTargets.filter(({ item }) => candidates.get(item.id)?.kind === 'diagram');
+    mermaidImageTargets = mermaidImageTargets.filter(({ item }) => candidates.get(item.id)?.kind === 'mermaid');
+    selectedAiImageIds = new Set(aiImageTargets.map(({ item }) => item.id));
+    selectedTechnicalDiagramIds = new Set(technicalDiagramTargets.map(({ item }) => item.id));
+    imageStats.ai.planned = aiImageTargets.length;
+    imageStats.diagram.planned = technicalDiagramTargets.length;
+    imageStats.mermaid.planned = mermaidImageTargets.length;
+  }
+
   function persistContentPlans(targets, getIllustrationType) {
     const nextPlans = { ...storedContentPlans };
     for (const context of targets) {
@@ -2991,6 +3024,8 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
           imageGenerationAvailable: aiImagesEnabled && runLimits.maxAiImagesForRun > 0,
           mermaidGenerationAvailable: mermaidImagesEnabled,
           technicalDiagramAvailable: technicalDiagramEnabled && runLimits.maxTechnicalDiagramsForRun > 0,
+          htmlGenerationAvailable: htmlImagesEnabled,
+          illustrateEverySection,
           maxAiImages: runLimits.maxAiImagesForRun,
           maxTechnicalDiagrams: runLimits.maxTechnicalDiagramsForRun,
           totalSections: tasksToRun.length || leaves.length,
@@ -3046,7 +3081,7 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
     await runItemsWithWorkerPool(planningTargets, contentConcurrency, planOne, isPauseRequested);
     pauseIfRequested('正文生成已在编排阶段暂停，可导出当前已完成内容，稍后继续。');
 
-    ensurePrimaryIllustrationPlans(tasksToRun);
+    if (illustrateEverySection) ensurePrimaryIllustrationPlans(tasksToRun);
     const tableCandidates = tasksToRun.filter(({ item }) => contentPlans.get(item.id)?.table.needed);
     const selectedTableIds = runLimits.maxTablesForRun === null
       ? new Set(tableCandidates.map(({ item }) => item.id))
@@ -3065,31 +3100,32 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
     const primaryIllustrationType = getPrimaryIllustrationType();
     selectedAiImageIds = selectMandatoryAndOptionalTargets(
       aiImageCandidates.map((context) => ({ ...context, plan: contentPlans.get(context.item.id) })),
-      primaryIllustrationType === 'ai' ? primaryIllustrationType : 'none',
+      illustrateEverySection && primaryIllustrationType === 'ai' ? primaryIllustrationType : 'none',
       runLimits.maxAiImagesForRun,
       pickDistributedImageTargets,
     );
     selectedTechnicalDiagramIds = selectMandatoryAndOptionalTargets(
       technicalDiagramCandidates
         .map((context) => ({ ...context, plan: contentPlans.get(context.item.id) })),
-      primaryIllustrationType === 'diagram' ? primaryIllustrationType : 'none',
+      illustrateEverySection && primaryIllustrationType === 'diagram' ? primaryIllustrationType : 'none',
       runLimits.maxTechnicalDiagramsForRun,
       pickDistributedTechnicalDiagramTargets,
     );
     const selectedMermaidIds = selectMandatoryAndOptionalTargets(
       mermaidCandidates.map((context) => ({ ...context, plan: contentPlans.get(context.item.id) })),
-      primaryIllustrationType === 'mermaid' ? primaryIllustrationType : 'none',
+      illustrateEverySection && primaryIllustrationType === 'mermaid' ? primaryIllustrationType : 'none',
       runLimits.maxMermaidImagesForRun,
       pickDistributedMermaidTargets,
     );
     aiImageTargets = tasksToRun.filter(({ item }) => selectedAiImageIds.has(item.id));
     technicalDiagramTargets = tasksToRun.filter(({ item }) => selectedTechnicalDiagramIds.has(item.id));
     mermaidImageTargets = tasksToRun.filter(({ item }) => selectedMermaidIds.has(item.id));
+    retainOneIllustrationPerItem();
     imageStats.mermaid.planned = mermaidImageTargets.length;
     imageStats.mermaid.skipped += Math.max(0, mermaidCandidates.length - mermaidImageTargets.length);
-    imageStats.ai.planned = selectedAiImageIds.size;
+    imageStats.ai.planned = aiImageTargets.length;
     imageStats.ai.skipped += Math.max(0, aiImageCandidates.length - selectedAiImageIds.size);
-    imageStats.diagram.planned = selectedTechnicalDiagramIds.size;
+    imageStats.diagram.planned = technicalDiagramTargets.length;
     imageStats.diagram.skipped += Math.max(0, technicalDiagramCandidates.length - selectedTechnicalDiagramIds.size);
 
     logs = [...logs, `整体编排完成：表格候选 ${tableCandidates.length} 个，${runLimits.maxTablesForRun === null ? '保持现有编排' : `入选 ${selectedTableIds.size} 个`}；AI 生图候选 ${aiImageCandidates.length} 张，入选 ${selectedAiImageIds.size} 张；技术图谱候选 ${technicalDiagramCandidates.length} 张，入选 ${selectedTechnicalDiagramIds.size} 张；Mermaid 候选 ${mermaidCandidates.length} 张，执行 ${mermaidImageTargets.length} 张。`];
@@ -3119,16 +3155,23 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
       contentStats.planning_completed = 1;
       logs = [...logs, `复用历史编排：${context.item.id} ${context.item.title || '未命名章节'}（配图：${(storedContentPlan.illustration_types || [storedContentPlan.illustration_type]).join('、') || '无'}）。`];
       applyIllustrationTargets([context], () => storedContentPlan.illustration_types || storedContentPlan.illustration_type);
+      retainOneIllustrationPerItem();
       updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
     } else {
       logs = [...logs, `未找到历史编排结果，将仅重新编排当前小节：${context.item.id} ${context.item.title || '未命名章节'}。`];
       updateTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, workspaceStore.loadTechnicalPlan());
       await planOne(context);
       pauseIfRequested('正文生成已在小节编排后暂停，可导出当前已完成内容，稍后继续。');
+      if (illustrateEverySection) ensurePrimaryIllustrationPlans([context]);
       const contentPlan = contentPlans.get(context.item.id) || normalizeContentPlan({}, allowedKnowledgeItemIds, allowedFactTitles);
       const illustrationTypes = illustrationTypeForSinglePlan(contentPlan);
       applyIllustrationTargets([context], () => illustrationTypes);
-      persistContentPlans([context], () => illustrationTypes);
+      retainOneIllustrationPerItem();
+      persistContentPlans([context], () => [
+        selectedAiImageIds.has(context.item.id) ? 'ai' : null,
+        selectedTechnicalDiagramIds.has(context.item.id) ? 'diagram' : null,
+        mermaidImageTargets.some(({ item }) => item.id === context.item.id) ? 'mermaid' : null,
+      ].filter(Boolean));
       logs = [...logs, `当前小节编排已保存：${context.item.id} ${context.item.title || '未命名章节'}（配图：${illustrationTypes.join('、') || '无'}）。`];
     }
 
@@ -3471,6 +3514,10 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
       const illustrationTypes = storedContentPlan?.illustration_types || normalizeIllustrationTypes(storedContentPlan?.illustration_type);
       const content = currentSections[item.id]?.content || item.content || '';
       return illustrationTypes.filter((illustrationType) => {
+        if (hasExistingIllustration(content, 'html')) {
+          imageStats[illustrationType].skipped += 1;
+          return false;
+        }
         if (hasExistingIllustration(content, illustrationType)) {
           imageStats[illustrationType].skipped += 1;
           return false;
@@ -3930,7 +3977,7 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
     await runItemsWithWorkerPool(targets, contentConcurrency, planOne, isPauseRequested);
     pauseIfRequested('继续扩写已在配图编排阶段暂停，可导出当前已完成内容，稍后继续。');
 
-    ensurePrimaryIllustrationPlans(targets);
+    if (illustrateEverySection) ensurePrimaryIllustrationPlans(targets);
 
     const mermaidCandidates = mermaidImagesEnabled ? targets.filter(({ item }) => contentPlans.get(item.id)?.mermaid.needed) : [];
     const technicalDiagramCandidates = technicalDiagramEnabled ? targets.filter(({ item }) => contentPlans.get(item.id)?.diagram.needed) : [];
@@ -3938,26 +3985,27 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
     const primaryIllustrationType = getPrimaryIllustrationType();
     selectedAiImageIds = selectMandatoryAndOptionalTargets(
       aiImageCandidates.map((context) => ({ ...context, plan: contentPlans.get(context.item.id) })),
-      primaryIllustrationType === 'ai' ? primaryIllustrationType : 'none',
+      illustrateEverySection && primaryIllustrationType === 'ai' ? primaryIllustrationType : 'none',
       runLimits.maxAiImagesForRun,
       pickDistributedImageTargets,
     );
     selectedTechnicalDiagramIds = selectMandatoryAndOptionalTargets(
       technicalDiagramCandidates
         .map((context) => ({ ...context, plan: contentPlans.get(context.item.id) })),
-      primaryIllustrationType === 'diagram' ? primaryIllustrationType : 'none',
+      illustrateEverySection && primaryIllustrationType === 'diagram' ? primaryIllustrationType : 'none',
       runLimits.maxTechnicalDiagramsForRun,
       pickDistributedTechnicalDiagramTargets,
     );
     const selectedMermaidIds = selectMandatoryAndOptionalTargets(
       mermaidCandidates.map((context) => ({ ...context, plan: contentPlans.get(context.item.id) })),
-      primaryIllustrationType === 'mermaid' ? primaryIllustrationType : 'none',
+      illustrateEverySection && primaryIllustrationType === 'mermaid' ? primaryIllustrationType : 'none',
       runLimits.maxMermaidImagesForRun,
       pickDistributedMermaidTargets,
     );
     aiImageTargets = targets.filter(({ item }) => selectedAiImageIds.has(item.id));
     technicalDiagramTargets = targets.filter(({ item }) => selectedTechnicalDiagramIds.has(item.id));
     mermaidImageTargets = targets.filter(({ item }) => selectedMermaidIds.has(item.id));
+    retainOneIllustrationPerItem();
     imageStats.ai.planned = aiImageTargets.length;
     imageStats.ai.skipped += Math.max(0, aiImageCandidates.length - aiImageTargets.length);
     imageStats.mermaid.planned = mermaidImageTargets.length;
@@ -4361,6 +4409,8 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
         if (!((!targetItemId || item.id === targetItemId)
           && (!expandOnly || !expandTargetItemIds.size || expandTargetItemIds.has(item.id))
           && content && !/<!--\s*yibiao-illustration:html\s*-->/i.test(content))) return null;
+        const storedContentPlan = normalizeStoredContentPlan(storedContentPlans[item.id]);
+        if (!illustrateEverySection && !storedContentPlan?.plan?.illustration_needed) return null;
         const plan = planHtmlChart(item.title, content);
         return plan ? { item, plan } : null;
       }).filter(Boolean) : [];
@@ -4395,8 +4445,7 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
       return;
     }
 
-    for (const { item, plan } of htmlTargets) {
-      if (isPauseRequested()) break;
+    await runItemsWithWorkerPool(htmlTargets, HTML_IMAGE_CONCURRENCY, async ({ item, plan }) => {
       const baseContent = getCurrentSuccessfulContent(item);
       const chartType = plan.type;
       imageStats.html.attempted += 1;
@@ -4408,12 +4457,14 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
           : singleLine(item.title).includes(chartType) ? singleLine(item.title) : `${singleLine(item.title)}${chartType}`;
         const content = insertHtmlChart(baseContent, plan, result.asset_url, caption);
         imageStats.html.success += 1;
+        contentStats.illustration_completed += 1;
         logs = [...logs, result.fallback
           ? `HTML 原图多次生成失败，已自动改用正文摘录信息图：${item.id}（原因：${result.fallback_reason}；仅呈现原文要点，插在相关段落后）。`
           : `HTML 配图完成：${item.id} ${chartType}（依据：${plan.evidence.join('、')}；插在相关段落后）${result.layout_warnings?.length ? `；排版提示：${result.layout_warnings.join('；')}` : ''}`];
         saveSection(item, { status: 'success', content, error: undefined }, content, { logs });
       } catch (error) {
         imageStats.html.failed += 1;
+        contentStats.illustration_completed += 1;
         logs = [...logs, `HTML 配图失败：${item.id} ${error.message || '生成失败'}，已保留正文。`];
         saveSection(item, { status: 'success', content: baseContent, error: undefined }, baseContent, { logs });
         for (const [kind, targets] of Object.entries(fallbackTargets)) {
@@ -4426,8 +4477,7 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
           contentStats.illustration_total += 1;
         }
       }
-      contentStats.illustration_completed += 1;
-    }
+    }, isPauseRequested);
     // 不同类型按顺序执行，避免同一章节的正文更新互相覆盖。
     await runItemsWithWorkerPool(aiImageTargets, AI_IMAGE_CONCURRENCY, runAiIllustration, isPauseRequested);
     await runItemsWithWorkerPool(technicalDiagramTargets, TECHNICAL_DIAGRAM_CONCURRENCY, runTechnicalDiagramIllustration, isPauseRequested);

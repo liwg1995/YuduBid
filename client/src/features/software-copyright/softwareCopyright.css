@@ -1289,7 +1289,7 @@
   align-items: center;
   gap: 10px;
   margin-top: 14px;
-  color: #314059;
+  color: var(--yb-text);
   font-size: 14px;
   font-weight: 700;
 }
@@ -1305,14 +1305,14 @@
 
 .software-copyright-export-options > strong {
   margin-bottom: 2px;
-  color: #172033;
+  color: var(--yb-text);
   font-size: 14px;
 }
 
 .software-copyright-export-note {
   margin: 4px 0 6px;
-  color: #526b8b;
-  font-size: 12px;
+  color: var(--yb-text-soft);
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -3755,34 +3755,36 @@
 .software-copyright-output-dir strong {
   display: block;
   margin-bottom: 5px;
-  color: #2263eb;
+  color: var(--yb-primary);
   font-size: 13px;
 }
 
 .software-copyright-output-dir span {
   display: block;
   overflow-wrap: anywhere;
+  color: var(--yb-text-soft);
 }
 
 .software-copyright-output-list article {
   min-width: 0;
   padding: 12px;
-  border: 1px solid rgba(27, 50, 92, 0.08);
+  border: 1px solid var(--yb-border-soft);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--yb-surface);
 }
 
 .software-copyright-output-list strong {
   display: block;
   margin-bottom: 5px;
   overflow-wrap: anywhere;
-  color: #172033;
+  color: var(--yb-text);
   font-size: 13px;
 }
 
 .software-copyright-output-list span {
   display: block;
   overflow-wrap: anywhere;
+  color: var(--yb-text-soft);
 }
 
 .software-copyright-batch-history-head {

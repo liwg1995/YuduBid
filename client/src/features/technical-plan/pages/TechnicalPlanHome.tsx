@@ -1240,6 +1240,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     try {
       const result = await window.yibiao?.technicalPlan.clear({ workflowKind, projectId });
       setState(result?.state || { ...resetState, workflowKind, projectId, projectName });
+      setAgentContinuousStatus('idle');
+      setAgentContinuousMessage('一次确认后，自动衔接解析、目录、全局事实和正文生成。');
       setTenderMarkdown('');
       setOriginalPlanMarkdown('');
       showToast(result?.message || '技术方案已重置', 'success');

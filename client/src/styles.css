@@ -1984,6 +1984,22 @@ button {
   flex-direction: column;
 }
 
+.main-topbar {
+  position: relative;
+  z-index: 41;
+  display: flex;
+  height: 64px;
+  flex: 0 0 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 24px 0 18px;
+}
+
+.app-shell.is-mac .main-topbar {
+  -webkit-app-region: drag;
+}
+
 .app-copyright {
   position: absolute;
   right: 22px;
@@ -2079,6 +2095,14 @@ button {
   top: 8px;
 }
 
+.main-topbar .theme-switcher {
+  position: relative;
+  top: auto;
+  right: auto;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 .section-kicker {
   display: inline-flex;
   align-items: center;
@@ -2096,7 +2120,7 @@ button {
   min-height: 0;
   flex: 1;
   overflow: hidden;
-  padding: 56px 42px 42px;
+  padding: 8px 42px 42px;
 }
 
 .content-shell:has(.technical-workbench) {
@@ -4683,7 +4707,7 @@ button {
   margin: 20px 0;
   place-items: center;
   padding: 18px;
-  background: linear-gradient(180deg, rgba(248, 250, 253, 0.92), #ffffff);
+  background: var(--yb-surface);
   border: 1px solid var(--yb-border-soft);
   border-radius: 18px;
   box-shadow: 0 14px 34px rgba(33, 116, 253, 0.08);
@@ -4695,9 +4719,14 @@ button {
 }
 
 .mermaid-preview-canvas {
+  width: 100%;
   max-width: 100%;
   overflow: auto;
 }
+
+.mermaid-preview-error details { min-width: 0; }
+.mermaid-preview-error summary { cursor: pointer; }
+.mermaid-preview-error pre { max-height: 240px; overflow: auto; }
 
 .mermaid-preview-canvas svg {
   display: block;
@@ -7270,6 +7299,29 @@ button {
 .outline-generation-mode-card:disabled {
   cursor: not-allowed;
   opacity: 0.72;
+}
+
+.outline-generation-no-score {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--yb-border-soft);
+  border-radius: 12px;
+  background: rgba(var(--yb-surface-rgb), 0.58);
+}
+
+.outline-generation-no-score strong {
+  color: var(--yb-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.outline-generation-no-score span {
+  color: var(--yb-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .outline-knowledge-picker {
@@ -11171,6 +11223,60 @@ button {
 .task-monitor-chevron { margin-left: 3px; }
 .task-monitor-dot { width: 7px; height: 7px; border-radius: 50%; background: #9aa8bd; }
 .task-monitor-trigger.is-active .task-monitor-dot { background: #2f76f6; box-shadow: 0 0 0 4px rgba(47, 118, 246, 0.14); }
+.app-shell.is-mac .task-monitor { z-index: 41; }
+.main-topbar .task-monitor {
+  position: relative;
+  top: auto;
+  left: auto;
+  flex: 0 0 auto;
+}
+.main-topbar .task-monitor-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+}
+.app-shell .task-monitor-trigger {
+  min-height: 44px;
+  gap: 10px;
+  padding: 0 15px;
+  border-color: rgba(63, 111, 214, 0.25);
+  border-radius: 14px;
+  color: var(--yb-text);
+  background: var(--yb-surface);
+  font-size: 13px;
+  font-weight: 650;
+  transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+.app-shell .task-monitor-trigger.is-active { color: var(--yb-primary-deep); }
+.app-shell .task-monitor-trigger:hover,
+.app-shell .task-monitor-trigger[aria-expanded='true'] {
+  border-color: var(--yb-primary);
+  background: var(--yb-control-bg);
+  box-shadow: 0 8px 24px rgba(54, 83, 137, 0.16);
+}
+.app-shell .task-monitor-trigger:focus-visible {
+  outline: 2px solid var(--yb-primary);
+  outline-offset: 3px;
+}
+.app-shell .task-monitor-chevron {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  place-items: center;
+  margin-left: 2px;
+  color: currentColor;
+}
+.app-shell .task-monitor-chevron::before {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: '';
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .16s ease;
+}
+.app-shell .task-monitor-chevron.is-open::before { transform: translateY(2px) rotate(-135deg); }
 .task-monitor-panel { width: min(330px, calc(100vw - 24px)); max-height: min(480px, calc(100vh - 88px)); overflow-y: auto; margin-top: 8px; padding: 14px; border: 1px solid rgba(91, 119, 181, 0.18); border-radius: 16px; background: rgba(255, 255, 255, 0.97); box-shadow: 0 16px 40px rgba(42, 65, 110, 0.18); }
 .task-monitor-head, .task-monitor-item-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .task-monitor-head { margin-bottom: 10px; }
@@ -14221,6 +14327,18 @@ button {
   .content-shell .settings-page .settings-section-title { padding: 15px 20px; }
   .content-shell .settings-page .settings-page-scroll { padding-bottom: 72px; }
 }
+
+.content-shell .settings-page .settings-multimodal-row {
+  grid-template-columns: minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 16px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  cursor: pointer;
+}
+
+.settings-page .settings-multimodal-row .settings-row-copy { min-width: 0; }
+.settings-page .settings-multimodal-row .settings-advanced-checkbox { width: 20px; height: 20px; }
 
 /* Modal guidance links share the same small reference affordance across features. */
 .app-shell .context-help-trigger {
