@@ -41,6 +41,7 @@ export type SectionId =
   | 'image-knowledge-base'
   | 'duplicate-check'
   | 'rejection-check'
+  | 'blind-check'
   | 'bid-opportunity'
   | 'developer-test'
   | 'settings';

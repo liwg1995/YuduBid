@@ -126,6 +126,10 @@ function getCredentialLibraryDir(app) {
 }
 
 module.exports = {
+  getBlindCheckDir: app => path.join(getWorkspaceDir(app), 'blind-check'),
+  getBlindCheckSourceDir: app => path.join(getWorkspaceDir(app), 'blind-check', 'source'),
+  getBlindCheckFixedDir: app => path.join(getWorkspaceDir(app), 'blind-check', 'fixed'),
+  getBlindCheckTenderDir: app => path.join(getWorkspaceDir(app), 'blind-check', 'tender'),
   getCredentialLibraryDir,
   getAgentRunsDir,
   getAiLogsDir,

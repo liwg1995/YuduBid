@@ -1,3 +1,4 @@
+import type * as Blind from './contracts/blindCheckUpstream';
 import type { ChatCompletionRequest, JsonCompletionRequest } from './ai';
 import type { DuplicateCheckWorkspaceState, FileSelectionResult } from './bid';
 import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelCapabilityInfo, ModelInfoResult, ModelListResult } from './config';
@@ -22,6 +23,8 @@ import type { InstalledPluginRecord, PluginEvent, PluginMutationResult } from '.
 
 export interface TaskEvent<TState = unknown, TRejectionCheckState = unknown, TDuplicateCheckState = unknown> {
   task: unknown;
+  blindCheck?: Blind.BlindCheckWorkspaceState;
+  blindCheckPatch?: Blind.BlindCheckWorkspacePatch;
   technicalPlan?: TState;
   technicalPlanPatch?: Partial<TechnicalPlanState>;
   bidItem?: BidAnalysisTaskState;
@@ -301,6 +304,27 @@ export interface AgentContinuousRun {
 export type AgentContinuousRunInput = Omit<AgentContinuousRun, 'updatedAt'>;
 
 export interface YuDuBidBridge {
+  blindCheck: {
+    selectCredentialCompany: (id: string) => Promise<Blind.BlindCheckWorkspaceState>;
+    openFixedDocument: (path: string) => Promise<void>;
+    loadState: () => Promise<Blind.BlindCheckWorkspaceState>;
+    importFile: (path: string) => Promise<Blind.BlindCheckWorkspaceState>;
+    removeFile: () => Promise<Blind.BlindCheckWorkspaceState>;
+    saveUiState: (value: Partial<Blind.BlindCheckWorkspaceState>) => Promise<unknown>;
+    listPresets: () => Promise<Blind.BlindCheckPreset[]>;
+    createPreset: (value: { name?: string; basePresetId?: string }) => Promise<Blind.BlindCheckPreset>;
+    updatePreset: (id: string, value: { name?: string; profile?: Blind.BlindCheckProfile }) => Promise<Blind.BlindCheckPreset>;
+    deletePreset: (id: string) => Promise<Blind.BlindCheckPreset[]>;
+    selectPreset: (id: string) => Promise<Blind.BlindCheckWorkspaceState>;
+    setUseCredentialWords: (enabled: boolean) => Promise<Blind.BlindCheckWorkspaceState>;
+    getCredentialWords: () => Promise<Blind.BlindCheckCredentialWord[]>;
+    getInputSignature: () => Promise<string | null>;
+    saveFixRules: (rules: string[]) => Promise<Blind.BlindCheckWorkspaceState>;
+    saveFixedDocument: () => Promise<{ success: boolean; canceled?: boolean; filePath?: string; path?: string; message?: string }>;
+    getTenderSources: () => Promise<Blind.BlindCheckTenderSources>;
+    clear: () => Promise<Blind.BlindCheckWorkspaceState>;
+
+  };
   appName: string;
   platform: string;
   getVersion: () => Promise<string>;
@@ -347,6 +371,8 @@ export interface YuDuBidBridge {
     clear: () => Promise<{ success: boolean }>;
   };
   file: {
+    selectBlindCheckFile: (options?: { filePaths?: string[] }) => Promise<{ success: boolean; message?: string; files: Array<{ file_path: string; file_name: string; size: number; modified_at: string }> }>;
+    selectBlindCheckTenderFile: () => Promise<{ success: boolean; message?: string; files: Array<{ file_path: string; file_name: string; size: number; modified_at: string }> }>;
     selectDuplicateCheckFiles: (options?: { multiple?: boolean }) => Promise<FileSelectionResult>;
     getPathForFile: (file: File) => string;
   };
@@ -744,8 +770,12 @@ export interface YuDuBidBridge {
   tasks: {
     startBidSectionExtraction: (payload: unknown) => Promise<unknown>;
     startBidAnalysis: (payload: unknown) => Promise<unknown>;
+    startBlindCheck: (payload: { aiReview: boolean }) => Promise<Blind.BlindCheckTaskState>;
+    startBlindCheckFix: (payload: { ai: boolean }) => Promise<Blind.BlindCheckTaskState>;
+    startBlindCheckPresetExtraction: (payload: { source: string; filePath?: string }) => Promise<Blind.BlindCheckTaskState>;
     startOutlineGeneration: (payload: unknown) => Promise<unknown>;
     pauseOutlineGeneration: (payload: unknown) => Promise<unknown>;
+    answerOutlineQuestion: (payload: { taskId: string; questionId: string; answer: { items?: { id: string; title: string; description?: string }[]; selectedIds?: string[]; action?: string; instructions?: string } }) => Promise<unknown>;
     resumeOutlineGeneration: (payload: unknown) => Promise<unknown>;
     stopOutlineGeneration: (payload: unknown) => Promise<unknown>;
     startGlobalFactsGeneration: (payload: unknown) => Promise<unknown>;

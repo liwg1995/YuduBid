@@ -294,8 +294,8 @@ function reviewAlignedOutlineMessages({ overview, requirements, groups, outline,
   const systemPrompt = `你是一个严格的招标文件目录审核专家。请审核目录是否与${sourceLabel}一一对应，并判断二三级目录是否覆盖各大类的细项。
 
 要求：
-1. 一级目录必须与提供的${sourceLabel}一一对应，数量一致、顺序一致、标题必须完全一致
-2. 不允许缺失${sourceLabel}，也不允许新增、合并、改写一级目录
+1. 一级目录必须与用户已选的${sourceLabel}一一对应，数量一致、顺序一致、标题必须完全一致
+2. 只审核下方 JSON 中用户已选的大类；原文用于核对这些大类的细项，未选大类不视为目录遗漏。不允许新增、合并、改写已选一级目录
 3. 二级和三级目录要围绕各自对应的${sourceLabel}与细项展开，避免错位、遗漏和明显重复
 4. 检查完整目录是否层级清晰，整体是否达到三级目录要求
 5. 只返回 JSON，格式为：{"passed": true, "suggestions": []}
@@ -647,7 +647,11 @@ function outlineDepth(items) {
 function validateCompleteOutline(payload) {
   const outline = payload.outline || [];
   if (!outline.length) throw new Error('目录不能为空');
-  if (outlineDepth(outline) < 3) throw new Error('完整目录至少需要三级结构');
+  outline.forEach((chapter, index) => {
+    if (outlineDepth([chapter]) < 3) {
+      throw new Error(`第 ${index + 1} 个一级目录「${chapter.title || '未命名章节'}」缺少三级目录`);
+    }
+  });
 }
 
 function validateTopLevelOutline(payload) {
@@ -656,6 +660,7 @@ function validateTopLevelOutline(payload) {
 
 function validateChildrenOutline(payload) {
   if (!(payload.children || []).length) throw new Error('二级目录不能为空');
+  if (outlineDepth(payload.children) < 2) throw new Error('当前一级目录缺少三级目录');
 }
 
 function validateRequirementGroups(payload) {
@@ -807,7 +812,8 @@ async function generateChildren(aiService, payload, parentItem, suggestions, log
 
 async function generateFallback(aiService, payload, suggestions, log, progressRange = { start: 30, end: 75 }, topProgress = 25) {
   log('正在分步生成目录，先生成一级目录。', topProgress);
-  const top = await generateTopLevel(aiService, payload, suggestions, log);
+  let top = payload.approvedRoots ? { outline: payload.approvedRoots } : await generateTopLevel(aiService, payload, suggestions, log);
+  if (payload.confirmRoots) top = { outline: await payload.confirmRoots(top.outline) };
   const assembled = [];
   for (const [index, item] of top.outline.entries()) {
     const progress = progressRange.start + Math.round((index / Math.max(top.outline.length, 1)) * (progressRange.end - progressRange.start));
@@ -850,8 +856,10 @@ async function reviewOutline(aiService, payload, outline, log, progressLabel, pr
 }
 
 async function reviewAlignedOutline(aiService, payload, groups, outline, log, progressLabel, progress = 82) {
+  const selectedIds = new Set((outline.outline || []).map(item => String(item.source_requirement_id || '').trim()));
+  const selectedGroups = groups.filter(group => selectedIds.has(String(group.requirement_id || '').trim()));
   return collectJson(aiService, {
-    messages: reviewAlignedOutlineMessages({ ...payload, groups, outline }),
+    messages: reviewAlignedOutlineMessages({ ...payload, groups: selectedGroups, outline }),
     temperature: 0.3,
     normalizer: normalizeReviewResponse,
     progressCallback: (message) => log(message, progress),
@@ -862,12 +870,23 @@ async function reviewAlignedOutline(aiService, payload, groups, outline, log, pr
 
 async function freeWorkflow(aiService, payload, log) {
   log('开始生成目录结构。', 8);
-  const [first, generationMode] = await generateByMode(aiService, payload, 'auto', undefined, log);
+  const [first, generationMode] = await generateByMode(aiService, payload, payload.confirmRoots ? 'fallback' : 'auto', undefined, log);
   log('首次目录生成完成，开始审核目录质量。', 82);
   const firstReview = await reviewOutline(aiService, payload, first, log, '首次审核', 82);
+  if (payload.confirmRoots) {
+    if (firstReview.passed) return first;
+    const suggestions = firstReview.suggestions || [];
+    log('目录审核发现改进建议：' + suggestions.join('；'), 83);
+    const revise = await payload.confirmReview(suggestions);
+    if (!revise) return first;
+    const second = await generateFallback(aiService, payload, suggestions, log, { start: 85, end: 95 }, 84);
+    const review = await reviewOutline(aiService, payload, second, log, '最终审核', 97);
+    log(review.passed ? '最终审核通过。' : '最终审核建议：' + (review.suggestions || []).join('；'), 98);
+    return second;
+  }
   const singleRoot = (first.outline || []).length === 1;
   if (firstReview.passed && !singleRoot) {
-    log('目录审核通过，准备返回结果。', 96);
+    log(firstReview.passed ? '目录审核通过，准备返回结果。' : '保留已确认的目录，审核建议已记录，请人工核对。', 96);
     return first;
   }
 
@@ -886,7 +905,8 @@ async function freeWorkflow(aiService, payload, log) {
       fallbackTopProgress: 90,
       fallbackRange: { start: 90, end: 96 },
     });
-  } catch {
+  } catch (error) {
+    if (aiService.isStopped?.()) throw error;
     log('根据审核建议重新生成失败，已回退到首次生成结果。', 97);
     return first;
   }
@@ -924,20 +944,22 @@ async function generateAlignedChildrenForGroup(aiService, payload, parentItem, g
 }
 
 async function buildAligned(aiService, payload, groups, suggestions, log, progressRange = { start: 30, end: 75 }) {
-  const top = buildTopLevelOutlineFromGroups(groups);
-  validateAlignedTopLevelMapping(top, groups);
+  let top = buildTopLevelOutlineFromGroups(groups);
+  if (payload.confirmRoots) top = await payload.confirmRoots(top);
+  const selectedGroups = groups.filter((group, index) => top.some(item => item.title === buildTopLevelOutlineFromGroups(groups)[index]?.title));
+  validateAlignedTopLevelMapping(top, selectedGroups);
   const assembled = [];
   for (const [index, item] of top.entries()) {
     const progress = progressRange.start + Math.round((index / Math.max(top.length, 1)) * (progressRange.end - progressRange.start));
     log(`正在生成第 ${index + 1}/${top.length} 个${payload.mode === 'response-file' ? '技术文件目录大类' : '评分大类'}的二三级目录：${item.title || '未命名章节'}。`, progress);
-    const childrenResponse = await generateAlignedChildrenForGroup(aiService, payload, item, groups[index], suggestions, log, progress);
+    const childrenResponse = await generateAlignedChildrenForGroup(aiService, payload, item, groups.find((group, i) => buildTopLevelOutlineFromGroups(groups)[i]?.title === item.title) || groups[index], suggestions, log, progress);
     const children = childrenResponse.children || [];
     assembled.push({ ...item, ...(children.length ? { children } : {}) });
   }
   log(`${payload.mode === 'response-file' ? '响应文件目录' : '评分项对齐目录'}生成完成，正在整理目录编号。`, progressRange.end);
   const outline = normalizeOutlineResponse({ outline: renumber(assembled) }, new Set());
   validateCompleteOutline(outline);
-  validateAlignedTopLevelMapping(outline.outline || [], groups);
+  validateAlignedTopLevelMapping(outline.outline || [], selectedGroups);
   return outline;
 }
 
@@ -951,19 +973,21 @@ async function alignedWorkflow(aiService, payload, log) {
   log(`目录生成完成，正在审核与${sourceLabel}的对应关系。`, 82);
   const firstReview = await reviewAlignedOutline(aiService, payload, groups, first, log, '首次审核', 82);
   if (firstReview.passed) {
-    log('目录审核通过，准备返回结果。', 96);
+    log(firstReview.passed ? '目录审核通过，准备返回结果。' : '保留已确认的目录，审核建议已记录，请人工核对。', 96);
     return first;
   }
 
   const suggestions = firstReview.suggestions?.length ? firstReview.suggestions : [`请保持一级目录与${sourceLabel}标题完全一致，并补全各大类下遗漏的细项。`];
   log(`目录审核未通过，正在根据修改建议重新提取${sourceLabel}并重新生成目录。`, 88);
+  if (payload.confirmReview && !await payload.confirmReview(suggestions)) return first;
   let revisedGroups = groups;
   let second;
   try {
     log(`正在根据审核建议重新提取${sourceLabel}。`, 90);
-    revisedGroups = await extractRequirementGroups(aiService, payload.requirements, suggestions, log, payload.mode);
+    if (!payload.confirmRoots) revisedGroups = await extractRequirementGroups(aiService, payload.requirements, suggestions, log, payload.mode);
     second = await buildAligned(aiService, payload, revisedGroups, suggestions, log, { start: 91, end: 96 });
-  } catch {
+  } catch (error) {
+    if (aiService.isStopped?.()) throw error;
     log('根据审核建议重新生成失败，已回退到首次生成结果。', 97);
     return first;
   }
@@ -1032,6 +1056,7 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
   const requestJson = aiService.collectJsonResponse || aiService.requestJson;
   const controlledAiService = {
     ...aiService,
+    isStopped: () => taskControl?.isStopRequested?.(),
     async collectJsonResponse(options) {
       await taskControl?.checkpoint?.();
       const result = await requestJson.call(aiService, { ...options, signal: taskControl?.signal });
@@ -1086,6 +1111,30 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
   };
   taskPayload.noTechnicalScoreMode = technicalScoreMissing;
   if (technicalScoreMissing && responseFileAvailable) taskPayload.requirements = responseFileRequirements;
+  if (taskControl?.ask) {
+    let confirmedRoots = null;
+    taskPayload.confirmRoots = async (items) => {
+      if (confirmedRoots) return confirmedRoots;
+      log('一级目录已生成，等待确认；确认后继续生成二三级目录。', 25);
+      const answer = await taskControl.ask({ id: `roots-${Date.now()}`, message: '选择需要保留的技术章节，确认后继续生成二三级目录。', editable: payload.mode === 'free', items });
+      if (answer.instructions?.trim()) taskPayload.requirements += '\n用户补充要求：' + answer.instructions.trim();
+      confirmedRoots = answer.items;
+      taskPayload.approvedRoots = confirmedRoots;
+      return confirmedRoots;
+    };
+    taskPayload.confirmReview = async (suggestions) => {
+      const answer = await taskControl.ask({ id: `review-${Date.now()}`, message: '目录审核发现以下问题：' + suggestions.join('；') + '。选择重新细化时将保留已确认的一级目录。', allowRevise: true });
+      if (answer.action === 'stop') throw new Error('用户选择结束任务。');
+      if (answer.instructions?.trim()) taskPayload.requirements += '\n用户补充要求：' + answer.instructions.trim();
+      return answer.action === 'revise';
+    };
+    if (technicalScoreMissing) {
+      log('未提取到明确的技术评分项，等待确认生成依据。', 6);
+      const answer = await taskControl.ask({ id: `input-${Date.now()}`, message: '未提取到明确的技术评分项。可按已有项目概述和技术要求继续生成多级目录，结果需要人工核对；也可以结束任务并补充资料。' });
+      if (answer.action === 'stop') throw new Error('用户选择结束任务，请补充资料后重新生成。');
+      if (answer.instructions?.trim()) taskPayload.requirements += '\n用户补充要求：' + answer.instructions.trim();
+    }
+  }
   let outline = taskPayload.mode === 'response-file' || (!technicalScoreMissing && taskPayload.mode === 'aligned')
     ? await alignedWorkflow(controlledAiService, taskPayload, log)
     : await freeWorkflow(controlledAiService, taskPayload, log);

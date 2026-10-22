@@ -1,3 +1,4 @@
+const { enabledIllustrationTypes } = require('./contentImagePolicy.cjs');
 const { countReadableWords } = require('../utils/wordCount.cjs');
 const fs = require('node:fs');
 const fsPromises = require('node:fs/promises');
@@ -2943,7 +2944,7 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
     technicalDiagramTargets = [];
 
     for (const context of targets) {
-      const illustrationTypes = normalizeIllustrationTypes(getIllustrationType(context));
+      const illustrationTypes = enabledIllustrationTypes(normalizeIllustrationTypes(getIllustrationType(context)), { ai: aiImagesEnabled, mermaid: mermaidImagesEnabled, diagram: technicalDiagramEnabled });
       for (const illustrationType of illustrationTypes) {
         if (illustrationType === 'ai') {
           selectedAiImageIds.add(context.item.id);
@@ -3094,9 +3095,9 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
       }
     }
 
-    const mermaidCandidates = tasksToRun.filter(({ item }) => contentPlans.get(item.id)?.mermaid.needed);
-    const technicalDiagramCandidates = tasksToRun.filter(({ item }) => contentPlans.get(item.id)?.diagram.needed);
-    const aiImageCandidates = tasksToRun.filter(({ item }) => contentPlans.get(item.id)?.image.needed);
+    const mermaidCandidates = (mermaidImagesEnabled ? tasksToRun : []).filter(({ item }) => contentPlans.get(item.id)?.mermaid.needed);
+    const technicalDiagramCandidates = (technicalDiagramEnabled ? tasksToRun : []).filter(({ item }) => contentPlans.get(item.id)?.diagram.needed);
+    const aiImageCandidates = (aiImagesEnabled ? tasksToRun : []).filter(({ item }) => contentPlans.get(item.id)?.image.needed);
     const primaryIllustrationType = getPrimaryIllustrationType();
     selectedAiImageIds = selectMandatoryAndOptionalTargets(
       aiImageCandidates.map((context) => ({ ...context, plan: contentPlans.get(context.item.id) })),

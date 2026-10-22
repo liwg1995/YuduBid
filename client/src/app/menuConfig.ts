@@ -3,7 +3,7 @@ import type { FeatureModuleId, FeatureModuleSettings } from '../shared/types';
 
 export const configurableFeatureModules: Array<{ id: FeatureModuleId; label: string; description: string }> = [
   { id: 'presales', label: '售前工作台', description: '客户材料分析、调研准备、方案架构、图表和汇报材料' },
-  { id: 'bid', label: '招投标', description: '技术方案、可研报告、知识库、查重、废标项检查和投标机会' },
+  { id: 'bid', label: '招投标', description: '技术方案、可研报告、知识库、查重、暗标检查、废标项检查和投标机会' },
   { id: 'official-document', label: '公文写作', description: '智能起草、格式检查、润色改写和模板库' },
   { id: 'grant-application', label: '课题申报', description: '启动诊断、选题政策、申报书撰写、评审优化和答辩' },
   { id: 'project-management', label: '项目协作', description: '项目类型、项目管理和项目历史' },
@@ -48,6 +48,7 @@ export const appMenuItems: AppMenuItem[] = [
     label: '标书查重',
     description: '相似度与重复表达检测',
   },
+  { id: 'blind-check', label: '暗标检查', description: '匿名风险与文档结构检查' },
   {
     id: 'rejection-check',
     label: '废标项检查',

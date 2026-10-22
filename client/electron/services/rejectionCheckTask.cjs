@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const { splitUserTextByContextLimit } = require('../utils/userTextSplitter.cjs');
 const { runInvalidBidAndRejectionItemsExtraction } = require('./bidAnalysisTask.cjs');
+const { isSelfRefutingLogicFinding } = require('./logicFindingPolicy.cjs');
 
 const checkRunStatus = ['idle', 'running', 'success', 'error'];
 const typoExcerptRadius = 8;
@@ -271,7 +272,10 @@ ${input.bidContent}` },
 1. 只保留有明确文本依据的问题，避免泛泛而谈。
 2. 问题可能涉及多处原文，originalText 可摘录关键原文，locationHint 写明大概位置、章节、表格或上下文线索。
 3. title 必须简短明确，便于作为折叠列表标题。
-4. 如果没有明确逻辑谬误，返回 {"findings":[]}。
+4. 计算、日期和数值比较必须先自行核算；核算正确的内容不得列为问题。
+5. 不把“可能”“通常”“若实际年份不同”等没有原文支持的猜测当作矛盾；不同口径的金额或优于要求的承诺也不能直接判为冲突。
+6. 每条原因只写已证实的两处事实及其差异，建议只写一项具体操作；不要写推理过程、假设分支或“撤销此项”。
+7. 如果没有明确逻辑谬误，返回 {"findings":[]}。
 
 JSON 格式：{"findings":[{"title":"不超过 28 个中文字符的简短标题","originalText":"关键原文摘录，可包含多处摘录","locationHint":"大概位置、章节、表格或上下文线索","fallacyReason":"谬误原因或前后不一致原因","suggestion":"修改建议"}]}
 
@@ -473,13 +477,59 @@ function normalizeLogicCheckFindings(parsed) {
     const locationHint = normalizeText(item.locationHint || item.location_hint || item.location || item.position) || '未明确具体位置，请结合原文摘录复核。';
     const fallacyReason = normalizeText(item.fallacyReason || item.fallacy_reason || item.reason || item.riskReason);
     const suggestion = normalizeText(item.suggestion || item.recommendation) || '请结合投标文件上下文人工复核后修改。';
-    if (!title || !fallacyReason) continue;
+    if (!title || !fallacyReason || isSelfRefutingLogicFinding({ title, fallacyReason, suggestion })) continue;
     const key = `${title}\u0000${fallacyReason}`;
     if (seen.has(key)) continue;
     seen.add(key);
     findings.push({ id: normalizeText(item.id) || createId('logic_finding'), title, originalText, locationHint, fallacyReason, suggestion });
   }
   return findings;
+}
+
+function buildLogicReviewMessages(bidContent, findings) {
+  const candidates = findings.map((item) => ({
+    id: item.id,
+    title: item.title,
+    locationHint: item.locationHint,
+    originalText: item.originalText.slice(0, 800),
+    fallacyReason: item.fallacyReason.slice(0, 800),
+    suggestion: item.suggestion.slice(0, 300),
+  }));
+  return [
+    { role: 'user', content: `【逻辑问题复核｜投标文件原文】\n${bidContent}` },
+    { role: 'user', content: `【待复核候选】\n${JSON.stringify(candidates)}\n\n请逐条独立复核，不沿用候选的结论。每个候选 id 都必须给出 keep 或 dismiss。\n\n仅在投标文件原文中能找到明确、同口径且尚未解释的矛盾时 keep。自行核对加减乘除、单位换算、日期先后和时间区间；计算正确、日期可行、金额口径不同、响应优于招标要求、已满足时间区间要求的，dismiss。仅凭“通常需要多久”“可能是笔误”“假如项目年份不是文件写的年份”或外部事实推测的，dismiss。解析文字疑似错位而原件未核实的，dismiss。建议与标题不对应的，dismiss。\n\nkeep 时重新写 reason 和 suggestion：reason 用不超过 100 个汉字直说两处事实及差异；suggestion 用不超过 60 个汉字写一项可执行的核对或修改动作。不要复述思考过程、假设分支、泛泛建议或“AI 判断”。dismiss 时 reason、suggestion 留空。\n\n只输出 JSON：{"verdicts":[{"id":"候选 id","verdict":"keep 或 dismiss","reason":"简明事实差异","suggestion":"具体处理动作"}]}` },
+  ];
+}
+
+function conciseReviewText(value, maxLength) {
+  const text = normalizeText(value).replace(/\s+/g, ' ').replace(/^\d+[.、]\s*/, '');
+  if (text.length <= maxLength) return text;
+  const ending = Math.max(text.lastIndexOf('。', maxLength), text.lastIndexOf('；', maxLength));
+  return ending >= Math.floor(maxLength / 2) ? text.slice(0, ending + 1) : `${text.slice(0, maxLength - 1)}…`;
+}
+
+async function reviewLogicCheckFindings(aiService, bidContent, findings, onProgress) {
+  if (!findings.length) return [];
+  onProgress(`正在复核 ${findings.length} 项逻辑问题。`);
+  const payload = await runJson(aiService, {
+    messages: buildLogicReviewMessages(bidContent, findings),
+    temperature: 0,
+    schemaName: 'LogicCheckReview',
+    progressLabel: '逻辑问题复核结果',
+    failureMessage: '逻辑问题复核结果格式无效，请重新检查',
+  }, onProgress, '逻辑问题复核');
+  const verdicts = new Map(getArrayPayload(payload, ['verdicts']).map((item) => [String(item?.id || ''), item]));
+  if (findings.some((item) => !['keep', 'dismiss'].includes(verdicts.get(item.id)?.verdict))) {
+    throw new Error('逻辑问题复核未覆盖全部候选，请重新检查');
+  }
+  return findings.flatMap((item) => {
+    const verdict = verdicts.get(item.id);
+    if (verdict.verdict === 'dismiss') return [];
+    const fallacyReason = conciseReviewText(verdict.reason, 160);
+    const suggestion = conciseReviewText(verdict.suggestion, 100);
+    if (!fallacyReason || !suggestion || isSelfRefutingLogicFinding({ ...item, fallacyReason, suggestion })) return [];
+    return [{ ...item, fallacyReason, suggestion }];
+  });
 }
 
 async function runText(aiService, request, _onProgress, label) {
@@ -626,7 +676,8 @@ async function runLogicCheck(aiService, input, onProgress) {
         progressLabel: `逻辑检查（第 ${index + 1} 段）`,
         failureMessage: '逻辑检查结果格式无效，请重新检查',
       }, onProgress, `逻辑检查（第 ${index + 1} 段）`);
-      findings.push(...normalizeLogicCheckFindings(payload));
+      const candidates = normalizeLogicCheckFindings(payload);
+      findings.push(...await reviewLogicCheckFindings(aiService, segments[index], candidates, onProgress));
     }
     const seen = new Set();
     return findings.filter((item) => {
@@ -645,7 +696,7 @@ async function runLogicCheck(aiService, input, onProgress) {
     progressLabel: '逻辑谬误检查结果',
     failureMessage: '逻辑谬误检查结果格式无效，请重新检查',
   }, onProgress, '逻辑谬误检查');
-  return normalizeLogicCheckFindings(payload);
+  return reviewLogicCheckFindings(aiService, input.bidContent, normalizeLogicCheckFindings(payload), onProgress);
 }
 
 function updateExtractionState(workspaceStore, updateTask, taskPartial, extractionPartial) {
@@ -868,4 +919,5 @@ async function runRejectionCheckTask({ aiService, workspaceStore, updateTask, pa
 module.exports = {
   runRejectionItemsExtractionTask,
   runRejectionCheckTask,
+  __test__: { normalizeLogicCheckFindings, reviewLogicCheckFindings, runLogicCheck },
 };

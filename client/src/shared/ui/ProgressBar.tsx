@@ -1,3 +1,4 @@
+import './ProgressBar.css';
 import type { CSSProperties } from 'react';
 
 export type ProgressBarTone = 'primary' | 'success' | 'warning' | 'sky' | 'violet';

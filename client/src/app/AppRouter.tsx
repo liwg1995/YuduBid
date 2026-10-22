@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import type { SectionId } from '../shared/types/navigation';
 import type { FeatureModuleSettings } from '../shared/types';
+import type { LatestReleaseInfo } from '../shared/types';
 import type { PluginNavigationTarget } from '../shared/types/plugin';
 import type { GrantApplicationInitialPanel } from '../features/grant-application/pages/GrantApplicationPage';
 import type { ThesisTutorInitialPanel } from '../features/thesis-tutor/pages/ThesisTutorPage';
@@ -30,6 +31,7 @@ const PresalesWorkbenchPage = lazy(() => import('../features/presales-workbench/
 const ProjectHistoryPage = lazy(() => import('../features/project-management/pages/ProjectHistoryPage'));
 const ProjectManagementPage = lazy(() => import('../features/project-management/pages/ProjectManagementPage'));
 const ProjectTypesPage = lazy(() => import('../features/project-management/pages/ProjectTypesPage'));
+const BlindCheckPage = lazy(() => import('../features/blind-check/pages/BlindCheckPage'));
 const RejectionCheckPage = lazy(() => import('../features/rejection-check/pages/RejectionCheckPage'));
 const SettingsPage = lazy(() => import('../features/settings/pages/SettingsPage'));
 const SoftwareCopyrightPage = lazy(() => import('../features/software-copyright/pages/SoftwareCopyrightPage'));
@@ -44,9 +46,11 @@ interface AppRouterProps {
   onSectionChange: (section: SectionId) => void;
   onDeveloperModeChange: (developerMode: boolean) => void;
   onFeatureModuleSettingsChange: (settings: FeatureModuleSettings) => void;
+  updateDialogRequest?: { id: number; release: LatestReleaseInfo } | null;
+  onUpdateDialogRequestConsumed?: () => void;
 }
 
-function AppRouteContent({ activeSection, developerMode, featureModuleSettings, pluginNavigationTarget, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange }: AppRouterProps) {
+function AppRouteContent({ activeSection, developerMode, featureModuleSettings, pluginNavigationTarget, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange, updateDialogRequest, onUpdateDialogRequestConsumed }: AppRouterProps) {
   switch (activeSection) {
     case 'home':
       return getStoredUiAppearance() === 'modern'
@@ -120,6 +124,8 @@ function AppRouteContent({ activeSection, developerMode, featureModuleSettings, 
       return <KnowledgeLibraryPage initialType="image" />;
     case 'duplicate-check':
       return <DuplicateCheckPage />;
+    case 'blind-check':
+      return <BlindCheckPage />;
     case 'rejection-check':
       return <RejectionCheckPage />;
     case 'bid-opportunity':
@@ -127,7 +133,7 @@ function AppRouteContent({ activeSection, developerMode, featureModuleSettings, 
     case 'developer-test':
       return <DeveloperTestPage />;
     case 'settings':
-      return <SettingsPage onDeveloperModeChange={onDeveloperModeChange} onFeatureModuleSettingsChange={onFeatureModuleSettingsChange} />;
+      return <SettingsPage onDeveloperModeChange={onDeveloperModeChange} onFeatureModuleSettingsChange={onFeatureModuleSettingsChange} updateDialogRequest={updateDialogRequest} onUpdateDialogRequestConsumed={onUpdateDialogRequestConsumed} />;
     default:
       return null;
   }

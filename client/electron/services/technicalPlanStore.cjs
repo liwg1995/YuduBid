@@ -1,3 +1,4 @@
+const { assertOutlineEditable } = require('./outlineEditPolicy.cjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -879,6 +880,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
 
   function saveOutlineConfig({ outlineMode, referenceKnowledgeDocumentIds } = {}) {
     const current = loadTechnicalPlan();
+    assertOutlineEditable(current);
     const nextIds = Array.isArray(referenceKnowledgeDocumentIds) ? [...referenceKnowledgeDocumentIds].sort() : [];
     const currentIds = Array.isArray(current.referenceKnowledgeDocumentIds) ? [...current.referenceKnowledgeDocumentIds].sort() : [];
     const changed = outlineMode !== current.outlineMode || JSON.stringify(nextIds) !== JSON.stringify(currentIds);
@@ -897,7 +899,9 @@ function createTechnicalPlanStore({ app, db, fileService }) {
 
   function saveOutline(outlineData) {
     const transaction = db.transaction(() => {
-      const options = loadTechnicalPlan().contentGenerationOptions || {};
+      const current = loadTechnicalPlan();
+      assertOutlineEditable(current);
+      const options = current.contentGenerationOptions || {};
       saveOutlineData(clearOutlineDataContent(outlineData));
       clearGlobalFactsAndContentState();
       updateMeta({ generation_settings_snapshot_json: JSON.stringify({

@@ -1,0 +1,621 @@
+/* [7900-8649] rejection-*-/typo-* 全部 (RejectionCheckPage.tsx) */
+.blind-check-page .rejection-check-page {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  overflow: hidden;
+}
+
+/* Step01 上传区已迁移到共享 shared-upload.css（shared/ui/UploadBoard.tsx） */
+.blind-check-page .rejection-reader-card,
+.blind-check-page .rejection-result-command-bar {
+  background: var(--yb-card-bg);
+  border: 1px solid rgba(228, 233, 240, 0.88);
+  border-radius: var(--yb-radius-xl);
+  box-shadow: var(--yb-shadow);
+}
+
+.blind-check-page .rejection-bid-file-list {
+  display: grid;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.blind-check-page .rejection-bid-file-entry {
+  display: grid;
+  gap: 6px;
+}
+
+.blind-check-page .rejection-bid-file-entry > span {
+  width: max-content;
+  padding: 3px 8px;
+  color: var(--yb-primary);
+  font-size: 12px;
+  font-weight: 900;
+  background: rgba(33, 116, 253, 0.09);
+  border-radius: var(--yb-radius-pill);
+}
+
+.blind-check-page .rejection-reader-card {
+  height: 100%;
+}
+
+.blind-check-page .rejection-reader-head {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.blind-check-page .rejection-reader-heading {
+  display: grid;
+  flex: 1 1 320px;
+  min-width: 0;
+  gap: 4px;
+}
+
+.blind-check-page .rejection-reader-head > span,
+.blind-check-page .rejection-reader-heading span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blind-check-page .rejection-custom-save-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.blind-check-page .rejection-custom-save-state {
+  color: var(--yb-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.blind-check-page .rejection-custom-save-state.is-dirty {
+  color: var(--blind-warning-deep);
+}
+
+.blind-check-page .rejection-result-command-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 24px;
+  background:
+    var(--yb-card-bg);
+}
+
+.blind-check-page .rejection-result-command-bar strong {
+  display: block;
+  margin: 7px 0 5px;
+  color: var(--yb-text);
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+
+.blind-check-page .rejection-result-command-bar p {
+  margin: 0;
+  color: var(--yb-text-soft);
+}
+
+.blind-check-page .rejection-result-status {
+  display: grid;
+  min-width: 180px;
+  gap: 4px;
+  padding: 10px 14px;
+  background: var(--yb-card-bg);
+  border: 1px solid var(--yb-border-soft);
+  border-radius: var(--yb-radius-lg);
+  transition: background var(--yb-duration-fast) ease, border-color var(--yb-duration-fast) ease, box-shadow var(--yb-duration-fast) ease, color var(--yb-duration-fast) ease, transform var(--yb-duration-fast) ease;
+}
+
+.blind-check-page .rejection-result-status span {
+  color: var(--yb-text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.blind-check-page .rejection-result-status small {
+  overflow: hidden;
+  color: var(--yb-text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blind-check-page .rejection-result-status.is-idle {
+  background: rgba(94, 111, 143, 0.08);
+  border-color: rgba(94, 111, 143, 0.14);
+}
+
+.blind-check-page .rejection-result-status.is-running {
+  background: rgba(33, 116, 253, 0.08);
+  border-color: rgba(33, 116, 253, 0.18);
+}
+
+.blind-check-page .rejection-result-status.is-success {
+  background: rgba(38, 166, 113, 0.08);
+  border-color: rgba(38, 166, 113, 0.18);
+}
+
+.blind-check-page .rejection-result-status.is-error {
+  background: rgba(200, 50, 32, 0.08);
+  border-color: rgba(200, 50, 32, 0.18);
+}
+
+.blind-check-page .rejection-result-card {
+  min-height: 0;
+}
+
+.blind-check-page .rejection-result-viewer,
+.blind-check-page .rejection-custom-editor {
+  min-height: 0;
+}
+
+.blind-check-page .rejection-custom-editor {
+  height: 100%;
+}
+
+.blind-check-page .rejection-check-result-panel {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-row: 1 / -1;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 18px;
+  padding: 24px;
+  background: var(--yb-card-bg);
+  border: 1px solid rgba(228, 233, 240, 0.88);
+  border-radius: var(--yb-radius-xl);
+  box-shadow: var(--yb-shadow);
+}
+
+.blind-check-page .rejection-check-result-title {
+  min-height: 58px;
+}
+
+.blind-check-page .rejection-check-result-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.blind-check-page .rejection-check-result-tabs {
+  display: grid;
+  overflow: hidden;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: var(--yb-card-bg);
+  border: 1px solid rgba(27, 50, 92, 0.14);
+  border-radius: var(--yb-radius-xl);
+}
+
+.blind-check-page .rejection-check-result-tab {
+  display: grid;
+  min-height: 86px;
+  gap: 10px;
+  padding: 16px 20px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid rgba(27, 50, 92, 0.12);
+  cursor: pointer;
+  transition: background var(--yb-duration-fast) ease, border-color var(--yb-duration-fast) ease, box-shadow var(--yb-duration-fast) ease, color var(--yb-duration-fast) ease, transform var(--yb-duration-fast) ease;
+}
+
+.blind-check-page .rejection-check-result-tab:last-child {
+  border-right: 0;
+}
+
+.blind-check-page .rejection-check-result-tab.is-active {
+  background: var(--yb-card-bg);
+}
+
+.blind-check-page .rejection-check-result-tab:hover:not(.is-active) {
+  background: rgba(33, 116, 253, 0.04);
+}
+
+.blind-check-page .rejection-check-result-tab strong {
+  color: var(--yb-text);
+  font-size: 20px;
+}
+
+.blind-check-page .rejection-check-result-tab em {
+  padding: 5px 9px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  border-radius: var(--yb-radius-pill);
+}
+
+.blind-check-page .rejection-check-result-tab.is-running em {
+  color: var(--yb-primary);
+  background: rgba(33, 116, 253, 0.1);
+}
+
+.blind-check-page .rejection-check-result-tab.is-success em {
+  color: var(--blind-success);
+  background: rgba(20, 130, 91, 0.1);
+}
+
+.blind-check-page .rejection-check-result-tab.is-error em {
+  color: var(--blind-danger);
+  background: rgba(224, 72, 72, 0.1);
+}
+
+.blind-check-page .rejection-check-result-tab.is-idle em,
+.blind-check-page .rejection-check-result-tab.is-disabled em {
+  color: var(--yb-text-muted);
+  background: rgba(94, 111, 143, 0.1);
+}
+
+.blind-check-page .rejection-check-result-content {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: center;
+  overflow: auto;
+  padding: 34px;
+  background: var(--yb-card-bg);
+  border: 1px solid var(--yb-border-soft);
+  border-radius: var(--yb-radius-xl);
+}
+
+.blind-check-page .rejection-check-result-content h3 {
+  margin: 10px 0 12px;
+  color: var(--yb-text);
+  font-size: 26px;
+  letter-spacing: -0.025em;
+}
+
+.blind-check-page .rejection-check-result-content p {
+  max-width: 620px;
+  margin: 0;
+  color: var(--yb-text-soft);
+  line-height: 1.8;
+}
+
+.blind-check-page .rejection-check-result-content.is-rejection-list {
+  justify-content: flex-start;
+  gap: 18px;
+  padding: 24px;
+}
+
+.blind-check-page .rejection-check-result-content.is-rejection-list p {
+  max-width: none;
+}
+
+.blind-check-page .rejection-finding-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.blind-check-page .rejection-finding-summary h3 {
+  margin: 8px 0 8px;
+}
+
+.blind-check-page .rejection-finding-list {
+  display: grid;
+  gap: 12px;
+}
+
+.blind-check-page .rejection-bid-result-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 2px;
+}
+
+.blind-check-page .rejection-bid-result-filter button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  color: var(--yb-text-soft);
+  font-weight: 800;
+  background: var(--yb-card-bg);
+  border: 1px solid rgba(27, 50, 92, 0.12);
+  border-radius: var(--yb-radius-pill);
+}
+
+.blind-check-page .rejection-bid-result-filter button.is-active {
+  color: var(--yb-primary);
+  background: rgba(33, 116, 253, 0.1);
+  border-color: rgba(33, 116, 253, 0.24);
+}
+
+.blind-check-page .rejection-bid-result-filter span {
+  min-width: 18px;
+  padding: 2px 6px;
+  color: inherit;
+  font-size: 12px;
+  background: rgba(27, 50, 92, 0.08);
+  border-radius: var(--yb-radius-pill);
+}
+
+.blind-check-page .rejection-finding-group {
+  display: grid;
+  gap: 10px;
+}
+
+.blind-check-page .rejection-finding-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  color: var(--yb-text-soft);
+  background: linear-gradient(90deg, rgba(33, 116, 253, 0.08), rgba(91, 84, 211, 0.04));
+  border: 1px solid rgba(33, 116, 253, 0.12);
+  border-radius: var(--yb-radius-lg);
+}
+
+.blind-check-page .rejection-finding-group-head strong {
+  color: var(--yb-text);
+}
+
+.blind-check-page .rejection-finding-group-head span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blind-check-page .rejection-finding-item {
+  overflow: hidden;
+  background: var(--yb-card-bg);
+  border: 1px solid rgba(27, 50, 92, 0.12);
+  border-radius: var(--yb-radius-xl);
+  box-shadow: 0 14px 32px rgba(33, 116, 253, 0.08);
+}
+
+.blind-check-page .rejection-finding-item.is-expanded {
+  border-color: rgba(33, 116, 253, 0.24);
+}
+
+.blind-check-page .rejection-finding-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px;
+}
+
+.blind-check-page .rejection-finding-toggle {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--yb-radius-lg);
+  transition: background var(--yb-duration-fast) ease, border-color var(--yb-duration-fast) ease, box-shadow var(--yb-duration-fast) ease, color var(--yb-duration-fast) ease, transform var(--yb-duration-fast) ease;
+}
+
+.blind-check-page .rejection-finding-toggle:hover {
+  background: rgba(33, 116, 253, 0.06);
+}
+
+.blind-check-page .rejection-finding-chevron {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  color: var(--yb-primary);
+  font-size: 18px;
+  font-weight: 900;
+  background: rgba(33, 116, 253, 0.1);
+  border-radius: var(--yb-radius-pill);
+}
+
+.blind-check-page .rejection-finding-title-wrap {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.blind-check-page .rejection-finding-title-wrap > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.blind-check-page .rejection-finding-title-wrap strong {
+  overflow: hidden;
+  color: var(--yb-text);
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blind-check-page .rejection-finding-title-wrap small {
+  overflow: hidden;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blind-check-page .rejection-finding-tag,
+.blind-check-page .rejection-finding-file-tag,
+.blind-check-page .rejection-finding-severity {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  border-radius: var(--yb-radius-pill);
+}
+
+.blind-check-page .rejection-finding-file-tag {
+  color: var(--yb-primary);
+  background: rgba(33, 116, 253, 0.1);
+}
+
+.blind-check-page .rejection-finding-tag.is-invalidBid {
+  color: var(--blind-danger);
+  background: rgba(200, 50, 32, 0.1);
+}
+
+.blind-check-page .rejection-finding-tag.is-rejectionItem {
+  color: #4f46b8;
+  background: rgba(91, 84, 211, 0.11);
+}
+
+.blind-check-page .rejection-finding-tag.is-typo {
+  color: var(--blind-warning-deep);
+  background: rgba(245, 158, 11, 0.13);
+}
+
+.blind-check-page .rejection-finding-tag.is-logic {
+  color: #0f6674;
+  background: rgba(14, 116, 144, 0.11);
+}
+
+.blind-check-page .rejection-finding-severity.is-high {
+  color: var(--blind-danger);
+  background: rgba(200, 50, 32, 0.1);
+}
+
+.blind-check-page .rejection-finding-severity.is-medium {
+  color: var(--blind-warning-deep);
+  background: rgba(245, 158, 11, 0.13);
+}
+
+.blind-check-page .rejection-finding-severity.is-low {
+  color: var(--blind-success);
+  background: rgba(20, 130, 91, 0.1);
+}
+
+.blind-check-page .rejection-finding-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.blind-check-page .rejection-finding-delete,
+.blind-check-page .rejection-finding-copy {
+  align-self: center;
+  padding: 8px 12px;
+  font-weight: 800;
+  border: 0;
+  border-radius: var(--yb-radius-pill);
+}
+
+.blind-check-page .rejection-finding-delete {
+  color: var(--blind-danger);
+  background: rgba(200, 50, 32, 0.08);
+  transition: background var(--yb-duration-fast) ease, border-color var(--yb-duration-fast) ease, box-shadow var(--yb-duration-fast) ease, color var(--yb-duration-fast) ease, transform var(--yb-duration-fast) ease;
+}
+
+.blind-check-page .rejection-finding-copy {
+  color: var(--yb-primary);
+  background: rgba(33, 116, 253, 0.1);
+  transition: background var(--yb-duration-fast) ease, border-color var(--yb-duration-fast) ease, box-shadow var(--yb-duration-fast) ease, color var(--yb-duration-fast) ease, transform var(--yb-duration-fast) ease;
+}
+
+.blind-check-page .rejection-finding-delete:hover {
+  background: rgba(200, 50, 32, 0.14);
+}
+
+.blind-check-page .rejection-finding-copy:hover {
+  background: rgba(33, 116, 253, 0.16);
+}
+
+.blind-check-page .typo-finding-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.blind-check-page .typo-finding-title i {
+  color: var(--yb-text-muted);
+  font-style: normal;
+}
+
+.blind-check-page .typo-original-excerpt {
+  margin: 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.blind-check-page .typo-original-excerpt mark {
+  padding: 1px 4px;
+  color: #9a3412;
+  font-weight: 900;
+  background: rgba(251, 191, 36, 0.38);
+  border-radius: 6px;
+}
+
+.blind-check-page .rejection-finding-detail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.blind-check-page .rejection-finding-detail-block {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 14px;
+  background: var(--yb-card-bg);
+  border: 1px solid var(--yb-border-soft);
+  border-radius: var(--yb-radius-lg);
+}
+
+.blind-check-page .rejection-finding-detail-block strong {
+  color: var(--yb-text);
+  font-size: 14px;
+}
+
+.blind-check-page .rejection-finding-markdown {
+  min-height: 0;
+  padding: 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  line-height: 1.7;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.blind-check-page .rejection-finding-markdown p,
+.blind-check-page .rejection-finding-markdown ul,
+.blind-check-page .rejection-finding-markdown ol {
+  margin: 0;
+}
+
+.blind-check-page .rejection-finding-empty {
+  flex: 1;
+  min-height: 220px;
+}
+
+.blind-check-page .rejection-finding-empty.is-error {
+  border-color: rgba(200, 50, 32, 0.18);
+}
+
+.blind-check-page .rejection-check-config-card {
+  width: min(560px, calc(100vw - 40px));
+}
+
+.blind-check-page .rejection-markdown-viewer,
+.blind-check-page .rejection-empty-reader {
+  min-height: 0;
+}

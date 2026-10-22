@@ -1,0 +1,10 @@
+.yb-progress-track { display: block; height: 8px; overflow: hidden; border-radius: 99px; background: var(--yb-border-soft); }
+.yb-progress-track > span { display: block; width: var(--progress); height: 100%; background: var(--yb-primary); transition: width .2s ease; }
+.yb-progress-track.is-success > span { background: #36a77a; }
+.yb-progress-track.is-warning > span { background: #c68a2a; }
+.yb-progress-track.is-sky > span { background: #389ec3; }
+.yb-progress-track.is-violet > span { background: var(--yb-violet); }
+.yb-progress-track.is-active > span { position: relative; overflow: hidden; }
+.yb-progress-track.is-active > span::after { position: absolute; inset: 0; content: ''; background: linear-gradient(100deg, transparent 15%, #ffffff75 50%, transparent 85%); transform: translateX(-100%); animation: yb-progress-sweep 1.8s ease-in-out infinite; }
+@keyframes yb-progress-sweep { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .yb-progress-track.is-active > span::after { animation: none; } }

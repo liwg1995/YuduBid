@@ -32,6 +32,27 @@ function invoke(channel, ...args) {
 }
 
 const bridge = {
+  blindCheck: {
+    selectCredentialCompany: (id) => invoke('full-blind-check:select-credential-company', id),
+    openFixedDocument: (path) => invoke('full-blind-check:open-export', path),
+    loadState: (...args) => invoke('full-blind-check:load-state', ...args),
+    importFile: (...args) => invoke('full-blind-check:import-file', ...args),
+    removeFile: (...args) => invoke('full-blind-check:remove-file', ...args),
+    saveUiState: (...args) => invoke('full-blind-check:save-ui-state', ...args),
+    listPresets: (...args) => invoke('full-blind-check:list-presets', ...args),
+    createPreset: (...args) => invoke('full-blind-check:create-preset', ...args),
+    updatePreset: (...args) => invoke('full-blind-check:update-preset', ...args),
+    deletePreset: (...args) => invoke('full-blind-check:delete-preset', ...args),
+    selectPreset: (...args) => invoke('full-blind-check:select-preset', ...args),
+    setUseCredentialWords: (...args) => invoke('full-blind-check:set-use-credential-words', ...args),
+    getCredentialWords: (...args) => invoke('full-blind-check:get-credential-words', ...args),
+    getInputSignature: (...args) => invoke('full-blind-check:get-input-signature', ...args),
+    saveFixRules: (...args) => invoke('full-blind-check:save-fix-rules', ...args),
+    saveFixedDocument: (...args) => invoke('full-blind-check:save-fixed-document', ...args),
+    getTenderSources: (...args) => invoke('full-blind-check:get-tender-sources', ...args),
+    clear: (...args) => invoke('full-blind-check:clear', ...args),
+
+  },
   appName: '禹都AI解决方案助手',
   platform: process.platform,
   getVersion: () => invoke('app:get-version'),
@@ -82,6 +103,8 @@ const bridge = {
     clear: () => invoke('usage-stats:clear'),
   },
   file: {
+    selectBlindCheckFile: (options) => invoke('full-blind-check:select-document', options),
+    selectBlindCheckTenderFile: () => invoke('full-blind-check:select-tender'),
     selectDuplicateCheckFiles: (options) => invoke('file:select-duplicate-check-files', options),
     getPathForFile: (file) => webUtils.getPathForFile(file),
   },
@@ -516,8 +539,12 @@ const bridge = {
   tasks: {
     startBidSectionExtraction: (payload) => invoke('tasks:start-bid-section-extraction', payload),
     startBidAnalysis: (payload) => invoke('tasks:start-bid-analysis', payload),
+    startBlindCheck: (payload) => invoke('full-blind-check:start-check', payload),
+    startBlindCheckFix: (payload) => invoke('full-blind-check:start-fix', payload),
+    startBlindCheckPresetExtraction: (payload) => invoke('full-blind-check:start-extraction', payload),
     startOutlineGeneration: (payload) => invoke('tasks:start-outline-generation', payload),
     pauseOutlineGeneration: (payload) => invoke('tasks:pause-outline-generation', payload),
+    answerOutlineQuestion: (payload) => invoke('tasks:answer-outline-question', payload),
     resumeOutlineGeneration: (payload) => invoke('tasks:resume-outline-generation', payload),
     stopOutlineGeneration: (payload) => invoke('tasks:stop-outline-generation', payload),
     startGlobalFactsGeneration: (payload) => invoke('tasks:start-global-facts-generation', payload),

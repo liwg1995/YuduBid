@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import type { ReactNode } from 'react';
+import './AppDialog.css';
 
 export interface AppDialogProps {
   open: boolean;

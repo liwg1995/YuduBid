@@ -1,0 +1,94 @@
+.startup-update-notice {
+  position: fixed;
+  top: 76px;
+  right: 24px;
+  z-index: 80;
+  width: min(360px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid var(--yb-border);
+  border-radius: 16px;
+  background: var(--yb-surface);
+  color: var(--yb-text);
+  box-shadow: 0 18px 48px rgba(17, 27, 49, 0.22);
+  animation: startup-update-arrive 220ms ease-out both;
+}
+
+.startup-update-notice-copy > span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--yb-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.startup-update-notice-copy > strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.startup-update-notice-copy > p {
+  margin: 7px 0 0;
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.startup-update-notice-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.startup-update-notice-actions button {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.startup-update-notice-actions .is-later {
+  border: 1px solid var(--yb-border);
+  background: var(--yb-control-bg);
+  color: var(--yb-text);
+}
+
+.startup-update-notice-actions .is-now {
+  border: 1px solid transparent;
+  background: var(--yb-action-gradient);
+  color: #fff;
+}
+
+.startup-update-notice-actions button:hover {
+  filter: brightness(1.06);
+}
+
+.startup-update-notice-actions button:focus-visible {
+  outline: 2px solid var(--yb-primary);
+  outline-offset: 2px;
+}
+
+.startup-update-notice.is-modern {
+  border-color: var(--yb-control-border);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes startup-update-arrive {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 600px) {
+  .startup-update-notice {
+    top: 64px;
+    right: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .startup-update-notice { animation: none; }
+}

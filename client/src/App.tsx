@@ -5,11 +5,14 @@ import ModernWelcomePage from './app/ModernWelcomePage';
 import { isSectionVisible } from './app/menuConfig';
 import AppShell from './components/AppShell';
 import type { FeatureModuleSettings } from './shared/types';
+import type { LatestReleaseInfo, UpdateSource } from './shared/types';
 import type { SectionId } from './shared/types/navigation';
 import type { PluginNavigationTarget } from './shared/types/plugin';
 import { canNavigateToSection } from './shared/navigationBlocker';
 import { shouldReduceMotion } from './shared/motionPreference';
 import { getStoredUiAppearance, UI_APPEARANCE_CHANGE_EVENT, type UiAppearance } from './shared/uiAppearance';
+import { compareReleaseVersions } from './shared/utils/releaseVersion';
+import './styles/startupUpdateNotice.css';
 
 const MODERN_WELCOME_STORAGE_KEY = 'yudubid-modern-welcome-v2';
 
@@ -52,6 +55,7 @@ const sectionIds = new Set<SectionId>([
   'knowledge-base',
   'duplicate-check',
   'rejection-check',
+  'blind-check',
   'bid-opportunity',
   'developer-test',
   'settings',
@@ -81,11 +85,28 @@ function App() {
   const [startupProgress, setStartupProgress] = useState(6);
   const [startupMessage, setStartupMessage] = useState('正在初始化本地配置...');
   const [startupDone, setStartupDone] = useState(false);
+  const [updateReminder, setUpdateReminder] = useState<LatestReleaseInfo | null>(null);
+  const [updateDialogRequest, setUpdateDialogRequest] = useState<{ id: number; release: LatestReleaseInfo } | null>(null);
   const sectionVisibilityRef = useRef({ developerMode, featureModuleSettings });
 
   useEffect(() => {
     sectionVisibilityRef.current = { developerMode, featureModuleSettings };
   }, [developerMode, featureModuleSettings]);
+
+  useEffect(() => {
+    if (!startupDone || !window.yibiao) return;
+    let canceled = false;
+    const storedSource = window.localStorage.getItem('yibiao-update-source');
+    const source: UpdateSource = storedSource === 'github' || storedSource === 'gitcode' ? storedSource : 'auto';
+    void Promise.all([window.yibiao.getVersion(), window.yibiao.getLatestVersion(source)])
+      .then(([currentVersion, release]) => {
+        if (!canceled && release?.version && !release.syncPending && compareReleaseVersions(release.version, currentVersion) > 0) {
+          setUpdateReminder(release);
+        }
+      })
+      .catch(() => undefined);
+    return () => { canceled = true; };
+  }, [startupDone]);
 
   useEffect(() => {
     let alive = true;
@@ -223,6 +244,16 @@ function App() {
     });
   }, [developerMode, featureModuleSettings]);
 
+  const openUpdateDialog = useCallback(() => {
+    if (!updateReminder) return;
+    void canNavigateToSection('settings').then((allowed) => {
+      if (!allowed) return;
+      setUpdateDialogRequest({ id: Date.now(), release: updateReminder });
+      setActiveSection('settings');
+      setUpdateReminder(null);
+    });
+  }, [updateReminder]);
+
   const startExploring = () => {
     if (modernWelcomeExiting) return;
     window.localStorage.setItem(MODERN_WELCOME_STORAGE_KEY, 'seen');
@@ -273,8 +304,23 @@ function App() {
             onSectionChange={changeSection}
             onDeveloperModeChange={setDeveloperMode}
             onFeatureModuleSettingsChange={setFeatureModuleSettings}
+            updateDialogRequest={updateDialogRequest}
+            onUpdateDialogRequestConsumed={() => setUpdateDialogRequest(null)}
           />
         </AppShell>
+      )}
+      {updateReminder && !showModernWelcome && (
+        <aside className={`startup-update-notice is-${uiAppearance}`} role="status" aria-label="发现新版本">
+          <div className="startup-update-notice-copy">
+            <span>版本更新</span>
+            <strong>发现新版本 {updateReminder.version}</strong>
+            <p>可前往更新详情，确认后手动下载并安装。</p>
+          </div>
+          <div className="startup-update-notice-actions">
+            <button type="button" className="is-later" onClick={() => setUpdateReminder(null)}>稍后更新</button>
+            <button type="button" className="is-now" onClick={openUpdateDialog}>立刻更新</button>
+          </div>
+        </aside>
       )}
       {showModernWelcome && <ModernWelcomePage exiting={modernWelcomeExiting} onStart={startExploring} />}
     </>

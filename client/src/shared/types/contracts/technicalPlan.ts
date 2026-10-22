@@ -59,6 +59,7 @@ export interface BackgroundTaskState {
   pause_requested?: boolean;
   stop_requested?: boolean;
   stats?: {
+    outlineQuestion?: { editable?: boolean; allowRevise?: boolean; id: string; message: string; items?: { id: string; title: string; description?: string }[] };
     globalFactsPolicy?: MissingFactPolicy;
     content?: {
       phase: 'planning' | 'generating' | 'outline-expanding' | 'expanding' | 'auditing' | 'illustrating' | 'layout-checking' | 'validating-images' | 'done';

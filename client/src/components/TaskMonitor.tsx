@@ -19,6 +19,9 @@ const taskNames: Record<string, string> = {
   'global-facts-generation': '全局事实设定',
   'content-generation': '正文生成',
   'rejection-items-extraction': '无效与废标项解析',
+  'blind-check-run': '暗标检查',
+  'blind-check-fix': '暗标自动修复',
+  'blind-check-preset-extraction': '暗标格式提取',
   'rejection-check-run': '废标项检查',
   'duplicate-analysis': '标书查重分析',
 };

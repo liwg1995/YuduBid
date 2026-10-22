@@ -1,30 +1,4 @@
 /* [11693-13102] export-format-*-/export-template-*(非select变体)/template-library-*-/template-delete-* 全部 + 内部media(860px/900px) */
-.yb-switch {
-  position: relative;
-  width: 42px;
-  height: 24px;
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: 999px;
-  background: #cfd6e3;
-  cursor: pointer;
-  transition: background var(--yb-duration-fast) ease;
-}
-.yb-switch[data-state='checked'] { background: var(--yb-primary); }
-.yb-switch[data-disabled] { cursor: not-allowed; opacity: .55; }
-.yb-switch-thumb {
-  display: block;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(23, 32, 51, .2);
-  transform: translateX(3px);
-  transition: transform var(--yb-duration-fast) ease;
-}
-.yb-switch-thumb[data-state='checked'] { transform: translateX(21px); }
-.yb-progress-track { display: block; height: 8px; overflow: hidden; border-radius: 99px; background: #e8edf6; }
-.yb-progress-track > span { display: block; width: var(--progress); height: 100%; background: var(--yb-primary); transition: width .2s ease; }
 /* ═══════════════════════════════════════════════════
    导出格式设置页
    ═══════════════════════════════════════════════════ */

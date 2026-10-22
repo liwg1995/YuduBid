@@ -1542,6 +1542,9 @@ function RejectionCheckPage() {
     || visibleTypoCheckStatus === 'error'
     || visibleLogicCheckStatus === 'success'
     || visibleLogicCheckStatus === 'error';
+  const hasExportableCheckResult = visibleRejectionCheckStatus === 'success'
+    || visibleTypoCheckStatus === 'success'
+    || visibleLogicCheckStatus === 'success';
   const checkActionLabel = checkRunning
     ? '检查中...'
     : hasVisibleCheckResult
@@ -1771,7 +1774,14 @@ function RejectionCheckPage() {
   const toolbarGroups: FloatingToolbarGroup[] = [
     {
       id: 'rejection-check-export',
-      actions: [{ id: 'export-excel', label: '导出 Excel', disabled: extractionRunning || checkRunning, tooltip: '导出当前废标检查结果', onClick: exportExcel }],
+      actions: [{
+        id: 'export-excel',
+        label: '导出 Excel',
+        variant: hasExportableCheckResult ? 'primary' : 'secondary',
+        disabled: !hasExportableCheckResult || extractionRunning || checkRunning,
+        tooltip: hasExportableCheckResult ? '导出当前废标检查结果（含待人工确认项）' : '检查完成后可导出 Excel',
+        onClick: exportExcel,
+      }],
     },
     {
       id: 'rejection-check-reset',

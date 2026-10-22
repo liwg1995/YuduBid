@@ -55,6 +55,7 @@ export const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGEle
   'image-knowledge-base': ChartModelIcon,
   'duplicate-check': CompareIcon,
   'rejection-check': ShieldIcon,
+  'blind-check': ShieldIcon,
   'bid-opportunity': RadarIcon,
   'developer-test': FlaskIcon,
   settings: GearIcon,

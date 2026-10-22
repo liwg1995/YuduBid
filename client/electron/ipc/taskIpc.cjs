@@ -9,6 +9,10 @@ function registerTaskIpc({ taskService }) {
     taskService.subscribe(event.sender);
     return taskService.startBidAnalysis(payload);
   });
+  ipcMain.handle('tasks:answer-outline-question', (event, payload) => {
+    taskService.subscribe(event.sender);
+    return taskService.answerOutlineQuestion(payload);
+  });
   ipcMain.handle('tasks:start-outline-generation', (event, payload) => {
     taskService.subscribe(event.sender);
     return taskService.startOutlineGeneration(payload);

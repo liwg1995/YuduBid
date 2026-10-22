@@ -1111,3 +1111,120 @@ CREATE INDEX IF NOT EXISTS idx_credential_library_employees_company ON credentia
 CREATE INDEX IF NOT EXISTS idx_credential_library_projects_company ON credential_library_projects(company_id);
 CREATE INDEX IF NOT EXISTS idx_credential_library_other_materials_company ON credential_library_other_materials(company_id);
 CREATE INDEX IF NOT EXISTS idx_credential_library_images_company ON credential_library_images(company_id);
+
+
+-- 完整暗标检查、复核、修复与预设（迁移 v33/v34）
+CREATE TABLE blind_check_finding_groups (
+      group_id TEXT PRIMARY KEY,
+      rule_id TEXT NOT NULL,
+      rule_title TEXT NOT NULL,
+      category TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      message TEXT NOT NULL,
+      finding_count INTEGER NOT NULL DEFAULT 0,
+      samples_json TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    , candidate INTEGER NOT NULL DEFAULT 0, items_json TEXT);
+
+CREATE TABLE blind_check_fix_groups (
+      group_id TEXT PRIMARY KEY,
+      rule_id TEXT NOT NULL,
+      rule_title TEXT NOT NULL,
+      category TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      message TEXT NOT NULL,
+      finding_count INTEGER NOT NULL DEFAULT 0,
+      samples_json TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+
+CREATE TABLE blind_check_fix_results (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      status TEXT NOT NULL DEFAULT 'idle',
+      input_signature TEXT,
+      fix_rules_json TEXT,
+      output_path TEXT,
+      source_bytes INTEGER NOT NULL DEFAULT 0,
+      output_bytes INTEGER NOT NULL DEFAULT 0,
+      fixes_json TEXT,
+      notes_json TEXT,
+      validation_json TEXT,
+      before_summary_json TEXT,
+      before_rule_counts_json TEXT,
+      after_summary_json TEXT,
+      after_stats_json TEXT,
+      error TEXT,
+      updated_at TEXT
+    , items_json TEXT, new_groups_json TEXT, clauses_json TEXT, agent_json TEXT);
+
+CREATE TABLE blind_check_meta (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      step TEXT NOT NULL DEFAULT 'upload',
+      preset_id TEXT NOT NULL DEFAULT 'builtin-general',
+      preset_tab TEXT NOT NULL DEFAULT 'page',
+      result_tab TEXT NOT NULL DEFAULT 'all',
+      use_credential_words INTEGER NOT NULL DEFAULT 1,
+      file_id TEXT,
+      file_name TEXT,
+      source_path TEXT,
+      original_path TEXT,
+      file_size INTEGER NOT NULL DEFAULT 0,
+      file_modified_at TEXT,
+      content_hash TEXT,
+      imported_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    , credential_company_id TEXT NOT NULL DEFAULT '', fix_rules_json TEXT, fix_ai_enabled INTEGER NOT NULL DEFAULT 1, ai_review_enabled INTEGER NOT NULL DEFAULT 1);
+
+CREATE TABLE blind_check_presets (
+      preset_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      profile_json TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    , source_json TEXT);
+
+CREATE TABLE blind_check_results (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      status TEXT NOT NULL DEFAULT 'idle',
+      input_signature TEXT,
+      preset_name TEXT,
+      summary_json TEXT,
+      stats_json TEXT,
+      rule_errors_json TEXT,
+      error TEXT,
+      updated_at TEXT
+    );
+
+CREATE TABLE blind_check_reviews (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      status TEXT NOT NULL DEFAULT 'idle',
+      input_signature TEXT,
+      tender_name TEXT,
+      review_json TEXT,
+      error TEXT,
+      updated_at TEXT
+    );
+
+CREATE TABLE blind_check_task_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, task_domain TEXT NOT NULL, task_type TEXT NOT NULL, task_id TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT NOT NULL);
+
+CREATE TABLE blind_check_tasks (
+      type TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      progress INTEGER NOT NULL DEFAULT 0,
+      stats_json TEXT,
+      error TEXT,
+      started_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+CREATE INDEX idx_blind_check_finding_groups_order
+    ON blind_check_finding_groups(sort_order);
+
+CREATE INDEX idx_blind_check_fix_groups_order
+    ON blind_check_fix_groups(sort_order);
+
+CREATE INDEX idx_blind_task_logs ON blind_check_task_logs(task_domain, task_type, id);

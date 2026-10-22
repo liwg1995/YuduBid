@@ -1631,6 +1631,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           outlineMode={state.outlineMode}
           referenceKnowledgeDocumentIds={state.referenceKnowledgeDocumentIds}
           outlineData={state.outlineData}
+          mutationLocked={[state.contentGenerationTask, state.globalFactsTask].some(task => ['running', 'pausing', 'paused', 'stopping'].includes(task?.status || ''))}
           task={state.outlineGenerationTask}
           openGenerationConfigRequestId={navigationTarget?.panelId === 'outline-generation-config' ? navigationTarget.requestId : undefined}
           onOutlineConfigChange={async (outlineMode, referenceKnowledgeDocumentIds) => {
@@ -1638,23 +1639,11 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
             if (!saved) throw new Error('目录生成配置未能写入当前项目，请重试');
             setState((prev) => ({ ...prev, ...saved }));
           }}
-          onOutlineGenerated={(outlineData) => {
+          onOutlineGenerated={async (outlineData) => {
             const nextOutlineData = resetGeneratedContent(outlineData);
-            setState((prev) => ({
-              ...prev,
-              outlineData: nextOutlineData,
-              globalFactsTask: undefined,
-              globalFacts: [],
-              contentGenerationTask: undefined,
-              contentGenerationSections: {},
-              contentGenerationPlans: {},
-              contentGenerationRuntime: undefined,
-            }));
-            window.yibiao?.technicalPlan.saveOutline({ workflowKind, projectId, outlineData: nextOutlineData }).then((saved) => {
-              setState((prev) => ({ ...prev, ...saved }));
-            }).catch((error) => {
-              showToast(error instanceof Error ? error.message : '保存目录失败', 'error');
-            });
+            const saved = await window.yibiao?.technicalPlan.saveOutline({ workflowKind, projectId, outlineData: nextOutlineData });
+            if (!saved) throw new Error('目录未能保存，请重试');
+            setState((prev) => ({ ...prev, ...saved }));
           }}
         />
       )}

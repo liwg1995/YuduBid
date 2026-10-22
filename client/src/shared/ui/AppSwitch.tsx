@@ -1,3 +1,4 @@
+import './AppSwitch.css';
 import * as Switch from '@radix-ui/react-switch';
 
 export interface AppSwitchProps {

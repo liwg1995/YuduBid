@@ -9821,8 +9821,8 @@ button {
   top: 50%;
   left: 50%;
   z-index: 101;
-  display: grid;
-  grid-template-rows: auto minmax(120px, 1fr) auto auto auto;
+  display: flex;
+  flex-direction: column;
   width: min(720px, calc(100vw - 40px));
   max-height: min(780px, calc(100vh - 40px));
   gap: 16px;
@@ -9841,6 +9841,7 @@ button {
 .release-detail-head {
   position: relative;
   display: grid;
+  flex: 0 0 auto;
   gap: 8px;
   padding-right: 36px;
 }
@@ -9869,6 +9870,7 @@ button {
 }
 
 .agnes-notice-card {
+  display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(820px, calc(100vw - 40px));
 }
@@ -9902,7 +9904,8 @@ button {
 }
 
 .release-detail-body {
-  min-height: 120px;
+  min-height: 0;
+  flex: 1 1 auto;
   max-height: none;
   padding: 16px;
   overflow: auto;
@@ -9917,6 +9920,7 @@ button {
 
 .release-detail-download-name {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -9952,6 +9956,7 @@ button {
 
 .release-download-progress {
   display: grid;
+  flex: 0 0 auto;
   gap: 8px;
   padding: 12px 14px;
   color: var(--yb-text-soft);
@@ -10001,6 +10006,23 @@ button {
   background: linear-gradient(135deg, #ff4d67, #ff8a3d);
 }
 
+.release-download-progress.is-downloaded {
+  gap: 6px;
+}
+
+.release-download-progress.is-downloaded .release-download-progress-head strong::before {
+  content: '✓';
+  display: inline-grid;
+  width: 19px;
+  height: 19px;
+  margin-right: 8px;
+  place-items: center;
+  color: #fff;
+  background: #14a86b;
+  border-radius: 50%;
+  font-size: 12px;
+}
+
 .release-download-progress p {
   margin: 0;
   color: var(--yb-text-muted);
@@ -10009,8 +10031,9 @@ button {
 
 .release-download-path-row {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   min-width: 0;
   color: var(--yb-text-muted);
   font-size: 12px;
@@ -10018,14 +10041,27 @@ button {
 
 .release-download-path-row span {
   min-width: 0;
-  max-width: 58%;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+@media (max-width: 620px) {
+  .release-download-path-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .release-download-path-row span {
+    max-width: 100%;
+  }
+}
+
 .release-detail-actions {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
@@ -14174,7 +14210,7 @@ button {
 }
 
 /* 查重和废标页本身会滚动，工具条始终锚定窗口底部。 */
-.app-shell :is(.duplicate-check-page, .rejection-check-page) > .floating-toolbar {
+.app-shell :is(.duplicate-check-page, .rejection-check-page, .blind-check-page) > .floating-toolbar {
   position: fixed;
   right: 42px;
   bottom: 28px;
@@ -14182,14 +14218,14 @@ button {
   max-width: calc(100vw - 286px - 84px);
 }
 
-.app-shell:has(.sidebar.is-collapsed) :is(.duplicate-check-page, .rejection-check-page) > .floating-toolbar {
+.app-shell:has(.sidebar.is-collapsed) :is(.duplicate-check-page, .rejection-check-page, .blind-check-page) > .floating-toolbar {
   left: calc(86px + 42px);
   max-width: calc(100vw - 86px - 84px);
 }
 
 @media (max-width: 860px) {
-  .app-shell :is(.duplicate-check-page, .rejection-check-page) > .floating-toolbar,
-  .app-shell:has(.sidebar.is-collapsed) :is(.duplicate-check-page, .rejection-check-page) > .floating-toolbar {
+  .app-shell :is(.duplicate-check-page, .rejection-check-page, .blind-check-page) > .floating-toolbar,
+  .app-shell:has(.sidebar.is-collapsed) :is(.duplicate-check-page, .rejection-check-page, .blind-check-page) > .floating-toolbar {
     right: 14px;
     bottom: 18px;
     left: 14px;

@@ -1,7 +1,9 @@
+const { createFullBlindCheckController } = require('../services/blind-check-upstream/controller.cjs');
+const { registerFullBlindCheckIpc } = require('./fullBlindCheckIpc.cjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { dialog, ipcMain, shell } = require('electron');
+const { BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { registerAiIpc } = require('./aiIpc.cjs');
 const { registerAgentIpc } = require('./agentIpc.cjs');
 const { registerBidOpportunityIpc } = require('./bidOpportunityIpc.cjs');
@@ -973,6 +975,10 @@ function registerIpcHandlers({ app, mainWindow, appLogger = createAppLogger(app)
       knowledgeBaseService,
       onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
     });
+    const fullBlindCheckController = createFullBlindCheckController({ app, db: sqliteDatabase.db, aiService, configStore, credentialLibraryService, technicalPlanStore: technicalPlanStoreRouter, dialog, shell, emit: event => { for (const window of BrowserWindow.getAllWindows()) if (!window.webContents.isDestroyed()) window.webContents.send('tasks:event', event); } });
+    const getBaseActiveTasks = taskService.getActiveTasks.bind(taskService);
+    taskService.getActiveTasks = () => [...getBaseActiveTasks(), ...fullBlindCheckController.getActiveTasks()];
+    registerFullBlindCheckIpc({ controller: fullBlindCheckController, dialog });
     registerKnowledgeBaseIpc({ knowledgeBaseService, knowledgeImageService });
     registerCredentialLibraryIpc({ credentialLibraryService, configStore });
     registerTemplateIpc({ templateStore });

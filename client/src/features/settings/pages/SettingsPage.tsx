@@ -725,6 +725,8 @@ function normalizeFeatureModuleSettings(settings?: Partial<FeatureModuleSettings
 interface SettingsPageProps {
   onDeveloperModeChange?: (developerMode: boolean) => void;
   onFeatureModuleSettingsChange?: (settings: FeatureModuleSettings) => void;
+  updateDialogRequest?: { id: number; release: LatestReleaseInfo } | null;
+  onUpdateDialogRequestConsumed?: () => void;
 }
 
 function UsageTrendChart({ trend, range }: { trend: UsageStatsSummary['trend']; range: UsageTrendRange }) {
@@ -793,7 +795,7 @@ function getInitialSettingsTab(): SettingsTab {
   return DEFAULT_SETTINGS_TAB;
 }
 
-function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: SettingsPageProps) {
+function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, updateDialogRequest, onUpdateDialogRequestConsumed }: SettingsPageProps) {
   const [state, setState] = useState<SettingsPageState>(initialState);
   const [uiThemePreference, setUiThemePreference] = useState<UiThemePreference>(getStoredUiThemePreference);
   const [uiAppearance, setUiAppearance] = useState<UiAppearance>(getStoredUiAppearance);
@@ -844,6 +846,14 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   const [agnesNoticeOpen, setAgnesNoticeOpen] = useState(false);
   const [localModelHelpKind, setLocalModelHelpKind] = useState<LocalModelHelpKind | null>(null);
   const [releaseDownloadState, setReleaseDownloadState] = useState<ReleaseDownloadState>(() => createInitialReleaseDownloadState());
+  useEffect(() => {
+    if (!updateDialogRequest) return;
+    setActiveTab('about');
+    window.localStorage.setItem(SETTINGS_ACTIVE_TAB_KEY, 'about');
+    setLatestRelease(updateDialogRequest.release);
+    setReleaseDialogOpen(true);
+    onUpdateDialogRequestConsumed?.();
+  }, [updateDialogRequest?.id]);
   const [usageStats, setUsageStats] = useState<UsageStatsSummary | null>(null);
   const [usageRange, setUsageRange] = useState<UsageTrendRange>('14d');
   const { showToast } = useToast();
@@ -885,20 +895,21 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
   useEffect(() => {
     const unsubscribe = window.yibiao?.onUpdateProgress?.((event: UpdateProgressEvent) => {
       setReleaseDownloadState((prev) => {
-        if (prev.status !== 'downloading' && prev.status !== 'downloaded') {
+        if (prev.status !== 'downloading') {
           return prev;
         }
         const percent = Math.max(0, Math.min(100, Number(event.percent || 0)));
         return {
           ...prev,
-          status: percent >= 100 ? 'downloaded' : 'downloading',
+          // 100% 只表示文件传输结束；Main 仍需完成大小和 SHA-256 校验。
+          status: 'downloading',
           percent,
           transferred: Number(event.transferred || prev.transferred || 0),
           total: Number(event.total || prev.total || 0),
           bytesPerSecond: Number(event.bytesPerSecond || 0),
           fileName: event.fileName || prev.fileName,
           version: event.version || prev.version,
-          message: percent >= 100 ? '安装包已下载完成' : '正在下载安装包',
+          message: percent >= 100 ? '下载完成，正在校验安装包' : '正在下载安装包',
         };
       });
     });
@@ -2741,7 +2752,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                     <p>该版本暂未填写更新详情。</p>
                   )}
                 </div>
-                {latestRelease?.download_name && latestDownloadUrl && (
+                {latestRelease?.download_name && latestDownloadUrl && !releaseDownloaded && (
                   <div className="release-detail-download-name">已匹配当前系统安装包：{latestRelease.download_name}</div>
                 )}
                 {latestRelease && !latestDownloadUrl && (
@@ -2756,29 +2767,29 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange }: 
                   <div className={`release-download-progress is-${releaseDownloadState.status}`}>
                     <div className="release-download-progress-head">
                       <strong>
-                        {releaseDownloaded ? '安装包已准备好' : releaseDownloading ? '正在下载安装包' : releaseDownloadState.status === 'error' ? '下载失败' : '安装包大小'}
+                        {releaseDownloaded ? '安装包已准备好' : releaseDownloading ? (releaseDownloadState.percent >= 100 ? '正在校验安装包' : '正在下载安装包') : releaseDownloadState.status === 'error' ? '下载失败' : '安装包大小'}
                       </strong>
-                      <span>{Math.round(releaseDownloadState.percent)}%</span>
+                      {!releaseDownloaded && <span>{Math.round(releaseDownloadState.percent)}%</span>}
                     </div>
-                    <div className="release-download-progress-track" aria-hidden="true">
-                      <span style={{ width: `${Math.max(0, Math.min(100, releaseDownloadState.percent))}%` }} />
-                    </div>
-                    <p>
-                      {releaseDownloadState.message || releaseProgressText}
-                      {releaseSpeedText ? ` · ${releaseSpeedText}` : ''}
-                    </p>
+                    {!releaseDownloaded && <>
+                      <div className="release-download-progress-track" aria-hidden="true">
+                        <span style={{ width: `${Math.max(0, Math.min(100, releaseDownloadState.percent))}%` }} />
+                      </div>
+                      <p>
+                        {releaseDownloadState.message || releaseProgressText}
+                        {releaseSpeedText ? ` · ${releaseSpeedText}` : ''}
+                      </p>
+                    </>}
                     {releaseDownloaded && (
                       <div className="release-download-path-row">
-                        <button type="button" onClick={() => { void showDownloadedRelease(); }}>
-                          最新安装包路径
-                        </button>
                         <span title={releaseDownloadState.filePath || releaseDownloadState.fileName}>
-                          {releaseDownloadState.fileName || '打开所在文件夹'}
+                          {releaseDownloadState.fileName || '安装包已下载完成'}
                         </span>
+                        <button type="button" onClick={() => { void showDownloadedRelease(); }}>打开安装包位置</button>
                       </div>
                     )}
                     {releaseDownloaded && window.yibiao?.platform === 'darwin' && releaseDownloadState.fileName.toLowerCase().endsWith('.dmg') && (
-                      <p>点击“立即安装”后应用会退出；在弹出的安装窗口中将应用拖入“应用程序”。</p>
+                      <p>点击“立即安装”后应用将退出。打开安装镜像后，将应用拖入“应用程序”。</p>
                     )}
                   </div>
                 )}

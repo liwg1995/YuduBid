@@ -27,21 +27,33 @@ async function runCase(scoreContent, payload, responseFileRequirements, behavior
         value = { groups: [{ requirement_id: 'R1', title: '技术方案', description: '服务方案', detail_points: ['人员安排'] }] };
       } else if (options.progressLabel === '完整目录') {
         if (behavior.failFull) throw new Error('模型返回的目录数据格式无效');
-        value = behavior.missingMetadata
+        value = behavior.shallowChapter
+          ? { outline: [
+            { id: '1', title: '技术方案', children: [{ id: '1.1', title: '人员安排' }] },
+            { id: '2', title: '实施方案', children: [{ id: '2.1', title: '部署实施', children: [{ id: '2.1.1', title: '验证步骤' }] }] },
+          ] }
+          : behavior.missingMetadata
           ? { outline: [{ title: '技术方案', children: [{ title: '人员安排', children: [{ title: '岗位配置' }] }] }] }
           : { outline: [{ id: '1', title: '技术方案', description: '服务方案', children: [{ id: '1.1', title: '人员安排', description: '人员安排', children: [{ id: '1.1.1', title: '岗位配置', description: '岗位配置' }] }] }] };
       } else if (options.progressLabel === '一级目录') {
         value = { outline: [{ title: '技术方案' }] };
       } else if (options.progressLabel?.includes('子目录')) {
-        value = { children: [{ id: '1.1', title: '人员安排', description: '人员安排', children: [{ id: '1.1.1', title: '岗位配置', description: '岗位配置' }] }] };
+        value = behavior.shallowChildren
+          ? { children: [{ id: '1.1', title: '人员安排', description: '人员安排' }] }
+          : { children: [{ id: '1.1', title: '人员安排', description: '人员安排', children: [{ id: '1.1.1', title: '岗位配置', description: '岗位配置' }] }] };
       } else if (options.progressLabel?.includes('审核')) {
         value = { passed: true, suggestions: [] };
       } else {
         throw new Error(`未预期的模型请求：${options.progressLabel}`);
       }
-      const normalized = options.normalizer ? options.normalizer(value) : value;
-      options.validator?.(normalized);
-      return normalized;
+      try {
+        const normalized = options.normalizer ? options.normalizer(value) : value;
+        options.validator?.(normalized);
+        return normalized;
+      } catch (error) {
+        if (!behavior.shallowChapter && !behavior.shallowChildren) throw error;
+        throw new Error(options.failureMessage || error.message);
+      }
     },
   };
   const workspaceStore = {
@@ -102,5 +114,13 @@ async function runCase(scoreContent, payload, responseFileRequirements, behavior
   assert.equal(earlyFallback.calls.filter((call) => call.progressLabel === '完整目录').length, 1);
   assert.equal(earlyFallback.calls.find((call) => call.progressLabel === '完整目录').max_retries, 0);
   assert(earlyFallback.calls.some((call) => call.progressLabel === '一级目录'));
+  const incompleteFull = await runCase('实施方案 20 分', { mode: 'free' }, undefined, { shallowChapter: true });
+  assert(incompleteFull.calls.some((call) => call.progressLabel === '一级目录'), '某个一级章仅有二级目录时应分步重生成');
+  assert.equal(incompleteFull.plan.outlineData.outline[0].children[0].children.length, 1);
+  await assert.rejects(
+    runCase('实施方案 20 分', { mode: 'aligned' }, undefined, { shallowChildren: true }),
+    /模型返回的目录数据格式无效/,
+    '分步生成时不能把缺少三级目录的章节保存为成功',
+  );
   console.log('目录生成模式分流与无技术评分项流程验证通过');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

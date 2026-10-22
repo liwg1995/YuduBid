@@ -1,0 +1,130 @@
+.blind-check-option-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.blind-check-option-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 14px;
+  color: var(--yb-text);
+  font: inherit;
+  text-align: left;
+  background: var(--yb-surface);
+  border: 1px solid var(--yb-border);
+  border-radius: var(--yb-radius-md);
+  cursor: pointer;
+  transition: background var(--yb-duration-fast) ease, border-color var(--yb-duration-fast) ease, box-shadow var(--yb-duration-fast) ease;
+}
+
+/* 用内阴影补出 2px 描边，标出与否卡片尺寸不变 */
+.blind-check-option-card.is-highlighted {
+  background: rgba(33, 116, 253, 0.04);
+  border-color: var(--yb-primary);
+  box-shadow: inset 0 0 0 1px var(--yb-primary);
+}
+
+.blind-check-option-card:hover:not(:disabled) {
+  background: rgba(33, 116, 253, 0.05);
+  border-color: var(--yb-primary);
+}
+
+.blind-check-option-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--yb-primary) 20%, transparent);
+}
+
+.blind-check-option-card.is-highlighted:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--yb-primary), 0 0 0 3px color-mix(in srgb, var(--yb-primary) 20%, transparent);
+}
+
+.blind-check-option-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.blind-check-option-card-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: var(--yb-text-soft);
+  background: var(--yb-bg);
+  border: 1px solid var(--yb-border-soft);
+  border-radius: 10px;
+  transition: color var(--yb-duration-fast) ease, background var(--yb-duration-fast) ease, border-color var(--yb-duration-fast) ease;
+}
+
+.blind-check-option-card-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.blind-check-option-card.is-highlighted .blind-check-option-card-icon,
+.blind-check-option-card:hover:not(:disabled) .blind-check-option-card-icon {
+  color: var(--yb-primary);
+  background: rgba(33, 116, 253, 0.1);
+  border-color: transparent;
+}
+
+.blind-check-option-card-body {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 深色弹窗的通用 *-body 表面规则会误中选项文字容器，形成一条深色长框。 */
+:root[data-ui-theme="dark"] body [role="dialog"] .blind-check-option-card-body {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.blind-check-option-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.blind-check-option-card-title strong {
+  font-size: 14px;
+}
+
+.blind-check-option-card-badge {
+  padding: 1px 8px;
+  color: var(--yb-primary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  background: rgba(33, 116, 253, 0.1);
+  border-radius: var(--yb-radius-pill);
+}
+
+.blind-check-option-card-description {
+  color: var(--yb-text-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.blind-check-option-card-arrow {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--yb-text-muted);
+  transition: color var(--yb-duration-fast) ease, transform var(--yb-duration-fast) ease;
+}
+
+.blind-check-option-card.is-highlighted .blind-check-option-card-arrow {
+  color: var(--yb-primary);
+}
+
+.blind-check-option-card:hover:not(:disabled) .blind-check-option-card-arrow {
+  color: var(--yb-primary);
+  transform: translateX(2px);
+}

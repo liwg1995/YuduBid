@@ -499,6 +499,7 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     let currentTask = task;
     const outlineAbortController = type === 'outline-generation' ? new AbortController() : null;
     let releaseOutlinePause = null;
+    let pendingAnswer = null;
     const taskControl = {
       pauseRequested: false,
       stopRequested: false,
@@ -529,9 +530,41 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
         const state = updateWorkspaceState(definition, { [taskField]: stoppingTask }, taskWorkflowKind, taskProjectId);
         emit(stoppingTask, buildSnapshot(definition, state, stoppingTask));
         outlineAbortController?.abort();
+        pendingAnswer?.resolve(null);
+        pendingAnswer = null;
         releaseOutlinePause?.();
         releaseOutlinePause = null;
         return stoppingTask;
+      },
+      async ask(question) {
+        if (this.stopRequested) throw new Error('目录生成已停止');
+        const answer = new Promise((resolve) => { pendingAnswer = { question, resolve }; });
+        const waiting = updateTask({ stats: { ...currentTask.stats, outlineQuestion: question } });
+        const state = updateWorkspaceState(definition, { [taskField]: waiting }, taskWorkflowKind, taskProjectId);
+        emit(waiting, buildSnapshot(definition, state, waiting));
+        const result = await answer;
+        if (this.stopRequested) throw new Error('目录生成已停止');
+        return result;
+      },
+      answer(questionId, answer) {
+        if (!pendingAnswer || pendingAnswer.question.id !== questionId) throw new Error('该问题已处理，请刷新页面');
+        const pending = pendingAnswer;
+        const selected = pending.question.items?.filter((item) => answer.selectedIds?.includes(item.id)).map((item) => {
+          const edit = pending.question.editable && Array.isArray(answer.items) ? answer.items.find((value) => value.id === item.id) : null;
+          if (!edit) return item;
+          const title = String(edit.title || '').trim();
+          if (!title || title.length > 200) throw new Error('目录标题不能为空且不能超过 200 字');
+          return { ...item, title, description: String(edit.description || '').trim().slice(0, 4000) };
+        });
+        if (selected && !selected.length) throw new Error('请至少选择一个一级目录');
+        if (selected && new Set(selected.map(item => item.title)).size !== selected.length) throw new Error('一级目录标题不能重复');
+        if (!selected && !(pending.question.allowRevise ? ['continue', 'stop', 'revise'] : ['continue', 'stop']).includes(answer.action)) throw new Error('请选择处理方式');
+        pendingAnswer = null;
+        const next = updateTask({ stats: { ...currentTask.stats, outlineQuestion: undefined } });
+        const state = updateWorkspaceState(definition, { [taskField]: next }, taskWorkflowKind, taskProjectId);
+        emit(next, buildSnapshot(definition, state, next));
+        pending.resolve(selected ? { ...answer, items: selected } : answer);
+        return next;
       },
       async checkpoint() {
         if (this.stopRequested) throw new Error('目录生成已停止');
@@ -886,6 +919,12 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
       if (task?.status === 'paused' || task?.status === 'pausing') return task;
       if (task?.status !== 'running' || !control) throw new Error('当前没有正在生成的目录任务。');
       return control.requestPause();
+    },
+    answerOutlineQuestion(payload) {
+      const task = activeTasks.get('outline-generation');
+      const control = activeTaskControls.get('outline-generation');
+      if (!task || task.task_id !== payload.taskId || !control) throw new Error('目录任务已结束，请重新生成');
+      return control.answer(payload.questionId, payload.answer || {});
     },
     resumeOutlineGeneration(payload) {
       const task = getMatchingOutlineTask(payload);
