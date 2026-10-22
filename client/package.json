@@ -79,7 +79,6 @@
       "electron/**/*",
       "assets/icon.ico",
       "assets/icon_256.png",
-      "vendor/**/*",
       "package.json"
     ],
     "extraResources": [
@@ -147,6 +146,7 @@
     "@radix-ui/react-icons": "^1.3.2",
     "@xmldom/xmldom": "^0.8.15",
     "adm-zip": "^0.6.1",
+    "ajv": "^8.20.0",
     "better-sqlite3": "^12.10.0",
     "cfb": "^1.2.2",
     "chardet": "^2.1.1",

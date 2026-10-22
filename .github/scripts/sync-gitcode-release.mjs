@@ -11,6 +11,7 @@ const directory = process.argv[2];
 const githubRepository = process.env.GITHUB_REPOSITORY;
 const githubToken = process.env.GITHUB_TOKEN;
 const notesOnly = directory === '--notes-only';
+const replaceExisting = process.env.REPLACE_EXISTING_RELEASE === 'true';
 
 if (![token, owner, repo, tag, githubRepository, githubToken].every(Boolean) || (!notesOnly && !directory)) {
   throw new Error('GitCode credentials, GitHub release credentials, tag and asset directory are required');
@@ -104,7 +105,7 @@ async function main() {
   const files = (await readdir(directory)).sort().map((name) => join(directory, name));
   if (!files.length) throw new Error('No release assets found');
 
-  await runGit(['push', `https://gitcode.com/${repoPath}.git`, `refs/tags/${tag}:refs/tags/${tag}`]);
+  await runGit(['push', `https://gitcode.com/${repoPath}.git`, `${replaceExisting ? '+' : ''}refs/tags/${tag}:refs/tags/${tag}`]);
   let release = await request(releasePath, { allow404: true });
   if (!release) {
     await request('/releases', { method: 'POST', body: JSON.stringify({ tag_name: tag, ...releaseInfo, release_status: 'pre' }) });
@@ -118,8 +119,12 @@ async function main() {
   for (const file of files) {
     const size = (await stat(file)).size;
     const asset = existing.get(basename(file));
-    if (asset && (knownAssetSize(asset) === null || knownAssetSize(asset) === size)) continue;
-    if (asset) throw new Error(`Existing GitCode asset differs in size: ${basename(file)} (local=${size}, remote=${knownAssetSize(asset)})`);
+    if (asset && !replaceExisting && (knownAssetSize(asset) === null || knownAssetSize(asset) === size)) continue;
+    if (asset && !replaceExisting) throw new Error(`Existing GitCode asset differs in size: ${basename(file)} (local=${size}, remote=${knownAssetSize(asset)})`);
+    if (asset) {
+      if (!asset.id) throw new Error(`GitCode asset ID is missing: ${basename(file)}`);
+      await request(`${releasePath}/attach_files/${encodeURIComponent(asset.id)}`, { method: 'DELETE' });
+    }
     console.log(`Uploading ${basename(file)} (${size} bytes)`);
     await uploadAsset(file);
   }

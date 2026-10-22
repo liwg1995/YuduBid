@@ -84,10 +84,6 @@ jobs:
         if: runner.os == 'Windows'
         run: npm run build:blind-helper -- win-x64
 
-      - name: Build OpenXML helper (macOS)
-        if: runner.os == 'macOS'
-        run: npm run build:blind-helper -- osx-x64 osx-arm64
-
       - name: Smoke test Electron native dependencies
         run: npm run smoke:electron-native
 
@@ -162,17 +158,19 @@ jobs:
           export ELECTRON_CACHE="$HOME/Library/Caches/electron"
           export ELECTRON_BUILDER_CACHE="$HOME/Library/Caches/electron-builder"
 
-          for attempt in 1 2 3; do
-            echo "Build macOS artifacts, attempt ${attempt}/3."
-            if npx electron-builder --mac --publish never; then
-              exit 0
-            fi
-
-            if [ "$attempt" -eq 3 ]; then
-              exit 1
-            fi
-
-            sleep $((attempt * 20))
+          for arch in x64 arm64; do
+            rm -rf vendor/openxmlhelper
+            npm run build:blind-helper -- "osx-${arch}"
+            for attempt in 1 2 3; do
+              echo "Build macOS ${arch} artifacts, attempt ${attempt}/3."
+              if npx electron-builder --mac dmg --"${arch}" --publish never; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                exit 1
+              fi
+              sleep $((attempt * 20))
+            done
           done
 
       - name: Package macOS DMG with instructions
@@ -327,6 +325,7 @@ jobs:
           ATOMGIT_REPO: ${{ vars.ATOMGIT_REPO }}
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPLACE_EXISTING_RELEASE: ${{ github.event.forced == true }}
         run: |
           (cd release-assets && shasum -a 256 -c *-sha256.txt)
           node .github/scripts/sync-gitcode-release.mjs release-assets
