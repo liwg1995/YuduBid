@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { getBidAnalysisTasks } = require('../electron/services/bidAnalysisTask.cjs');
-const { runOutlineGenerationTask, isMissingTechnicalScoreItems, hasResponseFileOutline } = require('../electron/services/outlineGenerationTask.cjs');
+const { runOutlineGenerationTask, isMissingTechnicalScoreItems, hasResponseFileOutline, getOutlineGenerationBlockReason } = require('../electron/services/outlineGenerationTask.cjs');
 const { createTaskService } = require('../electron/services/taskService.cjs');
 
 function createPlan(scoreContent) {
@@ -58,6 +58,7 @@ async function runCase(scoreContent, payload, responseFileRequirements, behavior
   };
   const workspaceStore = {
     loadTechnicalPlan: () => plan,
+    readTenderMarkdownForGeneration: () => '系统支持身份认证和操作审计',
     updateTechnicalPlan: (patch) => { plan = { ...plan, ...patch }; return plan; },
   };
   await runOutlineGenerationTask({ aiService, workspaceStore, updateTask: (state) => state, payload });
@@ -78,34 +79,37 @@ async function runCase(scoreContent, payload, responseFileRequirements, behavior
       updateTechnicalPlan: () => { writes += 1; throw new Error('无效方式不应修改工作区'); },
     },
   });
-  assert.throws(() => taskService.startOutlineGeneration({ mode: 'aligned' }), /没有技术评分项，无法按评分项对齐/);
+  assert.throws(() => taskService.startOutlineGeneration({ mode: 'aligned' }), /无法按评分项对齐/);
+  assert.throws(() => taskService.startOutlineGeneration({ mode: 'response-file', responseFileRequirements: '原文未明确技术文件目录' }), /无法按响应文件目录生成/);
   assert.equal(writes, 0, '无效方式不能清空旧目录或正文');
   assert.equal(originalPlan.outlineData.outline[0].content, '已有正文');
 
   await assert.rejects(
     runCase('没有提及', { mode: 'aligned' }),
-    /没有技术评分项，无法按评分项对齐/,
+    /无法按评分项对齐/,
   );
 
-  const noScore = await runCase('没有提及', { mode: 'free' });
-  assert.equal(noScore.plan.outlineData.outline[0].title, '技术方案');
-  assert(!noScore.calls.some((call) => call.progressLabel === '技术评分大类'));
-  assert(noScore.calls[0].messages.some((message) => message.content.includes('招标文件没有可用的技术评分项')));
-  const noScoreResponseFile = await runCase('没有提及', { mode: 'response-file' });
-  assert(noScoreResponseFile.calls.some((call) => call.progressLabel === '技术评分大类' && call.messages.some((message) => message.content.includes('响应文件要求中的技术文件组成'))));
-  assert(!noScoreResponseFile.calls.some((call) => call.progressLabel === '完整目录'));
-  assert.equal(noScoreResponseFile.plan.outlineMode, 'response-file');
-  await assert.rejects(runCase('没有提及', { mode: 'response-file' }, '原文未明确技术文件目录'), /未找到明确的响应文件技术目录/);
+  for (const content of ['没有提及', '未发现技术评分标准，本文件仅包含技术要求。', '1. 支持身份认证；2. 支持操作审计', '系统可用率99.9%，响应时间5分钟', '【评分项名称】：未提及\n【权重/分值】：未提供\n【评分标准】：未提供']) {
+    assert(isMissingTechnicalScoreItems(content));
+    await assert.rejects(runCase(content, { mode: 'aligned' }), /无法按评分项对齐/);
+    assert.throws(() => taskService.startOutlineGeneration({ mode: 'aligned' }), /无法按评分项对齐/);
+    assert.equal(getOutlineGenerationBlockReason('free', content, ''), '');
+    const free = await runCase(content, { mode: 'free' });
+    assert(free.plan.outlineData.outline.length > 0);
+    assert(!free.calls.some(call => call.progressLabel === '技术评分大类'));
+    assert(free.calls.some(call => call.messages.some(message => message.content.includes('系统支持身份认证和操作审计'))));
+    const response = await runCase(content, { mode: 'response-file' });
+    assert(response.plan.outlineData.outline.length > 0, '有响应目录时不需要评分项');
+    await assert.rejects(runCase(content, { mode: 'response-file' }, '原文未明确技术文件目录'), /无法按响应文件目录生成/);
+  }
+  assert(!isMissingTechnicalScoreItems('技术评分权重：30%'));
+  assert(!isMissingTechnicalScoreItems('评分标准：优秀、良好、一般，分档评价'));
+  assert(getOutlineGenerationBlockReason('response-file', '实施方案20分', ''), '有评分不能替代响应文件目录');
 
   const responseFile = await runCase('实施方案 20 分', { mode: 'response-file' });
   assert(responseFile.calls.some((call) => call.progressLabel === '技术评分大类' && call.messages.some((message) => message.content.includes('响应文件要求中的技术文件组成'))));
   assert.equal(responseFile.plan.outlineData.outline[0].source_requirement_title, '技术方案');
-  const fallback = await runCase('实施方案 20 分', { mode: 'response-file' }, '');
-  assert(fallback.calls.some((call) => call.progressLabel === '技术评分大类' && call.messages.some((message) => message.content.includes('技术评分要求'))));
-  const sparseFree = await runCase('1. 支持身份认证；2. 支持操作审计', { mode: 'free' });
-  assert.equal(sparseFree.calls.filter((call) => call.progressLabel === '完整目录').length, 2, '自由目录只有一个一级章时应检查能否合理分章');
-  assert(sparseFree.calls[0].messages.some((message) => message.content.includes('不要求一级目录与评分项一一对应')));
-  assert(sparseFree.calls.some((call) => call.messages.some((message) => message.content.includes('只有一个一级目录'))));
+  await assert.rejects(runCase('实施方案 20 分', { mode: 'response-file' }, ''), /无法按响应文件目录生成/);
   const locallyRepaired = await runCase('实施方案 20 分', { mode: 'free' }, undefined, { missingMetadata: true });
   assert.equal(locallyRepaired.plan.outlineData.outline[0].id, '1');
   assert.equal(locallyRepaired.plan.outlineData.outline[0].description, '技术方案');

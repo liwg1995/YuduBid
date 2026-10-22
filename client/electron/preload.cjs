@@ -69,6 +69,10 @@ const bridge = {
     ipcRenderer.on('app:update-progress', listener);
     return () => ipcRenderer.removeListener('app:update-progress', listener);
   },
+  storage: {
+    getUsage: () => invoke('storage:get-usage'),
+    clean: (groupId) => invoke('storage:clean', groupId),
+  },
   config: {
     load: () => invoke('config:load'),
     save: (config) => invoke('config:save', config),

@@ -116,3 +116,5 @@ export type {
   RejectionFindingType,
   RejectionResultTab,
 } from './contracts/rejectionCheck';
+
+export type { StorageUsageGroupId, StorageCleanGroupId, StorageUsage, StorageCleanResult } from './storage';

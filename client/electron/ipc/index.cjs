@@ -1,3 +1,5 @@
+const { registerStorageIpc } = require('./storageIpc.cjs');
+const { createStorageSpaceService } = require('../services/storageSpaceService.cjs');
 const { createFullBlindCheckController } = require('../services/blind-check-upstream/controller.cjs');
 const { registerFullBlindCheckIpc } = require('./fullBlindCheckIpc.cjs');
 const crypto = require('node:crypto');
@@ -988,6 +990,7 @@ function registerIpcHandlers({ app, mainWindow, appLogger = createAppLogger(app)
     registerDuplicateCheckIpc({ duplicateCheckStore, checkResultExportService });
     registerRejectionCheckIpc({ rejectionCheckStore, checkResultExportService });
     registerTaskIpc({ taskService });
+    registerStorageIpc({ storageSpaceService: createStorageSpaceService({ app, db: sqliteDatabase.db, taskService, browserSession: require('electron').session.defaultSession }) });
   } catch (error) {
     registerUnavailableTechnicalPlanIpc(error);
   }

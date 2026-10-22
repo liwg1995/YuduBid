@@ -68,7 +68,7 @@
 .modern-content-blank strong { margin-top: 9px; color: #e8eaf7; font-size: 14px; }
 .modern-content-blank p { max-width: 300px; color: #8da0b6; font-size: 11px; line-height: 1.6; }
 .modern-content-editor-body:has(> .modern-content-writing-wait) { overflow: hidden; }
-.modern-content-writing-wait { box-sizing: border-box; display: flex; height: 100%; min-height: 0; flex-direction: column; align-items: center; justify-content: center; padding: 20px 28px; overflow: auto; text-align: center; }
+.modern-content-writing-wait { box-sizing: border-box; display: flex; height: 100%; min-height: 0; flex-direction: column; align-items: center; justify-content: safe center; padding: 12px 28px; overflow: auto; text-align: center; }
 .modern-content-writing-live { position: relative; box-sizing: border-box; width: 172px; height: 158px; margin-bottom: 21px; overflow: hidden; border: 1px solid #716baa; border-radius: 12px; padding: 19px 18px; background: linear-gradient(150deg,#323c61,#202c46); box-shadow: 0 18px 42px #060b1947, inset 0 1px #ffffff24; text-align: left; }
 .modern-content-writing-live::before { position: absolute; inset: 0; background: linear-gradient(100deg,transparent 25%,#c6b7ff18 48%,transparent 72%); content: ''; animation: modern-content-live-glow 2.6s ease-in-out infinite; }
 .modern-content-writing-live-head { position: relative; display: flex; align-items: center; gap: 7px; color: #eeeaff; font-size: 11px; font-weight: 700; }
@@ -108,7 +108,7 @@
 @keyframes modern-content-planning-row { 0%, 26%, 100% { border-color: var(--yb-border-soft); box-shadow: none; } 12% { border-color: var(--yb-primary); box-shadow: inset 2px 0 var(--yb-primary), 0 0 15px color-mix(in srgb, var(--yb-primary) 12%, transparent); } }
 @keyframes modern-content-planning-beacon { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 @keyframes modern-content-planning-foot { 0%, 100% { opacity: .25; } 50% { opacity: .85; } }
-.modern-content-writing-sheet { position: relative; display: flex; width: 142px; height: 160px; flex-direction: column; gap: 11px; margin-bottom: 24px; border: 1px solid #786fbd; border-radius: 9px; padding: 27px 19px; background: linear-gradient(155deg, #313956, #202f47); box-shadow: 0 16px 40px #070d193b, inset 0 1px #a99df240; transform: rotate(-3deg); }
+.modern-content-writing-sheet { box-sizing: border-box; position: relative; display: flex; width: 142px; height: 160px; flex-direction: column; gap: 11px; margin-bottom: 18px; border: 1px solid #786fbd; border-radius: 9px; padding: 27px 19px; background: linear-gradient(155deg, #313956, #202f47); box-shadow: 0 16px 40px #070d193b, inset 0 1px #a99df240; transform: rotate(-3deg); }
 .modern-content-writing-sheet::before { position: absolute; inset: 7px -8px -7px 8px; border: 1px solid #4b5a79; border-radius: 9px; background: #202d44; content: ''; transform: rotate(6deg); }
 .modern-content-writing-sheet-heading, .modern-content-writing-sheet-line { display: block; flex: 0 0 auto; height: 7px; border-radius: 6px; background: #7180a6; }
 .modern-content-writing-sheet-heading { width: 48%; height: 9px; margin-bottom: 5px; background: #baacf8; }
@@ -121,7 +121,7 @@
 .modern-content-writing-wait.is-queued .modern-content-writing-sheet-line:nth-of-type(4) { animation-delay: .5s; }
 .modern-content-writing-wait > strong { color: #f0edff; font-size: 16px; }
 .modern-content-writing-wait > p { max-width: 340px; margin: 9px 0 0; color: #a9b9cf; font-size: 11px; line-height: 1.5; }
-.modern-content-writing-wait-progress { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; width: min(100%, 290px); margin-top: 25px; color: #a99dee; font-size: 10px; text-align: left; }
+.modern-content-writing-wait-progress { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; width: min(100%, 290px); margin-top: 14px; color: #a99dee; font-size: 10px; text-align: left; }
 .modern-content-writing-wait.is-planning .modern-content-writing-wait-progress { margin-top: 14px; }
 .modern-content-writing-wait-progress b { color: #dcd5ff; font-variant-numeric: tabular-nums; }
 .modern-content-writing-wait-progress > div { grid-column: 1 / -1; height: 5px; overflow: hidden; border-radius: 5px; background: #36455c; }

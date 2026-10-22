@@ -37,11 +37,13 @@ const outlineModeLabels: Record<OutlineMode, string> = {
 };
 
 function isMissingTechnicalScoreItems(content: string) {
-  const text = content.trim();
-  if (/^(未提取到|没有提及|未提及|未提及技术评分项)[。\s]*$/.test(text)) return true;
-  if (/^(?:【?技术评分项(?:名称)?】?|【评分项名称】)\s*[：:]\s*(?:未提及|没有提及|未提取到)[。\s]*$/.test(text)) return true;
-  const section = text.match(/^##[\t ]+技术评分项[\t ]*\r?\n([\s\S]*?)(?=^#{1,2}[\t ]|$(?![\s\S]))/m);
-  return /^(没有提及|未提取到|未提及|未提及技术评分项)[。\s]*$/.test(section?.[1]?.trim() || '');
+  const text = String(content || '').trim();
+  if (!text) return true;
+  // 需要实际分值、权重或明确的定性评分规则，技术参数和标题本身不构成评分依据。
+  const hasPoints = /\d+(?:\.\d+)?\s*分(?!钟|辨|类|布|析)/.test(text)
+    || /(?:权重|分值|评分占比|评分权重)[^\n]{0,40}\d+(?:\.\d+)?\s*[%％]/.test(text);
+  const hasQualitativeRule = /(?:得分|评分标准|评分规则|评审标准)[^\n]{0,100}(?:优秀|良好|一般|合格|不合格|优、良|优良中差|加分|扣分|不得分)/.test(text);
+  return !hasPoints && !hasQualitativeRule;
 }
 
 function hasResponseFileOutline(content: string) {
@@ -147,9 +149,12 @@ function OutlineEditPage({
   const [draftOutlineMode, setDraftOutlineMode] = useState<OutlineMode>(outlineMode);
   const noTechnicalScoreMode = isMissingTechnicalScoreItems(techRequirements);
   const responseFileAvailable = hasResponseFileOutline(responseFileRequirements);
-  const initialOutlineMode = noTechnicalScoreMode && (outlineMode === 'aligned' || (outlineMode === 'response-file' && !responseFileAvailable))
-    ? 'free'
-    : outlineMode;
+  const initialOutlineMode = outlineMode;
+  const generationBlockReason = draftOutlineMode === 'aligned' && noTechnicalScoreMode
+    ? '未检测到技术评分内容，无法按评分项对齐。请补充包含评分标准的招标文件并重新解析，或选择自由生成。'
+    : draftOutlineMode === 'response-file' && !responseFileAvailable
+      ? '未检测到明确的响应文件技术目录，无法按响应文件目录生成。请补充相应文件并重新解析，或选择自由生成。'
+      : '';
   const [draftKnowledgeDocumentIds, setDraftKnowledgeDocumentIds] = useState<string[]>(referenceKnowledgeDocumentIds);
   const [knowledgeSearch, setKnowledgeSearch] = useState('');
   const [expandedKnowledgeFolderIds, setExpandedKnowledgeFolderIds] = useState<Set<string>>(new Set());
@@ -270,8 +275,8 @@ function OutlineEditPage({
 
   const saveOutlineConfig = async () => {
     try {
-      if (draftOutlineMode === 'response-file' && !responseFileAvailable && noTechnicalScoreMode) {
-        showToast('未找到明确的响应文件技术目录，请选择自由生成', 'info');
+      if (generationBlockReason) {
+        showToast(generationBlockReason, 'info');
         return;
       }
       await onOutlineConfigChange(draftOutlineMode, draftKnowledgeDocumentIds);
@@ -287,12 +292,8 @@ function OutlineEditPage({
       showToast('请先完成招标文件解析', 'info');
       return;
     }
-    if (noTechnicalScoreMode && draftOutlineMode === 'aligned') {
-      showToast('没有技术评分项，无法按评分项对齐', 'info');
-      return;
-    }
-    if (draftOutlineMode === 'response-file' && !responseFileAvailable && noTechnicalScoreMode) {
-      showToast('未找到明确的响应文件技术目录，请选择自由生成', 'info');
+    if (generationBlockReason) {
+      showToast(generationBlockReason, 'info');
       return;
     }
 
@@ -663,7 +664,7 @@ function OutlineEditPage({
                   type="button"
                   className={`outline-generation-mode-card${draftOutlineMode === 'aligned' ? ' is-active' : ''}`}
                   onClick={() => setDraftOutlineMode('aligned')}
-                  disabled={mutationBlocked || noTechnicalScoreMode}
+                  disabled={mutationBlocked}
                 >
                   <strong>按评分项对齐</strong>
                   <span>一级目录完全和技术评分项要求一致，二三级目录由 AI 生成。</span>
@@ -672,18 +673,18 @@ function OutlineEditPage({
                   type="button"
                   className={`outline-generation-mode-card${draftOutlineMode === 'response-file' ? ' is-active' : ''}`}
                   onClick={() => setDraftOutlineMode('response-file')}
-                  disabled={mutationBlocked || (noTechnicalScoreMode && !responseFileAvailable)}
+                  disabled={mutationBlocked}
                 >
                   <strong>按响应文件目录</strong>
                   <span>优先按招标文件中的技术文件组成和编制要求组织一级目录，二三级目录由 AI 生成。</span>
                 </button>
               </div>
-              {noTechnicalScoreMode ? (
-                <div className="outline-generation-no-score">
-                  <strong>未检测到技术评分项</strong>
-                  <span>{responseFileAvailable ? '可选择自由生成或按响应文件目录生成。' : '未找到明确的技术文件目录，当前可使用自由生成。'}</span>
+              {generationBlockReason && (
+                <div className="outline-generation-no-score" role="alert">
+                  <strong>当前方式暂不可用：{outlineModeLabels[draftOutlineMode]}</strong>
+                  <span>{generationBlockReason}</span>
                 </div>
-              ) : null}
+              )}
             </section>
 
             <section className="outline-generation-config-section outline-knowledge-picker">
@@ -699,10 +700,7 @@ function OutlineEditPage({
               <button type="button" className="secondary-action" onClick={saveOutlineConfig} disabled={mutationBlocked}>
                 保存配置
               </button>
-              {!noTechnicalScoreMode && draftOutlineMode === 'response-file' && !responseFileAvailable ? (
-                <span className="outline-generation-config-hint">未找到独立的响应文件要求，将退回使用技术评分要求。</span>
-              ) : null}
-              <button type="button" className="primary-action" onClick={generateOutline} disabled={mutationBlocked || !projectOverview || !techRequirements}>
+              <button type="button" className="primary-action" onClick={generateOutline} disabled={mutationBlocked || !projectOverview || !techRequirements || Boolean(generationBlockReason)}>
                 开始生成
               </button>
             </div>

@@ -1,3 +1,4 @@
+import type { StorageUsage, StorageCleanGroupId, StorageCleanResult } from './storage';
 import type * as Blind from './contracts/blindCheckUpstream';
 import type { ChatCompletionRequest, JsonCompletionRequest } from './ai';
 import type { DuplicateCheckWorkspaceState, FileSelectionResult } from './bid';
@@ -337,6 +338,10 @@ export interface YuDuBidBridge {
   installDownloadedRelease: () => Promise<{ success: boolean; message?: string }>;
   showDownloadedRelease: () => Promise<{ success: boolean; path?: string; fileName?: string; version?: string; message?: string }>;
   onUpdateProgress: (callback: (event: UpdateProgressEvent) => void) => () => void;
+  storage: {
+    getUsage: () => Promise<StorageUsage>;
+    clean: (groupId: StorageCleanGroupId) => Promise<StorageCleanResult>;
+  };
   config: {
     load: () => Promise<ClientConfig>;
     save: (config: ClientConfig) => Promise<ConfigSaveResult>;

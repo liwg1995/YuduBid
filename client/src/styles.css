@@ -7062,6 +7062,12 @@ button {
   border-radius: 18px;
 }
 
+/* 章节预览通过 Portal 挂在 body 下，表头不能依赖 app-shell 内的主题覆盖。 */
+.content-expand-preview-body th {
+  color: var(--yb-text);
+  background: var(--yb-control-bg);
+}
+
 .content-generation-config-note {
   padding: 12px 14px;
   background: rgba(255, 209, 102, 0.14);
@@ -7263,6 +7269,15 @@ button {
   font-size: 13px;
 }
 
+.outline-generation-config-card .primary-action:disabled {
+  color: var(--yb-text-muted);
+  background: var(--yb-control-bg);
+  border-color: var(--yb-border-soft);
+  box-shadow: none;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
 .outline-generation-mode-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7302,26 +7317,26 @@ button {
 }
 
 .outline-generation-no-score {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  padding: 11px 13px;
-  border: 1px solid var(--yb-border-soft);
-  border-radius: 12px;
-  background: rgba(var(--yb-surface-rgb), 0.58);
+  display: grid;
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid #c58a32;
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: rgba(213, 153, 51, 0.12);
 }
 
 .outline-generation-no-score strong {
   color: var(--yb-text);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .outline-generation-no-score span {
-  color: var(--yb-text-muted);
+  color: var(--yb-text-soft);
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.65;
 }
 
 .outline-knowledge-picker {

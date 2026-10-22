@@ -3,7 +3,7 @@ const { runBidAnalysisTask } = require('./bidAnalysisTask.cjs');
 const { runBidSectionExtractionTask } = require('./bidSectionExtractionTask.cjs');
 const { runContentGenerationTask, assertGenerationSettingsMatch } = require('./contentGenerationTask.cjs');
 const { runGlobalFactsTask } = require('./globalFactsTask.cjs');
-const { runOutlineGenerationTask, isMissingTechnicalScoreItems, hasResponseFileOutline } = require('./outlineGenerationTask.cjs');
+const { runOutlineGenerationTask, getOutlineGenerationBlockReason } = require('./outlineGenerationTask.cjs');
 const { runRejectionCheckTask, runRejectionItemsExtractionTask } = require('./rejectionCheckTask.cjs');
 const { runWithAiRequestActivity } = require('../utils/aiRequestActivity.cjs');
 
@@ -893,13 +893,10 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     startOutlineGeneration(payload) {
       const technicalPlan = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
       const scoreContent = technicalPlan.bidAnalysisTasks?.techRequirements?.content || technicalPlan.techRequirements;
-      if (isMissingTechnicalScoreItems(scoreContent)) {
-        if (payload?.mode === 'aligned') {
-          throw new Error('没有技术评分项，无法按评分项对齐');
-        }
-        if (payload?.mode === 'response-file' && !hasResponseFileOutline(payload.responseFileRequirements || technicalPlan.responseFileRequirements)) {
-          throw new Error('未找到明确的响应文件技术目录，请选择自由生成');
-        }
+      const blockReason = getOutlineGenerationBlockReason(payload?.mode, scoreContent, payload?.responseFileRequirements || technicalPlan.responseFileRequirements);
+      if (blockReason) {
+        console.warn('[outline-generation] 当前生成方式缺少依据，已阻止启动', { projectId: getProjectId(payload), mode: payload?.mode });
+        throw new Error(blockReason);
       }
       return startManagedTask('outline-generation', payload, runOutlineGenerationTask, {
         outlineMode: payload?.mode,

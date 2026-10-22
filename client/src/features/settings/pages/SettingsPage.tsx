@@ -1,3 +1,4 @@
+import StorageSpaceDialog from '../components/StorageSpaceDialog';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState } from 'react';
 import brandProducerLogo from '../../../assets/brand-producer-logo.svg';
@@ -814,6 +815,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
       window.removeEventListener(REDUCE_MOTION_CHANGE_EVENT, syncReduceMotion);
     };
   }, []);
+  const [storageOpen, setStorageOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialSettingsTab);
   useEffect(() => {
     if (settingsTabs.some((tab) => tab.id === activeTab)) return;
@@ -1907,6 +1909,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
 
   return (
     <div className={`settings-page${activeTab === 'appearance' ? ' is-appearance-page' : ''}`}>
+      {storageOpen && <StorageSpaceDialog onClose={() => setStorageOpen(false)} />}
       <SettingsLayout activeTab={activeTab} tabs={settingsTabs} description={settingsTabDescriptions[activeTab]}
         onTabChange={(id) => requestTabChange(id as SettingsTab)}
         headerAction={uiAppearance === 'modern' && canSaveActiveTab ? (
@@ -1987,6 +1990,10 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
             <strong>通用</strong>
           </div>
           <div className="settings-list">
+            <div className="settings-row settings-action-row">
+              <div className="settings-row-copy"><strong>存储空间</strong><span>查看占用，清理历史残留、页面缓存与开发日志；保留业务资料和配置</span></div>
+              <div className="settings-action-cell"><button type="button" className="inline-action" onClick={() => setStorageOpen(true)}>管理存储空间</button></div>
+            </div>
             {uiAppearance === 'modern' && (
               <label className="settings-row">
                 <div className="settings-row-copy">
@@ -2028,7 +2035,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
               </label>
             )}
             {state.general.developer_mode && (
-              <div className="settings-row settings-developer-action-row">
+              <div className="settings-row settings-action-row">
                 <div className="settings-row-copy">
                   <strong>配置文件夹</strong>
                   <span>打开本机配置、工作区缓存和开发者日志所在目录</span>
@@ -2041,7 +2048,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
               </div>
             )}
             {state.general.developer_mode && (
-              <div className="settings-row settings-developer-action-row">
+              <div className="settings-row settings-action-row">
                 <div className="settings-row-copy">
                   <strong>应用日志</strong>
                   <span>按日期和级别保存；普通与警告日志保留 3 天，错误日志长期保留</span>

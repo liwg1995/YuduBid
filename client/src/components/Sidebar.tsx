@@ -55,7 +55,7 @@ export const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGEle
   'image-knowledge-base': ChartModelIcon,
   'duplicate-check': CompareIcon,
   'rejection-check': ShieldIcon,
-  'blind-check': ShieldIcon,
+  'blind-check': AnonymousReviewIcon,
   'bid-opportunity': RadarIcon,
   'developer-test': FlaskIcon,
   settings: GearIcon,
@@ -570,6 +570,17 @@ function CompareIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M18.5 15.5V5" />
       <path d="M7.5 8.5l-2-2 2-2" />
       <path d="M5.5 6.5V17" />
+    </svg>
+  );
+}
+
+function AnonymousReviewIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="m3 3 18 18" />
+      <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+      <path d="M9.5 5.4A10.5 10.5 0 0 1 12 5c6 0 10 7 10 7a18.3 18.3 0 0 1-3 3.8" />
+      <path d="M6.2 6.2A18.3 18.3 0 0 0 2 12s4 7 10 7a10.7 10.7 0 0 0 5.8-1.8" />
     </svg>
   );
 }

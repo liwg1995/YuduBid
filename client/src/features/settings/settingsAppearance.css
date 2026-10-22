@@ -73,13 +73,13 @@
 .modern-shell .settings-page .settings-row { border-color: #2b384b; color: #e9edf8; background: transparent; }
 .modern-shell .settings-page .settings-row { grid-template-columns: minmax(0, 1fr); gap: 13px; padding: 22px 26px; }
 .modern-shell .settings-page .settings-multimodal-row { grid-template-columns: minmax(0, 1fr) 20px; align-items: center; min-height: 68px; gap: 16px; padding: 12px 26px; }
-.modern-shell .settings-page .settings-developer-action-row { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; min-height: 74px; padding: 12px 26px; }
-.modern-shell .settings-page .settings-developer-action-row .settings-row-copy { gap: 3px; }
-.modern-shell .settings-page .settings-developer-action-row .settings-row-copy strong { font-size: 13px; }
-.modern-shell .settings-page .settings-developer-action-row .settings-row-copy span { font-size: 11px; }
-.modern-shell .settings-page .settings-developer-action-row .settings-action-cell { display: flex; justify-content: flex-end; }
-.modern-shell .settings-page .settings-developer-action-row .inline-action { min-height: 32px; width: auto; padding: 5px 11px; font-size: 11px; white-space: nowrap; }
-@media (max-width: 650px) { .modern-shell .settings-page .settings-developer-action-row { grid-template-columns: minmax(0, 1fr); } .modern-shell .settings-page .settings-developer-action-row .settings-action-cell { justify-content: flex-start; } }
+.modern-shell .settings-page .settings-action-row { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; min-height: 74px; padding: 12px 26px; }
+.modern-shell .settings-page .settings-action-row .settings-row-copy { gap: 3px; }
+.modern-shell .settings-page .settings-action-row .settings-row-copy strong { font-size: 13px; }
+.modern-shell .settings-page .settings-action-row .settings-row-copy span { font-size: 11px; }
+.modern-shell .settings-page .settings-action-row .settings-action-cell { display: flex; justify-content: flex-end; }
+.modern-shell .settings-page .settings-action-row .inline-action { min-height: 32px; width: auto; padding: 5px 11px; font-size: 11px; white-space: nowrap; }
+@media (max-width: 650px) { .modern-shell .settings-page .settings-action-row { grid-template-columns: minmax(0, 1fr); } .modern-shell .settings-page .settings-action-row .settings-action-cell { justify-content: flex-start; } }
 .modern-shell .settings-page .settings-row-copy strong, .modern-shell .settings-page .settings-section-title strong { color: #e9edf8; }
 .modern-shell .settings-page .settings-row-copy span { color: #9aa8bd; }
 .modern-shell .settings-page :is(input:not([type='checkbox']):not([type='range']), select, textarea) { border-color: #39475b; color: #e9edf8; background: #1c293a; }

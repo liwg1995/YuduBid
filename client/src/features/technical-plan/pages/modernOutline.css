@@ -68,7 +68,6 @@
 .modern-outline-empty strong { font-size: 13px; }
 .modern-outline-empty p { max-width: 230px; color: #8fa2b9; font-size: 11px; line-height: 1.5; }
 :root[data-ui-appearance='modern'] .outline-generation-config-card { border: 1px solid #505b76; color: #e9ecf8; background: #1b283b; box-shadow: 0 28px 90px #0009; }
-:root[data-ui-appearance='modern'] .outline-generation-config-section { border-color: #3d4b63; background: #202f44; }
 @media (max-width: 1040px) { .modern-outline-workspace { grid-template-columns: 1fr; overflow: auto; } .modern-outline-tree { min-height: 370px; } .modern-outline-detail { min-height: 270px; } }
 @media (max-width: 790px) { .modern-outline-header { align-items: flex-start; flex-direction: column; } .modern-outline-tree > header { align-items: flex-start; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .modern-outline-progress > div:first-child > div span { transition: none; } }

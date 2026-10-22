@@ -55,10 +55,22 @@ function getMissingRequiredBidAnalysisLabels(storedPlan) {
 
 function isMissingTechnicalScoreItems(content) {
   const text = String(content || '').trim();
-  if (/^(未提取到|没有提及|未提及|未提及技术评分项)[。\s]*$/.test(text)) return true;
-  if (/^(?:【?技术评分项(?:名称)?】?|【评分项名称】)\s*[：:]\s*(?:未提及|没有提及|未提取到)[。\s]*$/.test(text)) return true;
-  const section = text.match(/^##[\t ]+技术评分项[\t ]*\r?\n([\s\S]*?)(?=^#{1,2}[\t ]|$(?![\s\S]))/m);
-  return /^(没有提及|未提取到|未提及|未提及技术评分项)[。\s]*$/.test(section?.[1]?.trim() || '');
+  if (!text) return true;
+  // 需要实际分值、权重或明确的定性评分规则，技术参数和标题本身不构成评分依据。
+  const hasPoints = /\d+(?:\.\d+)?\s*分(?!钟|辨|类|布|析)/.test(text)
+    || /(?:权重|分值|评分占比|评分权重)[^\n]{0,40}\d+(?:\.\d+)?\s*[%％]/.test(text);
+  const hasQualitativeRule = /(?:得分|评分标准|评分规则|评审标准)[^\n]{0,100}(?:优秀|良好|一般|合格|不合格|优、良|优良中差|加分|扣分|不得分)/.test(text);
+  return !hasPoints && !hasQualitativeRule;
+}
+
+function getOutlineGenerationBlockReason(mode, scoreContent, responseContent) {
+  if (mode === 'aligned' && isMissingTechnicalScoreItems(scoreContent)) {
+    return '未检测到技术评分内容，无法按评分项对齐。请补充评分标准并重新解析，或选择自由生成';
+  }
+  if (mode === 'response-file' && !hasResponseFileOutline(responseContent)) {
+    return '未检测到明确的响应文件技术目录，无法按响应文件目录生成。请补充相应文件并重新解析，或选择自由生成';
+  }
+  return '';
 }
 
 function hasResponseFileOutline(content) {
@@ -1086,12 +1098,8 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
     throw new Error(`请先完成关键招标文件解析项：${missingRequiredBidAnalysisLabels.join('、')}`);
   }
   const technicalScoreMissing = isMissingTechnicalScoreItems(storedPlan.bidAnalysisTasks?.techRequirements?.content || storedPlan.techRequirements);
-  if (technicalScoreMissing && payload.mode === 'aligned') {
-    throw new Error('没有技术评分项，无法按评分项对齐');
-  }
-  if (technicalScoreMissing && payload.mode === 'response-file' && !responseFileAvailable) {
-    throw new Error('未找到明确的响应文件技术目录，请选择自由生成');
-  }
+  const blockReason = getOutlineGenerationBlockReason(payload.mode, storedPlan.bidAnalysisTasks?.techRequirements?.content || storedPlan.techRequirements, responseFileRequirements);
+  if (blockReason) throw new Error(blockReason);
   let technicalPlan = workspaceStore.updateTechnicalPlan({
     outlineMode: payload.mode,
     referenceKnowledgeDocumentIds,
@@ -1100,7 +1108,7 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
   updateTask({ status: 'running', progress: 5, logs }, technicalPlan);
   const taskPayload = {
     ...payload,
-    mode: payload.mode === 'response-file' && !responseFileAvailable ? 'aligned' : payload.mode,
+    mode: payload.mode,
     overview,
     requirements,
     responseFileRequirements,
@@ -1110,7 +1118,11 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
     reference_knowledge_document_ids: referenceKnowledgeDocumentIds,
   };
   taskPayload.noTechnicalScoreMode = technicalScoreMissing;
-  if (technicalScoreMissing && responseFileAvailable) taskPayload.requirements = responseFileRequirements;
+  if (payload.mode === 'free' && technicalScoreMissing) {
+    const tenderContent = String(workspaceStore.readTenderMarkdownForGeneration?.() || '').trim();
+    if (tenderContent) taskPayload.requirements += '\n\n招标文件中的技术要求（只使用明确要求，不得编造评分项）：\n' + tenderContent;
+  }
+  if (payload.mode === 'response-file' && responseFileAvailable) taskPayload.requirements = responseFileRequirements;
   if (taskControl?.ask) {
     let confirmedRoots = null;
     taskPayload.confirmRoots = async (items) => {
@@ -1159,4 +1171,9 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
   updateTask({ status: 'success', progress: 100, logs: [...logs, '目录生成完成。'] }, technicalPlan);
 }
 
-module.exports = { runOutlineGenerationTask, isMissingTechnicalScoreItems, hasResponseFileOutline };
+module.exports = {
+  getOutlineGenerationBlockReason,
+  runOutlineGenerationTask,
+  isMissingTechnicalScoreItems,
+  hasResponseFileOutline,
+};
