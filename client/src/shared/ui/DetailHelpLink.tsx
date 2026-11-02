@@ -1,3 +1,4 @@
+import './readingDialog.css';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { ReactNode } from 'react';
 
@@ -15,7 +16,7 @@ export default function DetailHelpLink({ title, children, label = '详细说明'
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="detail-help-modal" />
-        <Dialog.Content className="detail-help-card">
+        <Dialog.Content className="detail-help-card yb-reading-dialog">
           <div className="detail-help-head">
             <Dialog.Title>{title}</Dialog.Title>
             <Dialog.Close className="detail-help-close" type="button" aria-label="关闭详细说明">×</Dialog.Close>

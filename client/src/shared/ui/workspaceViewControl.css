@@ -1,0 +1,5 @@
+.yb-workspace-view-control { display: inline-flex; flex-wrap: wrap; align-self: flex-start; gap: 4px; padding: 4px; border: 1px solid var(--yb-border-soft); border-radius: var(--yb-radius-control, 8px); background: var(--yb-control-bg); }
+.yb-workspace-view-control > button { min-height: 32px; padding: 4px 12px; border: 0; border-radius: 4px; background: transparent; color: var(--yb-text-soft); font: inherit; font-size: 14px; line-height: 22px; cursor: pointer; }
+.yb-workspace-view-control > button[aria-pressed='true'] { background: var(--yb-primary); color: var(--yb-on-primary, #fff); }
+.yb-workspace-view-control > button:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+.yb-workspace-view-control > button:disabled { opacity: .5; cursor: not-allowed; }

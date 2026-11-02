@@ -103,19 +103,18 @@
 .modern-content > * { animation: modern-page-enter .22s ease-out both; }
 .modern-copyright { flex: 0 0 auto; align-self: flex-end; padding: 0 18px 7px; color: #64738c; font-size: 10px; line-height: 1.2; letter-spacing: .02em; user-select: none; }
 .modern-shell button:disabled { cursor: not-allowed; }
-.modern-shell :where(button, input, select, textarea):focus-visible { outline: 2px solid #b7aaff; outline-offset: 2px; }
+.modern-shell :where(button, input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):focus-visible { outline: 2px solid #b7aaff; outline-offset: 2px; }
 .modern-shell :where(a, summary, [role='tab']):focus-visible { outline: 2px solid #b7aaff; outline-offset: 2px; }
 .modern-shell :is(.modern-pm-project-list, .modern-patent-list, .modern-grant-list, .modern-feasibility-list, .modern-credential-company-list) article:focus-within { border-color: #a99bf0; }
 @keyframes modern-page-enter { from { opacity: .65; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .modern-content .floating-toolbar { border-color: #354157; background: #1b2537; box-shadow: 0 18px 48px #03091788; }
-.modern-shell :where(.primary-action, .secondary-action, .floating-toolbar-button, .inline-action) { min-height: 38px; border-radius: 9px; font-weight: 650; letter-spacing: .01em; box-shadow: none; }
-.modern-shell .modern-content :is(.primary-action, .secondary-action) { min-height: 35px; border-radius: 7px; padding: 7px 13px; font-size: 13px; line-height: 1.25; }
-.modern-shell .primary-action, .modern-shell .floating-toolbar-button.is-primary { border: 1px solid #a79aff66; color: #fff; background: #7165ce; }
-.modern-shell .primary-action:hover:not(:disabled), .modern-shell .floating-toolbar-button.is-primary:hover:not(:disabled) { border-color: #b8aeff; background: #8578e4; box-shadow: 0 7px 18px #675bcc44; }
-.modern-shell .secondary-action, .modern-shell .floating-toolbar-button:not(.is-primary):not(.is-danger) { border: 1px solid #45536a; color: #d2daf0; background: #222f42; }
-.modern-shell .secondary-action:hover:not(:disabled), .modern-shell .floating-toolbar-button:not(.is-primary):not(.is-danger):hover:not(:disabled) { border-color: #8d83da; color: #f1edff; background: #303552; }
-.modern-shell :where(input:not([type='checkbox']):not([type='range']), select, textarea) { border-radius: 9px; }
-.modern-shell :where(button, input, select, textarea):focus-visible { outline: 2px solid #a89bff; outline-offset: 2px; }
+.modern-shell :where(.floating-toolbar-button, .inline-action) { min-height: 38px; border-radius: 9px; font-weight: 650; letter-spacing: .01em; box-shadow: none; }
+.modern-shell .floating-toolbar-button.is-primary { border: 1px solid #a79aff66; color: #fff; background: #7165ce; }
+.modern-shell .floating-toolbar-button.is-primary:hover:not(:disabled) { border-color: #b8aeff; background: #8578e4; box-shadow: 0 7px 18px #675bcc44; }
+.modern-shell .floating-toolbar-button:not(.is-primary):not(.is-danger) { border: 1px solid #45536a; color: #d2daf0; background: #222f42; }
+.modern-shell .floating-toolbar-button:not(.is-primary):not(.is-danger):hover:not(:disabled) { border-color: #8d83da; color: #f1edff; background: #303552; }
+.modern-shell :where(input:not([type='checkbox']):not([type='range']), select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)) { border-radius: 9px; }
+.modern-shell :where(button, input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):focus-visible { outline: 2px solid #a89bff; outline-offset: 2px; }
 .modern-shell select, .modern-shell select option { font-size: 13px; line-height: 1.4; }
 .modern-home { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; overflow-y: auto; }
 .modern-hero { position: relative; display: flex; flex: 0 0 auto; align-items: center; min-height: 192px; overflow: hidden; padding: 22px 30px; border: 1px solid #353864; border-radius: 17px; background: linear-gradient(110deg, #1c2746 0%, #20294c 56%, #302c66 100%); }
@@ -528,7 +527,6 @@
 .modern-shell .credential-table thead th { background: #25344a; }
 .modern-shell .credential-image-item { border-color: #344157; border-radius: 9px; background: #202d40; }
 .modern-shell .credential-image-preview { background: #111c2a; }
-.modern-shell .yb-empty-state { border-color: #4b5480; border-radius: 10px; background: #182436; }
 
 /* 源码准备：文件选择、排序与结果侧栏统一成深色双栏工作台。 */
 .modern-shell .code-generation-page { gap: 16px; padding: 0 2px 22px 0; }
@@ -830,7 +828,7 @@
 :root[data-ui-appearance="modern"] :is(.grant-application-ai-progress progress, .grant-application-export-progress progress) { height: 3px; }
 :root[data-ui-appearance="modern"] .official-document-task { gap: 6px; margin-top: 12px; }
 :root[data-ui-appearance="modern"] .official-document-task-head { align-items: center; }
-:root[data-ui-appearance="modern"] .official-document-task-head > div { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 9px; }
+:root[data-ui-appearance="modern"] .official-document-task-head > .official-document-task-copy { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 9px; }
 :root[data-ui-appearance="modern"] .official-document-task-head strong { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; white-space: nowrap; }
 :root[data-ui-appearance="modern"] .official-document-task-head strong::before { display: grid; width: 18px; height: 18px; flex: 0 0 18px; place-items: center; border-radius: 50%; color: #cfc7ff; background: #4c4a82; content: '···'; font-size: 12px; line-height: 1; }
 :root[data-ui-appearance="modern"] .official-document-task.is-success .official-document-task-head strong::before { color: #112b2c; background: #82d3be; content: '✓'; font-size: 12px; font-weight: 900; }

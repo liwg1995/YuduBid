@@ -1,0 +1,9 @@
+/* 项目管理表单在 Portal 内也使用主题表面和一致的内容间距。 */
+:root .software-copyright-case-editor[role="dialog"] { box-sizing:border-box; max-height:calc(100dvh - 40px); overflow-y:auto; color:var(--yb-text); background:var(--yb-surface); border-color:var(--yb-border); }
+:root[data-ui-appearance="modern"] body .software-copyright-case-editor[role="dialog"] { gap:16px; padding:24px; }
+:root .software-copyright-case-editor > h2 { margin:0; font-size:16px; line-height:24px; }
+:root .software-copyright-case-editor > p { margin:0; color:var(--yb-text-soft); font-size:14px; line-height:22px; overflow-wrap:anywhere; }
+:root .software-copyright-case-editor .software-copyright-case-name { margin:0; color:var(--yb-text-soft); }
+:root .software-copyright-case-editor .software-copyright-case-name input { box-sizing:border-box; min-width:0; color:var(--yb-text); background:var(--yb-control-bg); border-color:var(--yb-control-border); }
+:root .software-copyright-case-editor .software-copyright-dialog-actions { margin:0; flex-wrap:wrap; gap:8px; }
+:root .software-copyright-case-editor button:disabled { cursor:wait; }

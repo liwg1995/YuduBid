@@ -66,8 +66,8 @@ app.whenReady().then(async () => {
         fs.writeFileSync(path.join(output, 'modern-check-method-dialog.png'), (await window.webContents.capturePage()).toPNG());
         await js(`document.querySelectorAll('[aria-label="检查方式"] button')[1].click()`);
         await waitFor(`!!document.querySelector('.blind-check-running.is-reviewing .blind-check-running-visual')`);
-        const runningLayout = await js(`(() => { const panel=document.querySelector('.blind-check-running'), visual=document.querySelector('.blind-check-running-visual'), stages=document.querySelector('.blind-check-running-stages'); return { panelWidth:panel.clientWidth, visualWidth:visual.clientWidth, stageCount:stages.children.length, orbitAnimation:getComputedStyle(document.querySelector('.blind-check-running-orbit.is-outer')).animationName }; })()`);
-        assert(runningLayout.panelWidth >= 700 && runningLayout.visualWidth >= 200 && runningLayout.stageCount === 3 && runningLayout.orbitAnimation === 'blind-check-orbit-spin', JSON.stringify(runningLayout));
+        const reviewFeedback = await js(`(() => { const panel=document.querySelector('.blind-check-running'), waiting=panel.querySelector('.blind-check-awaiting'); return { panelWidth:panel.clientWidth, message:waiting?.textContent, numericProgress:panel.querySelector('[role="progressbar"],progress,.progress-bar')?.textContent || '' }; })()`);
+        assert(reviewFeedback.panelWidth >= 500 && reviewFeedback.message?.includes('等待 AI 复核结论') && !reviewFeedback.numericProgress.includes('50%'), JSON.stringify(reviewFeedback));
         fs.writeFileSync(path.join(output, 'modern-review-running.png'), (await window.webContents.capturePage()).toPNG());
         for (let i = 0; i < 100 && controller.loadState().review?.status !== 'error'; i++) await pause(100);
         assert.equal(controller.loadState().result.status, 'success');

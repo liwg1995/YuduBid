@@ -1,3 +1,7 @@
+import { useState } from 'react';
+import ProjectDetailsDrawer from '../../../shared/ui/ProjectDetailsDrawer';
+import { ProjectListHeader, ProjectListToolbar, ProjectListTable, ProjectListActions, formatProjectListTime } from '../../../shared/ui/ProjectList';
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
 import type {
   ProjectManagementProfile,
   ProjectManagementProjectRecord,
@@ -39,20 +43,33 @@ export function ProjectManagementListView({
   onDeleteProject,
   onEnterProject,
 }: ProjectManagementListViewProps) {
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detail = projects.find(project => project.id === detailId);
   const allVisibleSelected = projects.length > 0 && selectedProjectIds.length === projects.length;
   const hasKeyword = Boolean(keyword.trim());
 
   if (getStoredUiAppearance() === 'modern') {
     return <section className="modern-pm-list">
-      <header className="modern-pm-list-head"><div><span>PROJECTS / MANAGEMENT</span><h1>项目管理</h1><p>建立项目档案，按阶段推进工作成果。</p></div><button type="button" onClick={onCreateProject} disabled={isRunning}>＋ 创建项目</button></header>
-      <div className="modern-pm-list-overview"><div><span>本地项目</span><strong>{totalCount}</strong></div><label><span>查找项目</span><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索名称、客户、类型或分组" /></label></div>
+      <ProjectListHeader title="项目管理" description="建立项目档案，按阶段推进工作成果。" actions={<button type="button" className="primary-action" onClick={onCreateProject} disabled={isRunning}>新建项目</button>} />
+      <ProjectListToolbar query={keyword} onQueryChange={setKeyword} placeholder="搜索名称、客户、类型或分组" count={`${projects.length} / ${totalCount} 个项目`} />
       <div className="modern-pm-list-toolbar"><label><input type="checkbox" checked={allVisibleSelected} onChange={(event) => onToggleAll(event.target.checked)} />选择当前列表</label><span>显示 {projects.length} 个 · 已选择 {selectedProjectIds.length} 个</span><button type="button" onClick={() => void onDeleteSelected()} disabled={!selectedProjectIds.length || isRunning}>删除所选</button></div>
-      {projects.length ? <div className="modern-pm-project-list">{projects.map((project) => <article key={project.id} className={project.isActive ? 'is-active' : ''}>
-        <label aria-label={`选择${project.name}`}><input type="checkbox" checked={selectedProjectIds.includes(project.id)} onChange={() => onToggleProject(project.id)} /></label>
-        <div className="modern-pm-project-main"><div><span>{project.isActive ? '当前项目' : '本地项目'}</span><strong>{project.name}</strong></div><p>{project.clientName || '客户待确认'} · {project.projectType || '类型待确认'} · {project.projectGroup || '未分组'}</p><small>交付方：{project.vendorName || '待确认'}　更新于 {formatProjectManagementTime(project.updated_at)}</small></div>
-        <div className="modern-pm-project-progress"><strong>{project.completedCount}<small>/10</small></strong><span>阶段完成</span><i style={{ width: `${project.completedCount * 10}%` }} /></div>
-        <div className="modern-pm-project-actions"><button type="button" onClick={() => void onEnterProject(project.id)}>进入项目 →</button><button type="button" className="is-danger" onClick={() => void onDeleteProject(project.id)} disabled={isRunning}>删除</button></div>
-      </article>)}</div> : <div className="modern-pm-list-empty"><strong>{hasKeyword ? '没有找到匹配项目' : '暂无可管理项目'}</strong><p>{hasKeyword ? '可以换个关键词或清空搜索。' : '创建项目后即可进入十个阶段的工作台。'}</p><button type="button" onClick={hasKeyword ? () => setKeyword('') : onCreateProject}>{hasKeyword ? '清空搜索' : '创建项目'}</button></div>}
+      <div className="yb-project-index-body"><ProjectListTable<ProjectManagementProjectRecord> dataSource={projects} columns={[
+        { title: '选择', width: 60, render: (_, project) => <input type="checkbox" aria-label={`选择${project.name}`} checked={selectedProjectIds.includes(project.id)} onChange={() => onToggleProject(project.id)} /> },
+        { title: '项目名称', render: (_, project) => <div className="yb-project-list-name"><button type="button" disabled={isRunning} onClick={() => setDetailId(project.id)}>{project.name}</button><small>{project.clientName || '客户待确认'} · {project.projectType || '类型待确认'}{project.isActive ? ' · 当前项目' : ''}</small><small>{project.projectGroup || '未分组'} · 交付方：{project.vendorName || '待确认'}</small></div> },
+        { title: '阶段完成', width: 100, render: (_, project) => `${project.completedCount} / 10` },
+        { title: '最近更新', dataIndex: 'updated_at', width: 180, defaultSortOrder: 'descend', sorter: (a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at), render: formatProjectListTime },
+        { title: '操作', width: 180, fixed: 'right', render: (_, project) => <ProjectListActions name={project.name} disabled={isRunning} onEnter={() => void onEnterProject(project.id)} items={[{ key: 'delete', label: '删除项目', danger: true, onClick: () => void onDeleteProject(project.id) }]} /> },
+      ]} locale={{ emptyText: <div className="modern-pm-list-empty"><strong>{hasKeyword ? '没有找到匹配项目' : '暂无可管理项目'}</strong><button type="button" onClick={hasKeyword ? () => setKeyword('') : onCreateProject}>{hasKeyword ? '清空搜索' : '新建项目'}</button></div> }} /></div>
+      <ProjectDetailsDrawer open={Boolean(detail)} onClose={() => setDetailId(null)} enterDisabled={isRunning}
+        onEnter={detail ? () => { setDetailId(null); void onEnterProject(detail.id); } : undefined} items={detail ? [
+          { key: 'name', label: '项目名称', children: detail.name },
+          { key: 'client', label: '客户', children: detail.clientName || '待确认' },
+          { key: 'vendor', label: '交付方', children: detail.vendorName || '待确认' },
+          { key: 'type', label: '项目类型', children: detail.projectType || '待确认' },
+          { key: 'stage', label: '当前阶段', children: detail.currentStage || '待确认' },
+          { key: 'count', label: '阶段完成', children: `${detail.completedCount} / 10` },
+          { key: 'updated', label: '更新时间', children: formatProjectListTime(detail.updated_at) },
+        ] : []} />
     </section>;
   }
 
@@ -194,7 +211,7 @@ export function ProjectManagementFlowNavigation({
   if (getStoredUiAppearance() === 'modern') return <aside className="modern-pm-flow">
     <div className="modern-pm-flow-head"><span>PROJECT / FLOW</span><strong>工作阶段</strong><small>{completedCount} / {modules.length} 已完成</small></div>
     <nav aria-label="项目管理阶段">{modules.map((module, index) => { const done = completedModuleIds.has(module.id); return <button key={module.id} type="button" className={module.id === activeModule.id ? 'is-active' : ''} title={module.title} onClick={() => onSelectModule(module.id)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{module.label}</strong><small>{done ? '✓' : suggestedModule?.id === module.id ? '下一步' : '›'}</small></button>; })}</nav>
-    <div className="modern-pm-flow-foot"><p>{suggestedModule ? currentModuleDone ? `建议下一步：${suggestedModule.label}` : `当前建议：先完成${suggestedModule.label}` : '所有阶段已完成'}</p>{exportProgress && <small>{exportProgress.message} · {exportProgress.progress}%</small>}<button type="button" onClick={() => void onExportAll()} disabled={isRunning || exporting || completedCount === 0}>{exporting ? '导出中...' : '导出全套 Word'}</button></div>
+    <div className="modern-pm-flow-foot"><p>{suggestedModule ? currentModuleDone ? `建议下一步：${suggestedModule.label}` : `当前建议：先完成${suggestedModule.label}` : '所有阶段已完成'}</p>{exportProgress && <BusinessTaskProgress label={exportProgress.message} percent={exportProgress.progress} status={exportProgress.phase === 'error' ? 'exception' : exportProgress.phase === 'success' ? 'success' : 'active'} />}<button type="button" onClick={() => void onExportAll()} disabled={isRunning || exporting || completedCount === 0}>{exporting ? '导出中...' : '导出全套 Word'}</button></div>
   </aside>;
   return (
     <>
@@ -219,7 +236,7 @@ export function ProjectManagementFlowNavigation({
       {exportProgress && (
         <div className={`project-management-export is-${exportProgress.phase}`}>
           <span>{exportProgress.message}</span>
-          <strong>{exportProgress.progress}%</strong>
+          <BusinessTaskProgress label="Word 导出" percent={exportProgress.progress} status={exportProgress.phase === 'error' ? 'exception' : exportProgress.phase === 'success' ? 'success' : 'active'} />
         </div>
       )}
       <nav className="project-management-tabs" aria-label="项目管理二级模块">

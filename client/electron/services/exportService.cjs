@@ -10,6 +10,7 @@ const { getSafeImageDimensions } = require('../utils/safeImageDimensions.cjs');
 const { createCanvas, GlobalFonts, loadImage: loadCanvasImage } = require('@napi-rs/canvas');
 const { getGeneratedImagesDir, getImportedImagesDir, getKnowledgeImageLibraryDir } = require('../utils/paths.cjs');
 const { createLocalImageRenderService } = require('./localImageRenderService.cjs');
+const { findFeasibilityImportedImage } = require('../utils/importedImages.cjs');
 const { assertRemoteHttpUrl, fetchRemoteWithTimeout, readResponseBuffer } = require('../utils/secureHttp.cjs');
 const localImageRenderService = createLocalImageRenderService();
 const {
@@ -2282,7 +2283,9 @@ function resolveAssetImagePath(url) {
     return null;
   }
 
-  return resolvedPath;
+  return assetUrl.hostname === 'imported-images' && !fs.existsSync(resolvedPath)
+    ? findFeasibilityImportedImage(app, relativePath) || resolvedPath
+    : resolvedPath;
 }
 
 async function loadImage(source, context = {}, options = {}) {
@@ -2602,6 +2605,30 @@ async function htmlInlineRuns($, nodes = [], context = {}, marks = {}) {
   return runs;
 }
 
+async function htmlTableCellParagraphs($, cellNode, context, marks, options) {
+  const paragraphs = [];
+  let inlineNodes = [];
+  const flush = async () => {
+    if (!inlineNodes.length) return;
+    paragraphs.push(paragraph(await htmlInlineRuns($, inlineNodes, context, marks), options));
+    inlineNodes = [];
+  };
+  const visit = async (nodes) => {
+    for (const node of nodes) {
+      if (['p', 'div'].includes(htmlTagName(node))) {
+        await flush();
+        const before = paragraphs.length;
+        await visit($(node).contents().toArray());
+        await flush();
+        if (paragraphs.length === before) paragraphs.push(paragraph([], options));
+      } else if (node.type !== 'text' || String(node.data || '').trim() || inlineNodes.length) inlineNodes.push(node);
+    }
+  };
+  await visit($(cellNode).contents().toArray());
+  await flush();
+  return paragraphs.length ? paragraphs : [paragraph([], options)];
+}
+
 async function htmlTableToDocx($, tableNode, context) {
   const rows = [];
   const optimized = Boolean(context.wordOptimizationEnabled);
@@ -2626,17 +2653,17 @@ async function htmlTableToDocx($, tableNode, context) {
       const templateCellStyle = templateStyle ? (isHeader ? templateStyle.header_row : cellIndex === 0 ? templateStyle.first_column : templateStyle.body_cell) : null;
       const remainingSpan = cellIndex === row.cells.length - 1 ? maxColumns - row.columnCount : 0;
       cells.push(createTableCell({
-        children: [paragraph(await htmlInlineRuns($, $(cellNode).contents().toArray(), context, {
+        children: await htmlTableCellParagraphs($, cellNode, context, {
           bold: isHeader,
           font: templateCellStyle?.font || (optimized && isHeader ? '黑体' : undefined),
           size: templateCellStyle ? pointsToHalfPoints(chineseSizeToPoints(templateCellStyle.size)) : undefined,
           color: templateCellStyle ? colorWithoutHash(templateCellStyle.text_color) : undefined,
           optimized,
-        }), {
+        }, {
           after: optimized ? 0 : 80,
           ...optimizedTableCellParagraphOptions(optimized),
           alignment: templateCellStyle ? docxAlignment(templateCellStyle.alignment, AlignmentType.CENTER) : undefined,
-        })],
+        }),
         isHeader,
         columnSpan: cell.columnSpan + Math.max(0, remainingSpan),
         totalColumns: maxColumns,
@@ -4008,10 +4035,15 @@ function createExportService({ configStore, getTemplateStore } = {}) {
       const progressContext = { onProgress, warnings: [], stats };
       const feasibilityReport = payload.document_profile === 'feasibility-report' || payload.documentProfile === 'feasibility-report';
       const patentDisclosure = payload.document_profile === 'patent-disclosure' || payload.documentProfile === 'patent-disclosure';
+      const documentProfile = payload.document_profile || payload.documentProfile;
       const defaultFilename = feasibilityReport
         ? `${sanitizeFilename(payload.project_name || '建设项目')}-可行性研究报告.docx`
         : patentDisclosure
         ? `${sanitizeFilename(payload.project_name || '专利')}-技术交底书.docx`
+        : documentProfile === 'official-document'
+        ? `${sanitizeFilename(payload.project_name || '公文文稿')}.docx`
+        : documentProfile === 'grant-application'
+        ? `${sanitizeFilename(payload.project_name || '课题申报书')}.docx`
         : `${sanitizeFilename(payload.project_name || '标书文档')}-技术方案.docx`;
       const defaultDir = app?.getPath ? app.getPath('documents') : process.env.USERPROFILE || process.cwd();
       const result = await dialog.showSaveDialog({

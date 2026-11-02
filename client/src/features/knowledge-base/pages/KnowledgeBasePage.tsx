@@ -1,8 +1,11 @@
+import { captureListRemovalFocus, restoreListRemovalFocus, type ListRemovalFocus } from '../../../shared/ui/listRemovalFocus';
+import KnowledgeDocumentList from '../components/KnowledgeDocumentList';
 import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import { Profiler, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import '../knowledgeBase.css';
 import './modernKnowledgeBase.css';
+import './knowledgeListDesign.css';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import type { Components } from 'react-markdown';
 import { isLibreOfficeRequiredMessage, MarkdownRenderer, useAppDialog, useDocumentParseNotice, useToast } from '../../../shared/ui';
@@ -307,12 +310,14 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
   const [index, setIndex] = useState<KnowledgeBaseIndex>(emptyIndex);
   const [activeFolderId, setActiveFolderId] = useState('');
   const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState('');
   const [loading, setLoading] = useState(false);
   const [migrationRunning, setMigrationRunning] = useState(false);
   const [migrationDialogOpen, setMigrationDialogOpen] = useState(false);
   const [pendingMigrationStatus, setPendingMigrationStatus] = useState<KnowledgeBaseMigrationStatus | null>(null);
   const [viewer, setViewer] = useState<KnowledgeViewer | null>(null);
   const [viewerLoading, setViewerLoading] = useState(false);
+  const [viewerError, setViewerError] = useState('');
   const [viewerTrace, setViewerTrace] = useState<RenderDebugTrace | null>(null);
   const [markdownPreview, setMarkdownPreview] = useState('');
   const [itemsPreview, setItemsPreview] = useState<KnowledgeItem[]>([]);
@@ -327,6 +332,10 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
   const autoMatchingIdsRef = useRef(new Set<string>());
   const documentParseNoticeIdsRef = useRef(new Set<string>());
   const viewerRequestIdRef = useRef(0);
+  const knowledgeListRef = useRef<HTMLDivElement>(null);
+  const documentDeleteBusy = useRef(false);
+  const pendingRemovalFocus = useRef<{ id: string; folderId?: string; plan: ListRemovalFocus } | null>(null);
+  const listReturnFocusRef = useRef<HTMLElement | null>(null);
   const viewerTraceRef = useRef<RenderDebugTrace | null>(null);
   const createRequestRef = useRef(createRequestKey);
   const { showToast } = useToast();
@@ -424,6 +433,7 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
   const loadInitialData = async () => {
     try {
       setListLoading(true);
+      setListError('');
       const config = await window.yibiao?.config.load();
       setDeveloperMode(Boolean(config?.developer_mode));
       const migrationStatus = await window.yibiao?.knowledgeBase.getMigrationStatus();
@@ -438,6 +448,7 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
           showToast(migrationStatus.message || '旧知识库 JSON 清理未完成，将在下次进入时继续处理', 'info');
         }
       }
+      if (!data) throw new Error('知识库服务暂不可用，请重试');
       if (data) {
         setIndex(data);
         setActiveFolderId((currentId) => (
@@ -445,7 +456,9 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
         ));
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '读取知识库失败', 'error');
+      const message = error instanceof Error ? error.message : '读取知识库失败';
+      setListError(message);
+      showToast(message, 'error');
     } finally {
       setLoading(false);
       setListLoading(false);
@@ -649,27 +662,46 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
   };
 
   const deleteDocument = async (document: KnowledgeDocument) => {
+    if (documentDeleteBusy.current) return;
     if (migrationRunning) {
       showToast('知识库迁移中，请稍候', 'info');
       return;
     }
-    const confirmed = await confirm({
-      title: '删除知识库文档',
-      description: `确定删除文档“${document.file_name}”吗？对应的解析结果和知识条目也会删除。`,
-      confirmLabel: '删除文档',
-      danger: true,
-    });
-    if (!confirmed) return;
-
+    documentDeleteBusy.current = true;
+    const root = knowledgeListRef.current;
+    const item = Array.from(root?.querySelectorAll<HTMLElement>('[data-knowledge-document]') || []).find(button => button.dataset.knowledgeDocument === document.id);
+    const plan = captureListRemovalFocus(root, '[data-knowledge-document]', item);
     try {
+      const confirmed = await confirm({
+        title: '删除知识库文档',
+        description: `确定删除文档“${document.file_name}”吗？对应的解析结果和知识条目也会删除。`,
+        confirmLabel: '删除文档',
+        danger: true,
+      });
+      if (!confirmed) return;
       const result = await window.yibiao?.knowledgeBase.deleteDocument(document.id);
+      if (!result?.success) throw new Error(result?.message || '删除文档失败，请重试');
+      pendingRemovalFocus.current = { id: document.id, folderId: activeFolder?.id, plan };
       setIndex((prev) => ({ ...prev, documents: prev.documents.filter((item) => item.id !== document.id) }));
       setViewer((prev) => (prev?.document.id === document.id ? null : prev));
-      showToast(result?.message || '文档已删除', 'success');
+      showToast(result.message || '文档已删除', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '删除文档失败', 'error');
+    } finally {
+      documentDeleteBusy.current = false;
     }
   };
+
+  useLayoutEffect(() => {
+    const pending = pendingRemovalFocus.current;
+    if (!pending || index.documents.some(document => document.id === pending.id)) return;
+    pendingRemovalFocus.current = null;
+    if (viewer || activeFolder?.id !== pending.folderId) return;
+    // 删除期间已主动操作其他控件时，不抢回焦点。
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body && active !== pending.plan.source && active.isConnected) return;
+    restoreListRemovalFocus(pending.plan, knowledgeListRef.current, '[data-knowledge-document]', ['input[aria-label="搜索文档名称"]', '.modern-knowledge-empty [data-knowledge-upload]', '[data-knowledge-upload]']);
+  }, [index.documents, viewer, activeFolder?.id]);
 
   const finishActiveViewerTrace = (reason: string, payload: Record<string, unknown> = {}) => {
     finishRenderDebugTrace(viewerTraceRef.current, reason, payload);
@@ -707,9 +739,14 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
     if (mode === 'analysis' && !developerMode) {
       return;
     }
+    if (!viewer) {
+      const activeElement = window.document.activeElement;
+      listReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement.closest('.modern-knowledge-page') ? activeElement : Array.from(window.document.querySelectorAll<HTMLButtonElement>('[data-knowledge-document]')).find((element) => element.dataset.knowledgeDocument === document.id) || null;
+    }
     const requestId = viewerRequestIdRef.current + 1;
     viewerRequestIdRef.current = requestId;
     const trace = createViewerTrace(document, mode, requestId);
+    setViewerError('');
     setViewerLoading(mode !== 'analysis');
     logRenderDebug(trace, 'state:loading-start', { loading: mode !== 'analysis' });
     startTransition(() => {
@@ -772,7 +809,9 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
       if (viewerRequestIdRef.current === requestId) {
         logRenderDebug(trace, 'ipc:read:error', { message: error instanceof Error ? error.message : String(error) });
         finishRenderDebugTrace(trace, 'read-error');
-        showToast(error instanceof Error ? error.message : '读取文档结果失败', 'error');
+        const message = error instanceof Error ? error.message : '读取文档结果失败';
+        setViewerError(message);
+        showToast(message, 'error');
       }
     } finally {
       if (viewerRequestIdRef.current === requestId) {
@@ -781,6 +820,13 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
       }
     }
   };
+
+  useLayoutEffect(() => {
+    if (!viewer && listReturnFocusRef.current?.isConnected) {
+      listReturnFocusRef.current.focus({ preventScroll: true });
+      listReturnFocusRef.current = null;
+    }
+  }, [viewer]);
 
   const closeViewer = () => {
     viewerRequestIdRef.current += 1;
@@ -829,9 +875,7 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
     />
   ) : null;
 
-  if (viewer) {
-    return (
-      <>
+  const documentViewer = viewer ? (
         <KnowledgeDocumentViewer
           document={viewer.document}
           mode={viewer.mode}
@@ -839,6 +883,8 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
           markdownPreview={markdownPreview}
           analysisSnapshot={analysisSnapshot}
           viewerLoading={viewerLoading}
+          viewerError={viewerError}
+          onRetry={() => void openDocument(viewer.document, viewer.mode)}
           viewerTrace={viewerTrace}
           batchSize={batchSize}
           startingMatching={startingMatching}
@@ -849,23 +895,23 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
           onStartMatching={() => void startMatching()}
           onRefreshAnalysis={() => void loadAnalysis(viewer.document.id)}
         />
-        {migrationDialog}
-      </>
-    );
-  }
+  ) : null;
+  if (viewer && getStoredUiAppearance() !== 'modern') return <>{documentViewer}{migrationDialog}</>;
 
   if (getStoredUiAppearance() === 'modern') {
     return <>
-      <div className="modern-knowledge-page">
-        <header className="modern-knowledge-header"><div><span>DOCUMENT LIBRARY</span><h2>文档资料</h2><p>按文件夹组织历史文档，查看知识提取进度与结果。</p></div><div><strong>{index.documents.length}</strong><small>个文档</small><button type="button" onClick={uploadDocuments} disabled={loading || migrationRunning || !activeFolder}>{migrationRunning ? '迁移中…' : loading ? '处理中…' : '上传文档'}</button></div></header>
+      {documentViewer}
+      <div ref={knowledgeListRef} className="modern-knowledge-page" hidden={Boolean(viewer)}>
+        <header className="modern-knowledge-header"><div><h2>文档资料</h2><p>按文件夹组织历史文档，查看知识提取进度与结果。</p></div><div><strong>{index.documents.length}</strong><small>个文档</small><button type="button" data-knowledge-upload onClick={uploadDocuments} disabled={loading || migrationRunning || !activeFolder}>{migrationRunning ? '迁移中…' : loading ? '处理中…' : '上传文档'}</button></div></header>
         <div className="modern-knowledge-workspace">
-          <aside className="modern-knowledge-folders"><div className="modern-knowledge-panel-head"><div><span>COLLECTIONS</span><strong>文件夹</strong></div><button type="button" onClick={() => setShowCreateFolder((value) => !value)} disabled={migrationRunning || listLoading}>＋ 新建</button></div>
-            {showCreateFolder && <form className="modern-knowledge-create" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}><input autoFocus value={newFolderName} onChange={(event) => setNewFolderName(event.target.value)} placeholder="文件夹名称" disabled={migrationRunning} /><div><button type="submit" disabled={creatingFolder || migrationRunning}>{creatingFolder ? '创建中…' : '创建'}</button><button type="button" onClick={() => { setNewFolderName(''); setShowCreateFolder(false); }}>取消</button></div></form>}
-            <div className="modern-knowledge-folder-list">{listLoading ? <p>正在读取文件夹…</p> : index.folders.length ? index.folders.map((folder) => { const count = documentsByFolder.get(folder.id)?.length || 0; return <div key={folder.id} className={`modern-knowledge-folder${folder.id === activeFolder?.id ? ' is-active' : ''}`}><button type="button" onClick={() => startTransition(() => setActiveFolderId(folder.id))} disabled={migrationRunning}><span aria-hidden="true">▧</span><strong>{folder.name}</strong><small>{count}</small></button><div><button type="button" title="重命名" aria-label={`重命名 ${folder.name}`} onClick={() => void renameFolder(folder.id, folder.name)} disabled={migrationRunning}>✎</button><button type="button" title="删除" aria-label={`删除 ${folder.name}`} onClick={() => void deleteFolder(folder.id, folder.name)} disabled={migrationRunning}>×</button></div></div>; }) : <p>还没有文件夹。创建后即可上传资料。</p>}</div>
+          <aside className="modern-knowledge-folders"><div className="modern-knowledge-panel-head"><div><strong>文件夹</strong></div><button type="button" onClick={() => setShowCreateFolder((value) => !value)} disabled={migrationRunning || listLoading || Boolean(listError)}>＋ 新建</button></div>
+            {showCreateFolder && <form className="modern-knowledge-create" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}><input autoFocus value={newFolderName} onChange={(event) => setNewFolderName(event.target.value)} placeholder="文件夹名称" aria-label="文件夹名称" disabled={migrationRunning || creatingFolder} /><div><button type="submit" disabled={creatingFolder || migrationRunning}>{creatingFolder ? '创建中…' : '创建'}</button><button type="button" onClick={() => { setNewFolderName(''); setShowCreateFolder(false); }}>取消</button></div></form>}
+            <div className="modern-knowledge-folder-list">{listLoading ? <p>正在读取文件夹…</p> : listError ? <p>文件夹读取失败，请在右侧重试。</p> : index.folders.length ? index.folders.map((folder) => { const count = documentsByFolder.get(folder.id)?.length || 0; return <div key={folder.id} className={`modern-knowledge-folder${folder.id === activeFolder?.id ? ' is-active' : ''}`}><button type="button" onClick={() => startTransition(() => setActiveFolderId(folder.id))} aria-current={folder.id === activeFolder?.id ? 'true' : undefined} disabled={migrationRunning}><span aria-hidden="true">▧</span><strong>{folder.name}</strong><small>{count}</small></button><div><button type="button" title="重命名" aria-label={`重命名 ${folder.name}`} onClick={() => void renameFolder(folder.id, folder.name)} disabled={migrationRunning}>✎</button><button type="button" title="删除" aria-label={`删除 ${folder.name}`} onClick={() => void deleteFolder(folder.id, folder.name)} disabled={migrationRunning}>×</button></div></div>; }) : <p>还没有文件夹。创建后即可上传资料。</p>}</div>
             <div className="modern-knowledge-folder-foot">{index.folders.length} 个文件夹 · 保存在本地</div>
           </aside>
           <main className="modern-knowledge-documents"><div className="modern-knowledge-document-head"><div><span>当前文件夹</span><h3>{activeFolder?.name || '请选择文件夹'}</h3></div><strong>{documents.length} 个文档</strong></div>
-            <div className="modern-knowledge-document-list">{listLoading ? <div className="modern-knowledge-empty"><strong>正在读取知识库…</strong><p>文件夹和文档加载完成后会自动显示。</p></div> : documents.length ? <>{visibleDocuments.map((document) => <article className="modern-knowledge-document" key={document.id}><div className="modern-knowledge-document-main"><span className="modern-knowledge-doc-icon">{document.file_name.split('.').pop()?.slice(0, 4).toUpperCase() || 'DOC'}</span><div><strong title={document.file_name}>{document.file_name}</strong>{developerMode && <code>文档 ID：{document.id}</code>}<p>{document.message || '等待处理'}</p></div><span className={`modern-knowledge-status is-${document.status}`}>{statusLabels[document.status]}</span></div><div className="modern-knowledge-document-progress" role="progressbar" aria-label={`${document.file_name}处理进度`} aria-valuenow={Math.max(0, Math.min(100, document.progress || 0))} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.max(0, Math.min(100, document.progress || 0))}%` }} /></div><div className="modern-knowledge-document-foot"><div><span><b>{document.item_count || 0}</b> 条知识</span><span>{document.candidate_item_count || 0} 个候选</span><span>{document.block_count || 0} 个 block</span></div><div>{developerMode && <button type="button" onClick={() => void openDocument(document, 'analysis')} disabled={migrationRunning || !canOpenAnalysis(document)}>分析调试</button>}<button type="button" onClick={() => void openDocument(document, 'items')} disabled={migrationRunning || document.status !== 'success'}>知识条目</button><button type="button" onClick={() => void openDocument(document, 'markdown')} disabled={migrationRunning || !canOpenMarkdown(document)}>Markdown</button><button type="button" className="is-danger" onClick={() => void deleteDocument(document)} disabled={migrationRunning}>删除</button></div></div></article>)}{visibleDocuments.length < documents.length && <div className="modern-knowledge-more">正在加载更多文档… {visibleDocuments.length} / {documents.length}</div>}</> : <div className="modern-knowledge-empty"><strong>{activeFolder ? '当前文件夹还没有文档' : '先创建文件夹'}</strong><p>支持 .doc、.docx、.wps、.pdf 和 .md 文档。</p>{activeFolder && <button type="button" onClick={uploadDocuments} disabled={loading || migrationRunning}>上传文档</button>}</div>}</div>
+            {listError ? <div className="modern-knowledge-empty" role="alert"><strong>读取知识库失败</strong><p>{listError}</p><button type="button" onClick={() => void loadInitialData()}>重新读取</button></div> : listLoading ? <div className="modern-knowledge-empty" role="status"><strong>正在读取知识库…</strong></div> : documents.length ? <KnowledgeDocumentList key={activeFolder?.id} documents={documents} disabled={migrationRunning} developerMode={developerMode} canOpenMarkdown={canOpenMarkdown} canOpenAnalysis={canOpenAnalysis} onOpen={(document, mode) => void openDocument(document, mode)} onDelete={(document) => void deleteDocument(document)} /> : <div className="modern-knowledge-empty"><strong>{activeFolder ? '当前文件夹还没有文档' : '先创建文件夹'}</strong><p>支持 Word、PDF、WPS 和 Markdown 文档。</p><button type="button" data-knowledge-upload={activeFolder ? true : undefined} onClick={activeFolder ? uploadDocuments : () => setShowCreateFolder(true)} disabled={loading || migrationRunning}>{activeFolder ? '上传文档' : '新建文件夹'}</button></div>}
+
           </main>
         </div>
       </div>
@@ -875,7 +921,7 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
 
   return (
     <>
-      <div className="page-stack knowledge-page">
+      <div ref={knowledgeListRef} className="page-stack knowledge-page">
         <section className="knowledge-workspace-bar">
         <div className="knowledge-breadcrumb">
           <span>知识库</span>
@@ -884,7 +930,7 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
         </div>
         <div className="knowledge-toolbar-actions">
           {!embedded && <button type="button" className="secondary-action create-action" onClick={() => setShowCreateFolder((value) => !value)} disabled={migrationRunning || listLoading}>新建文件夹</button>}
-          <button type="button" className="primary-action" onClick={uploadDocuments} disabled={loading || migrationRunning || !activeFolder}>
+          <button type="button" className="primary-action" data-knowledge-upload onClick={uploadDocuments} disabled={loading || migrationRunning || !activeFolder}>
             {migrationRunning ? '迁移中...' : loading ? '处理中...' : '上传文档'}
           </button>
         </div>
@@ -936,7 +982,7 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
                 const count = documentsByFolder.get(folder.id)?.length || 0;
                 return (
                   <article key={folder.id} className={`knowledge-folder-card ${folder.id === activeFolder?.id ? 'is-active' : ''}`}>
-                    <button type="button" className="knowledge-folder-main" onClick={() => startTransition(() => setActiveFolderId(folder.id))} disabled={migrationRunning}>
+                    <button type="button" className="knowledge-folder-main" onClick={() => startTransition(() => setActiveFolderId(folder.id))} aria-current={folder.id === activeFolder?.id ? 'true' : undefined} disabled={migrationRunning}>
                       <span aria-hidden="true">F</span>
                       <strong>{folder.name}</strong>
                       <small>{count} 个文档</small>
@@ -991,7 +1037,7 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
                   <div className="knowledge-document-actions">
                     {developerMode && <button type="button" onClick={() => void openDocument(document, 'analysis')} disabled={migrationRunning || !canOpenAnalysis(document)}>分析调试</button>}
                     <button type="button" onClick={() => void openDocument(document, 'items')} disabled={migrationRunning || document.status !== 'success'}>查看条目</button>
-                    <button type="button" onClick={() => void openDocument(document, 'markdown')} disabled={migrationRunning || !canOpenMarkdown(document)}>查看 Markdown</button>
+                    <button type="button" data-knowledge-document={document.id} onClick={() => void openDocument(document, 'markdown')} disabled={migrationRunning || !canOpenMarkdown(document)}>查看 Markdown</button>
                     <button type="button" className="is-danger" onClick={() => void deleteDocument(document)} disabled={migrationRunning}>删除</button>
                   </div>
                 </article>
@@ -1086,6 +1132,8 @@ interface KnowledgeDocumentViewerProps {
   markdownPreview: string;
   analysisSnapshot: KnowledgeAnalysisSnapshot | null;
   viewerLoading: boolean;
+  viewerError: string;
+  onRetry: () => void;
   viewerTrace: RenderDebugTrace | null;
   batchSize: number;
   startingMatching: boolean;
@@ -1104,6 +1152,8 @@ function KnowledgeDocumentViewer({
   markdownPreview,
   analysisSnapshot,
   viewerLoading,
+  viewerError,
+  onRetry,
   viewerTrace,
   batchSize,
   startingMatching,
@@ -1115,6 +1165,8 @@ function KnowledgeDocumentViewer({
   onRefreshAnalysis,
 }: KnowledgeDocumentViewerProps) {
   const { showToast } = useToast();
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  useLayoutEffect(() => { headingRef.current?.focus({ preventScroll: true }); }, [document.id]);
   const [sourceItem, setSourceItem] = useState<KnowledgeItem | null>(null);
   const [sourceRendering, setSourceRendering] = useState(false);
   const [sourceTrace, setSourceTrace] = useState<RenderDebugTrace | null>(null);
@@ -1177,7 +1229,7 @@ function KnowledgeDocumentViewer({
   const readerContent = (
     <>
 
-        {mode === 'analysis' && developerMode ? (
+        {viewerError ? <div className="knowledge-empty-box" role="alert"><strong>读取文档结果失败</strong><p>{viewerError}</p><button type="button" className="secondary-action" onClick={onRetry}>重新读取</button></div> : mode === 'analysis' && developerMode ? (
           <KnowledgeAnalysisView
             document={document}
             snapshot={analysisSnapshot}
@@ -1224,7 +1276,7 @@ function KnowledgeDocumentViewer({
                 developerMode={developerMode}
                 profilerId="knowledge-document-markdown"
               >
-                <MarkdownRenderer>{markdownPreview || '暂无 Markdown 内容'}</MarkdownRenderer>
+                <MarkdownRenderer allowRawHtml={false}>{markdownPreview || '暂无 Markdown 内容'}</MarkdownRenderer>
               </DebuggableMarkdownContent>
             )}
           </div>
@@ -1254,7 +1306,7 @@ function KnowledgeDocumentViewer({
 
   if (getStoredUiAppearance() === 'modern') {
     return <div className="modern-knowledge-viewer">
-      <header className="modern-knowledge-viewer-header"><div><button type="button" onClick={onBack}>← 返回文档资料</button><span>DOCUMENT DETAIL</span><h2 title={document.file_name}>{document.file_name}</h2><p>{statusLabels[document.status]} · {document.item_count || 0} 条知识{developerMode ? ` · 文档 ID：${document.id}` : ''}</p></div>{developerMode && <button type="button" onClick={() => void copyDebugLogs()}>复制调试日志</button>}</header>
+      <header className="modern-knowledge-viewer-header"><div><button type="button" onClick={onBack}>← 返回文档资料</button><h2 ref={headingRef} tabIndex={-1} title={document.file_name}>{document.file_name}</h2><p>{statusLabels[document.status]} · {document.item_count || 0} 条知识{developerMode ? ` · 文档 ID：${document.id}` : ''}</p></div>{developerMode && <button type="button" onClick={() => void copyDebugLogs()}>复制调试日志</button>}</header>
       <div className="modern-knowledge-viewer-modes" role="tablist" aria-label="文档查看模式"><button type="button" role="tab" aria-selected={mode === 'items'} className={mode === 'items' ? 'is-active' : ''} onClick={() => onModeChange('items')} disabled={document.status !== 'success'}>知识条目 <small>{document.item_count || 0}</small></button><button type="button" role="tab" aria-selected={mode === 'markdown'} className={mode === 'markdown' ? 'is-active' : ''} onClick={() => onModeChange('markdown')} disabled={!canOpenMarkdown(document)}>Markdown 原文</button>{developerMode && <button type="button" role="tab" aria-selected={mode === 'analysis'} className={mode === 'analysis' ? 'is-active' : ''} onClick={() => onModeChange('analysis')}>分析调试</button>}</div>
       <section className="modern-knowledge-viewer-body" aria-label={mode === 'items' ? '知识条目' : mode === 'markdown' ? 'Markdown 原文' : '分析调试'}>{readerContent}</section>
       {sourceDialog}

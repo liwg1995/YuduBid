@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getBidAnalysisTasks } from '../services/bidAnalysisWorkflow';
 import { MarkdownRenderer, useToast } from '../../../shared/ui';
+import TaskProgressSummary from '../../../shared/ui/TaskProgressSummary';
 import { ActivityWaiting } from '../../../shared/ui/ActivityWaiting';
 import type { BackgroundTaskState, BidAnalysisMode, BidAnalysisTasks, BidAnalysisTaskState, TechnicalPlanWorkflowKind } from '../types';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
@@ -31,7 +32,7 @@ const modeOptions: Array<{ id: BidAnalysisMode; title: string; desc: string; bad
     id: 'full',
     title: '完整解析',
     desc: '并发提取项目、甲方、代理、评标、合同等完整信息。',
-    badge: '更多 Token',
+    badge: '范围更广',
   },
 ];
 
@@ -186,6 +187,7 @@ function BidAnalysisPage({
   const activeTaskState = activeTask ? tasks[activeTask.id] : undefined;
   const activeTaskStatus = activeTaskState?.status || 'idle';
   const activeTaskContent = activeTaskState?.content || '';
+  const successTaskCount = selectedTasks.filter((item) => tasks[item.id]?.status === 'success').length;
   const failedTaskCount = selectedTasks.filter((task) => tasks[task.id]?.status === 'error').length;
   const allSelectedTasksSucceeded = selectedTasks.length > 0 && selectedTasks.every((task) => tasks[task.id]?.status === 'success');
   const doneCount = selectedTasks.filter((task) => {
@@ -263,18 +265,30 @@ function BidAnalysisPage({
       return;
     }
 
-    await navigator.clipboard.writeText(activeTaskContent);
-    showToast('解析结果已复制', 'success');
+    try {
+      await navigator.clipboard.writeText(activeTaskContent);
+      showToast('解析结果已复制', 'success');
+    } catch {
+      showToast('复制失败，请重试', 'error');
+    }
   };
 
   if (getStoredUiAppearance() === 'modern') {
     return <div className="modern-bid-analysis">
+      <section className="modern-bid-analysis-start">
+        <div className="modern-bid-analysis-heading"><div><h2>招标文件解析</h2><p>选择解析范围，关键项成功后即可进入目录生成。</p></div><button type="button" className="modern-bid-analysis-run modern-inline-operation is-accent" onClick={() => startAnalysis()} disabled={taskRunning || !hasTenderFile}>{taskRunning ? '解析中…' : failedTaskCount > 0 ? `重试未完成项（${selectedTasks.length - successTaskCount}）` : allSelectedTasksSucceeded ? '重新解析全部' : '开始解析'}</button></div>
+        <div className="modern-bid-analysis-modes" role="radiogroup" aria-label="解析模式">{modeOptions.map((option) => <label key={option.id} className={mode === option.id ? 'is-active' : ''}><input type="radio" name="modern-bid-analysis-mode" value={option.id} checked={mode === option.id} disabled={taskRunning} onChange={() => { onModeChange(option.id); syncProgressForMode(option.id); setSelectedTaskId(getBidAnalysisTasks(option.id)[0]?.id || 'projectOverview'); }} /><strong>{option.title}</strong><em>{option.badge}</em><small>{option.desc}</small></label>)}</div>
+        {!hasTenderFile && <p className="modern-bid-analysis-notice">请先在“上传招标文件”阶段导入文件。</p>}
+      </section>
       <div className="modern-bid-analysis-controls">
-        <section className="modern-bid-analysis-start"><span>解析策略</span><h2>从招标文件提取信息</h2><p>关键项成功后即可进入目录生成。</p><div className="modern-bid-analysis-modes" role="radiogroup" aria-label="解析模式">{modeOptions.map((option) => <button key={option.id} type="button" role="radio" aria-checked={mode === option.id} className={mode === option.id ? 'is-active' : ''} disabled={taskRunning} onClick={() => { onModeChange(option.id); syncProgressForMode(option.id); setSelectedTaskId(getBidAnalysisTasks(option.id)[0]?.id || 'projectOverview'); }}><strong>{option.title}</strong><small>{option.desc}</small><em>{option.badge}</em></button>)}</div><button type="button" className="modern-bid-analysis-run modern-inline-operation is-accent" onClick={() => startAnalysis()} disabled={taskRunning || !hasTenderFile}>{taskRunning ? '解析中...' : failedTaskCount > 0 ? `重试失败项（${failedTaskCount}）` : progress > 0 ? '重新解析' : '开始解析'}</button>{!hasTenderFile && <small>请先导入招标文件。</small>}</section>
-        <section className="modern-bid-analysis-progress" aria-label="解析进度"><div><span>完成情况</span><strong>{doneCount}<small> / {selectedTasks.length}</small></strong></div><div className="modern-bid-analysis-track" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="解析进度"><span style={{ width: `${progress}%` }} /></div><p>{requiredDone ? '关键项已完成，可以进入下一步。' : '等待项目概述、技术评分、项目信息、甲方信息和交货服务要求解析成功。'}</p></section>
-        <nav className="modern-bid-analysis-tasks" aria-label="解析任务列表">{taskGroups.map((group) => { const groupTasks = selectedTasks.filter((item) => group.ids.includes(item.id)); return groupTasks.length ? <div key={group.title}><h3>{group.title}</h3>{groupTasks.map((item) => { const status = tasks[item.id]?.status || 'idle'; return <button key={item.id} type="button" className={`${visibleSelectedTaskId === item.id ? 'is-active ' : ''}is-${status}`} onClick={() => setSelectedTaskId(item.id)} disabled={fullRerunLocked}><span><strong>{item.label}</strong><small>{tasks[item.id]?.content ? `${tasks[item.id]?.content.length} 字` : item.description}</small></span><em>{statusLabel[status]}</em></button>; })}</div> : null; })}</nav>
+        <section className="modern-bid-analysis-progress" aria-label="解析进度">
+          <div className="modern-bid-analysis-counts" role="status"><span>已成功 <b>{successTaskCount}</b></span><span className={failedTaskCount ? 'has-errors' : ''}>失败 <b>{failedTaskCount}</b></span><span>未结束 <b>{selectedTasks.length - doneCount}</b></span></div>
+          {(taskRunning || failedTaskCount > 0) && <TaskProgressSummary label="解析任务进度" detail={`${doneCount}/${selectedTasks.length}`} percent={progress} status={taskRunning ? 'active' : 'exception'} />}
+          <p>{requiredDone ? '关键项已完成，可以进入下一步。' : '项目概述、技术评分、项目信息、甲方信息和交货服务要求均成功后可继续。'}</p>
+        </section>
+        <nav className="modern-bid-analysis-tasks" aria-label="解析任务列表">{taskGroups.map((group) => { const groupTasks = selectedTasks.filter((item) => group.ids.includes(item.id)); return groupTasks.length ? <div key={group.title}><h3>{group.title}</h3>{groupTasks.map((item) => { const status = tasks[item.id]?.status || 'idle'; return <button key={item.id} type="button" className={`${visibleSelectedTaskId === item.id ? 'is-active ' : ''}is-${status}`} aria-current={visibleSelectedTaskId === item.id ? 'true' : undefined} title={item.description} onClick={() => setSelectedTaskId(item.id)} disabled={fullRerunLocked}><span><strong>{item.label}</strong><small>{tasks[item.id]?.content ? `${tasks[item.id]?.content.length} 字` : item.description}</small></span><em>{statusLabel[status]}</em></button>; })}</div> : null; })}</nav>
       </div>
-      <article className="modern-bid-analysis-result"><header><div><span>解析结果</span><h2>{activeTask?.label || '解析结果'}</h2><p>{activeTask?.description || '选择任务查看解析结果。'}</p></div><div><span className={`modern-bid-analysis-status is-${activeTaskStatus}`}>{statusLabel[activeTaskStatus]}</span>{activeTaskStatus === 'error' && <button type="button" onClick={retryActiveTask} disabled={taskRunning || !hasTenderFile}>重新解析此项</button>}<button type="button" onClick={copyActiveResult} disabled={!activeTaskContent}>复制结果</button></div></header><div className="modern-bid-analysis-result-body" key={visibleSelectedTaskId}>{activeTaskStatus === 'running' ? <ActivityWaiting title={`正在解析${activeTask?.label || '招标文件'}`} description="模型正在提取并整理内容，完成后将在这里显示结果。" /> : activeTaskContent ? activeTask?.output === 'json' ? <JsonResultTable content={activeTaskContent} /> : <div className="markdown-viewer bid-analysis-output"><MarkdownRenderer>{activeTaskContent}</MarkdownRenderer></div> : <div className="modern-bid-analysis-empty"><strong>{activeTaskStatus === 'error' ? activeTaskState?.error || '解析失败' : '等待解析结果'}</strong><p>开始解析后，选择左侧任务查看输出。</p></div>}</div></article>
+      <article className="modern-bid-analysis-result"><header><div><span>解析结果</span><h2>{activeTask?.label || '解析结果'}</h2><p>{activeTask?.description || '选择任务查看解析结果。'}</p></div><div><span className={`modern-bid-analysis-status is-${activeTaskStatus}`}>{statusLabel[activeTaskStatus]}</span>{activeTaskStatus === 'error' && <button type="button" onClick={retryActiveTask} disabled={taskRunning || !hasTenderFile}>重新解析此项</button>}<button type="button" onClick={copyActiveResult} disabled={!activeTaskContent}>复制结果</button></div></header><div className="modern-bid-analysis-result-body" key={visibleSelectedTaskId}>{activeTaskStatus === 'error' && <p className="modern-bid-analysis-error" role="alert">{activeTaskState?.error || '此项解析失败，可点击“重新解析此项”重试。'}{activeTaskContent ? ' 以下保留上次结果供核对。' : ''}</p>}{activeTaskStatus === 'running' ? <ActivityWaiting title={`正在解析${activeTask?.label || '招标文件'}`} description="模型正在提取并整理内容，完成后将在这里显示结果。" /> : activeTaskContent ? activeTask?.output === 'json' ? <JsonResultTable content={activeTaskContent} /> : <div className="markdown-viewer bid-analysis-output"><MarkdownRenderer>{activeTaskContent}</MarkdownRenderer></div> : <div className="modern-bid-analysis-empty"><strong>{activeTaskStatus === 'error' ? '此项尚未解析成功' : '等待解析结果'}</strong><p>{activeTaskStatus === 'error' ? '点击右上方“重新解析此项”重试。' : '开始解析后，选择左侧任务查看输出。'}</p></div>}</div></article>
     </div>;
   }
 

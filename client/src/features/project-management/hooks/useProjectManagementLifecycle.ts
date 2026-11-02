@@ -41,7 +41,10 @@ export function useProjectManagementLifecycle({
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [dictionaries, setDictionaries] = useState<ProjectManagementDictionaries>({ projectTypes: [], projectGroups: [] });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
   const [projectList, setProjectList] = useState<ProjectManagementProjectRecord[]>([]);
+  const [projectMutating, setProjectMutating] = useState(false);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
   const [newProjectProfile, setNewProjectProfile] = useState<Partial<ProjectManagementProfile>>(emptyProjectProfile);
@@ -70,6 +73,7 @@ export function useProjectManagementLifecycle({
   }, [projectList, projectSearchKeyword]);
 
   useEffect(() => {
+    setLoadError(''); setLoading(true);
     let alive = true;
     const unsubscribe = window.yibiao?.projectManagement.onEvent((nextState) => {
       if (alive) applyStateRef.current(nextState);
@@ -89,7 +93,7 @@ export function useProjectManagementLifecycle({
           setViewMode('workbench');
         }
       })
-      .catch((error) => showToast(error instanceof Error ? error.message : '读取项目管理工作区失败', 'error'))
+      .catch((error) => { setLoadError(error instanceof Error ? error.message : String(error)); showToast(error instanceof Error ? error.message : '读取项目管理工作区失败', 'error'); })
       .finally(() => {
         if (alive) setLoading(false);
       });
@@ -98,7 +102,7 @@ export function useProjectManagementLifecycle({
       alive = false;
       unsubscribe?.();
     };
-  }, [showToast]);
+  }, [showToast, loadRevision]);
 
   useEffect(() => {
     const visibleIds = new Set(filteredProjectList.map((project) => project.id));
@@ -135,6 +139,7 @@ export function useProjectManagementLifecycle({
   }
 
   async function createProject() {
+    if (projectMutating) return;
     const profileDraft = {
       ...newProjectProfile,
       projectName: String(newProjectProfile.projectName || '').trim(),
@@ -148,6 +153,7 @@ export function useProjectManagementLifecycle({
       showToast('请先填写项目名称', 'error');
       return;
     }
+    setProjectMutating(true);
     try {
       const result = await window.yibiao?.projectManagement.createProject({ profile: profileDraft });
       if (result?.state) applyStateRef.current(result.state);
@@ -160,11 +166,12 @@ export function useProjectManagementLifecycle({
       showToast('新项目已创建，可以开始填写项目档案', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '新建项目失败', 'error');
-    }
+    } finally { setProjectMutating(false); }
   }
 
   async function deleteCurrentProject() {
-    if (!currentProjectId) return;
+    if (!currentProjectId || projectMutating) return;
+    setProjectMutating(true);
     try {
       const result = await window.yibiao?.projectManagement.deleteProject(currentProjectId);
       if (result?.state) applyStateRef.current(result.state);
@@ -174,7 +181,7 @@ export function useProjectManagementLifecycle({
       showToast('项目已删除', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '删除项目失败', 'error');
-    }
+    } finally { setProjectMutating(false); }
   }
 
   function toggleProjectSelection(projectId: string) {
@@ -217,8 +224,10 @@ export function useProjectManagementLifecycle({
   }
 
   return {
+    loadError, retryLoad: () => setLoadRevision(value => value + 1),
     createProject,
     createProjectOpen,
+    projectMutating,
     deleteCurrentProject,
     deleteProjectFromList,
     deleteProjectOpen,

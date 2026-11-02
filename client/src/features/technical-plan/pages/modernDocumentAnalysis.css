@@ -41,3 +41,41 @@
 @media (max-width: 1190px) { .modern-document-workspace { grid-template-columns: minmax(245px, 300px) minmax(0, 1fr); } }
 @media (max-width: 880px) { .modern-document-workspace { height: auto; grid-template-columns: 1fr; } .modern-document-controls { overflow: visible; } .modern-document-preview { min-height: 360px; } }
 @media (prefers-reduced-motion: reduce) { .modern-document-preview-body { animation: none; } .modern-document-source, .modern-document-source button, .modern-document-import-existing, .modern-document-bid-trigger { transition: none; } .modern-document-source button:hover:not(:disabled), .modern-document-import-existing:hover:not(:disabled), .modern-document-bid-trigger:hover:not(:disabled) { transform: none; } }
+
+/* 导入与预览保持两级信息层次；辅助文案不少于 12px。 */
+.modern-document-workspace { gap: 16px; overflow: hidden; }
+.modern-document-controls { overscroll-behavior: contain; scrollbar-width: thin; }
+.modern-document-controls > header { padding: 0 0 16px; }
+.modern-document-controls > header h2 { margin: 0 0 8px; font-size: 20px; line-height: 28px; font-weight: 500; }
+.modern-document-controls > header p { color: var(--yb-text-soft); font-size: 14px; line-height: 22px; }
+.modern-document-source { margin-bottom: 16px; border-color: var(--yb-border); border-radius: 8px; background: var(--yb-surface); }
+.modern-document-source:hover { border-color: var(--yb-border); background: var(--yb-surface); }
+.modern-document-source-top { flex-wrap: wrap; gap: 8px; }
+.modern-document-source-top > span { font-size: 14px; font-weight: 500; letter-spacing: 0; color: var(--yb-text); }
+.modern-document-source-top strong { font-size: 12px; line-height: 20px; font-weight: 400; }
+.modern-document-source h3 { font-size: 14px; line-height: 22px; font-weight: 400; }
+.modern-document-source p { font-size: 12px; line-height: 20px; color: var(--yb-text-soft); }
+.modern-document-source > div:last-child { flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.modern-document-source button, .modern-document-import-existing, .modern-document-bid-trigger { min-height: 32px; padding: 4px 12px; font-size: 14px; line-height: 22px; font-weight: 400; }
+.modern-document-source button:hover:not(:disabled), .modern-document-import-existing:hover:not(:disabled), .modern-document-bid-trigger:hover:not(:disabled) { transform: none; }
+.modern-document-controls .bid-section-selection { box-sizing: border-box; margin-top: 16px; padding: 16px; background: var(--yb-surface); border-color: var(--yb-border); }
+.modern-document-controls .bid-section-heading strong { font-size: 16px; font-weight: 500; line-height: 24px; }
+.modern-document-controls .bid-section-copy p { font-size: 12px; line-height: 20px; }
+.modern-document-controls .bid-section-evidence { max-height: none; overflow: visible; }
+.modern-document-controls .bid-section-evidence summary { font-size: 14px; font-weight: 400; line-height: 22px; }
+.modern-document-controls .bid-section-error { color: #ffb3bf; font-size: 14px; line-height: 22px; }
+.modern-document-preview { background: var(--yb-surface); }
+.modern-document-preview > header { align-items: center; flex-wrap: wrap; padding: 16px 24px; }
+.modern-document-preview > header h2 { margin: 0; font-size: 16px; font-weight: 500; line-height: 24px; }
+.modern-document-preview > header small { font-size: 12px; line-height: 20px; }
+.modern-document-preview-tabs button { font-size: 14px; }
+.modern-document-preview-body { padding: 24px; overscroll-behavior: contain; scrollbar-width: thin; }
+.modern-document-empty p { color: var(--yb-text-soft); font-size: 14px; line-height: 22px; }
+.modern-document-replace-hint { margin: 0 0 16px; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.modern-document-import-status { flex: 0 0 auto; margin: 0; border-bottom: 1px solid var(--yb-border); padding: 12px 24px; color: var(--yb-text-soft); background: var(--yb-control-bg); font-size: 14px; line-height: 22px; }
+.modern-document-workspace :is(button, input, select, summary):focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+@media (max-width: 880px) {
+  .modern-document-workspace { height: 100%; overflow: auto; grid-template-columns: 1fr; grid-template-rows: auto minmax(400px, 1fr); }
+  .modern-document-controls { overflow: visible; }
+  .modern-document-preview { min-height: 400px; }
+}

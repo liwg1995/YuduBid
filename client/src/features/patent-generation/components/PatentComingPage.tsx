@@ -1,3 +1,6 @@
+import WorkspaceLoading from '../../../shared/ui/WorkspaceLoading';
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import '../patentGeneration.css';
@@ -107,6 +110,8 @@ function PatentComingPage({
   const [state, setState] = useState<PatentGenerationState | null>(null);
   const [caseInfo, setCaseInfo] = useState<PatentCaseInfo>(emptyCaseInfo);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
   const [saving, setSaving] = useState(false);
   const [generatingTopic, setGeneratingTopic] = useState(false);
   const [selectingProject, setSelectingProject] = useState(false);
@@ -145,6 +150,7 @@ function PatentComingPage({
   const agentContinuousPersistenceReadyRef = useRef(false);
 
   useEffect(() => {
+    setLoadError(''); setLoading(true);
     let mounted = true;
 
     window.yibiao?.patentGeneration.loadState()
@@ -160,7 +166,7 @@ function PatentComingPage({
           onNavigate?.('patent-projects');
           return;
         }
-        showToast(message, 'error');
+        setLoadError(error instanceof Error ? error.message : String(error)); showToast(message, 'error');
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -176,7 +182,7 @@ function PatentComingPage({
       mounted = false;
       unsubscribe?.();
     };
-  }, [showToast]);
+  }, [showToast, loadRevision]);
 
   useEffect(() => {
     let mounted = true;
@@ -928,6 +934,9 @@ function PatentComingPage({
       onGenerateRevision={handleGenerateRevision}
     />
   ) : null;
+
+  if (loadError) return <WorkspaceLoadError message={loadError} onRetry={() => setLoadRevision(value => value + 1)} />;
+  if (loading) return <WorkspaceLoading title="正在读取专利案件" />;
 
   return (
     <div className={getStoredUiAppearance() === 'modern' ? `demo-coming-page patent-demo modern-patent-workbench modern-patent-${pageVariant}` : 'demo-coming-page patent-demo'}>

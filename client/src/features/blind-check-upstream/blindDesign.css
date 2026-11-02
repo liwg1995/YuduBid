@@ -1,0 +1,113 @@
+/* 依据 Ant Design 信息层级、就近反馈和内容区响应规则收口；不改上游检查规则。 */
+:root .blind-check-page.blind-check-page { height:100%; min-height:0; gap:16px; overflow:hidden; container-type:inline-size; font-size:14px; line-height:22px; }
+.blind-check-load-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; min-height:0; gap:16px; color:var(--yb-text); font-size:14px; line-height:22px; }
+.blind-check-load-state p { max-width:640px; margin:0; overflow-wrap:anywhere; }
+.blind-check-action-error { display:flex; flex:0 0 auto; flex-wrap:wrap; align-items:baseline; gap:8px 16px; max-height:130px; padding:12px 16px; overflow:auto; border:1px solid var(--blind-danger-border); border-radius:6px; color:var(--blind-danger-deep); background:var(--blind-danger-soft); font-size:14px; line-height:22px; overflow-wrap:anywhere; }
+.blind-check-dialog-error { padding:12px 16px; border:1px solid var(--blind-danger-border); border-radius:6px; color:var(--blind-danger-deep); background:var(--blind-danger-soft); font-size:14px; line-height:22px; overflow-wrap:anywhere; }
+:root .blind-check-page .blind-check-step-bar { gap:16px; }
+:root .blind-check-page .blind-check-step-bar .section-kicker { display:none; }
+:root .blind-check-page .blind-check-step-bar > div:first-child > strong { font-size:20px; line-height:28px; font-weight:600; }
+:root .blind-check-page .blind-check-step-panel { padding:16px; scroll-padding-block:16px; }
+:root .blind-check-page .blind-check-step-tabs { gap:8px; padding:8px; border-radius:6px; }
+:root .blind-check-page .blind-check-step-tab { gap:4px; min-height:56px; padding:8px 12px; border-radius:6px; }
+:root .blind-check-page .blind-check-step-tab-label { font-size:14px; line-height:22px; font-weight:500; }
+:root .blind-check-page .blind-check-step-tab-summary { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-check-preset-editor { gap:24px; }
+:root .blind-check-page .blind-check-preset-section-head strong { font-size:16px; line-height:24px; font-weight:500; }
+:root .blind-check-page .blind-check-preset-section-head small { font-size:12px; line-height:20px; }
+:root .blind-check-page .content-generation-config-row strong { font-size:14px; line-height:22px; font-weight:500; }
+:root .blind-check-page .content-generation-config-row small { font-size:12px; line-height:20px; }
+:root .blind-check-page :is(.blind-check-readonly-note,.blind-check-result-note,.blind-check-evidence,.blind-check-company-picker) { font-size:12px; line-height:20px; }
+:root .blind-check-page :is(.blind-check-number-control input,.content-generation-config-row select,.blind-check-company-picker select) { min-height:32px; padding:4px 8px; border-radius:6px; font-size:14px; line-height:22px; }
+:root .blind-check-page .blind-check-number-control em { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-check-summary-cards { gap:16px; }
+:root .blind-check-page .blind-check-summary-cards article { padding:16px; border-radius:6px; box-shadow:none; animation:none; }
+:root .blind-check-page .blind-check-summary-cards article > span { font-size:14px; line-height:22px; }
+:root .blind-check-page .blind-check-summary-cards article > strong { font-size:24px; line-height:32px; font-variant-numeric:tabular-nums; }
+:root .blind-check-page .blind-check-summary-cards small { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-check-group { border-radius:6px; box-shadow:none; animation:none; }
+:root .blind-check-page .blind-check-group-row { display:grid; grid-template-columns:16px auto minmax(0,1fr) auto auto; align-items:start; gap:8px; padding:12px 16px; }
+:root .blind-check-page .blind-check-group-row strong { overflow:visible; font-size:14px; line-height:22px; font-weight:500; white-space:normal; overflow-wrap:anywhere; }
+:root .blind-check-page .blind-check-group-row :is(em,.blind-check-group-count) { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-check-group-count { grid-column:5; min-width:48px; font-weight:400; font-variant-numeric:tabular-nums; }
+:root .blind-check-page .blind-check-group-chevron { margin-top:3px; }
+:root .blind-check-page .blind-check-group-detail { padding:16px; border-top:1px solid var(--yb-border-soft); }
+:root .blind-check-page .blind-check-detail-rows { gap:16px; font-size:14px; line-height:22px; }
+:root .blind-check-page .blind-check-detail-rows > div { gap:16px; }
+:root .blind-check-page .blind-check-detail-rows dd { overflow-wrap:anywhere; word-break:normal; }
+:root .blind-check-page .blind-check-occurrence { gap:8px 16px; }
+:root .blind-check-page .blind-check-occurrence-where { max-width:200px; overflow:visible; font-size:12px; line-height:20px; white-space:normal; overflow-wrap:anywhere; }
+:root .blind-check-page .blind-check-occurrence-note { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-check-fix-control { gap:8px; }
+:root .blind-check-page .blind-check-fix-control em { font-size:12px; line-height:20px; font-weight:400; }
+:root .blind-check-page .blind-check-running { max-width:720px; padding:16px; border:1px solid var(--yb-border-soft); border-radius:6px; background:var(--yb-surface); box-shadow:none; }
+:root .blind-check-page.is-modern.is-results .blind-check-running { display:block; grid-template-columns:none; width:min(100%,720px); padding:24px; border-radius:6px; background:var(--yb-surface); box-shadow:none; }
+:root .blind-check-page.is-modern.is-results .blind-check-running::before { display:none; }
+:root .blind-check-page .blind-check-running-copy { gap:16px; }
+:root .blind-check-page.is-modern.is-results .blind-check-running-copy h3,.blind-check-page .blind-check-running h3 { font-size:16px; line-height:24px; }
+:root .blind-check-page .blind-check-running-copy p { min-height:0; font-size:14px; line-height:22px; }
+:root .blind-check-page .blind-check-running .yb-task-progress-summary { margin-top:16px; max-width:480px; }
+.blind-check-awaiting { display:flex; align-items:flex-start; gap:8px; color:var(--yb-text-soft); font-size:14px; line-height:22px; }
+.blind-check-awaiting svg { flex:0 0 auto; margin-top:3px; animation:blind-check-running-spin 1.5s linear infinite; }
+:root .blind-check-page .blind-check-running-time { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-modern-header { gap:16px; padding:0 0 16px; }
+:root .blind-check-page .blind-modern-title h1 { font-size:20px; line-height:28px; }
+:root .blind-check-page .blind-modern-title p { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-modern-steps { flex-wrap:nowrap; gap:8px; max-width:100%; overflow:auto; }
+:root .blind-check-page .blind-modern-steps button { flex:0 0 auto; gap:8px; min-height:40px; padding:8px; border-radius:6px; }
+:root .blind-check-page .blind-modern-steps strong { font-size:14px; line-height:22px; font-weight:500; }
+:root .blind-check-page .blind-modern-steps small { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-modern-step-index { width:24px; height:24px; flex-basis:24px; font-size:12px; }
+:root .blind-check-page.is-modern .blind-check-workspace { border-radius:8px; }
+:root .blind-check-page.is-modern .blind-check-step-bar { padding:16px; }
+:root .blind-check-page.is-modern .blind-check-step-panel { padding:16px; }
+:root .blind-check-page.is-modern .blind-check-step-toolbar > button { min-height:32px; height:auto; padding:4px 12px; font-size:14px; line-height:22px; border-radius:6px; }
+:root .blind-check-page.is-modern .blind-check-preset-picker { min-height:32px; height:auto; }
+:root .blind-check-page.is-modern .blind-check-preset-picker select { min-width:100px; max-width:220px; min-height:32px; font-size:14px; line-height:22px; }
+:root .blind-check-page.is-modern.is-preset .blind-check-workspace { grid-template-columns:180px minmax(0,1fr); }
+:root .blind-check-page.is-modern.is-preset .blind-check-step-tabs { padding:8px; }
+:root .blind-check-page.is-modern.is-preset .blind-check-step-tab { min-height:56px; padding:8px; }
+:root .blind-check-page.is-modern .content-generation-config-list { gap:0 24px; }
+:root .blind-check-page.is-modern .content-generation-config-row { gap:16px; padding:16px 0; }
+:root .blind-check-page .blind-modern-upload-grid { height:auto; gap:24px; }
+:root .blind-check-page .blind-modern-dropzone { min-height:240px; padding:24px; border-radius:8px; }
+:root .blind-check-page .blind-modern-dropzone strong { font-size:16px; line-height:24px; }
+:root .blind-check-page .blind-modern-dropzone p { font-size:14px; line-height:22px; }
+:root .blind-check-page .blind-modern-upload-detail { padding:16px 0; }
+:root .blind-check-page .blind-modern-upload-detail > strong { overflow:visible; font-size:16px; line-height:24px; white-space:normal; overflow-wrap:anywhere; }
+:root .blind-check-page .blind-modern-detail-label,.blind-check-page .blind-modern-upload-detail > p { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-modern-upload-notes p { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-modern-footer { gap:8px 16px; padding-top:8px; }
+:root .blind-check-page .blind-modern-footer-meta span { font-size:12px; line-height:20px; }
+:root .blind-check-page .blind-modern-footer-actions { flex-wrap:wrap; }
+:root .blind-check-page .blind-modern-action { min-height:32px; padding:4px 12px; border-radius:6px; font-size:14px; line-height:22px; }
+@container (max-width:1000px) {
+  :root .blind-check-page.is-modern .content-generation-config-list { grid-template-columns:minmax(0,1fr); }
+  :root .blind-check-page.is-modern.is-preset .blind-check-workspace { display:flex; }
+  :root .blind-check-page.is-modern.is-preset .blind-check-step-tabs { flex-direction:row; overflow-x:auto; overflow-y:hidden; border-right:0; border-bottom:1px solid var(--yb-border-soft); }
+  :root .blind-check-page.is-modern.is-preset .blind-check-step-tab { flex:0 0 120px; align-items:center; text-align:center; }
+  :root .blind-check-page .blind-modern-steps small { display:none; }
+  :root .blind-check-page .blind-modern-steps { width:100%; }
+}
+@container (max-width:680px) {
+  :root .blind-check-page .blind-check-group-row { grid-template-columns:16px auto minmax(0,1fr) auto; }
+  :root .blind-check-page .blind-check-group-row strong { grid-column:3 / -1; }
+  :root .blind-check-page .blind-check-group-row .blind-check-group-tag { grid-column:3; justify-self:start; }
+  :root .blind-check-page .blind-check-group-count { grid-column:4; }
+  :root .blind-check-page .blind-check-detail-rows > div { grid-template-columns:minmax(0,1fr); gap:4px; }
+  :root .blind-check-page .blind-check-occurrence { flex-direction:column; align-items:flex-start; }
+  :root .blind-check-page .blind-modern-footer-meta { display:none; }
+  :root .blind-check-page .blind-check-summary-cards { gap:8px; }
+  :root .blind-check-page .blind-check-summary-cards article { padding:12px; }
+}
+:root .app-shell .blind-check-page > .floating-toolbar { position:static; inset:auto; width:max-content; max-width:100%; margin:0 auto; transform:none; flex:0 0 auto; flex-wrap:wrap; }
+:root .blind-check-page > .floating-toolbar .floating-toolbar-drag-handle { display:none; }
+@media (prefers-reduced-motion:reduce) { .blind-check-awaiting svg { animation:none; } }
+:root .blind-check-page .blind-check-group-row .blind-check-fix-badges { grid-column:3 / -1; grid-row:2; justify-self:start; flex-wrap:wrap; gap:8px; }
+@container (max-width:680px) { .blind-check-page .blind-check-group-row .blind-check-fix-badges { grid-row:3; } }
+
+@container (max-width:1000px) {
+  :root .blind-check-page .blind-modern-header { gap:8px; padding-bottom:8px; }
+  :root .blind-check-page .blind-modern-title p { display:none; }
+  :root .blind-check-page .blind-check-step-toolbar { flex-wrap:wrap; justify-content:flex-start; }
+}

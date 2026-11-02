@@ -1,3 +1,4 @@
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
 import type { OfficialDocumentTemplate } from '../../../shared/prompts/officialDocument';
 import type { OfficialDocumentState } from '../types';
 
@@ -8,15 +9,12 @@ export function OfficialDocumentTaskStatus({ task }: { task?: OfficialDocumentSt
   return (
     <div className={`official-document-task is-${task.status}`}>
       <div className="official-document-task-head">
-        <div>
+        <div className="official-document-task-copy">
           <strong>{task.status === 'running' ? '处理中' : task.status === 'success' ? '已完成' : '处理失败'}</strong>
           <span>{task.message}</span>
           {task.status === 'running' && <small>{runningHint}</small>}
         </div>
-        <em>{progress}%</em>
-      </div>
-      <div className="official-document-task-track" aria-hidden="true">
-        <span style={{ width: `${progress}%` }} />
+        {task.status === 'running' && <BusinessTaskProgress label="公文处理" percent={progress} status="active" />}
       </div>
     </div>
   );
@@ -97,9 +95,11 @@ export function OfficialDocumentTemplateShortcutList({ templates, disabled, onAp
 
 export function OfficialDocumentRevisionList({
   revisions,
+  disabled = false,
   onRestore,
 }: {
   revisions: OfficialDocumentState['revisions'];
+  disabled?: boolean;
   onRestore: (content: string) => void | Promise<void>;
 }) {
   if (!revisions.length) {
@@ -115,7 +115,7 @@ export function OfficialDocumentRevisionList({
             <span>{revision.summary || formatRevisionTime(revision.created_at)}</span>
             <small>{formatRevisionTime(revision.created_at)}</small>
           </div>
-          <button type="button" className="secondary-action" onClick={() => void onRestore(revision.content)}>恢复</button>
+          <button type="button" className="secondary-action" disabled={disabled} aria-label={`恢复“${revision.title}”`} onClick={() => void onRestore(revision.content)}>恢复</button>
         </article>
       ))}
     </div>

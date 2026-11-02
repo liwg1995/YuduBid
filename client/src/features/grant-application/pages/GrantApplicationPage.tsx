@@ -1,3 +1,12 @@
+import { isCurrentWordExportEvent, requireWordExportSuccess, lastWordExportPercent } from '../../../shared/utils/wordExportFeedback';
+import '../../../shared/ui/readingDialog.css';
+import { AsyncDialogRoot, AsyncDialogContent, AsyncDialogClose, AsyncDialogFields } from '../../../shared/ui/AsyncDialog';
+import WorkspaceLoading from '../../../shared/ui/WorkspaceLoading';
+import GrantProposalToolbar from '../components/GrantProposalToolbar';
+import GrantProfileForm from '../components/GrantProfileForm';
+import WorkspaceViewControl from '../../../shared/ui/WorkspaceViewControl';
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentHostStatus, AgentRunResult, WordExportProgressEvent } from '../../../shared/types/ipc';
@@ -91,6 +100,7 @@ const defaultProposalTemplateFillReport: GrantTemplateFillReport = {
 };
 
 interface GrantApplicationAiProgress {
+  result?: 'success' | 'exception';
   running: boolean;
   title: string;
   message: string;
@@ -145,7 +155,7 @@ const panelCopy: Record<GrantApplicationPanel, GrantApplicationPanelCopy> = {
     materialTitle: '撰写依据',
     materialHelp: '建议提供申报模板、选题方案、前期成果、团队基础和评审要求。',
     outputTitle: '申报书草稿',
-    outputHelp: '正文以可编辑 Markdown 承载，后续可接入标准 Word 导出。',
+    outputHelp: '编辑并保存工作稿，或预览后导出 Word。',
     placeholder: '例如：根据前面的选题，生成一份市级课题申报书，突出研究基础和实施路径。',
     materialPlaceholder: '粘贴申报书模板、已有研究基础、团队分工、预期成果和时间安排。',
     outputPlaceholder: '申报书草稿应包含研究背景、目标内容、方法路径、创新点、计划、成果和保障。',
@@ -245,6 +255,8 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   const [task, setTask] = useState<GrantApplicationTaskState | undefined>();
   const [projectList, setProjectList] = useState<GrantApplicationProjectList>({ activeProjectId: 'default', projects: [] });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [generatingProposalModule, setGeneratingProposalModule] = useState(false);
   const [generatingMissingProposalModules, setGeneratingMissingProposalModules] = useState(false);
@@ -259,6 +271,9 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   const [importing, setImporting] = useState(false);
   const [savingOutput, setSavingOutput] = useState(false);
   const [outputMode, setOutputMode] = useState<'preview' | 'edit'>('preview');
+  const exportLock = useRef(false);
+  const proposalSaveLock = useRef(false);
+  const proposalBusy = savingProposalModule || generatingProposalModule || generatingMissingProposalModules || checkingProposalModules || checkingProposalModule || polishingProposalModule || polishingProposalModules || task?.status === 'running';
   const [exportProgress, setExportProgress] = useState({ running: false, progress: 0, message: '', error: '' });
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [aiProgress, setAiProgress] = useState<GrantApplicationAiProgress>({ running: false, title: '', message: '', progress: 0 });
@@ -313,6 +328,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   }, [profile]);
 
   useEffect(() => {
+    setLoadError(''); setLoading(true);
     let mounted = true;
     Promise.all([
       window.yibiao?.grantApplication.loadState(),
@@ -323,7 +339,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         if (state) applyState(state);
         if (projects) setProjectList(projects);
       })
-      .catch((error) => showToast(error instanceof Error ? error.message : '读取课题申报工作区失败', 'error'))
+      .catch((error) => { setLoadError(error instanceof Error ? error.message : String(error)); showToast(error instanceof Error ? error.message : '读取课题申报工作区失败', 'error'); })
       .finally(() => {
         if (!mounted) return;
         loadedRef.current = true;
@@ -342,7 +358,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       mounted = false;
       unsubscribe?.();
     };
-  }, [showToast]);
+  }, [showToast, loadRevision]);
 
   useEffect(() => {
     let mounted = true;
@@ -457,13 +473,14 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   }
 
   function startAiProgress(title: string, message: string, moduleKey?: GrantProposalModuleKey, moduleAction?: GrantApplicationAiProgress['moduleAction']) {
-    setAiProgress({ running: true, title, message, progress: 8, panel: initialPanel, moduleKey, moduleAction });
+    setAiProgress({ running: true, result: undefined, title, message, progress: 8, panel: initialPanel, moduleKey, moduleAction });
   }
 
   function updateAiProgress(progress: number, message: string, moduleKey?: GrantProposalModuleKey, moduleAction?: GrantApplicationAiProgress['moduleAction']) {
     setAiProgress((prev) => ({
       ...prev,
       running: true,
+      result: undefined,
       progress: Math.max(8, Math.min(96, progress)),
       message,
       panel: prev.panel || initialPanel,
@@ -473,7 +490,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   }
 
   function finishAiProgress(message: string) {
-    setAiProgress((prev) => ({ ...prev, running: false, progress: 100, message }));
+    setAiProgress((prev) => ({ ...prev, running: false, result: 'success', progress: 100, message }));
   }
 
   function formatGrantApplicationError(error: unknown, fallback: string) {
@@ -579,7 +596,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       finishAiProgress('工作稿已生成');
       showToast('课题申报工作稿已生成', 'success');
     } catch (error) {
-      setAiProgress((prev) => ({ ...prev, running: false, message: '生成失败，请检查模型配置或输入材料。' }));
+      setAiProgress((prev) => ({ ...prev, running: false, result: 'exception', message: '生成失败，请检查模型配置或输入材料。' }));
       showToast(error instanceof Error ? error.message : '生成课题申报工作稿失败', 'error');
     } finally {
       setGenerating(false);
@@ -734,6 +751,8 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   }
 
   async function saveSelectedProposalModule() {
+    if (proposalBusy || proposalSaveLock.current) return;
+    proposalSaveLock.current = true;
     try {
       setSavingProposalModule(true);
       const state = await window.yibiao?.grantApplication.saveProposalModule({
@@ -746,6 +765,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     } catch (error) {
       showToast(error instanceof Error ? error.message : '保存申报书模块失败', 'error');
     } finally {
+      proposalSaveLock.current = false;
       setSavingProposalModule(false);
     }
   }
@@ -765,7 +785,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       finishAiProgress(`${selectedProposalModuleDefinition.label}已生成`);
       showToast(`${selectedProposalModuleDefinition.label}已生成`, 'success');
     } catch (error) {
-      setAiProgress((prev) => ({ ...prev, running: false, message: '模块生成失败，请稍后重试。' }));
+      setAiProgress((prev) => ({ ...prev, running: false, result: 'exception', message: '模块生成失败，请稍后重试。' }));
       showToast(error instanceof Error ? error.message : '生成申报书模块失败', 'error');
     } finally {
       setGeneratingProposalModule(false);
@@ -803,7 +823,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       showToast('缺失模块已补齐并合并', 'success');
       return true;
     } catch (error) {
-      setAiProgress((prev) => ({ ...prev, running: false, message: '批量生成失败，请检查已生成内容后重试。' }));
+      setAiProgress((prev) => ({ ...prev, running: false, result: 'exception', message: '批量生成失败，请检查已生成内容后重试。' }));
       showToast(error instanceof Error ? error.message : '补齐申报书模块失败', 'error');
       return false;
     } finally {
@@ -853,7 +873,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       }
     } catch (error) {
       const message = formatGrantApplicationError(error, '批量检测申报书模块失败');
-      setAiProgress((prev) => ({ ...prev, running: false, message }));
+      setAiProgress((prev) => ({ ...prev, running: false, result: 'exception', message }));
       showToast(message, 'error');
     } finally {
       setCheckingProposalModules(false);
@@ -875,7 +895,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       showToast(`${selectedProposalModuleDefinition.label}质量检查已完成`, 'success');
     } catch (error) {
       const message = formatGrantApplicationError(error, '检查申报书模块失败');
-      setAiProgress((prev) => ({ ...prev, running: false, message }));
+      setAiProgress((prev) => ({ ...prev, running: false, result: 'exception', message }));
       showToast(message, 'error');
     } finally {
       setCheckingProposalModule(false);
@@ -897,7 +917,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       finishAiProgress(`${selectedProposalModuleDefinition.label}已优化`);
       showToast(`${selectedProposalModuleDefinition.label}已按检查意见优化`, 'success');
     } catch (error) {
-      setAiProgress((prev) => ({ ...prev, running: false, message: '模块优化失败，请稍后重试。' }));
+      setAiProgress((prev) => ({ ...prev, running: false, result: 'exception', message: '模块优化失败，请稍后重试。' }));
       showToast(error instanceof Error ? error.message : '优化申报书模块失败', 'error');
     } finally {
       setPolishingProposalModule(false);
@@ -938,7 +958,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       showToast('已按顺序优化申报书模块', 'success');
     } catch (error) {
       const message = formatGrantApplicationError(error, '批量优化申报书模块失败');
-      setAiProgress((prev) => ({ ...prev, running: false, message }));
+      setAiProgress((prev) => ({ ...prev, running: false, result: 'exception', message }));
       showToast(message, 'error');
     } finally {
       setPolishingProposalModules(false);
@@ -959,7 +979,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       showToast('整稿质量检查已完成', 'success');
       return true;
     } catch (error) {
-      setAiProgress((prev) => ({ ...prev, running: false, message: '整稿质量检查失败，请稍后重试。' }));
+      setAiProgress((prev) => ({ ...prev, running: false, result: 'exception', message: '整稿质量检查失败，请稍后重试。' }));
       showToast(error instanceof Error ? error.message : '整稿质量检查失败', 'error');
       return false;
     } finally {
@@ -983,7 +1003,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       finishAiProgress('八维检测报告已生成');
       showToast('八维检测报告已生成', 'success');
     } catch (error) {
-      setAiProgress((prev) => ({ ...prev, running: false, message: '八维检测报告生成失败，请稍后重试。' }));
+      setAiProgress((prev) => ({ ...prev, running: false, result: 'exception', message: '八维检测报告生成失败，请稍后重试。' }));
       showToast(error instanceof Error ? error.message : '生成八维检测报告失败', 'error');
     } finally {
       setGeneratingQualityReview(false);
@@ -1009,6 +1029,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   }
 
   async function exportWord(exportAll = false) {
+    if (exportLock.current) return;
     const outline = exportAll
       ? panelOrder
         .map((panel) => ({
@@ -1039,9 +1060,12 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     let unsubscribe: (() => void) | undefined;
     const title = exportAll ? buildFullExportTitle(activeProjectName) : buildExportTitle(copy, activeProjectName);
 
+    exportLock.current = true;
     try {
+      setExportDialogOpen(true);
+      setExportProgress({ running: true, progress: 0, message: '正在准备导出 Word', error: '' });
       unsubscribe = window.yibiao.export.onWordExportProgress((event: WordExportProgressEvent) => {
-        if (event.requestId && event.requestId !== requestId) return;
+        if (!isCurrentWordExportEvent(event, requestId)) return;
         setExportDialogOpen(true);
         setExportProgress({
           running: event.phase === 'running',
@@ -1064,20 +1088,23 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         showToast('已取消导出', 'info');
         return;
       }
+      requireWordExportSuccess(result);
       setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message: result.message || 'Word 已导出', error: '' });
       showToast(result.message || 'Word 已导出', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出 Word 失败';
       setExportDialogOpen(true);
-      setExportProgress({ running: false, progress: 100, message, error: message });
+      setExportProgress(previous => ({ running: false, progress: lastWordExportPercent(previous.progress), message, error: message }));
       showToast(message, 'error');
     } finally {
+      exportLock.current = false;
       unsubscribe?.();
     }
   }
 
   async function exportProposalFinalPackage() {
+    if (exportLock.current) return;
     const proposal = outputs.proposal?.trim() || '';
     if (!proposal) {
       showToast('请先生成或填写申报书草稿。', 'info');
@@ -1122,9 +1149,12 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     const requestId = `grant-application-final-package-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     let unsubscribe: (() => void) | undefined;
 
+    exportLock.current = true;
     try {
+      setExportDialogOpen(true);
+      setExportProgress({ running: true, progress: 0, message: '正在准备导出 Word', error: '' });
       unsubscribe = window.yibiao.export.onWordExportProgress((event: WordExportProgressEvent) => {
-        if (event.requestId && event.requestId !== requestId) return;
+        if (!isCurrentWordExportEvent(event, requestId)) return;
         setExportDialogOpen(true);
         setExportProgress({
           running: event.phase === 'running',
@@ -1147,15 +1177,17 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         showToast('已取消导出', 'info');
         return;
       }
+      requireWordExportSuccess(result);
       setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message: result.message || '申报书定稿包已导出', error: '' });
       showToast(result.message || '申报书定稿包已导出', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出申报书定稿包失败';
       setExportDialogOpen(true);
-      setExportProgress({ running: false, progress: 100, message, error: message });
+      setExportProgress(previous => ({ running: false, progress: lastWordExportPercent(previous.progress), message, error: message }));
       showToast(message, 'error');
     } finally {
+      exportLock.current = false;
       unsubscribe?.();
     }
   }
@@ -1174,6 +1206,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   }
 
   async function exportFormFieldWordPackage() {
+    if (exportLock.current) return;
     const mapping = formFieldMapping.fields.length ? formFieldMapping : (await window.yibiao?.grantApplication.getFormFields())?.mapping;
     if (!mapping?.fields.length) {
       showToast('请先生成或填写申报书草稿，再刷新字段映射。', 'info');
@@ -1187,9 +1220,12 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     const requestId = `grant-application-form-fields-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     let unsubscribe: (() => void) | undefined;
 
+    exportLock.current = true;
     try {
+      setExportDialogOpen(true);
+      setExportProgress({ running: true, progress: 0, message: '正在准备导出 Word', error: '' });
       unsubscribe = window.yibiao.export.onWordExportProgress((event: WordExportProgressEvent) => {
-        if (event.requestId && event.requestId !== requestId) return;
+        if (!isCurrentWordExportEvent(event, requestId)) return;
         setExportDialogOpen(true);
         setExportProgress({
           running: event.phase === 'running',
@@ -1217,15 +1253,17 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         showToast('已取消导出', 'info');
         return;
       }
+      requireWordExportSuccess(result);
       setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message: result.message || '申报表填报包已导出', error: '' });
       showToast(result.message || '申报表填报包已导出', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出申报表填报包失败';
       setExportDialogOpen(true);
-      setExportProgress({ running: false, progress: 100, message, error: message });
+      setExportProgress(previous => ({ running: false, progress: lastWordExportPercent(previous.progress), message, error: message }));
       showToast(message, 'error');
     } finally {
+      exportLock.current = false;
       unsubscribe?.();
     }
   }
@@ -1250,6 +1288,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
   }
 
   async function exportTemplateMatchedWordPackage() {
+    if (exportLock.current) return;
     if (!proposalTemplateMapping.sections.length) {
       showToast('请先导入申报模板。', 'info');
       return;
@@ -1262,9 +1301,12 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     const requestId = `grant-application-template-package-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     let unsubscribe: (() => void) | undefined;
 
+    exportLock.current = true;
     try {
+      setExportDialogOpen(true);
+      setExportProgress({ running: true, progress: 0, message: '正在准备导出 Word', error: '' });
       unsubscribe = window.yibiao.export.onWordExportProgress((event: WordExportProgressEvent) => {
-        if (event.requestId && event.requestId !== requestId) return;
+        if (!isCurrentWordExportEvent(event, requestId)) return;
         setExportDialogOpen(true);
         setExportProgress({
           running: event.phase === 'running',
@@ -1292,15 +1334,17 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         showToast('已取消导出', 'info');
         return;
       }
+      requireWordExportSuccess(result);
       setExportDialogOpen(true);
       setExportProgress({ running: false, progress: 100, message: result.message || '按模板栏目填报稿已导出', error: '' });
       showToast(result.message || '按模板栏目填报稿已导出', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出按模板栏目填报稿失败';
       setExportDialogOpen(true);
-      setExportProgress({ running: false, progress: 100, message, error: message });
+      setExportProgress(previous => ({ running: false, progress: lastWordExportPercent(previous.progress), message, error: message }));
       showToast(message, 'error');
     } finally {
+      exportLock.current = false;
       unsubscribe?.();
     }
   }
@@ -1445,6 +1489,9 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
     }
   }
 
+  if (loadError) return <WorkspaceLoadError message={loadError} onRetry={() => setLoadRevision(value => value + 1)} />;
+  if (loading) return <WorkspaceLoading title="正在读取课题申报工作区" />;
+
   return (
     <div className={`grant-application-page${getStoredUiAppearance() === 'modern' ? ' modern-grant-application' : ''}`}>
       <section className="grant-application-header">
@@ -1460,18 +1507,18 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
           <strong title={profileSummary}>{profileSummary}</strong>
           <span>课题申报全流程工作台</span>
           <div className="grant-application-project-row">
-            <select value={projectList.activeProjectId} onChange={(event) => void switchProject(event.target.value)} disabled={projectBusy || task?.status === 'running'}>
+            <select aria-label="切换课题项目" value={projectList.activeProjectId} onChange={(event) => void switchProject(event.target.value)} disabled={savingProposalModule || projectBusy || task?.status === 'running'}>
               {projectList.projects.map((project) => (
                 <option value={project.id} key={project.id}>{project.name}</option>
               ))}
             </select>
-            <button type="button" className="secondary-action" onClick={() => onNavigate?.('grant-projects')}>项目页</button>
+            <button type="button" className="secondary-action" disabled={savingProposalModule} onClick={() => onNavigate?.('grant-projects')}>项目页</button>
           </div>
           <div className="grant-application-project-actions">
-            <button type="button" className="secondary-action create-action" onClick={() => setCreateProjectOpen(true)} disabled={projectBusy}>新建</button>
-            <button type="button" className="secondary-action" onClick={openProfileEditor} disabled={projectBusy}>修改档案</button>
-            <button type="button" className="secondary-action" onClick={() => { setProjectNameDraft(projectList.projects.find((project) => project.id === projectList.activeProjectId)?.name || ''); setRenameProjectOpen(true); }} disabled={projectBusy}>重命名</button>
-            <button type="button" className="secondary-action" onClick={() => setDeleteProjectOpen(true)} disabled={projectBusy || projectList.projects.length <= 1}>删除</button>
+            <button type="button" className="secondary-action create-action" onClick={() => setCreateProjectOpen(true)} disabled={savingProposalModule || projectBusy}>新建</button>
+            <button type="button" className="secondary-action" onClick={openProfileEditor} disabled={savingProposalModule || projectBusy}>修改档案</button>
+            <button type="button" className="secondary-action" onClick={() => { setProjectNameDraft(projectList.projects.find((project) => project.id === projectList.activeProjectId)?.name || ''); setRenameProjectOpen(true); }} disabled={savingProposalModule || projectBusy}>重命名</button>
+            <button type="button" className="secondary-action" onClick={() => setDeleteProjectOpen(true)} disabled={savingProposalModule || projectBusy || projectList.projects.length <= 1}>删除</button>
           </div>
         </div>
       </section>
@@ -1496,7 +1543,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       {agentStatus?.enabled && agentStatus.agents.some((agent) => agent.id === 'grant-application-agent') && (
         <AgentFloatingPanel label="课题申报 Agent" className="grant-agent-panel">
           <div><span className="section-kicker">课题申报 Agent</span><strong>{agentContinuousStatus !== 'idle' ? `连续执行：${agentContinuousStatus === 'running' ? '进行中' : agentContinuousStatus === 'paused' ? '已暂停' : agentContinuousStatus === 'blocked' ? '需要补充' : '已完成'}` : agentRun?.shadowEvaluation?.agentAction ? `建议：${grantAgentLabels[agentRun.shadowEvaluation.agentAction] || agentRun.shadowEvaluation.agentAction}` : '检查当前项目并安排下一步'}</strong><p>{agentContinuousStatus !== 'idle' ? agentContinuousMessage : agentRun?.recommendation || 'Agent 可以规划单步，也可以根据已填写的阶段输入连续推进。'}</p></div>
-          <div className="grant-agent-actions">{agentContinuousStatus === 'running' ? <button type="button" className="secondary-action" onClick={pauseGrantContinuousRun}>暂停连续执行</button> : <button type="button" className="primary-action" onClick={requestGrantContinuousRun} disabled={loading || task?.status === 'running'}>{agentContinuousStatus === 'paused' || agentContinuousStatus === 'blocked' ? '继续连续执行' : agentContinuousStatus === 'completed' ? '检查未完成项' : '连续执行'}</button>}<button type="button" className="secondary-action" onClick={() => void planGrantNextStep()} disabled={agentPlanning || task?.status === 'running'}>{agentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}</button>{agentRun?.shadowEvaluation?.agentAction && <button type="button" className="primary-action" onClick={requestGrantAgentExecution} disabled={task?.status === 'running'}>执行建议</button>}</div>
+          <div className="grant-agent-actions">{agentContinuousStatus === 'running' ? <button type="button" className="secondary-action" onClick={pauseGrantContinuousRun}>暂停连续执行</button> : <button type="button" className="primary-action" onClick={requestGrantContinuousRun} disabled={savingProposalModule || loading || task?.status === 'running'}>{agentContinuousStatus === 'paused' || agentContinuousStatus === 'blocked' ? '继续连续执行' : agentContinuousStatus === 'completed' ? '检查未完成项' : '连续执行'}</button>}<button type="button" className="secondary-action" onClick={() => void planGrantNextStep()} disabled={agentPlanning || task?.status === 'running'}>{agentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}</button>{agentRun?.shadowEvaluation?.agentAction && <button type="button" className="primary-action" onClick={requestGrantAgentExecution} disabled={task?.status === 'running'}>执行建议</button>}</div>
         </AgentFloatingPanel>
       )}
 
@@ -1551,7 +1598,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                 <p>{copy.inputHelp}</p>
               </div>
             </div>
-            <textarea className="grant-application-textarea" value={currentInput.taskText} onChange={(event) => updateCurrentInput('taskText', event.target.value)} placeholder={copy.placeholder} />
+            <textarea aria-label={copy.inputTitle} className="grant-application-textarea" disabled={savingProposalModule} value={currentInput.taskText} onChange={(event) => updateCurrentInput('taskText', event.target.value)} placeholder={copy.placeholder} />
           </article>
 
           {initialPanel === 'proposal' && (
@@ -1562,56 +1609,57 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                   <p>逐段生成申报书内容，保存后自动合并为完整草稿。</p>
                 </div>
               </div>
-              <div className="grant-application-proposal-command-bar">
+              <GrantProposalToolbar batchActions={<>
                 <button
                   type="button"
                   className="primary-action"
                   onClick={() => void generateMissingProposalModules()}
-                  disabled={loading || checkingProposalModules || generatingMissingProposalModules || generatingProposalModule || checkingProposalModule || polishingProposalModule || polishingProposalModules || task?.status === 'running' || completedProposalModuleCount === proposalModuleDefinitions.length}
+                  disabled={savingProposalModule || loading || checkingProposalModules || generatingMissingProposalModules || generatingProposalModule || checkingProposalModule || polishingProposalModule || polishingProposalModules || task?.status === 'running' || completedProposalModuleCount === proposalModuleDefinitions.length}
                 >
                   {generatingMissingProposalModules ? '批量生成中...' : '批量生成'}
                 </button>
-                <button type="button" className="primary-action" onClick={() => void checkProposalModulesInOrder()} disabled={loading || checkingProposalModules || generatingMissingProposalModules || generatingProposalModule || checkingProposalModule || polishingProposalModule || polishingProposalModules || task?.status === 'running'}>
+                <button type="button" className="secondary-action" onClick={() => void checkProposalModulesInOrder()} disabled={savingProposalModule || loading || checkingProposalModules || generatingMissingProposalModules || generatingProposalModule || checkingProposalModule || polishingProposalModule || polishingProposalModules || task?.status === 'running'}>
                   {checkingProposalModules ? '批量检测中...' : '批量检测'}
                 </button>
-                <button type="button" className="secondary-action" onClick={() => void polishProposalModulesInOrder()} disabled={loading || checkingProposalModules || generatingMissingProposalModules || generatingProposalModule || checkingProposalModule || polishingProposalModule || polishingProposalModules || task?.status === 'running' || completedProposalModuleCount === 0}>
+                <button type="button" className="secondary-action" onClick={() => void polishProposalModulesInOrder()} disabled={savingProposalModule || loading || checkingProposalModules || generatingMissingProposalModules || generatingProposalModule || checkingProposalModule || polishingProposalModule || polishingProposalModules || task?.status === 'running' || completedProposalModuleCount === 0}>
                   {polishingProposalModules ? '批量优化中...' : '批量优化'}
                 </button>
-                <button type="button" className="secondary-action" onClick={() => void generateSelectedProposalModule()} disabled={loading || checkingProposalModules || generatingProposalModule || generatingMissingProposalModules || checkingProposalModule || polishingProposalModule || polishingProposalModules || task?.status === 'running'}>
+              </>} currentActions={<>
+
+                <button type="button" className="secondary-action" onClick={() => void generateSelectedProposalModule()} disabled={savingProposalModule || loading || checkingProposalModules || generatingProposalModule || generatingMissingProposalModules || checkingProposalModule || polishingProposalModule || polishingProposalModules || task?.status === 'running'}>
                   {generatingProposalModule ? '生成中...' : '生成当前模块'}
                 </button>
-                <button type="button" className="secondary-action" onClick={() => void checkSelectedProposalModule()} disabled={loading || checkingProposalModules || checkingProposalModule || generatingProposalModule || generatingMissingProposalModules || polishingProposalModule || polishingProposalModules || task?.status === 'running'}>
+                <button type="button" className="secondary-action" onClick={() => void checkSelectedProposalModule()} disabled={savingProposalModule || loading || checkingProposalModules || checkingProposalModule || generatingProposalModule || generatingMissingProposalModules || polishingProposalModule || polishingProposalModules || task?.status === 'running'}>
                   {checkingProposalModule ? '检查中...' : '检查当前模块'}
                 </button>
-                <button type="button" className="secondary-action" onClick={() => void polishSelectedProposalModule()} disabled={loading || checkingProposalModules || polishingProposalModule || polishingProposalModules || checkingProposalModule || generatingProposalModule || generatingMissingProposalModules || task?.status === 'running' || !proposalModules[selectedProposalModule]?.trim()}>
+                <button type="button" className="secondary-action" onClick={() => void polishSelectedProposalModule()} disabled={savingProposalModule || loading || checkingProposalModules || polishingProposalModule || polishingProposalModules || checkingProposalModule || generatingProposalModule || generatingMissingProposalModules || task?.status === 'running' || !proposalModules[selectedProposalModule]?.trim()}>
                   {polishingProposalModule ? '优化中...' : '按意见优化'}
                 </button>
-                <button type="button" className="secondary-action" onClick={() => void saveSelectedProposalModule()} disabled={savingProposalModule || task?.status === 'running'}>
+                <button type="button" className="secondary-action" onClick={() => void saveSelectedProposalModule()} disabled={proposalBusy}>
                   {savingProposalModule ? '保存中...' : '保存并合并'}
                 </button>
-                <span className="grant-application-command-hint">建议先批量生成，再批量检测，最后按检查意见批量优化。</span>
-              </div>
+              </>} />
+
               {aiProgress.title && aiProgress.panel === 'proposal' && (
                 <div className={`grant-application-ai-progress ${aiProgress.running ? 'is-running' : ''}`}>
                   <div>
                     <strong>{aiProgress.title}</strong>
                     <span>{aiProgress.message}</span>
                   </div>
-                  <em>{Math.round(aiProgress.progress)}%</em>
-                  <progress value={aiProgress.progress} max={100} />
+                  <BusinessTaskProgress label="阶段进度（估算）" percent={aiProgress.progress} status={aiProgress.running ? 'active' : aiProgress.result || 'normal'} />
                 </div>
               )}
               <div className="grant-application-visual-options">
                 <label>
-                  <input type="checkbox" checked={proposalVisualSettings.useAiImage} onChange={(event) => void updateProposalVisualSetting('useAiImage', event.target.checked)} />
+                  <input type="checkbox" disabled={proposalBusy} checked={proposalVisualSettings.useAiImage} onChange={(event) => void updateProposalVisualSetting('useAiImage', event.target.checked)} />
                   <span>AI 生图提示词</span>
                 </label>
                 <label>
-                  <input type="checkbox" checked={proposalVisualSettings.useTechnicalDiagram} onChange={(event) => void updateProposalVisualSetting('useTechnicalDiagram', event.target.checked)} />
+                  <input type="checkbox" disabled={proposalBusy} checked={proposalVisualSettings.useTechnicalDiagram} onChange={(event) => void updateProposalVisualSetting('useTechnicalDiagram', event.target.checked)} />
                   <span>技术路线/研究框架图</span>
                 </label>
                 <label>
-                  <input type="checkbox" checked={proposalVisualSettings.useMermaid} onChange={(event) => void updateProposalVisualSetting('useMermaid', event.target.checked)} />
+                  <input type="checkbox" disabled={proposalBusy} checked={proposalVisualSettings.useMermaid} onChange={(event) => void updateProposalVisualSetting('useMermaid', event.target.checked)} />
                   <span>Mermaid 图</span>
                 </label>
               </div>
@@ -1629,6 +1677,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                         key={module.key}
                         className={`${module.key === selectedProposalModule ? 'is-active' : ''} ${isActiveAiModule ? 'is-running' : ''}`}
                         aria-pressed={module.key === selectedProposalModule}
+                        disabled={proposalBusy}
                         onClick={() => setSelectedProposalModule(module.key)}
                       >
                         <span>{isActiveAiModule ? runningLabel : skippedCheck ? '未生成跳过' : completed ? '已生成' : '待生成'} · {quality.status === 'unchecked' ? '未检' : quality.status === 'pass' ? '通过' : quality.status === 'warning' ? '需补充' : '高风险'}</span>
@@ -1654,6 +1703,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                   )}
                   <MarkdownEditor
                     className="grant-application-module-markdown-editor"
+                    disabled={proposalBusy}
                     value={proposalModules[selectedProposalModule] || ''}
                     onChange={(value) => updateProposalModule(selectedProposalModule, value)}
                     placeholder={`生成或粘贴“${selectedProposalModuleDefinition.label}”内容，保存后会合并到申报书草稿。`}
@@ -1678,16 +1728,16 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                 <h3>{copy.materialTitle}</h3>
                 <p>{copy.materialHelp}</p>
               </div>
-              <button type="button" className="secondary-action" onClick={importMaterial} disabled={loading || importing || task?.status === 'running'}>
+              <button type="button" className="secondary-action" onClick={importMaterial} disabled={savingProposalModule || loading || importing || task?.status === 'running'}>
                 {importing ? '导入中...' : '导入材料'}
               </button>
               {initialPanel !== 'diagnosis' && (
-                <button type="button" className="secondary-action" onClick={appendPreviousOutputsToMaterial} disabled={loading || task?.status === 'running'}>
+                <button type="button" className="secondary-action" onClick={appendPreviousOutputsToMaterial} disabled={savingProposalModule || loading || task?.status === 'running'}>
                   带入前序成果
                 </button>
               )}
             </div>
-            <MarkdownEditor className="grant-application-markdown-editor" value={currentInput.materialText} onChange={(value) => updateCurrentInput('materialText', value)} placeholder={copy.materialPlaceholder} />
+            <MarkdownEditor className="grant-application-markdown-editor" ariaLabel="课题参考材料" disabled={savingProposalModule} value={currentInput.materialText} onChange={(value) => updateCurrentInput('materialText', value)} placeholder={copy.materialPlaceholder} />
           </article>
 
           {initialPanel === 'review-defense' && (
@@ -1698,7 +1748,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                   <p>独立生成和保留，用于评估申报书质量，不会覆盖下方 AI 工作稿。</p>
                 </div>
                 <div className="grant-application-panel-actions">
-                  <button type="button" className="secondary-action" onClick={() => void generateQualityReview()} disabled={loading || generatingQualityReview || task?.status === 'running'}>
+                  <button type="button" className="secondary-action" onClick={() => void generateQualityReview()} disabled={savingProposalModule || loading || generatingQualityReview || task?.status === 'running'}>
                     {generatingQualityReview ? '检测中...' : '生成八维检测报告'}
                   </button>
                 </div>
@@ -1709,8 +1759,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                     <strong>{aiProgress.title}</strong>
                     <span>{aiProgress.message}</span>
                   </div>
-                  <em>{Math.round(aiProgress.progress)}%</em>
-                  <progress value={aiProgress.progress} max={100} />
+                  <BusinessTaskProgress label="阶段进度（估算）" percent={aiProgress.progress} status={aiProgress.running ? 'active' : aiProgress.result || 'normal'} />
                 </div>
               )}
               {visibleReviewDefenseReport ? (
@@ -1731,13 +1780,10 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
               </div>
               <div className="grant-application-output-controls">
                 <div className="grant-application-output-mode-row">
-                  <div className="grant-application-mode-switch" aria-label="工作稿显示模式">
-                    <button type="button" className={outputMode === 'preview' ? 'is-active' : ''} aria-pressed={outputMode === 'preview'} onClick={() => setOutputMode('preview')}>预览</button>
-                    <button type="button" className={outputMode === 'edit' ? 'is-active' : ''} aria-pressed={outputMode === 'edit'} onClick={() => setOutputMode('edit')}>编辑</button>
-                  </div>
+                  <WorkspaceViewControl label="课题工作稿查看方式" value={outputMode} onChange={setOutputMode} options={[{ value: 'preview', label: '预览' }, { value: 'edit', label: '编辑' }]} />
                 </div>
                 <div className="grant-application-panel-actions">
-                  <button type="button" className="secondary-action" onClick={() => void saveCurrentOutput()} disabled={savingOutput || task?.status === 'running'}>
+                  <button type="button" className="secondary-action" onClick={() => void saveCurrentOutput()} disabled={savingProposalModule || savingOutput || task?.status === 'running'}>
                     {savingOutput ? '保存中...' : '保存工作稿'}
                   </button>
                   {nextPanel && (
@@ -1746,7 +1792,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                     </button>
                   )}
                   {initialPanel !== 'proposal' && (
-                    <button type="button" className="primary-action" onClick={generateWithAi} disabled={loading || generating || task?.status === 'running'}>
+                    <button type="button" className="primary-action" onClick={generateWithAi} disabled={savingProposalModule || loading || generating || task?.status === 'running'}>
                       {isCurrentTaskRunning || generating ? '生成中...' : generateDraftLabel}
                     </button>
                   )}
@@ -1759,7 +1805,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                   <strong>当前入口正在生成</strong>
                   <span>{task.message}</span>
                 </div>
-                <em>{Math.round(task.progress || 0)}%</em>
+                <BusinessTaskProgress label="当前任务" percent={task.progress} status="active" />
               </div>
             )}
             {initialPanel !== 'proposal' && aiProgress.title && aiProgress.panel === initialPanel && !isReviewReportProgress && task?.status !== 'running' && (
@@ -1768,12 +1814,11 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
                   <strong>{aiProgress.title}</strong>
                   <span>{aiProgress.message}</span>
                 </div>
-                <em>{Math.round(aiProgress.progress)}%</em>
-                <progress value={aiProgress.progress} max={100} />
+                <BusinessTaskProgress label="阶段进度（估算）" percent={aiProgress.progress} status={aiProgress.running ? 'active' : aiProgress.result || 'normal'} />
               </div>
             )}
             {outputMode === 'edit' ? (
-              <MarkdownEditor className="grant-application-output-editor" value={visibleOutputText} onChange={updateCurrentOutput} placeholder={copy.outputPlaceholder} />
+              <MarkdownEditor className="grant-application-output-editor" ariaLabel="课题工作稿" disabled={savingProposalModule || savingOutput || task?.status === 'running'} value={visibleOutputText} onChange={updateCurrentOutput} placeholder={copy.outputPlaceholder} />
             ) : visibleOutputText ? (
               <div className="grant-application-preview">
                 <MarkdownRenderer allowRawHtml={false}>{visibleOutputText}</MarkdownRenderer>
@@ -1947,10 +1992,10 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
           </article>
         </aside>
       </section>
-      <Dialog.Root open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+      <AsyncDialogRoot busy={clearing} open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="content-regenerate-card">
+          <AsyncDialogContent className="content-regenerate-card">
             <div className="content-regenerate-card-head">
               <div>
                 <Dialog.Title>清空课题申报工作区</Dialog.Title>
@@ -1960,14 +2005,14 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
               </div>
             </div>
             <div className="grant-application-dialog-actions">
-              <Dialog.Close className="secondary-action" type="button" disabled={clearing}>取消</Dialog.Close>
+              <AsyncDialogClose className="secondary-action" type="button" disabled={clearing}>取消</AsyncDialogClose>
               <button type="button" className="primary-action" onClick={() => void clearWorkspace()} disabled={clearing}>
                 {clearing ? '清空中...' : '确认清空'}
               </button>
             </div>
-          </Dialog.Content>
+          </AsyncDialogContent>
         </Dialog.Portal>
-      </Dialog.Root>
+      </AsyncDialogRoot>
       {renderCreateProjectDialog({
         open: createProjectOpen,
         value: projectNameDraft,
@@ -1998,10 +2043,10 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
         onConfirm: renameProject,
         busy: projectBusy,
       })}
-      <Dialog.Root open={deleteProjectOpen} onOpenChange={setDeleteProjectOpen}>
+      <AsyncDialogRoot busy={projectBusy} open={deleteProjectOpen} onOpenChange={setDeleteProjectOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="content-regenerate-card">
+          <AsyncDialogContent className="content-regenerate-card">
             <div className="content-regenerate-card-head">
               <div>
                 <Dialog.Title>删除课题项目</Dialog.Title>
@@ -2011,14 +2056,14 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
               </div>
             </div>
             <div className="grant-application-dialog-actions">
-              <Dialog.Close className="secondary-action" type="button" disabled={projectBusy}>取消</Dialog.Close>
-              <button type="button" className="primary-action" onClick={() => void deleteProject()} disabled={projectBusy}>
+              <AsyncDialogClose className="secondary-action" type="button" disabled={savingProposalModule || projectBusy}>取消</AsyncDialogClose>
+              <button type="button" className="primary-action" onClick={() => void deleteProject()} disabled={savingProposalModule || projectBusy}>
                 {projectBusy ? '删除中...' : '确认删除'}
               </button>
             </div>
-          </Dialog.Content>
+          </AsyncDialogContent>
         </Dialog.Portal>
-      </Dialog.Root>
+      </AsyncDialogRoot>
       <Dialog.Root
         open={exportDialogOpen}
         onOpenChange={(open) => {
@@ -2040,9 +2085,9 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
             <div className={`grant-application-export-progress ${exportProgress.error ? 'is-error' : ''}`}>
               <div>
                 <strong>{exportProgress.message || '正在准备导出。'}</strong>
-                <em>{Math.round(exportProgress.progress || 0)}%</em>
+
               </div>
-              <progress value={exportProgress.progress || 0} max={100} />
+              <BusinessTaskProgress label="Word 导出" percent={exportProgress.progress} status={exportProgress.error ? 'exception' : exportProgress.running ? 'active' : 'success'} />
             </div>
             {!exportProgress.running && (
               <div className="grant-application-dialog-actions">
@@ -2055,7 +2100,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       <Dialog.Root open={helpOpen} onOpenChange={setHelpOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="content-regenerate-card grant-application-help-card">
+          <Dialog.Content className="content-regenerate-card grant-application-help-card yb-reading-dialog">
             <div className="content-regenerate-card-head">
               <div>
                 <Dialog.Title>课题申报使用说明</Dialog.Title>
@@ -2094,7 +2139,7 @@ function GrantApplicationPage({ initialPanel = 'diagnosis', onNavigate }: GrantA
       <Dialog.Root open={sideGuideOpen !== ''} onOpenChange={(open) => !open && setSideGuideOpen('')}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="content-regenerate-card grant-application-help-card">
+          <Dialog.Content className="content-regenerate-card grant-application-help-card yb-reading-dialog">
             <div className="content-regenerate-card-head">
               <div>
                 <Dialog.Title>{sideGuideOpen === 'flow' ? '流程映射' : '预检清单'}</Dialog.Title>
@@ -2168,77 +2213,26 @@ function renderCreateProjectDialog({
   busy: boolean;
 }) {
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <AsyncDialogRoot busy={busy} open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="content-regenerate-modal" />
-        <Dialog.Content className="content-regenerate-card grant-application-create-dialog">
+        <AsyncDialogContent className="content-regenerate-card grant-application-create-dialog">
           <div className="content-regenerate-card-head">
             <div>
               <Dialog.Title>新建课题项目</Dialog.Title>
               <Dialog.Description>创建独立工作区，并先填写课题档案。后续诊断、选题、撰写和评审都会引用这些信息。</Dialog.Description>
             </div>
           </div>
-          <div className="grant-application-create-profile-grid">
-            <label>
-              <span>项目名称</span>
-              <input value={value} onChange={(event) => onValueChange(event.target.value)} placeholder="例如：市级课题-分层作业设计研究" autoFocus />
-            </label>
-            <label>
-              <span>课题级别</span>
-              <select value={profile.level} onChange={(event) => onProfileChange('level', event.target.value)}>
-                <option>校级</option>
-                <option>县级</option>
-                <option>市级</option>
-                <option>省级</option>
-                <option>国家级</option>
-                <option>不确定</option>
-              </select>
-            </label>
-            <label>
-              <span>学科领域</span>
-              <select value={profile.discipline} onChange={(event) => onProfileChange('discipline', event.target.value)}>
-                <option>教育学</option>
-                <option>医学/临床</option>
-                <option>工程技术</option>
-                <option>农业科学</option>
-                <option>艺术/体育</option>
-                <option>基础科学</option>
-                <option>其他</option>
-              </select>
-            </label>
-            <label>
-              <span>当前阶段</span>
-              <select value={profile.stage} onChange={(event) => onProfileChange('stage', event.target.value)}>
-                <option>准备申报</option>
-                <option>已有方向</option>
-                <option>已有草稿</option>
-                <option>等待评审</option>
-                <option>答辩准备</option>
-                <option>立项实施</option>
-              </select>
-            </label>
-            <label>
-              <span>截止时间</span>
-              <input type="date" value={profile.deadline} onChange={(event) => onProfileChange('deadline', event.target.value)} />
-            </label>
-            <label className="is-wide">
-              <span>研究方向</span>
-              <input value={profile.direction} onChange={(event) => onProfileChange('direction', event.target.value)} placeholder="一句话描述课题方向" />
-            </label>
-            <label className="is-wide">
-              <span>基础说明</span>
-              <textarea value={profile.sourceNotes} onChange={(event) => onProfileChange('sourceNotes', event.target.value)} placeholder="补充团队基础、学校场景、已有成果、数据来源或申报限制。" />
-            </label>
-          </div>
+          <AsyncDialogFields><GrantProfileForm profile={profile} onProfileChange={onProfileChange} projectName={value} onProjectNameChange={onValueChange} /></AsyncDialogFields>
           <div className="grant-application-dialog-actions">
-            <Dialog.Close className="secondary-action" type="button" disabled={busy}>取消</Dialog.Close>
+            <AsyncDialogClose className="secondary-action" type="button" disabled={busy}>取消</AsyncDialogClose>
             <button type="button" className="primary-action" onClick={() => void onConfirm()} disabled={busy || !value.trim()}>
-              {confirmLabel}
+              {busy ? '提交中…' : confirmLabel}
             </button>
           </div>
-        </Dialog.Content>
+        </AsyncDialogContent>
       </Dialog.Portal>
-    </Dialog.Root>
+    </AsyncDialogRoot>
   );
 }
 
@@ -2258,73 +2252,26 @@ function renderProfileEditDialog({
   busy: boolean;
 }) {
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <AsyncDialogRoot busy={busy} open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="content-regenerate-modal" />
-        <Dialog.Content className="content-regenerate-card grant-application-create-dialog">
+        <AsyncDialogContent className="content-regenerate-card grant-application-create-dialog">
           <div className="content-regenerate-card-head">
             <div>
               <Dialog.Title>修改课题档案</Dialog.Title>
               <Dialog.Description>修改后会作为当前课题项目的基础信息，后续诊断、选题、撰写和评审都会引用。</Dialog.Description>
             </div>
           </div>
-          <div className="grant-application-create-profile-grid">
-            <label>
-              <span>课题级别</span>
-              <select value={profile.level} onChange={(event) => onProfileChange('level', event.target.value)}>
-                <option>校级</option>
-                <option>县级</option>
-                <option>市级</option>
-                <option>省级</option>
-                <option>国家级</option>
-                <option>不确定</option>
-              </select>
-            </label>
-            <label>
-              <span>学科领域</span>
-              <select value={profile.discipline} onChange={(event) => onProfileChange('discipline', event.target.value)}>
-                <option>教育学</option>
-                <option>医学/临床</option>
-                <option>工程技术</option>
-                <option>农业科学</option>
-                <option>艺术/体育</option>
-                <option>基础科学</option>
-                <option>其他</option>
-              </select>
-            </label>
-            <label>
-              <span>当前阶段</span>
-              <select value={profile.stage} onChange={(event) => onProfileChange('stage', event.target.value)}>
-                <option>准备申报</option>
-                <option>已有方向</option>
-                <option>已有草稿</option>
-                <option>等待评审</option>
-                <option>答辩准备</option>
-                <option>立项实施</option>
-              </select>
-            </label>
-            <label>
-              <span>截止时间</span>
-              <input type="date" value={profile.deadline} onChange={(event) => onProfileChange('deadline', event.target.value)} />
-            </label>
-            <label className="is-wide">
-              <span>研究方向</span>
-              <input value={profile.direction} onChange={(event) => onProfileChange('direction', event.target.value)} placeholder="一句话描述课题方向" />
-            </label>
-            <label className="is-wide">
-              <span>基础说明</span>
-              <textarea value={profile.sourceNotes} onChange={(event) => onProfileChange('sourceNotes', event.target.value)} placeholder="补充团队基础、学校场景、已有成果、数据来源或申报限制。" />
-            </label>
-          </div>
+          <AsyncDialogFields><GrantProfileForm profile={profile} onProfileChange={onProfileChange} /></AsyncDialogFields>
           <div className="grant-application-dialog-actions">
-            <Dialog.Close className="secondary-action" type="button" disabled={busy}>取消</Dialog.Close>
+            <AsyncDialogClose className="secondary-action" type="button" disabled={busy}>取消</AsyncDialogClose>
             <button type="button" className="primary-action" onClick={() => void onConfirm()} disabled={busy}>
-              保存档案
+              {busy ? '保存中…' : '保存档案'}
             </button>
           </div>
-        </Dialog.Content>
+        </AsyncDialogContent>
       </Dialog.Portal>
-    </Dialog.Root>
+    </AsyncDialogRoot>
   );
 }
 
@@ -2350,10 +2297,10 @@ function renderProjectDialog({
   busy: boolean;
 }) {
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <AsyncDialogRoot busy={busy} open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="content-regenerate-modal" />
-        <Dialog.Content className="content-regenerate-card">
+        <AsyncDialogContent className="content-regenerate-card">
           <div className="content-regenerate-card-head">
             <div>
               <Dialog.Title>{title}</Dialog.Title>
@@ -2362,17 +2309,17 @@ function renderProjectDialog({
           </div>
           <label className="grant-application-dialog-field">
             <span>项目名称</span>
-            <input value={value} onChange={(event) => onValueChange(event.target.value)} placeholder="例如：市级课题-分层作业研究" autoFocus />
+            <input disabled={busy} value={value} onChange={(event) => onValueChange(event.target.value)} placeholder="例如：市级课题-分层作业研究" autoFocus />
           </label>
           <div className="grant-application-dialog-actions">
-            <Dialog.Close className="secondary-action" type="button" disabled={busy}>取消</Dialog.Close>
+            <AsyncDialogClose className="secondary-action" type="button" disabled={busy}>取消</AsyncDialogClose>
             <button type="button" className="primary-action" onClick={() => void onConfirm()} disabled={busy || !value.trim()}>
-              {confirmLabel}
+              {busy ? '提交中…' : confirmLabel}
             </button>
           </div>
-        </Dialog.Content>
+        </AsyncDialogContent>
       </Dialog.Portal>
-    </Dialog.Root>
+    </AsyncDialogRoot>
   );
 }
 

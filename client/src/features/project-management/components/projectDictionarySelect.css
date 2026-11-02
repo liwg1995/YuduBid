@@ -1,0 +1,17 @@
+/* Portal 脱离滚动容器裁切，沿用当前主题与触发器宽度。 */
+.project-management-select-menu[data-side] { position: relative; inset: auto; z-index: 320; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; width: var(--radix-popover-trigger-width); min-width: min(240px, var(--radix-popover-content-available-width)); max-width: calc(100vw - 24px); max-height: var(--radix-popover-content-available-height); padding: 8px; overflow: auto; overscroll-behavior: contain; color: var(--yb-text); background: var(--yb-surface); border: 1px solid var(--yb-control-border); border-radius: var(--yb-radius-control, 8px); box-shadow: 0 8px 24px #0003; }
+.project-management-select-menu[data-side] :is(input,button) { box-sizing: border-box; font: inherit; font-size: 14px; line-height: 22px; }
+.project-management-select-menu[data-side] input { width: 100%; min-width: 0; min-height: 32px; flex: 0 0 auto; padding: 4px 10px; color: var(--yb-text); background: var(--yb-control-bg); border: 1px solid var(--yb-control-border); border-radius: 4px; }
+.project-management-select-menu[data-side] input::placeholder { color: var(--yb-text-soft); opacity: 1; }
+.project-management-select-menu[data-side] button { min-height: 32px; padding: 4px 8px; color: var(--yb-text); background: transparent; border: 0; border-radius: 4px; cursor: pointer; }
+.project-management-select-menu[data-side] .project-management-select-options { min-height: 32px; max-height: 220px; flex: 1 1 auto; overflow: auto; scrollbar-width: thin; }
+.project-management-select-menu[data-side] .project-management-select-options button { width: 100%; text-align: left; overflow-wrap: anywhere; }
+.project-management-select-menu[data-side] button:is(:hover,.is-active) { color: var(--yb-primary); background: var(--yb-control-bg); }
+.project-management-select-menu[data-side] p { margin: 8px; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.project-management-select-menu[data-side] :is(button,input):focus-visible { outline: 2px solid var(--yb-primary); outline-offset: -2px; }
+.project-management-select-menu[data-side] button:disabled { opacity: .5; cursor: not-allowed; }
+.project-management-select-menu[data-side] .project-management-select-custom { flex: 0 0 auto; padding-top: 8px; border-top-color: var(--yb-border-soft); }
+.project-management-select-menu[data-side] .project-management-select-custom-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Popover 也使用 dialog 语义，不能被现代主题的通用弹窗高度覆盖。 */
+:root[data-ui-appearance="modern"] body .project-management-select-menu[data-side] { max-height: var(--radix-popover-content-available-height); }

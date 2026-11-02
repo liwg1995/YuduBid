@@ -1,0 +1,100 @@
+/* 设置遵循同一工作区规格：分类固定、内容内部滚动、表单节奏统一。 */
+.modern-shell .settings-page .modern-settings-board { grid-template-columns: 180px minmax(0, 1fr); gap: 24px; height: 100%; overflow: hidden; padding: 0; }
+.modern-shell .settings-page .modern-settings-index { position: static; align-self: stretch; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 0 16px 16px 0; border-color: var(--yb-border); }
+.modern-settings-index .modern-settings-index-title { padding: 16px 12px; border-color: var(--yb-border); }
+.modern-settings-index .modern-settings-index-title strong { margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; }
+.modern-settings-index .modern-settings-index-title p { margin-top: 4px; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.modern-settings-index nav { padding-top: 16px; gap: 4px; }
+.modern-settings-index nav button { min-height: 40px; padding: 8px 12px; }
+.modern-settings-index nav button strong { font-size: 14px; line-height: 22px; font-weight: 400; }
+.modern-settings-index nav button:disabled { opacity: .55; cursor: not-allowed; }
+.modern-settings-index nav button:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: -2px; }
+.modern-settings-board .modern-settings-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.modern-settings-main .modern-settings-heading { position: static; flex: 0 0 auto; min-height: 0; align-items: center; flex-wrap: wrap; gap: 16px; margin: 0 0 16px; padding: 16px 0; border-color: var(--yb-border); background: transparent; }
+.modern-settings-main .modern-settings-heading h1 { margin: 0 0 4px; font-size: 20px; line-height: 28px; font-weight: 500; }
+.modern-settings-main .modern-settings-heading p { font-size: 14px; line-height: 22px; color: var(--yb-text-soft); }
+.modern-settings-main .modern-settings-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 0 4px 16px 0; }
+.modern-settings-save-control { flex-wrap: wrap; gap: 12px; }
+.modern-settings-save-control span { font-size: 12px; line-height: 20px; }
+.modern-settings-save-control button { min-height: 32px; padding: 4px 16px; font-size: 14px; line-height: 22px; font-weight: 400; }
+.modern-shell .settings-page .modern-settings-body > .settings-page-section { max-width: 1120px; border-radius: 8px; box-shadow: none; }
+.modern-shell .settings-page .modern-settings-body .settings-section-title { padding: 16px 24px; font-size: 16px; line-height: 24px; }
+.modern-shell .settings-page .modern-settings-body .settings-section-title strong { font-weight: 500; }
+.modern-shell .settings-page .modern-settings-body .settings-section-title > span { height: 16px; width: 3px; }
+.modern-shell .settings-page .modern-settings-body .settings-row { grid-template-columns: minmax(200px, 1fr) minmax(260px, 420px); gap: 24px; padding: 16px 24px; }
+.modern-shell .settings-page .modern-settings-body .settings-row-copy { gap: 4px; min-width: 0; }
+.modern-shell .settings-page .modern-settings-body .settings-row-copy strong { font-size: 14px; font-weight: 500; line-height: 22px; }
+.modern-shell .settings-page .modern-settings-body .settings-row-copy span { font-size: 12px; line-height: 20px; color: var(--yb-text-soft); overflow-wrap: anywhere; }
+.modern-shell .settings-page .modern-settings-body :is(input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) { box-sizing: border-box; min-width: 0; max-width: 100%; min-height: 32px; font-size: 14px; line-height: 22px; }
+.modern-shell .settings-page .modern-settings-body :is(.inline-action, .input-with-action-button, .secondary-action, .primary-action) { min-height: 32px; font-size: 14px; line-height: 22px; font-weight: 400; }
+.modern-shell .settings-page .modern-settings-body :is(.settings-multimodal-row, .settings-action-row, .feature-module-row, .settings-row:has(> .settings-switch-control)) { grid-template-columns: minmax(0, 1fr) auto; min-height: 72px; }
+.modern-shell .settings-page .modern-settings-body :is(.image-model-status span, .skill-card p, .skill-card-head span, .feature-manager-note, .parser-note) { font-size: 12px; line-height: 20px; }
+.modern-shell .settings-page .modern-settings-body .image-model-status strong { font-size: 14px; line-height: 22px; }
+.settings-config-feedback { margin: 0 0 16px; padding: 16px 24px; border: 1px solid var(--yb-border); border-radius: 8px; color: var(--yb-text); background: var(--yb-surface); }
+.settings-config-feedback strong { font-size: 16px; line-height: 24px; font-weight: 500; }
+.settings-config-feedback p { margin: 8px 0; font-size: 14px; line-height: 22px; color: var(--yb-text-soft); overflow-wrap: anywhere; }
+.settings-config-feedback button { min-height: 32px; padding: 4px 16px; font-size: 14px; line-height: 22px; }
+.settings-config-feedback.is-error { border-left: 3px solid #db6475; }
+@media (max-width: 1050px) {
+  .modern-shell .settings-page .modern-settings-board { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 16px; }
+  .modern-shell .settings-page .modern-settings-index { overflow: hidden; padding: 0; }
+  .modern-settings-index nav { flex-direction: row; padding: 0; overflow-x: auto; }
+  .modern-settings-index nav button { flex: 0 0 auto; }
+}
+@container (max-width: 760px) {
+  .modern-shell .settings-page .modern-settings-body .settings-row { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 16px; }
+  .modern-shell .settings-page .modern-settings-body :is(.settings-multimodal-row, .feature-module-row, .settings-row:has(> .settings-switch-control)) { grid-template-columns: minmax(0, 1fr) auto; }
+  .modern-settings-main .modern-settings-heading { align-items: flex-start; }
+}
+/* 组合输入框复用主题表面，避免深色界面混入浅色按钮块。 */
+.modern-shell .settings-page .modern-settings-body .input-with-action { min-height: 32px; border-radius: 6px; border-color: var(--yb-control-border); background: var(--yb-control-bg); }
+.modern-shell .settings-page .modern-settings-body .input-with-action.has-password-reveal { grid-template-columns: minmax(0, 1fr) 32px auto; }
+.modern-shell .settings-page .modern-settings-body .input-with-action input { min-height: 32px; border-radius: 0; background: transparent; }
+.modern-shell .settings-page .modern-settings-body .input-with-action :is(.input-with-action-button, .input-with-action-icon-button) { min-height: 32px; border-left-color: var(--yb-control-border); color: var(--yb-text-soft); background: transparent; }
+.modern-shell .settings-page .modern-settings-body .input-with-action-icon-button { width: 32px; }
+.modern-shell .settings-page .modern-settings-body .input-with-action :is(.input-with-action-button, .input-with-action-icon-button):hover:not(:disabled) { color: var(--yb-primary); background: var(--yb-control-bg); }
+.modern-shell .settings-page .modern-settings-body .input-with-action:focus-within { background: var(--yb-control-bg); border-color: var(--yb-primary); box-shadow: none; }
+
+/* 仅新版：基础配置优先，长配置按需展开。 */
+.modern-shell .settings-page .modern-settings-disclosure { border-top: 1px solid var(--yb-border); min-width: 0; }
+.modern-shell .settings-page .modern-settings-disclosure > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; min-height: 48px; padding: 12px 24px; cursor: pointer; color: var(--yb-text); }
+.modern-shell .settings-page .modern-settings-disclosure > summary::before { content: '›'; color: var(--yb-text-soft); font-size: 18px; }
+.modern-shell .settings-page .modern-settings-disclosure[open] > summary::before { transform: rotate(90deg); }
+.modern-shell .settings-page .modern-settings-disclosure > summary strong { font-size: 14px; line-height: 22px; font-weight: 500; }
+.modern-shell .settings-page .modern-settings-disclosure > summary span { color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.modern-shell .settings-page .modern-settings-disclosure > summary:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: -2px; }
+.modern-shell .settings-page .modern-settings-disclosure > summary:hover { background: var(--yb-control-bg); }
+.modern-shell .settings-page .modern-settings-disclosure-body { min-width: 0; }
+.modern-shell .settings-page .modern-settings-effect-note { margin: 0; padding: 12px 24px; border-bottom: 1px solid var(--yb-border); color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.modern-shell .settings-page .modern-settings-body :is(.settings-control-with-action, .settings-provider-title, .settings-action-cell, .settings-group-title-with-action) { min-width: 0; flex-wrap: wrap; gap: 8px; }
+.modern-shell .settings-page .modern-settings-body .settings-control-with-action > :is(input, select, .model-select-with-badge) { flex: 1 1 160px; min-width: 0; }
+.modern-shell .settings-page .modern-settings-body :is(.skill-card-head, .parser-card-head) { flex-wrap: wrap; gap: 8px; }
+.modern-shell .settings-page .modern-settings-body :is(.skill-card-head strong, .usage-model-column .settings-row > strong) { overflow-wrap: anywhere; white-space: normal; }
+.modern-shell .settings-page .modern-settings-body .usage-kpi-card strong { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.modern-shell .settings-page .modern-settings-body .settings-inline-link { overflow-wrap: anywhere; }
+.modern-shell .settings-page .modern-settings-body :is(button, input, select, textarea):focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+/* 设置 Portal 在应用容器外，单独排除 Electron 顶栏拖拽命中。 */
+:root[data-ui-appearance='modern'] :is(.release-detail-card, .storage-space-dialog),
+:root[data-ui-appearance='modern'] :is(.release-detail-card, .storage-space-dialog) * { -webkit-app-region: no-drag; }
+@container (max-width: 760px) {
+  .modern-shell .settings-page .modern-settings-disclosure > summary { padding: 12px 16px; }
+  .modern-shell .settings-page .modern-settings-effect-note { padding: 12px 16px; }
+}
+/* 接口状态使用低饱和主题色，避免深色设置页出现白色状态块。 */
+.modern-shell .settings-page .modern-settings-body .image-model-status em { border: 1px solid var(--yb-border); color: var(--yb-text-soft); background: var(--yb-control-bg); font-size: 12px; line-height: 20px; font-style: normal; }
+.modern-shell .settings-page .modern-settings-body .image-model-status.is-available em { color: #86d4c0; border-color: #315b56; background: #1b3537; }
+.modern-shell .settings-page .modern-settings-body .image-model-status.is-unavailable em { color: #f0a1ac; border-color: #62404b; background: #352631; }
+
+/* 所有新版设置分组采用同一标题栏、提示行和内容内边距。 */
+.modern-shell .settings-page .modern-settings-body > .appearance-selection { padding: 0; }
+.modern-shell .settings-page .modern-settings-body .appearance-classic-title { display: flex; }
+.modern-shell .settings-page .modern-settings-body .appearance-selection-content { padding: 24px; }
+.modern-shell .settings-page .modern-settings-body .appearance-choice { border-radius: 8px; padding: 10px; border-width: 1px; background: var(--yb-control-bg); box-shadow: none; }
+.modern-shell .settings-page .modern-settings-body .appearance-choice.is-selected { border-color: var(--yb-primary); box-shadow: inset 0 0 0 1px var(--yb-primary); }
+.modern-shell .settings-page .modern-settings-body .modern-settings-effect-note { margin: 0; background: transparent; }
+.modern-shell .settings-page .modern-settings-body .settings-section-title { margin: 0; min-height: 56px; box-sizing: border-box; }
+@container (max-width: 760px) {
+  .modern-shell .settings-page .modern-settings-body .appearance-selection-content { padding: 16px; }
+  .modern-shell .settings-page .modern-settings-body .appearance-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .modern-shell .settings-page .modern-settings-body .settings-section-title { padding: 16px; }
+}

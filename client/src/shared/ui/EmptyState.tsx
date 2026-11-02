@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import './emptyState.css';
 
 export interface EmptyStateProps {
   title: ReactNode;
@@ -9,7 +10,7 @@ export interface EmptyStateProps {
   className?: string;
 }
 
-/** 统一空态卡片：虚线边框居中样式，可嵌入引导按钮 */
+/** 共用空态：标题、说明和引导操作按阅读顺序排列。 */
 export default function EmptyState({ title, hint, children, className }: EmptyStateProps) {
   return (
     <div className={`yb-empty-state${className ? ` ${className}` : ''}`}>

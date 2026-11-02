@@ -567,24 +567,7 @@ function pickReleaseDownloadAsset(assets = []) {
   return candidates[0];
 }
 
-async function fetchReleaseJson(url, signal, source = 'github') {
-  const response = await fetch(url, {
-    headers: {
-      Accept: source === 'github' ? 'application/vnd.github+json' : 'application/json',
-      'User-Agent': 'YuDuBid-Client',
-    },
-    signal,
-  });
-
-  if (!response.ok) {
-    if (source === 'gitcode' && response.status === 404) {
-      throw releaseSyncPending('GitCode Release 尚未同步完成');
-    }
-    throw new Error(`${source === 'github' ? 'GitHub' : 'GitCode'} 返回 ${response.status}`);
-  }
-
-  return response.json();
-}
+const fetchReleaseJson = require('../services/releaseMetadataService.cjs').createReleaseJsonFetcher({ syncPending: releaseSyncPending });
 
 function shouldIncludePrerelease(app) {
   return String(app?.getVersion?.() || '').includes('-') || process.env.YIBIAO_INCLUDE_PRERELEASE_UPDATE === '1';
@@ -744,8 +727,10 @@ async function fetchLatestReleaseInfo(options = {}) {
     logger?.info('update-check-succeeded', { source: release.source, version: release.version, durationMs: Date.now() - startedAt });
     return release;
   } catch (error) {
-    logger?.error('update-check-failed', {
+    logger?.[error?.status === 429 ? 'warn' : 'error']('update-check-failed', {
       errorName: error?.name || 'Error',
+      httpStatus: error?.status || 0,
+      retryAt: error?.retryAt || 0,
       message: error?.message || String(error),
       causeCode: error?.cause?.code || '',
       durationMs: Date.now() - startedAt,

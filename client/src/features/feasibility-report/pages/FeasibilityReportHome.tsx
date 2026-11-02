@@ -1,7 +1,8 @@
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { BidExportTemplateRecord, BidWordExportMode, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
-import { FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useAppDialog } from '../../../shared/ui';
+import { AppDialog, FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useAppDialog } from '../../../shared/ui';
 import DockedActionBar from '../../../shared/ui/DockedActionBar';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import {
@@ -21,8 +22,9 @@ import BidWordExportDialog from '../../export-format/components/BidWordExportDia
 import { isTaskRunning } from '../components/TaskProgressCard';
 import '../feasibilityReport.css';
 import './modernFeasibilityReport.css';
+import './feasibilityDesign.css';
+import FeasibilityProjectTable from '../components/FeasibilityProjectTable';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
-import { projectNameInitials } from '../../../shared/utils/projectNameInitials';
 import { registerNavigationBlocker } from '../../../shared/navigationBlocker';
 
 const emptyProjectList: FeasibilityProjectList = { projects: [] };
@@ -96,64 +98,83 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
   const [includePreparationNotes, setIncludePreparationNotes] = useState(true);
   const [includeAppendixTables, setIncludeAppendixTables] = useState(true);
   const [materialsDirty, setMaterialsDirty] = useState(false);
+  const [materialsSaving, setMaterialsSaving] = useState(false);
+  const [analysisDirty, setAnalysisDirty] = useState(false);
+  const [outlineDirty, setOutlineDirty] = useState(false);
+  const [parametersDirty, setParametersDirty] = useState(false);
+  const [contentDirty, setContentDirty] = useState(false);
+  const exportRequestRef = useRef(false);
+  const [panelBusy, setPanelBusy] = useState(false);
+  const unsavedChanges = materialsDirty || analysisDirty || outlineDirty || parametersDirty || contentDirty;
+  const pendingPanelOperation = materialsSaving || panelBusy || exportProgress.running;
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
+  const [actionError, setActionError] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const stepRequestRef = useRef(false);
+  const titleRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => { titleRef.current?.focus(); }, []);
 
-  const confirmUnsavedMaterials = useCallback(() => confirm({
-    title: '项目资料尚未保存',
-    description: '继续后，这次填写的项目资料修改会丢失。',
+  const confirmUnsavedChanges = useCallback(() => confirm({
+    title: contentDirty ? '本节正文尚未保存' : parametersDirty ? '关键参数尚未保存' : outlineDirty ? '目录修改尚未保存' : analysisDirty ? '分析底稿尚未保存' : '项目资料尚未保存',
+    description: contentDirty ? '继续后，本节正文的未保存修改会丢失。' : parametersDirty ? '继续后，这次关键参数的修改会丢失。' : outlineDirty ? '继续后，目录草稿、调整要求或未保存配置会丢失。' : analysisDirty ? '继续后，这次分析底稿的修改会丢失。' : '继续后，这次填写的项目资料修改会丢失。',
     confirmLabel: '放弃修改并继续',
-  }), [confirm]);
+  }), [confirm, analysisDirty, outlineDirty, parametersDirty, contentDirty]);
 
   useEffect(() => {
-    if (getStoredUiAppearance() !== 'modern' || !materialsDirty) return undefined;
-    return registerNavigationBlocker((destination) => destination === 'feasibility-report' ? Promise.resolve(true) : confirmUnsavedMaterials());
-  }, [materialsDirty, confirmUnsavedMaterials]);
+    if (!unsavedChanges && !pendingPanelOperation) return undefined;
+    return registerNavigationBlocker(destination => {
+      if (pendingPanelOperation) { showToast('工作区操作尚未完成，请稍候再离开', 'info'); return Promise.resolve(false); }
+      return destination === 'feasibility-report' ? Promise.resolve(true) : confirmUnsavedChanges();
+    });
+  }, [unsavedChanges, pendingPanelOperation, confirmUnsavedChanges, showToast]);
 
   useEffect(() => {
     let disposed = false;
-    setLoading(true);
-    void getFeasibilityBridge().loadState({ projectId: project.id })
-      .then((state) => {
+    let unsubscribe: (() => void) | undefined;
+    setLoading(true); setLoadError('');
+    void (async () => {
+      try {
+        const bridge = getFeasibilityBridge();
+        const state = await bridge.loadState({ projectId: project.id });
         if (disposed) return;
-        setReportState(state);
-        setActiveStep(state.step);
-      })
-      .catch((error) => {
-        if (!disposed) showToast(`读取项目失败：${getErrorMessage(error)}`, 'error');
-      })
-      .finally(() => {
-        if (!disposed) setLoading(false);
-      });
-    return () => { disposed = true; };
-  }, [project.id, showToast]);
-
-  useEffect(() => {
-    const bridge = getFeasibilityBridge();
-    const unsubscribe = bridge.onTaskEvent((event) => {
-      if (event.task.project_id === project.id || event.feasibilityReport.projectId === project.id) setReportState(event.feasibilityReport);
-    });
-    void bridge.getActiveTasks({ projectId: project.id }).then((result) => setReportState(result.state)).catch((error) => showToast(`恢复后台任务状态失败：${getErrorMessage(error)}`, 'error'));
-    return unsubscribe;
-  }, [project.id, showToast]);
+        setReportState(state); setActiveStep(state.step);
+        let version = 0;
+        unsubscribe = bridge.onTaskEvent(event => {
+          if (!disposed && (event.task.project_id === project.id || event.feasibilityReport.projectId === project.id)) { version++; setReportState(event.feasibilityReport); }
+        });
+        const beforeReplay = version;
+        try {
+          const result = await bridge.getActiveTasks({ projectId: project.id });
+          if (!disposed && beforeReplay === version) setReportState(result.state);
+        } catch (error) { if (!disposed) setActionError(`恢复后台任务状态失败：${getErrorMessage(error)}`); }
+      } catch (error) {
+        if (!disposed) { setLoadError(getErrorMessage(error)); showToast(`读取项目失败：${getErrorMessage(error)}`, 'error'); }
+      } finally { if (!disposed) setLoading(false); }
+    })();
+    return () => { disposed = true; unsubscribe?.(); };
+  }, [project.id, showToast, loadRevision]);
 
   const changeStep = async (step: FeasibilityReportStep) => {
-    if (step === activeStep || savingStep) return;
+    if (step === activeStep || workflowBusy || stepRequestRef.current) return;
     if (reportState) {
       if (step === 'outline' && !reportState.analysisMarkdown.trim()) { showToast('请先完成资料分析', 'info'); return; }
       if (step === 'parameters' && !reportState.outlineData) { showToast('请先生成报告目录', 'info'); return; }
       if (step === 'content' && !reportState.keyParametersMarkdown.trim()) { showToast('请先生成并确认关键参数', 'info'); return; }
     }
-    if (getStoredUiAppearance() === 'modern' && materialsDirty && !await confirmUnsavedMaterials()) return;
+    if (unsavedChanges && !await confirmUnsavedChanges()) return;
     const previousStep = activeStep;
-    setActiveStep(step);
+    stepRequestRef.current = true; setActionError('');
     setSavingStep(true);
     try {
       const state = await getFeasibilityBridge().updateStep({ projectId: project.id, step });
-      setReportState(state);
+      setReportState(state); setActiveStep(state.step);
     } catch (error) {
       setActiveStep(previousStep);
+      setActionError(getErrorMessage(error));
       showToast(`保存当前步骤失败：${getErrorMessage(error)}`, 'error');
     } finally {
-      setSavingStep(false);
+      stepRequestRef.current = false; setSavingStep(false);
     }
   };
 
@@ -162,7 +183,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
   const activeIndex = FEASIBILITY_STEPS.findIndex((step) => step.id === activeStep);
   const previousDefinition = FEASIBILITY_STEPS[activeIndex - 1];
   const nextDefinition = FEASIBILITY_STEPS[activeIndex + 1];
-  const workflowBusy = loading || savingStep || !reportState;
+  const workflowBusy = loading || Boolean(loadError) || savingStep || pendingPanelOperation || resetting || !reportState;
   const backgroundTaskRunning = Boolean(reportState && [reportState.analysisTask, reportState.outlineTask, reportState.outlineAdjustmentTask, reportState.parametersTask, reportState.contentTask, reportState.humanWritingTask].some(isTaskRunning));
   const contentLeaves = useMemo(() => collectLeafItems(reportState?.outlineData?.outline || []), [reportState?.outlineData]);
   const completedContentCount = useMemo(() => contentLeaves.filter((item) => String(item.content || '').trim()).length, [contentLeaves]);
@@ -185,6 +206,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
               ? '当前已经是最后一步'
               : `进入${nextDefinition.label}`;
   const resetReport = async () => {
+    if (workflowBusy) return;
     if (backgroundTaskRunning) {
       showToast('当前有后台生成任务正在运行，请等待任务完成或暂停正文生成后再重置', 'info');
       return;
@@ -196,15 +218,19 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
       danger: true,
     });
     if (!confirmed) return;
+    setResetting(true); setActionError('');
     try {
       const result = await getFeasibilityBridge().clear({ projectId: project.id });
       setReportState(result.state);
       setActiveStep('materials');
       showToast(result.message || '可研报告已重置', 'success');
-    } catch (error) { showToast(`重置可研报告失败：${getErrorMessage(error)}`, 'error'); }
+    } catch (error) { setActionError(getErrorMessage(error)); showToast(`重置可研报告失败：${getErrorMessage(error)}`, 'error'); }
+    finally { setResetting(false); }
   };
 
   const exportWord = async (mode: Exclude<BidWordExportMode, 'original-template'> = 'word-optimization', template?: BidExportTemplateRecord) => {
+    if (exportRequestRef.current || pendingPanelOperation || backgroundTaskRunning) return;
+    if (contentDirty) { showToast('请先保存或撤销正文修改后再导出', 'info'); return; }
     if (!reportState?.outlineData?.outline.length || !completedContentCount) {
       showToast('当前没有可导出的正文', 'info');
       return;
@@ -215,6 +241,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
       confirmLabel: '继续导出',
     })) return;
 
+    exportRequestRef.current = true;
     const requestId = `feasibility-export-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const mermaidCount = countMermaidDiagrams(reportState.outlineData.outline);
     let unsubscribe: (() => void) | undefined;
@@ -222,7 +249,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
       setExportProgress({
         open: true,
         running: true,
-        progress: 2,
+        progress: 0,
         message: mermaidCount
           ? `检测到 ${mermaidCount} 张 Mermaid 图，导出时会转换为 Word 图片，可能需要稍等。`
           : '正在准备导出可行性研究报告 Word。',
@@ -264,6 +291,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
         showToast('已取消导出', 'info');
         return;
       }
+      if (!result.success) throw new Error(result.message || 'Word 导出未能完成');
       setExportProgress((current) => ({
         ...current,
         open: true,
@@ -276,10 +304,10 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
       showToast(result.message || '可行性研究报告 Word 已导出', result.warnings?.length ? 'info' : 'success');
     } catch (error) {
       const message = getErrorMessage(error);
-      setExportProgress((current) => ({ ...current, open: true, running: false, progress: 100, message, error: message }));
+      setExportProgress((current) => ({ ...current, open: true, running: false, message, error: message }));
       showToast(`导出失败：${message}`, 'error');
     } finally {
-      unsubscribe?.();
+      unsubscribe?.(); exportRequestRef.current = false;
     }
   };
 
@@ -298,7 +326,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
         label: exportProgress.running ? '导出中...' : '导出 Word',
         icon: <ToolbarDocumentIcon />,
         variant: 'primary' as const,
-        disabled: workflowBusy || backgroundTaskRunning || exportProgress.running || !completedContentCount,
+        disabled: workflowBusy || contentDirty || backgroundTaskRunning || exportProgress.running || !completedContentCount,
         tooltip: backgroundTaskRunning
           ? '正文生成或审校任务运行期间不能导出'
           : exportProgress.running
@@ -358,12 +386,12 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
       <section className={getStoredUiAppearance() === 'modern' ? 'modern-feasibility-context' : 'technical-project-context feasibility-project-context'}>
         <div>
           <span className="section-kicker">当前项目</span>
-          <strong>{reportState?.projectName || project.name}</strong>
+          <strong ref={titleRef} tabIndex={-1}>{reportState?.projectName || project.name}</strong>
         </div>
-        <button type="button" className="secondary-action" onClick={() => { void (async () => { if (getStoredUiAppearance() === 'modern' && materialsDirty && !await confirmUnsavedMaterials()) return; onBack(); })(); }}>返回项目列表</button>
+        <button type="button" className="secondary-action" disabled={savingStep || pendingPanelOperation || resetting} onClick={() => { void (async () => { if (unsavedChanges && !await confirmUnsavedChanges()) return; onBack(); })(); }}>返回项目列表</button>
       </section>
 
-      {getStoredUiAppearance() === 'modern' && <aside className="modern-feasibility-steps"><div><span>REPORT / FLOW</span><strong>编制流程</strong><small>{activeIndex + 1} / {FEASIBILITY_STEPS.length}</small></div><nav aria-label="可研报告步骤">{FEASIBILITY_STEPS.map((step, index) => <button key={step.id} type="button" className={activeStep === step.id ? 'is-active' : ''} aria-current={activeStep === step.id ? 'step' : undefined} onClick={() => void changeStep(step.id)} disabled={workflowBusy}><span>{String(index + 1).padStart(2, '0')}</span><strong>{step.label}</strong><small>›</small></button>)}</nav><p>{loading ? '读取中' : savingStep ? '保存中' : '步骤已保存'}</p></aside>}
+      {getStoredUiAppearance() === 'modern' && <aside className="modern-feasibility-steps"><div><strong>编制流程</strong><small>{activeIndex + 1} / {FEASIBILITY_STEPS.length}</small></div><nav aria-label="可研报告步骤">{FEASIBILITY_STEPS.map((step, index) => <button key={step.id} type="button" className={activeStep === step.id ? 'is-active' : ''} aria-current={activeStep === step.id ? 'step' : undefined} onClick={() => void changeStep(step.id)} disabled={workflowBusy}><span>{String(index + 1).padStart(2, '0')}</span><strong>{step.label}</strong></button>)}</nav><p>{loading ? '读取中' : loadError ? '读取失败' : savingStep ? '保存中' : actionError ? '操作未完成' : '当前步骤已读取'}</p></aside>}
 
       <main className={getStoredUiAppearance() === 'modern' ? 'modern-feasibility-stage' : 'plan-step-body feasibility-step-page'}>
         <header className="content-generation-command-bar feasibility-step-command-bar">
@@ -373,25 +401,26 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
             <p>{copy.description}</p>
           </div>
           <div className="feasibility-step-summary" aria-live="polite">
-            <span>编制进度</span>
+            <span>当前步骤</span>
             <strong>{activeIndex + 1} / {FEASIBILITY_STEPS.length}</strong>
-            <small>{loading ? '读取中' : savingStep ? '保存中' : '步骤已保存'}</small>
+            <small>{loading ? '读取中' : loadError ? '读取失败' : savingStep ? '保存中' : actionError ? '操作未完成' : '当前步骤已读取'}</small>
           </div>
         </header>
 
         <div className="feasibility-step-content">
-          {reportState && activeStep === 'materials' ? (
-            <ProjectMaterialsPanel projectId={project.id} state={reportState} onStateChange={setReportState} onDirtyChange={setMaterialsDirty} />
+          {actionError && <div className="feasibility-operation-error" role="alert"><strong>操作未完成</strong><span>{actionError}</span></div>}
+          {loadError ? <div className="feasibility-workspace-load-error" role="alert"><strong>项目工作区读取失败</strong><p>{loadError}</p><button type="button" className="secondary-action" onClick={() => setLoadRevision(value => value + 1)}>重新读取工作区</button></div> : loading ? <div role="status">正在读取项目工作区…</div> : reportState && activeStep === 'materials' ? (
+            <ProjectMaterialsPanel projectId={project.id} state={reportState} disabled={savingStep || resetting || backgroundTaskRunning} onStateChange={setReportState} onDirtyChange={setMaterialsDirty} onSavingChange={setMaterialsSaving} />
           ) : reportState && activeStep === 'sources' ? (
-            <SourceFilesPanel projectId={project.id} state={reportState} onStateChange={setReportState} />
+            <SourceFilesPanel projectId={project.id} state={reportState} disabled={savingStep || resetting || backgroundTaskRunning} onBusyChange={setPanelBusy} onStateChange={setReportState} />
           ) : reportState && activeStep === 'analysis' ? (
-            <AnalysisPanel projectId={project.id} state={reportState} onStateChange={setReportState} />
+            <AnalysisPanel projectId={project.id} state={reportState} disabled={savingStep || resetting || backgroundTaskRunning} onDirtyChange={setAnalysisDirty} onBusyChange={setPanelBusy} onStateChange={setReportState} />
           ) : reportState && activeStep === 'outline' ? (
-            <OutlinePanel projectId={project.id} state={reportState} onStateChange={setReportState} />
+            <OutlinePanel projectId={project.id} state={reportState} disabled={savingStep || resetting || backgroundTaskRunning} onDirtyChange={setOutlineDirty} onBusyChange={setPanelBusy} onStateChange={setReportState} />
           ) : reportState && activeStep === 'parameters' ? (
-            <ParametersPanel projectId={project.id} state={reportState} onStateChange={setReportState} />
+            <ParametersPanel projectId={project.id} state={reportState} disabled={savingStep || resetting || backgroundTaskRunning} onDirtyChange={setParametersDirty} onBusyChange={setPanelBusy} onStateChange={setReportState} />
           ) : reportState && activeStep === 'content' ? (
-            <ContentPanel projectId={project.id} state={reportState} onStateChange={setReportState} />
+            <ContentPanel projectId={project.id} state={reportState} disabled={savingStep || resetting || exportProgress.running || Boolean(reportState && [reportState.analysisTask, reportState.outlineTask, reportState.outlineAdjustmentTask, reportState.parametersTask].some(isTaskRunning))} onDirtyChange={setContentDirty} onBusyChange={setPanelBusy} onStateChange={setReportState} />
           ) : (
             <section className="feasibility-step-loading">
               <strong>正在读取{activeDefinition.label}</strong>
@@ -400,7 +429,7 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
           )}
         </div>
         {getStoredUiAppearance() === 'modern' && (
-          <DockedActionBar label="可研报告步骤操作" leading={toolbarGroups[0].actions} trailing={toolbarGroups[1].actions} status={materialsDirty ? '项目资料未保存' : savingStep ? '保存步骤中' : '项目已同步'} />
+          <DockedActionBar label="可研报告步骤操作" leading={toolbarGroups[0].actions} trailing={toolbarGroups[1].actions} status={loadError ? '工作区读取失败' : loading ? '读取工作区中' : materialsSaving ? '项目资料保存中' : materialsDirty ? '项目资料未保存' : panelBusy ? '工作区处理中' : analysisDirty ? '分析底稿未保存' : outlineDirty ? '目录修改未保存' : parametersDirty ? '关键参数未保存' : contentDirty ? '本节正文未保存' : savingStep ? '保存步骤中' : actionError ? '操作未完成' : '项目已读取'} />
         )}
       </main>
       <BidWordExportDialog
@@ -429,15 +458,13 @@ function FeasibilityWorkbench({ project, onBack }: { project: FeasibilityProject
               <span className="section-kicker">Word 导出</span>
               <Dialog.Title>{exportProgress.running ? '正在导出 Word' : exportProgress.error ? '导出失败' : '导出完成'}</Dialog.Title>
               <Dialog.Description>
-                {exportProgress.mermaidCount > 0
+                {exportProgress.error ? '导出未完成，请根据下方提示处理后重试。' : !exportProgress.running ? '已生成 Word 文件，可查看保存位置。' : exportProgress.mermaidCount > 0
                   ? `本次包含 ${exportProgress.mermaidCount} 张 Mermaid 图，导出时会在本地转换成 Word 图片，无需联网，图较多时可能需要稍等。`
                   : '正在将可研正文、表格和图片写入 Word 文档。'}
               </Dialog.Description>
             </div>
             <div className="export-progress-body">
-              <div className="content-generation-progress-track" aria-label={`Word 导出进度 ${exportProgress.progress}%`}>
-                <span style={{ width: `${exportProgress.progress}%` }} />
-              </div>
+              <BusinessTaskProgress label="Word 导出" percent={exportProgress.progress} status={exportProgress.error ? 'exception' : exportProgress.running ? 'active' : 'success'} />
               <p>{exportProgress.message || '正在处理导出任务，请稍候。'}</p>
               {!exportProgress.running && exportProgress.filePath ? (
                 <div className="export-file-path">
@@ -483,203 +510,118 @@ function FeasibilityReportHome() {
   const [activeProject, setActiveProject] = useState<FeasibilityProjectRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [dialogError, setDialogError] = useState('');
   const [searchText, setSearchText] = useState('');
+  const [page, setPage] = useState(1);
+  const [sortOrder, setSortOrder] = useState<'ascend' | 'descend' | null>('descend');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [projectName, setProjectName] = useState('');
-  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<FeasibilityProjectRecord | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [pendingDeleteProject, setPendingDeleteProject] = useState<FeasibilityProjectRecord | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const scrollPosition = useRef(0);
+  const returnProjectId = useRef('');
+  const loadSequence = useRef(0);
+  const dialogReturnFocusRef = useRef<HTMLElement | null>(null);
+  const restoreDialogFocus = (event: Event) => {
+    if (dialogReturnFocusRef.current?.isConnected) { event.preventDefault(); dialogReturnFocusRef.current.focus(); }
+    else if (!activeProject) { const search = rootRef.current?.querySelector<HTMLInputElement>('input'); if (search) { event.preventDefault(); search.focus(); } }
+  };
+  const rememberActionFocus = (project: FeasibilityProjectRecord) => {
+    dialogReturnFocusRef.current = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[data-project-menu-id]') || []).find(button => button.dataset.projectMenuId === project.id) || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  };
 
   const loadProjects = useCallback(async () => {
-    setLoading(true);
-    try {
-      setProjectList(await getFeasibilityBridge().listProjects());
-    } catch (error) {
-      showToast(`读取可研项目失败：${getErrorMessage(error)}`, 'error');
-    } finally {
-      setLoading(false);
-    }
+    const sequence = ++loadSequence.current;
+    setLoading(true); setLoadError('');
+    try { const list = await getFeasibilityBridge().listProjects(); if (sequence === loadSequence.current) setProjectList(list); }
+    catch (error) { if (sequence === loadSequence.current) { setLoadError(getErrorMessage(error)); showToast(`读取可研项目失败：${getErrorMessage(error)}`, 'error'); } }
+    finally { if (sequence === loadSequence.current) setLoading(false); }
   }, [showToast]);
-
   useEffect(() => { void loadProjects(); }, [loadProjects]);
+  useLayoutEffect(() => {
+    if (activeProject || loading || busy || !returnProjectId.current || !rootRef.current) return;
+    const source = Array.from(rootRef.current.querySelectorAll<HTMLButtonElement>('[data-project-id]')).find(button => button.dataset.projectId === returnProjectId.current);
+    if (source) source.focus({ preventScroll: true });
+    else rootRef.current.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+    returnProjectId.current = '';
+    const classicList = rootRef.current.querySelector<HTMLElement>('.feasibility-project-list');
+    if (classicList) classicList.scrollTop = scrollPosition.current;
+  }, [activeProject, loading, busy, projectList]);
 
-  const filteredProjects = useMemo(() => {
-    const keyword = searchText.trim().toLocaleLowerCase('zh-CN');
-    if (!keyword) return projectList.projects;
-    return projectList.projects.filter((project) => project.name.toLocaleLowerCase('zh-CN').includes(keyword));
-  }, [projectList.projects, searchText]);
+  const filteredProjects = useMemo(() => projectList.projects.filter(project => project.name.toLocaleLowerCase('zh-CN').includes(searchText.trim().toLocaleLowerCase('zh-CN'))), [projectList.projects, searchText]);
+  const beginOperation = () => { if (busyRef.current) return false; busyRef.current = true; setBusy(true); setDialogError(''); setActionError(''); return true; };
+  const finishOperation = () => { busyRef.current = false; setBusy(false); };
+  const openCreate = () => { dialogReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setDialogError(''); setCreateDialogOpen(true); };
+  const openRename = (project: FeasibilityProjectRecord) => { rememberActionFocus(project); setDialogError(''); setRenameTarget(project); setRenameValue(project.name); };
+  const openDelete = (project: FeasibilityProjectRecord) => { rememberActionFocus(project); setDialogError(''); setPendingDeleteProject(project); };
 
   const createProject = async () => {
-    const name = projectName.trim();
-    if (!name) {
-      showToast('请先填写可研项目名称', 'info');
-      return;
-    }
-    setBusy(true);
+    if (busyRef.current) return;
+    if (!projectName.trim()) { setDialogError('请填写可研项目名称'); nameRef.current?.focus(); return; }
+    if (!beginOperation()) return;
     try {
-      const result = await getFeasibilityBridge().createProject({ projectName: name });
-      setProjectList(result.projects);
-      setProjectName('');
-      setCreateDialogOpen(false);
-      setActiveProject(result.project);
-      showToast('可研项目已创建并保存到本地工作区', 'success');
-    } catch (error) {
-      showToast(`创建项目失败：${getErrorMessage(error)}`, 'error');
-    } finally {
-      setBusy(false);
-    }
+      const result = await getFeasibilityBridge().createProject({ projectName: projectName.trim() });
+      setProjectList(result.projects); setProjectName(''); setCreateDialogOpen(false); setPage(1); setSearchText('');
+      returnProjectId.current = result.project.id; setActiveProject(result.project);
+      showToast('可研项目已创建', 'success');
+    } catch (error) { setDialogError(getErrorMessage(error)); showToast(`创建项目失败：${getErrorMessage(error)}`, 'error'); }
+    finally { finishOperation(); }
   };
-
   const enterProject = async (project: FeasibilityProjectRecord) => {
-    if (busy) return;
-    setBusy(true);
+    if (!beginOperation()) return;
+    returnProjectId.current = project.id;
+    try { await getFeasibilityBridge().switchProject({ projectId: project.id }); setActiveProject(project); }
+    catch (error) { setActionError(getErrorMessage(error)); showToast(`进入项目失败：${getErrorMessage(error)}`, 'error'); }
+    finally { finishOperation(); }
+  };
+  const renameProject = async () => {
+    if (!renameTarget || busyRef.current) return;
+    if (!renameValue.trim()) { setDialogError('项目名称不能为空'); nameRef.current?.focus(); return; }
+    if (!beginOperation()) return;
     try {
-      await getFeasibilityBridge().switchProject({ projectId: project.id });
-      setActiveProject(project);
-    } catch (error) {
-      showToast(`进入项目失败：${getErrorMessage(error)}`, 'error');
-    } finally {
-      setBusy(false);
-    }
+      setProjectList(await getFeasibilityBridge().renameProject({ projectId: renameTarget.id, name: renameValue.trim() }));
+      setRenameTarget(null); showToast('项目名称已更新', 'success');
+    } catch (error) { setDialogError(getErrorMessage(error)); showToast(`重命名失败：${getErrorMessage(error)}`, 'error'); }
+    finally { finishOperation(); }
   };
-
-  const startRename = (project: FeasibilityProjectRecord) => {
-    setRenamingProjectId(project.id);
-    setRenameValue(project.name);
-  };
-
-  const renameProject = async (project: FeasibilityProjectRecord) => {
-    const name = renameValue.trim();
-    if (!name) {
-      showToast('项目名称不能为空', 'info');
-      return;
-    }
-    if (name === project.name) {
-      setRenamingProjectId(null);
-      return;
-    }
-    setBusy(true);
-    try {
-      setProjectList(await getFeasibilityBridge().renameProject({ projectId: project.id, name }));
-      setRenamingProjectId(null);
-      showToast('项目名称已更新', 'success');
-    } catch (error) {
-      showToast(`重命名失败：${getErrorMessage(error)}`, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const deleteProject = async () => {
-    if (!pendingDeleteProject) return;
-    setBusy(true);
+    if (!pendingDeleteProject || !beginOperation()) return;
     try {
       setProjectList(await getFeasibilityBridge().deleteProject({ projectId: pendingDeleteProject.id }));
-      setPendingDeleteProject(null);
-      showToast('可研项目及其本地工作区已删除', 'success');
-    } catch (error) {
-      showToast(`删除项目失败：${getErrorMessage(error)}`, 'error');
-    } finally {
-      setBusy(false);
-    }
+      setPendingDeleteProject(null); showToast('可研项目已删除', 'success');
+    } catch (error) { setDialogError(getErrorMessage(error)); showToast(`删除项目失败：${getErrorMessage(error)}`, 'error'); }
+    finally { finishOperation(); }
   };
-
-  if (activeProject) {
-    return <FeasibilityWorkbench project={activeProject} onBack={() => { setActiveProject(null); void loadProjects(); }} />;
-  }
-
-  return (
-    <div className={getStoredUiAppearance() === 'modern' ? 'modern-feasibility-projects' : 'page-stack feasibility-report-page feasibility-project-page'}>
-      {getStoredUiAppearance() === 'modern' ? <>
-        <header className="modern-feasibility-head"><div><span>FEASIBILITY / PROJECTS</span><h1>可研报告</h1><p>项目资料、分析、目录与正文都保存在独立工作区。</p></div><button type="button" onClick={() => setCreateDialogOpen(true)} disabled={busy}>＋ 新建可研项目</button></header>
-        <div className="modern-feasibility-overview"><div><span>本地项目</span><strong>{projectList.projects.length}</strong></div><label><span>查找项目</span><input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="搜索项目名称" /></label><small>当前显示 {filteredProjects.length} 个</small></div>
-        <section className="modern-feasibility-list" aria-label="可研项目列表">{loading ? <p>正在读取本地项目…</p> : filteredProjects.length ? filteredProjects.map((project) => <article key={project.id} className={project.isActive ? 'is-active' : ''}><div className="modern-feasibility-project-mark">{projectNameInitials(project.name)}</div><div className="modern-feasibility-project-body">{renamingProjectId === project.id ? <input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void renameProject(project); if (event.key === 'Escape') setRenamingProjectId(null); }} aria-label="编辑可研项目名称" /> : <strong>{project.name}</strong>}<span>当前步骤：{getStepLabel(project.step)}{project.contentTotal ? ` · 正文 ${project.contentCompleted || 0}/${project.contentTotal}` : ''}</span><small>更新于 {formatUpdatedAt(project.updated_at)}{project.isActive ? ' · 当前项目' : ''}</small></div><div className="modern-feasibility-project-actions">{renamingProjectId === project.id ? <><button type="button" onClick={() => setRenamingProjectId(null)} disabled={busy}>取消</button><button type="button" onClick={() => void renameProject(project)} disabled={busy}>保存名称</button></> : <button type="button" onClick={() => startRename(project)} disabled={busy}>重命名</button>}<button type="button" className="is-danger" onClick={() => setPendingDeleteProject(project)} disabled={busy}>删除</button><button type="button" className="is-primary" onClick={() => void enterProject(project)} disabled={busy}>进入工作区 →</button></div></article>) : <div className="modern-feasibility-empty"><strong>{searchText.trim() ? '没有匹配的可研项目' : '还没有可研项目'}</strong><p>创建项目后即可开始编制。</p><button type="button" onClick={() => setCreateDialogOpen(true)}>创建可研项目</button></div>}</section>
-      </> : <>
-      <section className="feasibility-project-hero">
-        <div>
-          <span className="section-kicker">招投标</span>
-          <strong>可研报告</strong>
-          <p>围绕项目资料、论证目录、关键参数和正文编制建立独立工作区。</p>
-        </div>
-        <button type="button" className="primary-action create-action" disabled={busy} onClick={() => setCreateDialogOpen(true)}>新建可研项目</button>
-      </section>
-
-      <section className="feasibility-project-guide">
-        <div className="feasibility-project-guide-copy">
-          <strong>{loading ? '正在读取本地项目...' : projectList.projects.length ? `已建立 ${projectList.projects.length} 个可研项目` : '从一个清晰的项目工作区开始'}</strong>
-          <p>项目资料、分析、目录和正文分别保存在独立工作区。</p>
-        </div>
-      </section>
-
-      <section className="feasibility-project-toolbar" aria-label="筛选可研项目">
-        <label><span className="sr-only">搜索项目名称</span><input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="搜索项目名称" /></label>
-        <span>{filteredProjects.length} 个项目</span>
-      </section>
-
-      <section className="feasibility-project-list" aria-label="可研项目列表">
-        {!loading && !filteredProjects.length ? (
-          <div className="feasibility-project-empty">
-            <strong>{searchText.trim() ? '没有匹配的可研项目' : '还没有可研项目'}</strong>
-            <p>{searchText.trim() ? '请调整搜索关键词后重试。' : '创建项目后，编制进度与成果会保存在独立的本地工作区。'}</p>
-            {!searchText.trim() ? <button type="button" className="secondary-action create-action" onClick={() => setCreateDialogOpen(true)}>创建可研项目</button> : null}
-          </div>
-        ) : filteredProjects.map((project) => (
-          <article className={`feasibility-project-card${project.isActive ? ' is-active' : ''}`} key={project.id}>
-            <div className="feasibility-project-card-copy">
-              {renamingProjectId === project.id ? (
-                <input className="feasibility-project-name-input" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void renameProject(project); if (event.key === 'Escape') setRenamingProjectId(null); }} autoFocus />
-              ) : <strong>{project.name}</strong>}
-              <p>
-                当前步骤：{getStepLabel(project.step)}
-                {project.contentTotal ? ` · 正文 ${project.contentCompleted || 0}/${project.contentTotal}` : ''}
-                {' · '}最近更新：{formatUpdatedAt(project.updated_at)}
-                {project.isActive ? ' · 当前项目' : ''}
-              </p>
-            </div>
-            <div className="feasibility-project-actions">
-              {renamingProjectId === project.id ? (
-                <><button type="button" className="secondary-action" disabled={busy} onClick={() => setRenamingProjectId(null)}>取消</button><button type="button" className="secondary-action" disabled={busy} onClick={() => void renameProject(project)}>保存名称</button></>
-              ) : <button type="button" className="secondary-action" disabled={busy} onClick={() => startRename(project)}>重命名</button>}
-              <button type="button" className="danger-action" disabled={busy} onClick={() => setPendingDeleteProject(project)}>删除</button>
-              <button type="button" className="primary-action" disabled={busy} onClick={() => void enterProject(project)}>进入工作区</button>
-            </div>
-          </article>
-        ))}
-      </section>
-
+  const modern = getStoredUiAppearance() === 'modern';
+  const dialogNotice = dialogError ? <div className="feasibility-operation-error" role="alert">{dialogError}</div> : null;
+  return <>
+    <div ref={rootRef} style={activeProject ? { display: 'none' } : undefined} className={modern ? 'modern-feasibility-projects' : 'page-stack feasibility-report-page feasibility-project-page'}>
+      <header className="feasibility-projects-heading yb-project-list-header"><div><h1>可研报告</h1><p>项目资料、分析、目录与正文保存在各自的本地工作区。</p></div><div className="yb-project-list-header-actions"><button type="button" className="secondary-action" disabled={busy || loading} onClick={() => void loadProjects()}>刷新</button><button type="button" className="primary-action" disabled={busy || loading} onClick={openCreate}>新建项目</button></div></header>
+      {loadError && <div className="feasibility-operation-error" role="alert"><strong>项目列表读取失败</strong><span>{loadError}</span><button type="button" className="secondary-action" onClick={() => void loadProjects()}>重新读取项目</button></div>}
+      {actionError && <div className="feasibility-operation-error" role="alert"><strong>操作未完成</strong><span>{actionError}</span></div>}
+      {modern ? <FeasibilityProjectTable projects={projectList.projects} query={searchText} page={page} sortOrder={sortOrder} loading={loading} error={loadError} disabled={busy || loading} active={!activeProject} scrollPosition={scrollPosition} onQueryChange={setSearchText} onPageChange={setPage} onSortChange={setSortOrder} onEnter={project => void enterProject(project)} onRename={openRename} onDelete={openDelete} onCreate={openCreate} /> : <>
+        <section className="feasibility-project-toolbar"><label><span className="sr-only">搜索可研项目名称</span><input value={searchText} onChange={event => setSearchText(event.target.value)} placeholder="搜索项目名称" /></label><span>{loadError && !projectList.projects.length ? '项目尚未读取' : loading ? '正在读取项目' : `${filteredProjects.length} 个项目`}</span></section>
+        <section className="feasibility-project-list" aria-label="可研项目列表" onScroll={event => { scrollPosition.current = event.currentTarget.scrollTop; }}>
+          {!loading && !loadError && !filteredProjects.length && <div className="feasibility-project-empty"><strong>{searchText.trim() ? '没有匹配的可研项目' : '还没有可研项目'}</strong><button type="button" onClick={searchText.trim() ? () => setSearchText('') : openCreate}>{searchText.trim() ? '清除搜索' : '新建可研项目'}</button></div>}
+          {filteredProjects.map(project => <article className="feasibility-project-card" key={project.id}><div className="feasibility-project-card-copy"><button type="button" className="feasibility-project-title" data-project-id={project.id} disabled={busy || loading} onClick={() => void enterProject(project)}>{project.name}</button><p>当前步骤：{getStepLabel(project.step)} · 更新于 {formatUpdatedAt(project.updated_at)}</p></div><div className="feasibility-project-actions"><button type="button" className="secondary-action" disabled={busy || loading} onClick={() => openRename(project)}>重命名</button><button type="button" className="danger-action" disabled={busy || loading} onClick={() => openDelete(project)}>删除</button></div></article>)}
+        </section>
       </>}
-      <Dialog.Root open={createDialogOpen} onOpenChange={(open) => { if (!busy) setCreateDialogOpen(open); }}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="feasibility-create-dialog">
-            <form onSubmit={(event) => { event.preventDefault(); void createProject(); }}>
-              <div className="feasibility-dialog-head">
-                <div><Dialog.Title>新建可研项目</Dialog.Title><Dialog.Description>项目将保存到独立的本地工作区，后续编制内容与其他项目隔离。</Dialog.Description></div>
-                <Dialog.Close type="button" className="detail-help-close" aria-label="关闭新建可研项目">×</Dialog.Close>
-              </div>
-              <label className="feasibility-create-field"><span>项目名称</span><input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="例如：某某产业园建设项目" autoFocus /></label>
-              <div className="content-regenerate-actions"><Dialog.Close type="button" className="secondary-action" onClick={() => setProjectName('')}>取消</Dialog.Close><button type="submit" className="primary-action create-action" disabled={busy}>{busy ? '正在创建...' : '创建并进入'}</button></div>
-            </form>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      <Dialog.Root open={Boolean(pendingDeleteProject)} onOpenChange={(open) => { if (!open && !busy) setPendingDeleteProject(null); }}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="feasibility-create-dialog">
-            <div className="feasibility-confirm-dialog">
-              <div className="feasibility-dialog-head">
-                <div><Dialog.Title>确认删除可研项目</Dialog.Title><Dialog.Description>将永久删除“{pendingDeleteProject?.name}”及其本地资料、目录和正文，删除后无法恢复。</Dialog.Description></div>
-                <Dialog.Close type="button" className="detail-help-close" aria-label="关闭删除确认">×</Dialog.Close>
-              </div>
-              <div className="content-regenerate-actions"><Dialog.Close type="button" className="secondary-action">取消</Dialog.Close><button type="button" className="danger-action" disabled={busy} onClick={() => void deleteProject()}>{busy ? '正在删除...' : '确认删除'}</button></div>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <AppDialog onCloseAutoFocus={restoreDialogFocus} open={createDialogOpen} onOpenChange={open => { if (!busy) { setCreateDialogOpen(open); if (!open) setProjectName(''); } }} preventClose={busy} title="新建可研项目" description="项目保存在独立的本地工作区。" actions={<><button type="button" className="secondary-action" disabled={busy} onClick={() => { setCreateDialogOpen(false); setProjectName(''); }}>取消</button><button type="submit" form="feasibility-create-form" className="primary-action" disabled={busy}>{busy ? '正在创建…' : '创建并进入'}</button></>}>
+        <form id="feasibility-create-form" onSubmit={event => { event.preventDefault(); void createProject(); }}>{dialogNotice}<label className="feasibility-create-field"><span>项目名称</span><input ref={nameRef} value={projectName} disabled={busy} aria-required="true" aria-invalid={Boolean(dialogError && !projectName.trim())} onChange={event => { setProjectName(event.target.value); if (dialogError === '请填写可研项目名称') setDialogError(''); }} placeholder="例如：某某产业园建设项目" autoFocus /></label></form>
+      </AppDialog>
+      <AppDialog onCloseAutoFocus={restoreDialogFocus} open={Boolean(renameTarget)} onOpenChange={open => { if (!open && !busy) setRenameTarget(null); }} preventClose={busy} title="重命名可研项目" actions={<><button type="button" className="secondary-action" disabled={busy} onClick={() => setRenameTarget(null)}>取消</button><button type="submit" form="feasibility-rename-form" className="primary-action" disabled={busy}>{busy ? '正在保存…' : '保存名称'}</button></>}>
+        <form id="feasibility-rename-form" onSubmit={event => { event.preventDefault(); void renameProject(); }}>{dialogNotice}<label className="feasibility-create-field"><span>项目名称</span><input ref={nameRef} value={renameValue} disabled={busy} aria-required="true" onChange={event => { setRenameValue(event.target.value); if (dialogError === '项目名称不能为空') setDialogError(''); }} autoFocus /></label></form>
+      </AppDialog>
+      <AppDialog onCloseAutoFocus={restoreDialogFocus} open={Boolean(pendingDeleteProject)} onOpenChange={open => { if (!open && !busy) setPendingDeleteProject(null); }} preventClose={busy} title="确认删除可研项目" description={`将永久删除“${pendingDeleteProject?.name || ''}”及其本地资料、目录和正文，删除后无法恢复。`} actions={<><button type="button" className="secondary-action" disabled={busy} onClick={() => setPendingDeleteProject(null)}>取消</button><button type="button" className="danger-action" disabled={busy} onClick={() => void deleteProject()}>{busy ? '正在删除…' : '确认删除'}</button></>}>{dialogNotice}</AppDialog>
     </div>
-  );
+    {activeProject && <FeasibilityWorkbench project={activeProject} onBack={() => { setActiveProject(null); void loadProjects(); }} />}
+  </>;
 }
 
 export default FeasibilityReportHome;

@@ -1,0 +1,19 @@
+.yb-task-progress-summary { display: grid; width: 100%; min-width: 0; gap: 2px; }
+.yb-task-progress-caption { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.yb-task-progress-caption > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yb-task-progress-caption > span:last-child:not(:first-child) { flex: 0 0 auto; max-width: 55%; font-variant-numeric: tabular-nums; }
+.yb-task-progress-summary .ant-progress { display: flex; align-items: center; margin: 0; line-height: 20px; }
+.yb-task-progress-summary .ant-progress-indicator { flex: 0 0 4.5ch; width: 4.5ch; min-width: 4.5ch; margin-inline-start: 8px; color: var(--yb-text); font-size: 12px; line-height: 20px; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+.yb-task-progress-caption > .yb-task-progress-meta { display:flex; align-items:baseline; gap:8px; max-width:65%; overflow:visible; }
+.yb-task-progress-meta > span:first-child:not(.yb-progress-status) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.yb-task-progress-meta:empty { display:none; }
+
+:is(.yb-business-progress,.yb-task-progress-summary) { --yb-progress-error:#c0392b; --yb-progress-success:#168268; }
+:root[data-ui-theme="dark"] :is(.yb-business-progress,.yb-task-progress-summary),
+:root[data-ui-appearance="modern"] :is(.yb-business-progress,.yb-task-progress-summary) { --yb-progress-error:#ff9b9b; --yb-progress-success:#7bdcb5; }
+:is(.yb-business-progress,.yb-task-progress-summary).is-exception .yb-progress-status { color:var(--yb-progress-error); }
+:is(.yb-business-progress,.yb-task-progress-summary).is-success .yb-progress-status { color:var(--yb-progress-success); }
+.yb-progress-status { flex:0 0 auto; font-size:12px; line-height:20px; white-space:nowrap; }
+
+.yb-progress-complete.yb-progress-complete { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-start; gap:4px 12px; min-height:24px; color:var(--yb-text-soft); font-size:12px; line-height:20px; }

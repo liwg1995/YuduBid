@@ -1,0 +1,32 @@
+/* 历史版本与草稿阅读器沿用同一主题，差异颜色仅用于增删语义。 */
+:root .software-copyright-version-workspace { min-width:0; color:var(--yb-text); background:var(--yb-surface); border-color:var(--yb-border-soft); border-radius:8px; }
+:root .software-copyright-version-list { background:transparent; border-color:var(--yb-border-soft); }
+:root .software-copyright-version-list button { color:var(--yb-text-soft); border-color:var(--yb-border-soft); }
+:root .software-copyright-version-list button:is(:hover,.is-active) { color:var(--yb-primary); background:var(--yb-control-bg); }
+:root .software-copyright-version-list button.is-active { box-shadow:inset 3px 0 var(--yb-primary); }
+:root .software-copyright-version-list button:focus-visible { outline:2px solid var(--yb-primary); outline-offset:-2px; }
+:root .software-copyright-version-list button:disabled { cursor:wait; }
+:root .software-copyright-version-list strong,
+:root .software-copyright-version-detail > header strong,
+:root .software-copyright-version-empty strong { color:var(--yb-text); font-size:14px; line-height:22px; }
+:root .software-copyright-version-list small,
+:root .software-copyright-version-detail > header span,
+:root :is(.software-copyright-version-note,.software-copyright-version-empty,.software-copyright-version-same) { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+:root .software-copyright-version-detail > header { flex-wrap:wrap; border-color:var(--yb-border-soft); }
+:root .software-copyright-version-diff { color:var(--yb-text); background:var(--yb-surface); font-size:12px; line-height:20px; }
+:root .software-copyright-version-diff > div > span,
+:root .software-copyright-version-note { border-color:var(--yb-border-soft); }
+:root .software-copyright-version-diff > div > span { color:var(--yb-text-soft); }
+:root[data-ui-theme="dark"] .software-copyright-version-diff > div.is-add,
+:root[data-ui-appearance="modern"] .software-copyright-version-diff > div.is-add { color:#adf0cb; background:#193d30; }
+:root[data-ui-theme="dark"] .software-copyright-version-diff > div.is-remove,
+:root[data-ui-appearance="modern"] .software-copyright-version-diff > div.is-remove { color:#ffc0c7; background:#492735; }
+:root .software-copyright-version-dialog { color:var(--yb-text); background:var(--yb-surface); border-color:var(--yb-border); max-height:calc(100dvh - 40px); overflow-y:auto; }
+:root .software-copyright-version-dialog > p { color:var(--yb-text-soft); font-size:14px; line-height:22px; overflow-wrap:anywhere; }
+:root .software-copyright-version-dialog .software-copyright-dialog-actions { flex-wrap:wrap; }
+:root[data-ui-appearance="modern"] body .software-copyright-version-dialog > p { margin:0; padding:16px 24px 0; }
+:root[data-ui-appearance="modern"] body .software-copyright-version-dialog .software-copyright-dialog-actions { margin:0; padding:16px 24px 24px; }
+@media (max-width:640px) {
+  :root .software-copyright-version-workspace { grid-template-columns:minmax(0,1fr); }
+  :root .software-copyright-version-list { max-height:160px; border-right:0; border-bottom:1px solid var(--yb-border-soft); }
+}

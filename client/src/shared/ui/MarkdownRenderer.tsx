@@ -2,6 +2,7 @@ import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import type { Components } from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import remarkSafeHtmlTables from '../utils/remarkSafeHtmlTables';
 import { Children, isValidElement, useEffect, useRef, useState, type ReactNode } from 'react';
 
 interface MarkdownRendererProps {
@@ -33,34 +34,6 @@ function openExternal(url: string) {
   }
 
   window.open(url, '_blank', 'noopener,noreferrer');
-}
-
-function escapeMarkdownTableCell(value: string) {
-  return value.replace(/\s+/g, ' ').trim().replace(/\|/g, '\\|');
-}
-
-function normalizeLegacyHtmlTables(markdown: string) {
-  if (!/<table\b/i.test(markdown) || typeof DOMParser === 'undefined') return markdown;
-
-  return markdown.replace(/<table\b[\s\S]*?<\/table>/gi, (tableHtml) => {
-    const document = new DOMParser().parseFromString(tableHtml, 'text/html');
-    const rows = Array.from(document.querySelectorAll('tr')).map((row) =>
-      Array.from(row.querySelectorAll(':scope > th, :scope > td')).map((cell) =>
-        escapeMarkdownTableCell(cell.textContent || ''),
-      ),
-    ).filter((row) => row.length > 0);
-
-    if (!rows.length) return document.body.textContent?.trim() || '';
-
-    const columnCount = Math.max(...rows.map((row) => row.length));
-    const normalizedRows = rows.map((row) => [
-      ...row,
-      ...Array.from({ length: columnCount - row.length }, () => ''),
-    ]);
-    const [header, ...body] = normalizedRows;
-    const divider = Array.from({ length: columnCount }, () => '---');
-    return `\n\n| ${header.join(' | ')} |\n| ${divider.join(' | ')} |${body.length ? `\n${body.map((row) => `| ${row.join(' | ')} |`).join('\n')}` : ''}\n\n`;
-  });
 }
 
 function stripIllustrationMarkers(markdown: string) {
@@ -158,16 +131,15 @@ function mergeMarkdownComponents(components?: Components, enableMermaid = false)
 
 function MarkdownRenderer({ children, components, allowRawHtml = false, enableGfm = true, enableMermaid = true }: MarkdownRendererProps) {
   const visibleMarkdown = stripIllustrationMarkers(children);
-  const normalizedChildren = allowRawHtml ? visibleMarkdown : normalizeLegacyHtmlTables(visibleMarkdown);
 
   return (
     <ReactMarkdown
-      remarkPlugins={enableGfm ? [remarkGfm] : []}
+      remarkPlugins={[...(enableGfm ? [remarkGfm] : []), ...(!allowRawHtml ? [remarkSafeHtmlTables] : [])]}
       rehypePlugins={allowRawHtml ? [rehypeRaw] : []}
       urlTransform={markdownUrlTransform}
       components={mergeMarkdownComponents(components, enableMermaid)}
     >
-      {normalizedChildren}
+      {visibleMarkdown}
     </ReactMarkdown>
   );
 }

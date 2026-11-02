@@ -1,0 +1,102 @@
+:root :is(.modern-feasibility-stage,.feasibility-workbench) .feasibility-step-content:has(> .feasibility-outline-panel) { display:flex; flex-direction:column; overflow:hidden; }
+:root .feasibility-outline-panel { display:flex; flex:1; height:100%; min-height:0; min-width:0; flex-direction:column; gap:16px; overflow:hidden; container-type:inline-size; }
+.feasibility-outline-panel button { cursor:pointer; }
+.feasibility-outline-panel button:disabled { cursor:default; opacity:.5; }
+:root .feasibility-outline-panel button,:root .feasibility-outline-config-dialog button { min-height:32px; padding:4px 12px; font-size:14px; line-height:22px; }
+:root .feasibility-outline-panel :is(input,textarea),:root .feasibility-outline-config-dialog :is(input:not([type='checkbox']),textarea,select) { box-sizing:border-box; min-width:0; min-height:32px; padding:4px 10px; color:var(--yb-text); background:var(--yb-control-bg); border:1px solid var(--yb-control-border); border-radius:6px; font:inherit; font-size:14px; line-height:22px; }
+.feasibility-outline-overview { display:flex; flex:0 0 auto; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; }
+.feasibility-outline-overview > span { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-editor { display:flex; flex:1; min-height:0; min-width:0; flex-direction:column; overflow:hidden; border:1px solid var(--yb-border-soft); border-radius:8px; background:var(--yb-card-bg); }
+.feasibility-outline-editor > header { display:flex; flex:0 0 auto; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; padding:12px 16px; border-bottom:1px solid var(--yb-border-soft); }
+.feasibility-outline-editor > header > div:first-child { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; }
+.feasibility-outline-editor > header strong { font-size:16px; line-height:24px; }
+.feasibility-outline-editor > header span { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.feasibility-outline-columns { display:grid; flex:1; min-height:0; min-width:0; grid-template-columns:minmax(240px,40%) minmax(0,1fr); overflow:hidden; }
+.feasibility-outline-pane-switch { display:none; }
+.feasibility-outline-nav { display:flex; min-height:0; min-width:0; flex-direction:column; border-right:1px solid var(--yb-border-soft); }
+.feasibility-outline-nav-tools { flex:0 0 auto; padding:12px; border-bottom:1px solid var(--yb-border-soft); }
+.feasibility-outline-nav-tools > input { width:100%; }
+.feasibility-outline-nav-tools > div { display:flex; justify-content:space-between; gap:8px; margin-top:8px; }
+.feasibility-outline-nav-tools span,.feasibility-outline-nav-tools summary { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-nav-tools details { position:relative; }
+.feasibility-outline-nav-tools summary { cursor:pointer; }
+.feasibility-outline-nav-tools details > div { position:absolute; top:24px; right:0; z-index:5; display:flex; width:160px; flex-direction:column; padding:8px; background:var(--yb-card-bg); border:1px solid var(--yb-control-border); border-radius:6px; box-shadow:0 4px 16px #0002; }
+.feasibility-outline-nav-tools details button { border:0; color:var(--yb-text); background:transparent; text-align:left; }
+.feasibility-outline-tree-scroll { flex:1; min-height:0; overflow:auto; padding:8px; }
+.feasibility-outline-node-title { display:flex; min-width:0; align-items:baseline; gap:8px; font-size:14px; line-height:22px; }
+.feasibility-outline-node-title > span:first-child { flex:0 0 auto; color:var(--yb-text-soft); font-variant-numeric:tabular-nums; }
+.feasibility-outline-node-title > .feasibility-outline-node-name { white-space:normal; overflow-wrap:anywhere; }
+.feasibility-outline-tree-scroll .ant-tree { background:transparent; }
+.feasibility-outline-tree-scroll .ant-tree-treenode { padding:4px 0; }
+.feasibility-outline-tree-scroll .ant-tree-node-content-wrapper { min-width:0; padding:4px 8px; }
+.feasibility-outline-native-tree,.feasibility-outline-native-tree ul { margin:0; padding:0; list-style:none; }
+.feasibility-outline-native-tree li > div { display:flex; margin-bottom:4px; border-radius:6px; }
+.feasibility-outline-native-tree .is-selected { background:var(--yb-control-bg); box-shadow:inset 0 0 0 1px var(--yb-primary); }
+:root .feasibility-outline-native-tree li > div > button { border:0; padding:4px; background:transparent; color:var(--yb-text); }
+.feasibility-outline-native-tree li > div > button:last-child { flex:1; text-align:left; min-width:0; }
+.feasibility-outline-leaf { flex:0 0 22px; }
+.feasibility-outline-detail { display:flex; flex-direction:column; min-height:0; min-width:0; }
+.feasibility-outline-detail-scroll { flex:1; min-height:0; overflow:auto; padding:16px; }
+.feasibility-outline-detail-heading { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-bottom:16px; font-size:16px; line-height:24px; }
+.feasibility-outline-detail-heading > span { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-detail label { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; color:var(--yb-text); font-size:14px; line-height:22px; }
+.feasibility-outline-required { display:inline; color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-detail textarea { width:100%; min-height:120px; resize:vertical; }
+.feasibility-outline-note,.feasibility-outline-ai p { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-ai { margin-top:16px; padding-top:16px; border-top:1px solid var(--yb-border-soft); }
+.feasibility-outline-ai summary { margin-bottom:16px; cursor:pointer; color:var(--yb-text); font-size:14px; line-height:22px; }
+.feasibility-outline-delete { color:var(--yb-danger,#b44338); }
+:root[data-ui-theme='dark'] .feasibility-outline-delete { color:#ffa39e; }
+.feasibility-outline-empty { display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:16px; color:var(--yb-text-soft); font-size:14px; line-height:22px; }
+.feasibility-outline-empty p { margin:0; }
+:root .feasibility-outline-config-dialog { display:flex; width:min(880px,calc(100vw - 48px)); max-height:calc(100vh - 48px); flex-direction:column; gap:16px; }
+.feasibility-outline-config-scroll { min-height:0; overflow:auto; display:flex; flex-direction:column; gap:16px; }
+.feasibility-outline-config-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; min-width:0; margin:0; padding:0; border:0; }
+.feasibility-outline-config-fields label { display:flex; flex-direction:column; gap:8px; color:var(--yb-text); font-size:14px; line-height:22px; }
+.feasibility-outline-config-fields small { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-reference-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+.feasibility-outline-reference-head strong { color:var(--yb-text); font-size:16px; line-height:24px; }
+.feasibility-outline-reference-head span,.feasibility-outline-references p { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-references { display:flex; flex-direction:column; gap:16px; border-top:1px solid var(--yb-border-soft); padding-top:16px; }
+.feasibility-outline-reference-warning { display:flex; flex-wrap:wrap; align-items:center; gap:8px; color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-reference-list { display:flex; max-height:280px; flex-direction:column; gap:16px; overflow:auto; }
+.feasibility-outline-reference-list fieldset { margin:0; padding:8px 12px; min-width:0; border:1px solid var(--yb-border-soft); border-radius:6px; }
+.feasibility-outline-reference-list legend { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-reference-list label { display:flex; align-items:flex-start; gap:8px; padding:8px 0; color:var(--yb-text); font-size:14px; line-height:22px; cursor:pointer; }
+.feasibility-outline-reference-list input { flex:0 0 auto; margin-top:4px; accent-color:var(--yb-primary); }
+.feasibility-outline-reference-list label span { flex:1; min-width:0; overflow-wrap:anywhere; }
+.feasibility-outline-reference-list small { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+:root :is(.modern-feasibility-stage,.feasibility-workbench):has(.feasibility-outline-panel) .feasibility-step-summary { display:flex; align-items:baseline; gap:8px; }
+:root :is(.modern-feasibility-stage,.feasibility-workbench):has(.feasibility-outline-panel) .feasibility-step-summary small { display:none; }
+@container (max-width:720px) {
+  .feasibility-outline-columns { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); }
+  .feasibility-outline-pane-switch { display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid var(--yb-border-soft); }
+  .feasibility-outline-pane-switch button { color:var(--yb-text-soft); background:transparent; border:1px solid var(--yb-control-border); border-radius:6px; }
+  .feasibility-outline-pane-switch button[aria-pressed='true'] { color:var(--yb-text); border-color:var(--yb-primary); background:var(--yb-control-bg); }
+  .feasibility-outline-columns.is-tree .feasibility-outline-detail,.feasibility-outline-columns.is-detail .feasibility-outline-nav { display:none; }
+  .feasibility-outline-nav { border-right:0; }
+}
+@media (max-width:600px) { .feasibility-outline-config-fields { grid-template-columns:minmax(0,1fr); } }
+:root .feasibility-outline-panel .feasibility-outline-detail textarea { min-height:120px; }
+.feasibility-outline-detail-heading > strong { color:var(--yb-text); }
+@container (max-width:850px) {
+  :root .modern-feasibility-stage:has(.feasibility-outline-panel) .feasibility-step-command-bar p { display:none; }
+}
+.feasibility-outline-reference-group-actions { display:flex; gap:8px; padding:4px 0; }
+.feasibility-outline-reference-selected { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-reference-selected summary { cursor:pointer; }
+.feasibility-outline-reference-selected > div { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:8px 0; }
+.feasibility-outline-reference-selected span { min-width:0; overflow-wrap:anywhere; }
+.feasibility-outline-config-fields small.feasibility-outline-field-error { color:var(--yb-danger,#b44338); }
+:root[data-ui-theme='dark'] .feasibility-outline-config-fields small.feasibility-outline-field-error { color:#ffa39e; }
+.feasibility-outline-completed-task { flex:0 0 auto; max-height:120px; overflow:auto; color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-outline-completed-task summary { cursor:pointer; }
+.feasibility-outline-completed-task ol { margin:8px 0; padding-left:24px; }
+
+.feasibility-outline-node-number { min-width:3ch; text-align:left; }
+.feasibility-outline-node-name { flex:1; min-width:0; }
+.feasibility-outline-node-title > small { flex:0 0 auto; color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+
+/* 标题允许视觉换行，避免长章节名只能横向移动光标核对。 */
+:root .feasibility-outline-panel .feasibility-outline-detail textarea.feasibility-outline-title-input { min-height: 54px; line-height: 22px; resize: vertical; }

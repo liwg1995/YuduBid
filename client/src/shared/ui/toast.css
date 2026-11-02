@@ -1,0 +1,16 @@
+/* 轻量通知沿用 Radix 行为，统一可读字号并减少装饰。 */
+:root[data-ui-appearance='modern'] body .app-toast.app-toast { grid-template-columns: 20px minmax(0, 1fr) 24px; column-gap: 12px; row-gap: 4px; padding: 16px; border-color: var(--yb-border); border-radius: 8px; background: var(--yb-surface); box-shadow: var(--yb-shadow); backdrop-filter: none; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast::before { width: 20px; height: 22px; border: 0; border-radius: 0; background: transparent; font-size: 16px; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast::after { display: none; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast .app-toast-title { color: var(--yb-text); font-size: 14px; line-height: 22px; font-weight: 500; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast .app-toast-description { color: var(--yb-text-soft); font-size: 14px; line-height: 22px; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast .app-toast-actions { gap: 8px; padding-top: 8px; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast .app-toast-action { height: auto; min-height: 32px; padding: 4px 12px; font-size: 14px; line-height: 22px; font-weight: 400; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast :is(button):focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+
+.app-toast-status-icon { display: none; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast.app-toast::before { display: none; content: none; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast .app-toast-status-icon { display: grid; grid-area: icon; width: 20px; height: 22px; align-items: center; color: var(--yb-primary); }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast .app-toast-status-icon svg { width: 18px; height: 18px; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast.is-success .app-toast-status-icon { color: #69c69f; }
+:root[data-ui-appearance='modern'] body .app-toast.app-toast.is-error .app-toast-status-icon { color: #ed93a0; }

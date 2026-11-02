@@ -1,3 +1,4 @@
+import WorkspaceFormSection from '../../../shared/ui/WorkspaceFormSection';
 import type { ThesisTutorPanel, ThesisTutorProfile } from '../types';
 import {
   citationOptions,
@@ -72,8 +73,8 @@ export function ThesisTutorProfilePanel({
     <section className="thesis-tutor-panel thesis-tutor-profile-panel">
       <div className="thesis-tutor-panel-head thesis-tutor-profile-head">
         <div>
-          <strong>论文档案（全流程生成上下文）</strong>
-          <span>{activePanel === 'diagnosis' ? '建议先在启动诊断阶段确认一次；后续选题、综述、研究设计、写作和答辩都会沿用这份档案。' : '你正在临时展开编辑档案；保存后会继续作为后续模块上下文。'}</span>
+          <strong>论文档案</strong>
+          <span>{activePanel === 'diagnosis' ? '先确认研究信息，后续各阶段会沿用已保存的档案。' : '你正在临时展开编辑档案；保存后会继续作为后续模块上下文。'}</span>
         </div>
         <div className="thesis-tutor-profile-actions">
           {activePanel !== 'diagnosis' && (
@@ -98,48 +99,50 @@ export function ThesisTutorProfilePanel({
         </div>
       </div>
       <fieldset className="thesis-tutor-profile-fieldset" disabled={profileLocked || isRunning}>
-        <div className="thesis-tutor-form-grid thesis-tutor-profile-grid">
-          <label>
+        <WorkspaceFormSection title="研究信息" description="专业与方向帮助限定研究边界，尚未确定的题目可以留空。">
+<label>
             <span>学位</span>
             <select value={profile.degree} onChange={(event) => updateProfile('degree', event.target.value)}>
               {degreeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
-          <label>
+<label>
             <span>类型</span>
             <select value={profile.degreeType} onChange={(event) => updateProfile('degreeType', event.target.value)}>
               {degreeTypeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
-          <label>
+<label>
             <span>专业</span>
             <input value={profile.discipline} onChange={(event) => updateProfile('discipline', event.target.value)} placeholder="如 管理学、计算机科学" />
           </label>
-          <label>
+<label>
             <span>方向</span>
             <input value={profile.direction} onChange={(event) => updateProfile('direction', event.target.value)} placeholder="如 数字治理、教育技术" />
           </label>
-          <label>
+<label className="is-full">
+            <span>论文题目</span>
+            <input value={profile.title} onChange={(event) => updateProfile('title', event.target.value)} placeholder="未定题可留空；确定后会作为后续模块边界" />
+          </label>
+        </WorkspaceFormSection>
+        <WorkspaceFormSection title="写作要求" description="当前阶段、语种和引用格式会用于后续生成。">
+<label>
             <span>语种</span>
             <input value={profile.language} onChange={(event) => updateProfile('language', event.target.value)} placeholder="中文/英文" />
           </label>
-          <label>
+<label>
             <span>当前阶段</span>
             <select value={profile.stage} onChange={(event) => updateProfile('stage', event.target.value)}>
               {stageOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
-          <label>
+<label>
             <span>引用格式</span>
             <select value={profile.citationFormat} onChange={(event) => updateProfile('citationFormat', event.target.value)}>
               {citationOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
-          <label className="is-full">
-            <span>论文题目</span>
-            <input value={profile.title} onChange={(event) => updateProfile('title', event.target.value)} placeholder="未定题可留空；确定后会作为后续模块边界" />
-          </label>
-        </div>
+        </WorkspaceFormSection>
         <details className="thesis-tutor-profile-extra">
           <summary>
             <strong>补充档案</strong>

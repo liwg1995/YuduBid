@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import type { ReactNode } from 'react';
+import { AsyncDialogRoot, AsyncDialogContent } from './AsyncDialog';
+import { useRef, type ReactNode } from 'react';
 import './AppDialog.css';
 
 export interface AppDialogProps {
@@ -17,6 +18,7 @@ export interface AppDialogProps {
   cardClassName?: string;
   /** 禁止 Esc 和点击遮罩关闭（用于执行中、必须选择的场景） */
   preventClose?: boolean;
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 /**
@@ -33,15 +35,28 @@ export default function AppDialog({
   actions,
   cardClassName,
   preventClose = false,
+  onCloseAutoFocus,
 }: AppDialogProps) {
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
+  // 在输入框 autoFocus 挂载前记录来源，避免关闭时把焦点还给已卸载的输入框。
+  if (open && !wasOpenRef.current) {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+  wasOpenRef.current = open;
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <AsyncDialogRoot busy={preventClose} open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="app-dialog-modal" />
-        <Dialog.Content
+        <AsyncDialogContent
           className={`app-dialog-card${cardClassName ? ` ${cardClassName}` : ''}`}
-          onEscapeKeyDown={preventClose ? (event) => event.preventDefault() : undefined}
-          onPointerDownOutside={preventClose ? (event) => event.preventDefault() : undefined}
+          onCloseAutoFocus={(event) => {
+            onCloseAutoFocus?.(event);
+            if (!event.defaultPrevented && returnFocusRef.current?.isConnected) {
+              event.preventDefault();
+              returnFocusRef.current.focus();
+            }
+          }}
         >
           <div className="app-dialog-card-head">
             {kicker ? <span className="section-kicker">{kicker}</span> : null}
@@ -50,8 +65,8 @@ export default function AppDialog({
           </div>
           {children}
           {actions ? <div className="app-dialog-actions">{actions}</div> : null}
-        </Dialog.Content>
+        </AsyncDialogContent>
       </Dialog.Portal>
-    </Dialog.Root>
+    </AsyncDialogRoot>
   );
 }

@@ -1,3 +1,7 @@
+import { AsyncDialogRoot, AsyncDialogContent, AsyncDialogClose, AsyncDialogFields } from '../../../shared/ui/AsyncDialog';
+import WorkspaceLoading from '../../../shared/ui/WorkspaceLoading';
+import ProjectManagementProfileFields from '../components/ProjectManagementProfileFields';
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentHostStatus, AgentRunResult } from '../../../shared/types/ipc';
@@ -30,7 +34,6 @@ import {
   executionInputFields,
   modules,
   planningInputFields,
-  profileFields,
   reportingInputFields,
   retrospectiveInputFields,
   riskInputFields,
@@ -130,13 +133,14 @@ function ProjectManagementPage() {
   const {
     createProject,
     createProjectOpen,
+    projectMutating,
     deleteCurrentProject,
     deleteProjectFromList,
     deleteProjectOpen,
     deleteSelectedProjects,
     enterProject,
     filteredProjectList,
-    loading,
+    loading, loadError, retryLoad,
     newProjectProfile,
     projectGroupOptions,
     projectList,
@@ -402,8 +406,10 @@ function ProjectManagementPage() {
     }
   }
 
+  if (loadError) return <WorkspaceLoadError message={loadError} onRetry={retryLoad} />;
+
   if (loading) {
-    return <div className="project-management-page"><div className="project-management-detail">正在读取项目管理工作区...</div></div>;
+    return <WorkspaceLoading title="正在读取项目管理工作区" />;
   }
 
   return (
@@ -502,36 +508,7 @@ function ProjectManagementPage() {
                       </div>
                       <button type="button" className="secondary-action" onClick={() => void saveProfile()} disabled={isRunning}>保存档案</button>
                     </div>
-                    <div className="project-management-form-grid">
-                      {profileFields.map((field) => (
-                        <label className={field.wide ? 'is-wide' : ''} key={field.key}>
-                          <span>{field.label}</span>
-                          {field.multiline ? (
-                            <textarea value={profile[field.key]} onChange={(event) => updateProfileField(field.key, event.target.value)} placeholder={field.placeholder} disabled={isRunning} />
-                          ) : field.key === 'projectType' ? (
-                            <ProjectDictionarySelect
-                              value={profile.projectType}
-                              options={projectTypeOptions}
-                              placeholder="选择项目类型"
-                              addLabel="新增类型"
-                              onChange={(value) => updateProfileField('projectType', value)}
-                              disabled={isRunning}
-                            />
-                          ) : field.key === 'projectGroup' ? (
-                            <ProjectDictionarySelect
-                              value={profile.projectGroup}
-                              options={projectGroupOptions}
-                              placeholder="选择或新增项目分组"
-                              addLabel="新增分组"
-                              onChange={(value) => updateProfileField('projectGroup', value)}
-                              disabled={isRunning}
-                            />
-                          ) : (
-                            <input type={field.key === 'startDate' || field.key === 'endDate' ? 'date' : 'text'} value={profile[field.key]} onChange={(event) => updateProfileField(field.key, event.target.value)} placeholder={field.placeholder} disabled={isRunning} />
-                          )}
-                        </label>
-                      ))}
-                    </div>
+                    <ProjectManagementProfileFields profile={profile} projectTypeOptions={projectTypeOptions} projectGroupOptions={projectGroupOptions} isRunning={Boolean(isRunning)} updateProfileField={updateProfileField} />
                   </section>
                 )}
               />
@@ -775,18 +752,18 @@ function ProjectManagementPage() {
       </>
       )}
 
-      <Dialog.Root open={createProjectOpen} onOpenChange={setCreateProjectOpen}>
+      <AsyncDialogRoot busy={projectMutating} open={createProjectOpen} onOpenChange={setCreateProjectOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="project-management-project-dialog">
+          <AsyncDialogContent className="project-management-project-dialog">
             <div className="project-management-help-head">
               <div>
                 <Dialog.Title>新建项目</Dialog.Title>
                 <Dialog.Description>创建后会立即进入新的项目管理流程，原项目会保留在项目列表和项目历史中。</Dialog.Description>
               </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭新建项目">×</Dialog.Close>
+              <AsyncDialogClose className="detail-help-close" type="button" aria-label="关闭新建项目">×</AsyncDialogClose>
             </div>
-            <div className="project-management-form-grid">
+            <AsyncDialogFields><div className="project-management-form-grid">
               <label>
                 项目名称
                 <input value={newProjectProfile.projectName || ''} onChange={(event) => setNewProjectProfile((current) => ({ ...current, projectName: event.target.value }))} placeholder="例如：商户小程序会员系统" />
@@ -819,14 +796,14 @@ function ProjectManagementPage() {
                   onChange={(value) => setNewProjectProfile((current) => ({ ...current, projectGroup: value }))}
                 />
               </label>
-            </div>
+            </div></AsyncDialogFields>
             <div className="project-management-help-actions">
-              <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
-              <button type="button" className="primary-action create-action" onClick={() => void createProject()}>创建并进入</button>
+              <AsyncDialogClose className="secondary-action" type="button">取消</AsyncDialogClose>
+              <button type="button" className="primary-action create-action" disabled={projectMutating || !newProjectProfile.projectName?.trim()} onClick={() => void createProject()}>{projectMutating ? '创建中…' : '创建并进入'}</button>
             </div>
-          </Dialog.Content>
+          </AsyncDialogContent>
         </Dialog.Portal>
-      </Dialog.Root>
+      </AsyncDialogRoot>
 
       <Dialog.Root open={agentConfirmOpen} onOpenChange={setAgentConfirmOpen}>
         <Dialog.Portal>
@@ -850,24 +827,24 @@ function ProjectManagementPage() {
         </Dialog.Portal>
       </Dialog.Root>
 
-      <Dialog.Root open={deleteProjectOpen} onOpenChange={setDeleteProjectOpen}>
+      <AsyncDialogRoot busy={projectMutating} open={deleteProjectOpen} onOpenChange={setDeleteProjectOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="project-management-project-dialog is-danger">
+          <AsyncDialogContent className="project-management-project-dialog is-danger">
             <div className="project-management-help-head">
               <div>
                 <Dialog.Title>删除当前项目？</Dialog.Title>
                 <Dialog.Description>将删除“{profile.projectName || '未命名项目'}”的 10 个阶段内容和项目档案。删除后会自动切换到其他项目或新建空项目。</Dialog.Description>
               </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭删除项目">×</Dialog.Close>
+              <AsyncDialogClose className="detail-help-close" type="button" aria-label="关闭删除项目">×</AsyncDialogClose>
             </div>
             <div className="project-management-help-actions">
-              <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
-              <button type="button" className="primary-action danger-action-solid" onClick={() => void deleteCurrentProject()}>确认删除</button>
+              <AsyncDialogClose className="secondary-action" type="button">取消</AsyncDialogClose>
+              <button type="button" className="primary-action danger-action-solid" disabled={projectMutating} onClick={() => void deleteCurrentProject()}>{projectMutating ? '删除中…' : '确认删除'}</button>
             </div>
-          </Dialog.Content>
+          </AsyncDialogContent>
         </Dialog.Portal>
-      </Dialog.Root>
+      </AsyncDialogRoot>
     </div>
   );
 }

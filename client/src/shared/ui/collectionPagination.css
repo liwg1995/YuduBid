@@ -1,0 +1,3 @@
+.yb-collection-pagination { display:flex; flex:0 0 auto; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; padding:8px 0; border-top:1px solid var(--yb-border-soft); font-size:12px; line-height:20px; color:var(--yb-text-soft); }
+.yb-collection-pagination > div { display:flex; align-items:center; gap:8px; }
+.yb-collection-pagination button { min-height:32px; }

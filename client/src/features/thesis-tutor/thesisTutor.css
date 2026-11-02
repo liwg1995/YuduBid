@@ -37,7 +37,7 @@
 .thesis-tutor-panel {
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--yb-card-bg);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
 }
 
@@ -192,7 +192,7 @@
   padding: 5px 10px;
   border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: 999px;
-  background: #f3f7ff;
+  background: var(--yb-card-bg);
   color: #1d4ed8;
   font-size: 12px;
   font-weight: 800;
@@ -200,7 +200,7 @@
 
 .thesis-tutor-notice-trigger:hover {
   border-color: rgba(37, 99, 235, 0.32);
-  background: #eaf2ff;
+  background: var(--yb-control-bg);
 }
 
 .thesis-tutor-header h2 {
@@ -254,7 +254,7 @@
   justify-content: space-between;
   gap: 14px;
   padding: 12px 14px;
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(255, 255, 255, 0.9));
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), var(--yb-card-bg));
 }
 
 .thesis-tutor-help-strip div {
@@ -283,7 +283,7 @@
   border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: 16px;
   background:
-    linear-gradient(135deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.96)),
+    linear-gradient(135deg, rgba(239, 246, 255, 0.92), var(--yb-card-bg)),
     radial-gradient(circle at 92% 16%, rgba(37, 99, 235, 0.12), transparent 28%);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
 }
@@ -319,7 +319,7 @@
   padding: 24px;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 18px;
-  background: #fff;
+  background: var(--yb-card-bg);
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.22);
   transform: translate(-50%, -50%);
 }
@@ -358,7 +358,7 @@
   padding: 13px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 12px;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-help-flow > strong,
@@ -378,7 +378,7 @@
   padding: 6px 9px;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 999px;
-  background: #fff;
+  background: var(--yb-card-bg);
   color: #1d4ed8;
   font-size: 12px;
   font-weight: 800;
@@ -394,7 +394,7 @@
   padding: 9px 10px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 10px;
-  background: #fff;
+  background: var(--yb-card-bg);
   color: #52627a;
   font-size: 12px;
   line-height: 1.5;
@@ -402,7 +402,7 @@
 
 .thesis-tutor-help-lock {
   border-color: rgba(14, 165, 233, 0.16);
-  background: #f0f9ff;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-help-lock p {
@@ -419,7 +419,7 @@
   padding: 13px;
   border: 1px solid rgba(37, 99, 235, 0.1);
   border-radius: 12px;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-help-steps article > span {
@@ -466,7 +466,7 @@
   gap: 12px;
   padding: 18px;
   border-color: rgba(37, 99, 235, 0.16);
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(255, 255, 255, 0.94));
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), var(--yb-card-bg));
 }
 
 .thesis-tutor-profile-summary-panel {
@@ -475,7 +475,7 @@
   gap: 14px;
   padding: 14px 16px;
   border-color: rgba(37, 99, 235, 0.14);
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(255, 255, 255, 0.94));
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), var(--yb-card-bg));
 }
 
 .thesis-tutor-profile-summary-main {
@@ -512,7 +512,7 @@
   padding: 6px 10px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 999px;
-  background: #fff;
+  background: var(--yb-control-bg);
   color: #526071;
   font-size: 12px;
   line-height: 1.35;
@@ -583,7 +583,7 @@
   padding: 10px 12px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 10px;
-  background: #f3f7ff;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-profile-guidance strong {
@@ -609,7 +609,7 @@
 .thesis-tutor-profile-extra {
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-profile-extra summary {
@@ -680,7 +680,7 @@
   resize: vertical;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 8px;
-  background: #fff;
+  background: var(--yb-control-bg);
   color: #172033;
   font: inherit;
   line-height: 1.6;
@@ -713,7 +713,7 @@
   padding: 12px 12px 12px 34px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 12px;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
   color: #46566f;
   font-size: 13px;
   line-height: 1.65;
@@ -832,7 +832,7 @@
   width: 100%;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--yb-control-bg);
   color: #172033;
   font: inherit;
   outline: none;
@@ -857,7 +857,7 @@
   padding: 12px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 12px;
-  background: linear-gradient(180deg, #f8fbff, rgba(255, 255, 255, 0.92));
+  background: linear-gradient(180deg, color-mix(in srgb, #f8fbff 6%, var(--yb-card-bg)), var(--yb-card-bg));
 }
 
 .thesis-tutor-chart-templates-head {
@@ -909,24 +909,24 @@
   min-height: 104px;
   padding: 10px;
   text-align: left;
-  border: 1px solid rgba(37, 99, 235, 0.12);
+  border: 1px solid var(--yb-control-border);
   border-radius: 10px;
-  background: #fff;
-  color: #172033;
+  background: var(--yb-surface);
+  color: var(--yb-text);
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
-.thesis-tutor-chart-template-grid button:hover {
-  transform: translateY(-1px);
-  border-color: rgba(37, 99, 235, 0.3);
-  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12);
+:root .thesis-tutor-chart-template-grid button:hover:not(:disabled) {
+  transform: none;
+  border-color: var(--yb-primary);
+  box-shadow: none;
 }
 
-.thesis-tutor-chart-template-grid button.is-selected {
-  border-color: rgba(37, 99, 235, 0.55);
-  background: linear-gradient(180deg, #eff6ff, #fff);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16), 0 12px 28px rgba(37, 99, 235, 0.12);
+:root .thesis-tutor-chart-template-grid button.is-selected {
+  border-color: var(--yb-primary);
+  background: color-mix(in srgb, var(--yb-primary) 14%, var(--yb-surface));
+  box-shadow: inset 0 0 0 1px var(--yb-primary);
 }
 
 .thesis-tutor-chart-template-grid button.is-selected::before {
@@ -934,8 +934,8 @@
   width: fit-content;
   padding: 3px 7px;
   border-radius: 999px;
-  background: #2563eb;
-  color: #fff;
+  background: transparent;
+  color: var(--yb-primary);
   font-size: 11px;
   font-weight: 900;
 }
@@ -948,13 +948,13 @@
 }
 
 .thesis-tutor-chart-template-grid strong {
-  color: #1d4ed8;
+  color: var(--yb-text);
   font-size: 13px;
   line-height: 1.35;
 }
 
 .thesis-tutor-chart-template-grid span {
-  color: #627089;
+  color: var(--yb-text-soft);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -964,8 +964,8 @@
   width: fit-content;
   padding: 3px 7px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--yb-control-bg);
+  color: var(--yb-primary);
   font-size: 11px;
   font-style: normal;
   font-weight: 800;
@@ -993,13 +993,13 @@
 
 .thesis-tutor-chapter-panel {
   gap: 14px;
-  background: linear-gradient(180deg, #fbfdff, #f6f9ff);
+  background: linear-gradient(180deg, color-mix(in srgb, #fbfdff 6%, var(--yb-card-bg)), color-mix(in srgb, #f6f9ff 6%, var(--yb-card-bg)));
 }
 
 .thesis-tutor-reference-panel {
   gap: 14px;
   border-color: rgba(14, 165, 233, 0.16);
-  background: linear-gradient(180deg, #fbfdff, #f5fbff);
+  background: linear-gradient(180deg, color-mix(in srgb, #fbfdff 6%, var(--yb-card-bg)), color-mix(in srgb, #f5fbff 6%, var(--yb-card-bg)));
 }
 
 .thesis-tutor-bibliography-import {
@@ -1021,13 +1021,13 @@
 .thesis-tutor-feedback-panel {
   gap: 14px;
   border-color: rgba(99, 102, 241, 0.16);
-  background: linear-gradient(180deg, #fbfdff, #f7f8ff);
+  background: linear-gradient(180deg, color-mix(in srgb, #fbfdff 6%, var(--yb-card-bg)), color-mix(in srgb, #f7f8ff 6%, var(--yb-card-bg)));
 }
 
 .thesis-tutor-check-panel {
   gap: 14px;
   border-color: rgba(16, 185, 129, 0.16);
-  background: linear-gradient(180deg, #fbfdff, #f5fffb);
+  background: linear-gradient(180deg, color-mix(in srgb, #fbfdff 6%, var(--yb-card-bg)), color-mix(in srgb, #f5fffb 6%, var(--yb-card-bg)));
 }
 
 .thesis-tutor-chapter-actions {
@@ -1108,10 +1108,10 @@
 .thesis-tutor-feedback-summary span,
 .thesis-tutor-reference-verification-summary span {
   padding: 6px 10px;
-  border: 1px solid rgba(99, 102, 241, 0.14);
+  border: 1px solid var(--yb-border-soft);
   border-radius: 999px;
-  background: rgba(238, 242, 255, 0.76);
-  color: #4f46e5;
+  background: var(--yb-control-bg);
+  color: var(--yb-primary);
   font-size: 12px;
   font-weight: 800;
 }
@@ -1241,13 +1241,13 @@
   display: grid;
   gap: 9px;
   padding: 11px 12px;
-  border: 1px solid rgba(14, 165, 233, 0.14);
+  border: 1px solid var(--yb-border-soft);
   border-radius: 10px;
-  background: rgba(240, 249, 255, 0.75);
+  background: var(--yb-surface);
 }
 
 .thesis-tutor-reference-chapters strong {
-  color: #294269;
+  color: var(--yb-text);
   font-size: 13px;
 }
 
@@ -1259,27 +1259,33 @@
 
 .thesis-tutor-reference-chapters button {
   padding: 6px 9px;
-  border: 1px solid rgba(27, 50, 92, 0.1);
-  border-radius: 999px;
-  background: #fff;
-  color: #52627a;
+  border: 1px solid var(--yb-control-border);
+  border-radius: var(--yb-radius-control, 8px);
+  background: var(--yb-control-bg);
+  color: var(--yb-text-soft);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-.thesis-tutor-reference-chapters button.is-active {
-  border-color: rgba(37, 99, 235, 0.26);
-  background: #dbeafe;
-  color: #1d4ed8;
+:root .thesis-tutor-reference-chapters button:hover:not(:disabled) {
+  border-color: var(--yb-primary);
+  color: var(--yb-primary);
+}
+
+:root .thesis-tutor-reference-chapters button.is-active {
+  border-color: var(--yb-primary);
+  background: color-mix(in srgb, var(--yb-primary) 14%, var(--yb-surface));
+  color: var(--yb-primary);
 }
 
 .thesis-tutor-chapter-note,
 .thesis-tutor-chapter-empty {
   padding: 11px 12px;
-  border: 1px solid rgba(37, 99, 235, 0.12);
+  border: 1px solid var(--yb-border-soft);
   border-radius: 10px;
-  background: rgba(239, 246, 255, 0.72);
-  color: #52627a;
+  background: var(--yb-control-bg);
+  color: var(--yb-text-soft);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -1310,7 +1316,7 @@
   padding: 11px 12px;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 10px;
-  background: linear-gradient(180deg, #f8fbff, #f3f7ff);
+  background: linear-gradient(180deg, color-mix(in srgb, #f8fbff 6%, var(--yb-card-bg)), color-mix(in srgb, #f3f7ff 6%, var(--yb-card-bg)));
 }
 
 .thesis-tutor-generation-context strong {
@@ -1330,7 +1336,7 @@
   overflow: hidden;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--yb-card-bg);
   color: #4f607a;
   font-size: 12px;
   line-height: 1.3;
@@ -1345,22 +1351,22 @@
   padding: 14px;
   border: 1px solid rgba(37, 99, 235, 0.16);
   border-radius: 14px;
-  background: linear-gradient(180deg, #f8fbff, #f3f7ff);
+  background: linear-gradient(180deg, color-mix(in srgb, #f8fbff 6%, var(--yb-card-bg)), color-mix(in srgb, #f3f7ff 6%, var(--yb-card-bg)));
 }
 
 .thesis-tutor-drafting-preflight.is-ready {
   border-color: rgba(16, 185, 129, 0.22);
-  background: linear-gradient(180deg, #f5fffb, #f0fdf8);
+  background: linear-gradient(180deg, color-mix(in srgb, #f5fffb 6%, var(--yb-card-bg)), color-mix(in srgb, #f0fdf8 6%, var(--yb-card-bg)));
 }
 
 .thesis-tutor-drafting-preflight.is-warning {
   border-color: rgba(245, 158, 11, 0.24);
-  background: linear-gradient(180deg, #fffdf6, #fffbeb);
+  background: linear-gradient(180deg, color-mix(in srgb, #fffdf6 6%, var(--yb-card-bg)), color-mix(in srgb, #fffbeb 6%, var(--yb-card-bg)));
 }
 
 .thesis-tutor-drafting-preflight.is-missing {
   border-color: rgba(239, 68, 68, 0.2);
-  background: linear-gradient(180deg, #fff8f8, #fff1f2);
+  background: linear-gradient(180deg, color-mix(in srgb, #fff8f8 6%, var(--yb-card-bg)), color-mix(in srgb, #fff1f2 6%, var(--yb-card-bg)));
 }
 
 .thesis-tutor-drafting-preflight-head {
@@ -1396,7 +1402,7 @@
   padding: 9px 12px;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--yb-card-bg);
   text-align: center;
 }
 
@@ -1420,7 +1426,7 @@
   padding: 10px 12px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-drafting-mode strong {
@@ -1440,7 +1446,7 @@
   padding: 10px 11px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-drafting-checks div::before {
@@ -1487,7 +1493,7 @@
   padding: 12px 14px;
   border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: 12px;
-  background: linear-gradient(180deg, #f4f8ff, #edf5ff);
+  background: linear-gradient(180deg, color-mix(in srgb, #f4f8ff 6%, var(--yb-card-bg)), color-mix(in srgb, #edf5ff 6%, var(--yb-card-bg)));
   color: #1d4ed8;
   font-size: 13px;
   font-weight: 800;
@@ -1529,7 +1535,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.48), transparent);
+  background: linear-gradient(90deg, transparent, var(--yb-card-bg), transparent);
   animation: thesisTutorProgressShine 1.4s ease-in-out infinite;
 }
 
@@ -1544,7 +1550,7 @@
 .thesis-tutor-task.is-error {
   color: #991b1b;
   border-color: rgba(239, 68, 68, 0.22);
-  background: #fff1f2;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-task.is-error .thesis-tutor-task-track {
@@ -1558,7 +1564,7 @@
 .thesis-tutor-task.is-success {
   color: #166534;
   border-color: rgba(34, 197, 94, 0.22);
-  background: #f0fdf4;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-task.is-success .thesis-tutor-task-track {
@@ -1586,7 +1592,7 @@
   padding: 11px 12px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 10px;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-context-note strong {
@@ -1604,14 +1610,14 @@
   padding: 5px 8px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 999px;
-  background: #fff;
+  background: var(--yb-control-bg);
   color: #5d6c84;
   font-size: 12px;
   line-height: 1.3;
 }
 
 .thesis-tutor-overview-panel {
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(255, 255, 255, 0.95));
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), var(--yb-card-bg));
 }
 
 .thesis-tutor-overview-score {
@@ -1627,7 +1633,7 @@
   padding: 12px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 12px;
-  background: #f3f7ff;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-overview-score strong {
@@ -1655,13 +1661,13 @@
   padding: 10px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 10px;
-  background: #fff;
+  background: var(--yb-control-bg);
   text-align: left;
 }
 
 .thesis-tutor-overview-grid button:hover {
   border-color: rgba(37, 99, 235, 0.22);
-  background: #f8fbff;
+  background: var(--yb-control-bg);
 }
 
 .thesis-tutor-overview-grid strong {
@@ -1688,7 +1694,7 @@
   padding: 11px 12px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 10px;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-overview-next strong {
@@ -1703,7 +1709,7 @@
 }
 
 .thesis-tutor-workflow-panel {
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(255, 255, 255, 0.94));
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), var(--yb-card-bg));
 }
 
 .thesis-tutor-workflow-summary {
@@ -1714,7 +1720,7 @@
   padding: 12px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 10px;
-  background: #f3f7ff;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-workflow-summary strong {
@@ -1743,13 +1749,13 @@
   padding: 10px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 10px;
-  background: #fff;
+  background: var(--yb-control-bg);
   text-align: left;
 }
 
 .thesis-tutor-workflow-list button:hover {
   border-color: rgba(37, 99, 235, 0.22);
-  background: #f8fbff;
+  background: var(--yb-control-bg);
 }
 
 .thesis-tutor-workflow-list button > span {
@@ -1758,7 +1764,7 @@
   height: 30px;
   place-items: center;
   border-radius: 999px;
-  background: #eef2f7;
+  background: var(--yb-control-bg);
   color: #718096;
   font-size: 12px;
   font-weight: 900;
@@ -1810,7 +1816,7 @@
   padding: 10px 12px;
   border: 1px solid rgba(37, 99, 235, 0.16);
   border-radius: 10px;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
   color: #315279;
   font-size: 13px;
   line-height: 1.5;
@@ -1822,20 +1828,20 @@
   justify-content: stretch;
   gap: 9px;
   color: #1d4ed8;
-  background: #f0f7ff;
+  background: var(--yb-card-bg);
   font-weight: 800;
 }
 
 .thesis-tutor-export-status.is-success {
   color: #166534;
   border-color: rgba(34, 197, 94, 0.22);
-  background: #f0fdf4;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-export-status.is-error {
   color: #991b1b;
   border-color: rgba(239, 68, 68, 0.22);
-  background: #fff1f2;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-material-actions {
@@ -1862,7 +1868,7 @@
   margin: 0;
   padding: 18px 20px 14px;
   border-bottom: 1px solid rgba(27, 50, 92, 0.08);
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(255, 255, 255, 0.92));
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), var(--yb-card-bg));
 }
 
 .thesis-tutor-result-actions {
@@ -1889,7 +1895,7 @@
   padding: 12px 14px;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(239, 246, 255, 0.82), rgba(255, 255, 255, 0.96));
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.82), var(--yb-card-bg));
 }
 
 .thesis-tutor-flow-actions > div:first-child {
@@ -1981,14 +1987,14 @@
   overflow: hidden;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--yb-card-bg);
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .thesis-tutor-result-panel .markdown-editor-toolbar {
   padding: 8px 10px;
   border-bottom-color: rgba(27, 50, 92, 0.08);
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(255, 255, 255, 0.92));
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), var(--yb-card-bg));
 }
 
 .thesis-tutor-result-panel .markdown-editor-toolbar button {
@@ -2017,7 +2023,7 @@
   padding: 16px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-form-grid {
@@ -2079,38 +2085,14 @@
   color: #263247;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 10px;
-  background: #fff;
+  background: var(--yb-control-bg);
 }
 
-.thesis-tutor-history-filters button,
-.thesis-tutor-history-actions button {
-  min-height: 34px;
-  padding: 7px 10px;
-  color: #2f63ff;
-  border: 1px solid rgba(47, 99, 255, 0.18);
-  border-radius: 999px;
-  background: #fff;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.thesis-tutor-history-filters button.is-active,
-.thesis-tutor-history-actions button:hover {
-  color: #fff;
-  background: var(--yb-action-gradient);
-  border-color: transparent;
-}
-
-.thesis-tutor-history-actions button.is-danger {
-  color: #b91c1c;
-  border-color: rgba(220, 38, 38, 0.2);
-  background: #fff7f7;
-}
-
-.thesis-tutor-history-actions button.is-danger:hover {
-  color: #fff;
-  background: #dc2626;
-  border-color: #dc2626;
+/* 历史记录操作复用主次/危险按钮，只有筛选选中态在本组件定义。 */
+:root .thesis-tutor-history-filters button.is-active {
+  color: var(--yb-primary);
+  background: color-mix(in srgb, var(--yb-primary) 14%, var(--yb-surface));
+  border-color: var(--yb-primary);
 }
 
 .thesis-tutor-history-list article {
@@ -2121,17 +2103,17 @@
   text-align: left;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 10px;
-  background: #fff;
+  background: var(--yb-card-bg);
 }
 
 .thesis-tutor-history-list article:hover {
   border-color: rgba(37, 99, 235, 0.24);
-  background: #f8fbff;
+  background: var(--yb-control-bg);
 }
 
 .thesis-tutor-history-list article.is-important {
   border-color: rgba(47, 99, 255, 0.28);
-  background: linear-gradient(135deg, rgba(47, 99, 255, 0.08), rgba(255, 255, 255, 0.96));
+  background: linear-gradient(135deg, rgba(47, 99, 255, 0.08), var(--yb-card-bg));
 }
 
 .thesis-tutor-history-meta {
@@ -2160,7 +2142,7 @@
   color: #172033;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--yb-control-bg);
   font-size: 13px;
   font-weight: 900;
 }

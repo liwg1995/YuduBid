@@ -8,9 +8,11 @@ import '../upstream.css';
 import '../shared-upload.css';
 import '../option-cards.css';
 import '../appearance.css';
+import '../blindDesign.css';
+import TaskProgressSummary from '../../../shared/ui/TaskProgressSummary';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRightIcon, CopyIcon, FileTextIcon, ListBulletIcon, MagicWandIcon, Pencil1Icon, ReloadIcon, TrashIcon, UploadIcon } from '@radix-ui/react-icons';
-import { AppDialog, FloatingToolbar, ProgressBar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useToast } from '../../../shared/ui';
+import { AppDialog, FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import ExtractionNotice from '../components/ExtractionNotice';
 import FindingGroupList, { categoryLabels, severityLabels } from '../components/FindingGroupList';
@@ -109,6 +111,13 @@ export default function BlindCheckPage() {
   const [presetDialog, setPresetDialog] = useState<{ mode: 'create' | 'rename'; name: string } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [stateReady, setStateReady] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
+  const [actionError, setActionError] = useState('');
+  const reportError = useCallback((error: unknown, fallback: string) => {
+    const message = errorMessage(error, fallback);
+    setActionError(message); showToast(message, 'error');
+  }, [showToast]);
   const [fixRules, setFixRules] = useState<string[]>([]);
   const [fixResult, setFixResult] = useState<BlindCheckFixResultState>(emptyFixResult);
   const [fixTask, setFixTask] = useState<BlindCheckTaskState | undefined>();
@@ -125,6 +134,8 @@ export default function BlindCheckPage() {
   const extractionStatusRef = useRef<string | undefined>(undefined);
   const checkStatusRef = useRef<string | undefined>(undefined);
   const saveSequenceRef = useRef(0);
+  const presetNameRef = useRef<HTMLInputElement>(null);
+  const exportTriggerRef = useRef<HTMLElement | null>(null);
 
   const applyState = useCallback((state: BlindCheckWorkspaceState) => {
     setCredentialCompanyId(state.credentialCompanyId || '');
@@ -155,6 +166,7 @@ export default function BlindCheckPage() {
   const isFixRunning = startingFix || fixTask?.status === 'running' || fixResult.status === 'running';
   const isExtracting = startingExtraction || extractionTask?.status === 'running';
   const activeIndex = steps.indexOf(step);
+  const mutationDisabled = busy !== null || isCheckBusy || isFixRunning || isExtracting || savingFixed;
   // 提取中的 AI 请求可能等待较久且没有中间进度，用已运行时长和长时间无进展提示表明程序仍在工作。
   const extractionStartedAt = extractionTask?.status === 'running' ? Date.parse(extractionTask.started_at) : Number.NaN;
   const extractionUpdatedAt = extractionTask?.status === 'running' ? Date.parse(extractionTask.updated_at) : Number.NaN;
@@ -173,6 +185,7 @@ export default function BlindCheckPage() {
   useEffect(() => {
     let canceled = false;
     let unsubscribe: (() => void) | undefined;
+    setStateReady(false); setLoadError(''); hydratedRef.current = false;
     void (async () => {
       try {
         const [state, presetList, words] = await Promise.all([
@@ -203,7 +216,7 @@ export default function BlindCheckPage() {
           .some(([task, type]) => task?.status === 'running' && !activeTypes.has(type));
         if (finishedMeanwhile) applyState(await window.yibiao!.blindCheck.loadState());
       } catch (error) {
-        if (!canceled) showToast(errorMessage(error, '读取暗标合规检查状态失败'), 'error');
+        if (!canceled) { const message = errorMessage(error, '读取暗标合规检查状态失败'); setLoadError(message); showToast(message, 'error'); }
       } finally {
         if (!canceled) {
           hydratedRef.current = true;
@@ -215,13 +228,13 @@ export default function BlindCheckPage() {
       canceled = true;
       unsubscribe?.();
     };
-  }, [applyState, showToast]);
+  }, [applyState, showToast, loadRevision]);
 
   useEffect(() => {
     if (!hydratedRef.current) return;
     void window.yibiao!.blindCheck.saveUiState({ step, presetTab, resultTab })
-      .catch((error) => showToast(errorMessage(error, '保存暗标合规检查页面状态失败'), 'error'));
-  }, [presetTab, resultTab, showToast, step]);
+      .catch((error) => reportError(error, '保存暗标合规检查页面状态失败'));
+  }, [presetTab, resultTab, reportError, step]);
 
 
   // 提取任务从运行变为完成时，重新读取预设列表和选中的预设；失败时提示原因。
@@ -240,8 +253,8 @@ export default function BlindCheckPage() {
         setPresetTab('source');
         showToast(extractionTask.logs.at(-1) || '已从招标文件生成预设', extractionTask.stats?.unverified || extractionTask.stats?.omissions || extractionTask.stats?.fewFields ? 'info' : 'success');
       })
-      .catch((error) => showToast(errorMessage(error, '读取生成的预设失败'), 'error'));
-  }, [applyState, extractionTask, showToast]);
+      .catch((error) => reportError(error, '读取生成的预设失败'));
+  }, [applyState, extractionTask, showToast, reportError]);
 
   // 检查任务（含 AI 复核）结束时重新读取一次状态，拿到 Main 按最终结论算好的问题清单。
   useEffect(() => {
@@ -250,23 +263,25 @@ export default function BlindCheckPage() {
     if (previous !== 'running' || !checkTask || checkTask.status === 'running') return;
     void window.yibiao!.blindCheck.loadState()
       .then(applyState)
-      .catch((error) => showToast(errorMessage(error, '读取暗标检查结果失败'), 'error'));
-  }, [applyState, checkTask, showToast]);
+      .catch((error) => reportError(error, '读取暗标检查结果失败'));
+  }, [applyState, checkTask, reportError]);
 
   const openSourceDialog = async () => {
+    setActionError('');
     try {
       setTenderSources(await window.yibiao!.blindCheck.getTenderSources());
       setSourceDialogOpen(true);
     } catch (error) {
-      showToast(errorMessage(error, '读取招标文件来源失败'), 'error');
+      reportError(error, '读取招标文件来源失败');
     }
   };
 
   const startExtraction = async (source: 'technical-plan' | 'file') => {
+    setActionError('');
     let filePath: string | undefined;
     if (source === 'file') {
       const selection = await window.yibiao!.file.selectBlindCheckTenderFile().catch((error) => {
-        showToast(errorMessage(error, '选择招标文件失败'), 'error');
+        reportError(error, '选择招标文件失败');
         return null;
       });
       if (!selection) return;
@@ -284,7 +299,7 @@ export default function BlindCheckPage() {
       await window.yibiao!.tasks.startBlindCheckPresetExtraction({ source, filePath });
     } catch (error) {
       extractionStatusRef.current = undefined;
-      showToast(errorMessage(error, '启动格式要求提取失败'), 'error');
+      reportError(error, '启动格式要求提取失败');
     } finally {
       setStartingExtraction(false);
     }
@@ -292,53 +307,56 @@ export default function BlindCheckPage() {
 
   /** 检查弹窗里选定方式后启动：仅程序检查，或程序检查后接着 AI 复核。选择由 Main 记下作为下次的默认选项。 */
   const startCheck = (aiReview: boolean) => {
+    setActionError('');
     setCheckDialogOpen(false);
     setAiReviewEnabled(aiReview);
     setStarting(true);
     void window.yibiao!.tasks.startBlindCheck({ aiReview })
-      .catch((error) => showToast(errorMessage(error, '启动暗标合规检查失败'), 'error'))
+      .catch((error) => reportError(error, '启动暗标合规检查失败'))
       .finally(() => setStarting(false));
   };
 
   // 进入检查结果时读取当前检查条件，判断已有结果是否过期；检查由用户点「开始检查」后在弹窗里选择方式再启动。
   useEffect(() => {
-    if (!stateReady || step !== 'results' || !file) return;
+    if (!stateReady || loadError || step !== 'results' || !file) return;
     let canceled = false;
     void window.yibiao!.blindCheck.getInputSignature()
       .then((signature) => {
         if (!canceled) setCurrentSignature(signature);
       })
-      .catch((error) => showToast(errorMessage(error, '读取检查条件失败'), 'error'));
+      .catch((error) => reportError(error, '读取检查条件失败'));
     return () => {
       canceled = true;
     };
-  }, [activePreset, stateReady, file, showToast, step, useCredentialWords]);
+  }, [activePreset, stateReady, loadError, file, reportError, step, useCredentialWords]);
 
   // 自动修复只针对与当前检查条件一致的结果，进入第四步时读取一次当前签名。
   useEffect(() => {
-    if (!stateReady || step !== 'fix' || !file) return;
+    if (!stateReady || loadError || step !== 'fix' || !file) return;
     let canceled = false;
     void window.yibiao!.blindCheck.getInputSignature()
       .then((signature) => {
         if (!canceled) setCurrentSignature(signature);
       })
-      .catch((error) => showToast(errorMessage(error, '读取检查条件失败'), 'error'));
+      .catch((error) => reportError(error, '读取检查条件失败'));
     return () => {
       canceled = true;
     };
-  }, [activePreset, stateReady, file, showToast, step, useCredentialWords]);
+  }, [activePreset, stateReady, loadError, file, reportError, step, useCredentialWords]);
 
   /** 修复弹窗里选定方式后启动：仅程序修复，或程序修复后续接检查时的 AI 复核会话做 AI 修复。 */
   const startFix = (ai: boolean) => {
+    setActionError('');
     setFixDialogOpen(false);
     setFixAiEnabled(ai);
     setStartingFix(true);
     void window.yibiao!.tasks.startBlindCheckFix({ ai })
-      .catch((error) => showToast(errorMessage(error, '启动暗标自动修复失败'), 'error'))
+      .catch((error) => reportError(error, '启动暗标自动修复失败'))
       .finally(() => setStartingFix(false));
   };
 
   const toggleFixRule = async (ruleId: string, enabled: boolean) => {
+    setActionError('');
     const next = enabled ? [...fixRules, ruleId] : fixRules.filter((item) => item !== ruleId);
     setFixRules(next);
     try {
@@ -346,82 +364,90 @@ export default function BlindCheckPage() {
       setFixRules(state.fixRules);
       showToast('保存成功', 'success');
     } catch (error) {
-      showToast(errorMessage(error, '保存修复项失败'), 'error');
+      reportError(error, '保存修复项失败');
     }
   };
 
   const saveFixedDocument = async () => {
+    exportTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setActionError('');
     setSavingFixed(true);
     try {
       const saved = await window.yibiao!.blindCheck.saveFixedDocument();
       if (saved.canceled) return;
       if (!saved.success || !saved.path) {
-        showToast(saved.message || '修复结果导出失败', 'error');
+        setActionError(saved.message || '修复结果导出失败'); showToast(saved.message || '修复结果导出失败', 'error');
         return;
       }
       setSavedFixedPath(saved.path);
       showToast(saved.message || '修复结果已导出', 'success');
     } catch (error) {
-      showToast(errorMessage(error, '修复结果导出失败'), 'error');
+      reportError(error, '修复结果导出失败');
     } finally {
       setSavingFixed(false);
     }
   };
 
   const openSavedDocument = async () => {
+    setActionError('');
     try {
       await window.yibiao!.blindCheck.openFixedDocument(savedFixedPath);
       setSavedFixedPath('');
     } catch (error) {
-      showToast(errorMessage(error, '打开文档失败'), 'error');
+      reportError(error, '打开文档失败');
     }
   };
 
   const chooseFile = async (filePaths?: string[]) => {
+    setActionError('');
     setBusy('file');
     try {
       const selection = await window.yibiao!.file.selectBlindCheckFile({ filePaths });
       if (!selection?.success || !selection.files?.length) {
         const message = selection?.message || '未选择文件';
+        if (message !== '已取消选择') setActionError(message);
         showToast(message, message === '已取消选择' ? 'info' : 'error');
         return;
       }
       applyState(await window.yibiao!.blindCheck.importFile(selection.files[0].file_path));
       showToast('已选择待检文档', 'success');
     } catch (error) {
-      showToast(errorMessage(error, '选择待检文档失败'), 'error');
+      reportError(error, '选择待检文档失败');
     } finally {
       setBusy(null);
     }
   };
 
   const removeFile = async () => {
+    setActionError('');
     setBusy('file');
     try {
       applyState(await window.yibiao!.blindCheck.removeFile());
     } catch (error) {
-      showToast(errorMessage(error, '移除待检文档失败'), 'error');
+      reportError(error, '移除待检文档失败');
     } finally {
       setBusy(null);
     }
   };
 
   const resetAll = async () => {
+    setActionError('');
     try {
       applyState(await window.yibiao!.blindCheck.clear());
       setCurrentSignature(null);
       showToast('已重置暗标合规检查', 'success');
     } catch (error) {
-      showToast(errorMessage(error, '重置暗标合规检查失败'), 'error');
+      reportError(error, '重置暗标合规检查失败');
     }
   };
 
   const selectPreset = async (nextId: string) => {
+    setActionError('');
     setBusy('preset');
     try {
       applyState(await window.yibiao!.blindCheck.selectPreset(nextId));
     } catch (error) {
-      showToast(errorMessage(error, '切换格式预设失败'), 'error');
+      reportError(error, '切换格式预设失败');
     } finally {
       setBusy(null);
     }
@@ -429,6 +455,7 @@ export default function BlindCheckPage() {
 
   // 先在页面上更新，再保存；只采用最后一次保存的返回值，避免连续修改时被旧结果覆盖。
   const savePresetProfile = async (profile: BlindCheckProfile) => {
+    setActionError('');
     if (!activePreset) return;
     if (activePreset.builtin) {
       await copyBuiltinAndSave(profile);
@@ -444,7 +471,7 @@ export default function BlindCheckPage() {
       setPresets((current) => current.map((preset) => (preset.id === saved.id ? saved : preset)));
       showToast('保存成功', 'success');
     } catch (error) {
-      showToast(errorMessage(error, '保存格式预设失败'), 'error');
+      reportError(error, '保存格式预设失败');
       const presetList = await window.yibiao!.blindCheck.listPresets().catch(() => null);
       if (presetList) setPresets(presetList);
     }
@@ -462,7 +489,7 @@ export default function BlindCheckPage() {
       setPresetId(created.id);
       showToast(`内置预设不可修改，已复制为「${created.name}」并保存修改`, 'success');
     } catch (error) {
-      showToast(errorMessage(error, `复制「${baseName}」失败`), 'error');
+      reportError(error, `复制「${baseName}」失败`);
     } finally {
       setBusy(null);
     }
@@ -477,10 +504,11 @@ export default function BlindCheckPage() {
   };
 
   const submitPresetDialog = async () => {
+    setActionError('');
     if (!presetDialog || !activePreset) return;
     const invalid = validatePresetName(presetDialog.name, presetDialog.mode === 'rename' ? activePreset.id : undefined);
     if (invalid) {
-      showToast(invalid, 'info');
+      setActionError(invalid); presetNameRef.current?.focus(); showToast(invalid, 'info');
       return;
     }
     setBusy('preset');
@@ -497,13 +525,14 @@ export default function BlindCheckPage() {
       }
       setPresetDialog(null);
     } catch (error) {
-      showToast(errorMessage(error, '保存格式预设失败'), 'error');
+      reportError(error, '保存格式预设失败');
     } finally {
       setBusy(null);
     }
   };
 
   const deletePreset = async () => {
+    setActionError('');
     if (!activePreset || activePreset.builtin) return;
     setBusy('preset');
     try {
@@ -512,19 +541,20 @@ export default function BlindCheckPage() {
       setDeleteOpen(false);
       showToast('已删除预设', 'success');
     } catch (error) {
-      showToast(errorMessage(error, '删除格式预设失败'), 'error');
+      reportError(error, '删除格式预设失败');
     } finally {
       setBusy(null);
     }
   };
 
   const toggleCredentialWords = async (enabled: boolean) => {
+    setActionError('');
     setBusy('credential');
     try {
       applyState(await window.yibiao!.blindCheck.setUseCredentialWords(enabled));
       showToast('保存成功', 'success');
     } catch (error) {
-      showToast(errorMessage(error, '保存资信库设置失败'), 'error');
+      reportError(error, '保存资信库设置失败');
     } finally {
       setBusy(null);
     }
@@ -566,7 +596,7 @@ export default function BlindCheckPage() {
     return { summary, byCategory };
   }, [issues]);
 
-  const canGoNext = Boolean(file);
+  const canGoNext = Boolean(file) && busy === null;
   const nextTooltip = canGoNext ? `进入${stepLabels[steps[activeIndex + 1]]}` : '请先选择需要检查的投标文件';
 
   const toolbarGroups: FloatingToolbarGroup[] = [
@@ -576,6 +606,7 @@ export default function BlindCheckPage() {
         {
           id: 'reset',
           label: '重置',
+          disabled: mutationDisabled || !file,
           variant: 'danger',
           tooltip: '清空待检文档和检查结果，保留格式预设',
           onClick: () => { void resetAll(); },
@@ -606,7 +637,7 @@ export default function BlindCheckPage() {
           label: savingFixed ? '导出中...' : '导出修复结果',
           icon: <ToolbarDocumentIcon />,
           variant: 'primary' as const,
-          disabled: savingFixed || !hasFixedDocument,
+          disabled: savingFixed || mutationDisabled || !hasFixedDocument,
           tooltip: isFixRunning
             ? '请等待修复完成后再导出'
             : hasFixedDocument
@@ -639,19 +670,19 @@ export default function BlindCheckPage() {
           <div className="blind-modern-dropzone" onDragOver={event => event.preventDefault()} onDrop={event => {
             event.preventDefault();
             const paths = resolveDroppedFilePaths(event.dataTransfer.files);
-            if (paths.length && busy === null) void chooseFile(paths.slice(0, 1));
+            if (paths.length && !mutationDisabled) void chooseFile(paths.slice(0, 1));
           }}>
             <span className="blind-modern-dropzone-icon"><UploadIcon /></span>
             <strong>{file ? '更换待检标书' : '导入待检标书'}</strong>
             <p>拖入 DOCX 文件，或从电脑中选择</p>
-            <button type="button" className="primary-action" disabled={busy !== null} onClick={() => void chooseFile()}>{busy === 'file' ? '处理中...' : '选择 DOCX 文件'}</button>
+            <button type="button" className="primary-action" disabled={mutationDisabled} onClick={() => void chooseFile()}>{busy === 'file' ? '处理中...' : '选择 DOCX 文件'}</button>
           </div>
           <div className="blind-modern-upload-detail">
             <span className="blind-modern-detail-label">当前文档</span>
             {file ? <>
               <strong title={file.fileName}>{file.fileName}</strong>
               <p>{formatFileSize(file.size)} · {formatDate(file.modifiedAt)}</p>
-              <button type="button" className="text-button" disabled={busy !== null} onClick={() => void removeFile()}>移除文档</button>
+              <button type="button" className="text-button" disabled={mutationDisabled} onClick={() => void removeFile()}>移除文档</button>
             </> : <><strong>尚未选择文件</strong><p>导入后可设置匿名与格式检查规则。</p></>}
             <div className="blind-modern-upload-notes">{guideItems.map((item, index) => <p key={item}><span>{String(index + 1).padStart(2, '0')}</span>{item}</p>)}</div>
           </div>
@@ -679,9 +710,9 @@ export default function BlindCheckPage() {
             const paths = resolveDroppedFilePaths(files);
             if (paths.length) void chooseFile(paths.slice(0, 1));
           }}
-          dropDisabled={busy !== null}
+          dropDisabled={mutationDisabled}
           actions={(
-            <button type="button" className="primary-action" onClick={() => void chooseFile()} disabled={busy !== null}>
+            <button type="button" className="primary-action" onClick={() => void chooseFile()} disabled={mutationDisabled}>
               {busy === 'file' ? '处理中...' : file ? '更换' : '上传'}
             </button>
           )}
@@ -693,13 +724,13 @@ export default function BlindCheckPage() {
                 name={file.fileName}
                 meta={`${formatFileSize(file.size)} · ${formatDate(file.modifiedAt)}`}
                 onRemove={() => void removeFile()}
-                removeDisabled={busy !== null}
+                removeDisabled={mutationDisabled}
                 removeAriaLabel={`移除 ${file.fileName}`}
               />
             </div>
           ) : (
             <UploadEmpty title="等待投标文件" hint="选择需要按暗标要求检查的技术标 .docx 文件。">
-              <button type="button" className="text-button" onClick={() => void chooseFile()} disabled={busy !== null}>选择投标文件</button>
+              <button type="button" className="text-button" onClick={() => void chooseFile()} disabled={mutationDisabled}>选择投标文件</button>
             </UploadEmpty>
           )}
         </UploadRow>
@@ -713,7 +744,7 @@ export default function BlindCheckPage() {
     </>
   );
 
-  useEffect(() => { if (stateReady) void window.yibiao!.blindCheck.getCredentialWords().then(setCredentialWords).catch(error => showToast(errorMessage(error, '读取企业信息失败'), 'error')); }, [credentialCompanyId, stateReady, showToast]);
+  useEffect(() => { if (stateReady && !loadError) void window.yibiao!.blindCheck.getCredentialWords().then(setCredentialWords).catch(error => reportError(error, '读取企业信息失败')); }, [credentialCompanyId, stateReady, loadError, reportError]);
 
   const renderPresetStep = () => {
     if (!activePreset) {
@@ -729,7 +760,7 @@ export default function BlindCheckPage() {
         <StepHeader kicker="STEP 02" title="格式要求">
           <div className="blind-check-preset-picker">
             <span className="blind-check-preset-picker-label">当前预设</span>
-            <select aria-label="当前预设" value={activePreset.id} onChange={(event) => void selectPreset(event.target.value)} disabled={busy !== null || isExtracting}>
+            <select aria-label="当前预设" value={activePreset.id} onChange={(event) => void selectPreset(event.target.value)} disabled={mutationDisabled}>
               <optgroup label="内置预设">
                 {builtinPresets.map((preset) => <option value={preset.id} key={preset.id}>{preset.name}</option>)}
               </optgroup>
@@ -743,20 +774,20 @@ export default function BlindCheckPage() {
               <span className="blind-check-preset-badge">内置</span>
             ) : (
               <span className="blind-check-preset-picker-tools">
-                <button type="button" title="重命名" aria-label="重命名" disabled={busy !== null || isExtracting} onClick={() => setPresetDialog({ mode: 'rename', name: activePreset.name })}>
+                <button type="button" title="重命名" aria-label="重命名" disabled={mutationDisabled} onClick={() => setPresetDialog({ mode: 'rename', name: activePreset.name })}>
                   <Pencil1Icon />
                 </button>
-                <button type="button" className="is-danger" title="删除" aria-label="删除" disabled={busy !== null || isExtracting} onClick={() => setDeleteOpen(true)}>
+                <button type="button" className="is-danger" title="删除" aria-label="删除" disabled={mutationDisabled} onClick={() => setDeleteOpen(true)}>
                   <TrashIcon />
                 </button>
               </span>
             )}
           </div>
-          <button type="button" className="secondary-action" disabled={busy !== null || isExtracting} onClick={() => setPresetDialog({ mode: 'create', name: `${activePreset.name.replace(/（参考）$/, '')} 副本` })}>
+          <button type="button" className="secondary-action" disabled={mutationDisabled} onClick={() => setPresetDialog({ mode: 'create', name: `${activePreset.name.replace(/（参考）$/, '')} 副本` })}>
             <CopyIcon />
             复制为我的预设
           </button>
-          <button type="button" className="primary-action" disabled={busy !== null || isExtracting} onClick={() => void openSourceDialog()}>
+          <button type="button" className="primary-action" disabled={mutationDisabled} onClick={() => void openSourceDialog()}>
             <MagicWandIcon />
             {isExtracting ? '提取中...' : '从招标文件生成'}
           </button>
@@ -780,7 +811,7 @@ export default function BlindCheckPage() {
             <div className="blind-check-running blind-check-extraction-progress">
               <span className="section-kicker">从招标文件生成预设</span>
               <p>{extractionTask?.logs?.at(-1) || '正在准备读取招标文件。'}</p>
-              <ProgressBar value={Math.max(0, Math.min(100, extractionTask?.progress ?? 0))} active label={`格式要求提取进度 ${extractionTask?.progress ?? 0}%`} />
+              <TaskProgressSummary label="格式要求提取" percent={extractionTask?.progress ?? 0} status="active" />
               {extractionElapsedText && (
                 <div className="outline-progress-meta">
                   <span>{extractionElapsedText}</span>
@@ -804,10 +835,10 @@ export default function BlindCheckPage() {
           {shownPresetTab === 'source' && activePreset.source ? (
             <ExtractionNotice source={activePreset.source} profile={activePreset.profile} />
           ) : (
-            <>{shownPresetTab === 'privacy' && <label className="blind-check-company-picker">资信库企业<select value={credentialCompanyId} disabled={isExtracting || busy !== null} onChange={event => { setBusy('credential'); void window.yibiao!.blindCheck.selectCredentialCompany(event.target.value).then(applyState).catch(error => showToast(errorMessage(error, '选择企业失败'), 'error')).finally(() => setBusy(null)); }}><option value="">请选择企业（不汇总多家企业信息）</option>{credentialCompanies.map(company => <option key={company.companyId} value={company.companyId}>{company.companyName}</option>)}</select></label>}<PresetEditor
+            <>{shownPresetTab === 'privacy' && <label className="blind-check-company-picker">资信库企业<select value={credentialCompanyId} disabled={mutationDisabled} onChange={event => { setBusy('credential'); void window.yibiao!.blindCheck.selectCredentialCompany(event.target.value).then(applyState).catch(error => reportError(error, '选择企业失败')).finally(() => setBusy(null)); }}><option value="">请选择企业（不汇总多家企业信息）</option>{credentialCompanies.map(company => <option key={company.companyId} value={company.companyId}>{company.companyName}</option>)}</select></label>}<PresetEditor
               tab={shownPresetTab}
               profile={activePreset.profile}
-              readOnly={isExtracting || busy === 'preset'}
+              readOnly={mutationDisabled}
               onCommit={(profile) => void savePresetProfile(profile)}
               credential={{ enabled: useCredentialWords, words: credentialWords, busy: busy === 'credential', onToggle: (enabled) => void toggleCredentialWords(enabled) }}
               source={activePreset.source}
@@ -833,27 +864,16 @@ export default function BlindCheckPage() {
       const startedAt = checkTask?.started_at ? Date.parse(checkTask.started_at) : Number.NaN;
       return (
         <div className={`blind-check-running${isReviewing ? ' is-reviewing' : ''}`} role="status" aria-live="polite">
-          <div className="blind-check-running-visual" aria-hidden="true">
-            <span className="blind-check-running-orbit is-outer" />
-            <span className="blind-check-running-orbit is-inner" />
-            <span className="blind-check-running-core"><FileTextIcon /></span>
-            <span className="blind-check-running-satellite is-first" />
-            <span className="blind-check-running-satellite is-second" />
-          </div>
           <div className="blind-check-running-copy">
             <span className="section-kicker">暗标合规检查</span>
             <h3><ReloadIcon className="blind-check-running-icon" aria-hidden="true" />{isReviewing ? '正在 AI 复核' : '正在检查文档'}</h3>
             <p>{checkTask?.logs?.at(-1) || '正在准备检查。'}</p>
             {isReviewing
-              ? <ProgressBar value={50} active label="AI 复核进行中" />
-              : <ProgressBar value={progress} active label={`暗标合规检查进度 ${progress}%`} />}
-            {Number.isFinite(startedAt) && <small className="blind-check-running-time">已运行 {formatDuration(nowTick - startedAt)}{isReviewing ? ' · 程序检查已完成' : ` · 程序检查 ${progress}%`}</small>}
+              ? <div className="blind-check-awaiting" role="status"><ReloadIcon aria-hidden="true" /><span>正在等待 AI 复核结论，完成时间取决于文档内容与模型响应。</span></div>
+              : <TaskProgressSummary label="程序检查" percent={progress} status="active" />}
+            {Number.isFinite(startedAt) && <small className="blind-check-running-time">已运行 {formatDuration(nowTick - startedAt)}{isReviewing ? ' · 程序检查已完成' : ''}</small>}
           </div>
-          <div className="blind-check-running-stages" aria-label="检查阶段">
-            <span className={isReviewing ? 'is-complete' : 'is-current'}><i>01</i><strong>程序检查</strong><small>{isReviewing ? '已完成' : `${progress}%`}</small></span>
-            <span className={isReviewing ? 'is-current' : ''}><i>02</i><strong>AI 复核</strong><small>{isReviewing ? '进行中' : '等待程序检查'}</small></span>
-            <span><i>03</i><strong>汇总结果</strong><small>等待复核结论</small></span>
-          </div>
+
         </div>
       );
     }
@@ -896,8 +916,8 @@ export default function BlindCheckPage() {
           <FindingGroupList issues={visibleIssues} key={resultTab} />
         ) : (
           <div className="markdown-empty-state rejection-finding-empty">
-            <strong>{resultTab === 'all' ? '未发现问题' : `「${categoryLabels[resultTab]}」未发现问题`}</strong>
-            <p>{resultTab === 'all' ? '当前格式预设下没有检查出问题。' : '可切换到其他类别查看。'}</p>
+            <strong>{result.ruleErrors?.length ? '已完成规则中未发现问题' : resultTab === 'all' ? '未发现问题' : `「${categoryLabels[resultTab]}」未发现问题`}</strong>
+            <p>{result.ruleErrors?.length ? '仍有规则未完成，请核对上方错误并重新检查。' : resultTab === 'all' ? '当前格式预设下没有检查出问题。' : '可切换到其他类别查看。'}</p>
           </div>
         )}
       </>
@@ -914,7 +934,7 @@ export default function BlindCheckPage() {
     // 没有问题的类别不显示；当前选中的类别保留，避免重新检查后页签消失。
     const tabs: StepTab<BlindCheckResultTab>[] = showTabs
       ? [
-        { id: 'all', label: '全部', summary: summary.total ? `高 ${summary.high} · 中 ${summary.medium} · 低 ${summary.low}` : '未发现问题' },
+        { id: 'all', label: '全部', summary: summary.total ? `高 ${summary.high} · 中 ${summary.medium} · 低 ${summary.low}` : result.ruleErrors?.length ? '有规则未完成' : '未发现问题' },
         ...categoryTabs
           .filter((tab) => tab === resultTab || (issueStats.byCategory.get(tab)?.total || 0) > 0)
           .map((tab) => {
@@ -957,8 +977,10 @@ export default function BlindCheckPage() {
   };
 
   const modern = getStoredUiAppearance() === 'modern';
+  if (!stateReady || loadError) return <div className="blind-check-load-state" role={loadError ? 'alert' : 'status'}><strong>{loadError ? '暗标工作区读取失败' : '正在读取暗标工作区…'}</strong>{loadError && <><p>{loadError}</p><button type="button" className="secondary-action" onClick={() => setLoadRevision(value => value + 1)}>重新读取</button></>}</div>;
   return (
     <div className={`blind-check-page is-${step}${modern ? ' is-modern' : ''}`}>
+      {actionError && <div className="blind-check-action-error" role="alert"><strong>操作未完成</strong><span>{actionError}</span><button type="button" className="text-button" onClick={() => setActionError('')}>收起提示</button></div>}
       {modern && <ModernBlindWorkspace step={step} fileName={file?.fileName} onStep={setStep} hasFile={Boolean(file)} />}
       <div className="blind-check-workspace">
       {step === 'upload'
@@ -975,7 +997,7 @@ export default function BlindCheckPage() {
                 running={isFixRunning}
                 checkReady={checkReady}
                 stale={fixStale}
-                busy={isCheckBusy}
+                busy={mutationDisabled}
                 reviewReady={reviewReady}
                 onToggle={(ruleId, enabled) => void toggleFixRule(ruleId, enabled)}
                 onStart={() => setFixDialogOpen(true)}
@@ -1027,6 +1049,7 @@ export default function BlindCheckPage() {
 
       <AppDialog
         open={Boolean(presetDialog)}
+        preventClose={busy === 'preset'}
         onOpenChange={(open) => !open && setPresetDialog(null)}
         kicker="格式预设"
         title={presetDialog?.mode === 'rename' ? '重命名预设' : '复制为我的预设'}
@@ -1040,14 +1063,20 @@ export default function BlindCheckPage() {
           </>
         )}
       >
+        {actionError && <p id="blind-check-preset-name-error" className="blind-check-dialog-error" role="alert">{actionError}</p>}
         <label className="blind-check-name-field">
           <span>预设名称</span>
           <input
+            ref={presetNameRef}
+            aria-required="true"
+            aria-invalid={Boolean(actionError && presetDialog && validatePresetName(presetDialog.name, presetDialog.mode === 'rename' ? activePreset?.id : undefined))}
+            aria-describedby={actionError ? 'blind-check-preset-name-error' : undefined}
+            disabled={busy === 'preset'}
             value={presetDialog?.name || ''}
             maxLength={MAX_PRESET_NAME_LENGTH}
             autoFocus
             placeholder="例如：某某项目暗标要求"
-            onChange={(event) => setPresetDialog((current) => (current ? { ...current, name: event.target.value } : current))}
+            onChange={(event) => { setActionError(''); setPresetDialog((current) => (current ? { ...current, name: event.target.value } : current)); }}
             onKeyDown={(event) => {
               if (event.key === 'Enter') void submitPresetDialog();
             }}
@@ -1057,6 +1086,7 @@ export default function BlindCheckPage() {
 
       <AppDialog
         open={deleteOpen}
+        preventClose={busy === 'preset'}
         onOpenChange={setDeleteOpen}
         kicker="格式预设"
         title="删除预设"
@@ -1067,10 +1097,15 @@ export default function BlindCheckPage() {
             <button type="button" className="danger-action" onClick={() => void deletePreset()} disabled={busy === 'preset'}>删除</button>
           </>
         )}
-      />
+      >
+        {actionError && <p className="blind-check-dialog-error" role="alert">{actionError}</p>}
+      </AppDialog>
 
       <AppDialog
         open={Boolean(savedFixedPath)}
+        onCloseAutoFocus={(event) => {
+          if (exportTriggerRef.current?.isConnected) { event.preventDefault(); exportTriggerRef.current.focus(); }
+        }}
         onOpenChange={(open) => !open && setSavedFixedPath('')}
         kicker="导出完成"
         title="修复结果已导出"

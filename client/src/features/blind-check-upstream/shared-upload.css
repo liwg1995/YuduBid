@@ -84,7 +84,7 @@
   color: var(--yb-primary);
   font-size: 12px;
   font-weight: 800;
-  background: #eef4ff;
+  background: var(--yb-card-bg);
   border-radius: var(--yb-radius-pill);
 }
 

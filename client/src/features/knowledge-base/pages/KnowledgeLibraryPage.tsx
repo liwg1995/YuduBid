@@ -4,6 +4,7 @@ import KnowledgeBasePage from './KnowledgeBasePage';
 import ImageKnowledgeBasePage from './ImageKnowledgeBasePage';
 import '../knowledgeBase.css';
 import './modernKnowledgeBase.css';
+import './knowledgeListDesign.css';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 
 type KnowledgeLibraryType = 'document' | 'image';
@@ -61,7 +62,6 @@ export default function KnowledgeLibraryPage({ initialType = 'document' }: Knowl
       <section className="modern-knowledge-library">
         <header className="modern-knowledge-library-head">
           <div>
-            <span>KNOWLEDGE / LIBRARY</span>
             <h1>知识库</h1>
             <p>把参考资料和方案素材放在随时可用的位置。</p>
           </div>
@@ -69,14 +69,10 @@ export default function KnowledgeLibraryPage({ initialType = 'document' }: Knowl
         </header>
         <nav className="modern-knowledge-library-nav" aria-label="知识库类型">
           <button type="button" aria-current={activeType === 'document' ? 'page' : undefined} className={activeType === 'document' ? 'is-active' : ''} onClick={() => setActiveType('document')}>
-            <span className="modern-knowledge-library-nav-icon">▤</span>
-            <span><strong>文档资料</strong><small>整理文档、提取知识条目</small></span>
-            <span className="modern-knowledge-library-nav-arrow">↗</span>
+            <strong>文档资料</strong>
           </button>
           <button type="button" aria-current={activeType === 'image' ? 'page' : undefined} className={activeType === 'image' ? 'is-active' : ''} onClick={() => setActiveType('image')}>
-            <span className="modern-knowledge-library-nav-icon">▧</span>
-            <span><strong>图片素材</strong><small>归档插图、架构图和本地素材</small></span>
-            <span className="modern-knowledge-library-nav-arrow">↗</span>
+            <strong>图片素材</strong>
           </button>
         </nav>
         {libraryContent}

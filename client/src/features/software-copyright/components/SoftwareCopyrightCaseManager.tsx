@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
+import './softwareCaseDialogs.css';
 import { useEffect, useState } from 'react';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { SoftwareCopyrightCase, SoftwareCopyrightCaseList, SoftwareCopyrightCaseMutationResult } from '../types';
@@ -45,7 +46,7 @@ export function SoftwareCopyrightCaseManager({ blocked, onWorkspaceChanged }: So
 
   async function submitEditor() {
     const nextName = name.trim();
-    if (!nextName) return;
+    if (!nextName || !editor || busyId || (blocked && editor.mode !== 'rename')) return;
     setBusyId(editor?.item?.id || 'new');
     try {
       if (editor?.mode === 'create') {
@@ -78,6 +79,7 @@ export function SoftwareCopyrightCaseManager({ blocked, onWorkspaceChanged }: So
   }
 
   async function switchCase(item: SoftwareCopyrightCase) {
+    if (busyId || blocked) return;
     setBusyId(item.id);
     try {
       const result = await window.yibiao?.softwareCopyright.switchCase(item.id);
@@ -95,6 +97,7 @@ export function SoftwareCopyrightCaseManager({ blocked, onWorkspaceChanged }: So
   }
 
   async function changeArchive(item: SoftwareCopyrightCase, archived: boolean) {
+    if (busyId || (blocked && archived)) return;
     setBusyId(item.id);
     try {
       const result = await window.yibiao?.softwareCopyright.setCaseArchived({ id: item.id, archived });
@@ -113,16 +116,16 @@ export function SoftwareCopyrightCaseManager({ blocked, onWorkspaceChanged }: So
   return (
     <>
       <button type="button" className="secondary-action" onClick={() => setOpen(true)}>项目档案</button>
-      <Dialog.Root open={open} onOpenChange={setOpen}>
+      <Dialog.Root open={open} onOpenChange={(next) => { if (!busyId) setOpen(next); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="detail-help-modal" />
-          <Dialog.Content className="detail-help-card software-copyright-case-dialog">
+          <Dialog.Content className="detail-help-card software-copyright-case-dialog" aria-busy={Boolean(busyId)} onEscapeKeyDown={busyId ? event => event.preventDefault() : undefined} onPointerDownOutside={busyId ? event => event.preventDefault() : undefined}>
             <div className="detail-help-head">
               <div>
                 <span className="section-kicker">软件著作</span>
                 <Dialog.Title>项目档案</Dialog.Title>
               </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭项目档案">×</Dialog.Close>
+              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭项目档案" disabled={Boolean(busyId)}>×</Dialog.Close>
             </div>
             <Dialog.Description>每个项目独立保存字段、草稿、图片、版本历史和正式输出，切换时不会覆盖其他项目。</Dialog.Description>
             <div className="software-copyright-case-toolbar">
@@ -131,10 +134,10 @@ export function SoftwareCopyrightCaseManager({ blocked, onWorkspaceChanged }: So
                 <span>{caseList.cases.filter((item) => !item.archived).length} 个进行中项目</span>
               </div>
               <label>
-                <input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />
+                <input type="checkbox" disabled={Boolean(busyId)} checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />
                 显示已归档
               </label>
-              <button type="button" className="primary-action create-action" disabled={blocked} onClick={() => openEditor('create')}>新建项目</button>
+              <button type="button" className="primary-action create-action" disabled={blocked || Boolean(busyId)} onClick={() => openEditor('create')}>新建项目</button>
             </div>
             {blocked && <div className="software-copyright-case-blocked">请先保存当前草稿或等待任务结束，再切换、复制或新建项目。</div>}
             <div className="software-copyright-case-list" aria-label="软著项目列表">
@@ -169,33 +172,33 @@ export function SoftwareCopyrightCaseManager({ blocked, onWorkspaceChanged }: So
         </Dialog.Portal>
       </Dialog.Root>
 
-      <Dialog.Root open={Boolean(editor)} onOpenChange={(next) => !next && setEditor(null)}>
+      <Dialog.Root open={Boolean(editor)} onOpenChange={(next) => !next && !busyId && setEditor(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="detail-help-modal software-copyright-case-suboverlay" />
-          <Dialog.Content className="detail-help-card software-copyright-case-editor">
+          <Dialog.Content className="detail-help-card software-copyright-case-editor" aria-busy={Boolean(busyId)} onEscapeKeyDown={busyId ? event => event.preventDefault() : undefined} onPointerDownOutside={busyId ? event => event.preventDefault() : undefined}>
             <Dialog.Title>{editor?.mode === 'create' ? '新建软著项目' : editor?.mode === 'duplicate' ? '复制软著项目' : '重命名软著项目'}</Dialog.Title>
             <Dialog.Description>{editor?.mode === 'duplicate' ? '将复制完整工作区并立即切换到副本。' : '项目名称仅用于本地档案管理，不会自动修改申请表中的软件全称。'}</Dialog.Description>
             <label className="software-copyright-case-name">
               <span>项目名称</span>
-              <input value={name} maxLength={80} autoFocus onChange={(event) => setName(event.target.value)} placeholder="例如：禹都助手 V1.0 申报" />
+              <input disabled={Boolean(busyId)} value={name} maxLength={80} autoFocus onChange={(event) => setName(event.target.value)} placeholder="例如：禹都助手 V1.0 申报" />
             </label>
             <div className="software-copyright-dialog-actions">
-              <button type="button" className="secondary-action" onClick={() => setEditor(null)}>取消</button>
-              <button type="button" className={`primary-action${editor?.mode === 'create' ? ' create-action' : ''}`} disabled={!name.trim() || Boolean(busyId)} onClick={() => void submitEditor()}>确认</button>
+              <button type="button" className="secondary-action" disabled={Boolean(busyId)} onClick={() => setEditor(null)}>取消</button>
+              <button type="button" className={`primary-action${editor?.mode === 'create' ? ' create-action' : ''}`} disabled={!name.trim() || Boolean(busyId) || Boolean(blocked && editor?.mode !== 'rename')} onClick={() => void submitEditor()}>{busyId ? '处理中…' : '确认'}</button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
 
-      <Dialog.Root open={Boolean(archiveTarget)} onOpenChange={(next) => !next && setArchiveTarget(null)}>
+      <Dialog.Root open={Boolean(archiveTarget)} onOpenChange={(next) => !next && !busyId && setArchiveTarget(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="detail-help-modal software-copyright-case-suboverlay" />
-          <Dialog.Content className="detail-help-card software-copyright-case-editor">
+          <Dialog.Content className="detail-help-card software-copyright-case-editor" aria-busy={Boolean(busyId)} onEscapeKeyDown={busyId ? event => event.preventDefault() : undefined} onPointerDownOutside={busyId ? event => event.preventDefault() : undefined}>
             <Dialog.Title>归档软著项目</Dialog.Title>
             <Dialog.Description>“{archiveTarget?.name}”将移入已归档列表，项目文件不会删除，之后可以恢复。</Dialog.Description>
             <div className="software-copyright-dialog-actions">
-              <button type="button" className="secondary-action" onClick={() => setArchiveTarget(null)}>取消</button>
-              <button type="button" className="danger-action" disabled={Boolean(busyId)} onClick={() => archiveTarget && void changeArchive(archiveTarget, true)}>确认归档</button>
+              <button type="button" className="secondary-action" disabled={Boolean(busyId)} onClick={() => setArchiveTarget(null)}>取消</button>
+              <button type="button" className="danger-action" disabled={Boolean(busyId) || blocked} onClick={() => archiveTarget && void changeArchive(archiveTarget, true)}>{busyId ? '归档中…' : '确认归档'}</button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
 
 /** 格式要求、检查结果、自动修复三步共用的页面结构：标题卡 + 页签条 + 内容卡片。 */
 
@@ -32,7 +33,7 @@ export function StepTabs<T extends string>({ tabs, active, onSelect, label, pane
   panelId: string;
 }) {
   return (
-    <div className="blind-check-step-tabs" role="tablist" aria-label={label}>
+    <div className="blind-check-step-tabs" role="tablist" aria-label={label} onKeyDown={handleTabListKeyDown}>
       {tabs.map((tab) => {
         const selected = tab.id === active;
         return (
@@ -41,6 +42,7 @@ export function StepTabs<T extends string>({ tabs, active, onSelect, label, pane
             className={`blind-check-step-tab${selected ? ' is-active' : ''}${tab.warning ? ' blind-check-step-tab-warning' : ''}`}
             role="tab"
             aria-selected={selected}
+            tabIndex={selected ? 0 : -1}
             aria-controls={panelId}
             id={`${panelId}-tab-${tab.id}`}
             key={tab.id}

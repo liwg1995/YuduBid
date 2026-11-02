@@ -1,0 +1,41 @@
+/* 正式导出核对：固定标题/操作区，长摘要在中间滚动。Portal 不依赖应用壳。 */
+:root body .software-copyright-export-confirm-card {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: hidden;
+  color: var(--yb-text);
+}
+:root body .software-copyright-export-confirm-head {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--yb-border-soft);
+}
+:root body .software-copyright-export-confirm-head > div { min-width: 0; }
+:root body .software-copyright-export-confirm-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 20px 24px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+}
+:root body .software-copyright-export-confirm-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+:root body .software-copyright-export-confirm-grid > article:first-child { grid-column: 1 / -1; }
+:root body .software-copyright-export-confirm-actions {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 16px 24px;
+  border-top: 1px solid var(--yb-border-soft);
+  background: var(--yb-control-bg);
+}
+@media (max-width: 640px) {
+  :root body .software-copyright-export-confirm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root body .software-copyright-export-confirm-head,
+  :root body .software-copyright-export-confirm-body,
+  :root body .software-copyright-export-confirm-actions { padding: 16px; }
+}

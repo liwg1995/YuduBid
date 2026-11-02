@@ -1,5 +1,11 @@
+import ProjectDetailsDrawer from '../../../shared/ui/ProjectDetailsDrawer';
+import ProjectDeleteDialog from '../../../shared/ui/ProjectDeleteDialog';
+import type { InputRef } from 'antd';
+import { ProjectListEmpty, ProjectListHeader, ProjectListToolbar, ProjectListTable, ProjectListActions, formatProjectListTime } from '../../../shared/ui/ProjectList';
+import CollectionPagination from '../../../shared/ui/CollectionPagination';
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useMemo, useState } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import type { SectionId } from '../../../shared/types/navigation';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { GrantApplicationProfile, GrantApplicationProject, GrantApplicationProjectList } from '../types';
@@ -27,12 +33,20 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
   const [projectName, setProjectName] = useState('');
   const [projectProfileDraft, setProjectProfileDraft] = useState<GrantApplicationProfile>(defaultProjectProfile);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const projectSearchRef = useRef<InputRef>(null);
   const [keyword, setKeyword] = useState('');
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detail = projectList.projects.find(project => project.id === detailId);
+  const [listPage, setListPage] = useState(1);
+  useEffect(() => setListPage(1), [keyword]);
   const [editingProjectId, setEditingProjectId] = useState('');
   const [editingProjectName, setEditingProjectName] = useState('');
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [operationError, setOperationError] = useState('');
 
   const normalizedKeyword = keyword.trim().toLowerCase();
   const filteredProjects = useMemo(() => {
@@ -51,10 +65,12 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
 
   async function loadProjects() {
     try {
-      setLoading(true);
+      setLoading(true); setLoadError(''); setOperationError('');
       const projects = await window.yibiao?.grantApplication.listProjects();
       if (projects) setProjectList(projects);
     } catch (error) {
+      setOperationError(error instanceof Error ? error.message : String(error));
+      setLoadError(error instanceof Error ? error.message : String(error));
       showToast(error instanceof Error ? error.message : '读取课题项目失败', 'error');
     } finally {
       setLoading(false);
@@ -63,16 +79,17 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
 
   useEffect(() => {
     void loadProjects();
-  }, []);
+  }, [loadRevision]);
 
   async function createProject() {
+    if (busy) return;
     const name = projectName.trim();
     if (!name) {
       showToast('请先填写课题项目名称', 'info');
       return;
     }
     try {
-      setBusy(true);
+      setOperationError(''); setBusy(true);
       const result = await window.yibiao?.grantApplication.createProject({ projectName: name, profile: projectProfileDraft });
       if (result?.projects) setProjectList(result.projects);
       setProjectName('');
@@ -81,6 +98,7 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
       showToast('课题项目已创建', 'success');
       onNavigate?.('grant-diagnosis');
     } catch (error) {
+      setOperationError(error instanceof Error ? error.message : String(error));
       showToast(error instanceof Error ? error.message : '创建课题项目失败', 'error');
     } finally {
       setBusy(false);
@@ -88,11 +106,14 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
   }
 
   async function enterProject(project: GrantApplicationProject) {
+    if (busy) return;
     try {
-      setBusy(true);
+      setOperationError(''); setBusy(true);
       await window.yibiao?.grantApplication.switchProject(project.id);
+      setDetailId(null);
       onNavigate?.('grant-diagnosis');
     } catch (error) {
+      setOperationError(error instanceof Error ? error.message : String(error));
       showToast(error instanceof Error ? error.message : '进入课题项目失败', 'error');
     } finally {
       setBusy(false);
@@ -100,6 +121,7 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
   }
 
   async function renameProject(project: GrantApplicationProject) {
+    if (busy) return;
     const name = editingProjectName.trim();
     if (!name || name === project.name) {
       setEditingProjectId('');
@@ -107,13 +129,14 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
       return;
     }
     try {
-      setBusy(true);
+      setOperationError(''); setBusy(true);
       const result = await window.yibiao?.grantApplication.renameProject({ projectId: project.id, name });
       if (result?.projects) setProjectList(result.projects);
       setEditingProjectId('');
       setEditingProjectName('');
       showToast('课题项目已重命名', 'success');
     } catch (error) {
+      setOperationError(error instanceof Error ? error.message : String(error));
       showToast(error instanceof Error ? error.message : '重命名课题项目失败', 'error');
     } finally {
       setBusy(false);
@@ -121,29 +144,43 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
   }
 
   async function deleteProject(project: GrantApplicationProject) {
+    if (busy) return;
     if (pendingDeleteProjectId !== project.id) {
+      setOperationError('');
       setPendingDeleteProjectId(project.id);
       return;
     }
     try {
-      setBusy(true);
+      setOperationError(''); setBusy(true);
       const result = await window.yibiao?.grantApplication.deleteProject(project.id);
       if (result?.projects) setProjectList(result.projects);
       setPendingDeleteProjectId('');
       showToast('课题项目已删除', 'success');
     } catch (error) {
+      setOperationError(error instanceof Error ? error.message : String(error));
       showToast(error instanceof Error ? error.message : '删除课题项目失败', 'error');
     } finally {
       setBusy(false);
     }
   }
 
+  const currentPage = Math.min(listPage, Math.max(1, Math.ceil(filteredProjects.length / 20)));
+  const pageItems = filteredProjects.slice((currentPage - 1) * 20, currentPage * 20);
+
+  if (loadError) return <WorkspaceLoadError message={loadError} onRetry={() => setLoadRevision(value => value + 1)} />;
+
   return (
     <div className={getStoredUiAppearance() === 'modern' ? 'modern-grant-projects' : 'page-stack grant-project-page'}>
+      {operationError && <div className="yb-operation-error" role="alert">{operationError}</div>}
       {getStoredUiAppearance() === 'modern' ? <>
-        <header className="modern-grant-head"><div><span>GRANT / PROJECTS</span><h1>课题项目</h1><p>让不同课题的档案、材料和申报成果各自归位。</p></div><button type="button" onClick={() => setCreateDialogOpen(true)} disabled={busy}>＋ 新建课题项目</button></header>
-        <div className="modern-grant-overview"><div><span>本地项目</span><strong>{projectList.projects.length}</strong></div><label><span>查找课题</span><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="项目名称、历史项目或创建时间" /></label><small>当前显示 {filteredProjects.length} 个</small></div>
-        <section className="modern-grant-list" aria-label="课题项目列表">{loading ? <p>正在读取课题项目…</p> : filteredProjects.length ? filteredProjects.map((project) => <article key={project.id}><div className="modern-grant-project-mark">{projectNameInitials(project.name)}</div><div className="modern-grant-project-body">{editingProjectId === project.id ? <input autoFocus value={editingProjectName} onChange={(event) => setEditingProjectName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void renameProject(project); if (event.key === 'Escape') setEditingProjectId(''); }} aria-label="编辑课题项目名称" /> : <strong>{project.name}</strong>}<span>{project.isLegacy ? '历史项目 · 承接旧版数据' : `创建于 ${new Date(project.created_at).toLocaleString('zh-CN', { hour12: false })}`}</span></div><div className="modern-grant-project-actions">{editingProjectId === project.id ? <><button type="button" onClick={() => void renameProject(project)} disabled={busy}>保存</button><button type="button" onClick={() => setEditingProjectId('')} disabled={busy}>取消</button></> : <button type="button" onClick={() => { setEditingProjectId(project.id); setEditingProjectName(project.name); }} disabled={busy}>重命名</button>}{projectList.projects.length > 1 && <button type="button" className="is-danger" onClick={() => void deleteProject(project)} disabled={busy}>{pendingDeleteProjectId === project.id ? '确认删除' : '删除'}</button>}<button type="button" className="is-primary" onClick={() => void enterProject(project)} disabled={busy}>进入项目 →</button></div></article>) : <div className="modern-grant-empty"><strong>{projectList.projects.length ? '没有匹配项目' : '还没有课题项目'}</strong><p>新建项目后即可整理申报材料。</p><button type="button" onClick={() => setCreateDialogOpen(true)}>创建课题项目</button></div>}</section>
+        <ProjectListHeader title="课题项目" description="让不同课题的档案、材料和申报成果各自归位。" actions={<button type="button" className="primary-action" onClick={() => setCreateDialogOpen(true)} disabled={busy}>新建项目</button>} />
+        <ProjectListToolbar inputRef={projectSearchRef} query={keyword} onQueryChange={setKeyword} placeholder="搜索项目名称、历史项目或创建时间" count={`${filteredProjects.length} / ${projectList.projects.length} 个项目`} />
+        <section className="modern-grant-list" aria-label="课题项目列表"><ProjectListTable<GrantApplicationProject> loading={loading} dataSource={pageItems} pagination={false} columns={[
+          { title: '项目名称', render: (_, project) => <div className="yb-project-list-name">{editingProjectId === project.id ? <input disabled={busy} autoFocus value={editingProjectName} onChange={event => setEditingProjectName(event.target.value)} aria-label="编辑课题项目名称" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void renameProject(project); } else if (event.key === 'Escape' && !busy) setEditingProjectId(''); }} /> : <button type="button" onClick={() => { setOperationError(''); setDetailId(project.id); }}>{project.name}</button>}<small>{project.isLegacy ? '历史项目 · 承接旧版数据' : '独立项目'}</small></div> },
+          { title: '创建时间', dataIndex: 'created_at', width: 180, render: formatProjectListTime },
+          { title: '最近更新', dataIndex: 'updated_at', width: 180, render: formatProjectListTime },
+          { title: '操作', width: 180, fixed: 'right', render: (_, project) => editingProjectId === project.id ? <div className="yb-project-list-actions"><button type="button" disabled={busy} onClick={() => void renameProject(project)}>保存</button><button type="button" disabled={busy} onClick={() => setEditingProjectId('')}>取消</button></div> : <ProjectListActions name={project.name} disabled={busy} onEnter={() => void enterProject(project)} items={[{ key: 'rename', label: '重命名', onClick: () => { setEditingProjectId(project.id); setEditingProjectName(project.name); } }, ...(projectList.projects.length > 1 ? [{ key: 'delete', label: '删除项目', danger: true, onClick: () => void deleteProject(project) }] : [])]} /> },
+        ]} locale={{ emptyText: <ProjectListEmpty subject="课题项目" filtered={Boolean(keyword.trim())} disabled={busy} onReset={() => { setKeyword(''); requestAnimationFrame(() => projectSearchRef.current?.focus()); }} onCreate={() => setCreateDialogOpen(true)} /> }} /></section>
       </> : <>
       <section className="technical-project-hero">
         <div>
@@ -173,11 +210,11 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
         {loading && <div className="markdown-empty-state">正在读取课题项目...</div>}
         {!loading && !projectList.projects.length && <div className="markdown-empty-state">暂无课题项目，先创建一个项目。</div>}
         {!loading && projectList.projects.length > 0 && !filteredProjects.length && <div className="markdown-empty-state">没有匹配的课题项目，换个关键词试试。</div>}
-        {filteredProjects.map((project) => (
+        {pageItems.map((project) => (
           <article className="technical-project-card" key={project.id}>
             <div>
               {editingProjectId === project.id ? (
-                <input className="technical-project-name-input" value={editingProjectName} onChange={(event) => setEditingProjectName(event.target.value)} aria-label="编辑课题项目名称" />
+                <input disabled={busy} className="technical-project-name-input" value={editingProjectName} onChange={(event) => setEditingProjectName(event.target.value)} aria-label="编辑课题项目名称" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void renameProject(project); } else if (event.key === 'Escape' && !busy) setEditingProjectId(''); }} />
               ) : (
                 <strong>{project.name}</strong>
               )}
@@ -194,7 +231,7 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
               )}
               {projectList.projects.length > 1 && (
                 <button type="button" className="secondary-action danger-action" onClick={() => void deleteProject(project)} disabled={busy}>
-                  {pendingDeleteProjectId === project.id ? '确认删除' : '删除'}
+                  删除
                 </button>
               )}
               <button type="button" className="primary-action" onClick={() => void enterProject(project)} disabled={busy}>进入项目</button>
@@ -203,24 +240,26 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
         ))}
       </section>
       </>}
-      <Dialog.Root open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+      <ProjectDeleteDialog name={projectList.projects.find(project => project.id === pendingDeleteProjectId)?.name} description="该课题项目的档案、材料和工作稿将被删除，此操作无法撤销。" busy={busy} error={operationError} onCancel={() => setPendingDeleteProjectId('')} onConfirm={() => { const target = projectList.projects.find(project => project.id === pendingDeleteProjectId); if (target) void deleteProject(target); }} />
+      <CollectionPagination page={currentPage} total={filteredProjects.length} onChange={setListPage} />
+      <Dialog.Root open={createDialogOpen} onOpenChange={open => { if (!busy) { setOperationError(''); setCreateDialogOpen(open); } }}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="content-regenerate-card grant-application-create-dialog">
+          <Dialog.Content className="content-regenerate-card grant-application-create-dialog" onEscapeKeyDown={busy ? event => event.preventDefault() : undefined} onPointerDownOutside={busy ? event => event.preventDefault() : undefined}>
             <div className="content-regenerate-card-head">
               <div>
                 <Dialog.Title>新建课题项目</Dialog.Title>
-                <Dialog.Description>创建项目时填写课题档案，后续诊断、选题、撰写和评审会自动引用。</Dialog.Description>
+                <Dialog.Description>创建项目时填写课题档案，后续诊断、选题、撰写和评审会自动引用。</Dialog.Description>{operationError && <div className="yb-operation-error" role="alert">{operationError}</div>}
               </div>
             </div>
             <div className="grant-application-create-profile-grid">
               <label>
                 <span>项目名称</span>
-                <input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="例如：市级课题-分层作业设计研究" autoFocus />
+                <input disabled={busy} value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="例如：市级课题-分层作业设计研究" autoFocus />
               </label>
               <label>
                 <span>课题级别</span>
-                <select value={projectProfileDraft.level} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, level: event.target.value }))}>
+                <select disabled={busy} value={projectProfileDraft.level} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, level: event.target.value }))}>
                   <option>校级</option>
                   <option>县级</option>
                   <option>市级</option>
@@ -231,7 +270,7 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
               </label>
               <label>
                 <span>学科领域</span>
-                <select value={projectProfileDraft.discipline} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, discipline: event.target.value }))}>
+                <select disabled={busy} value={projectProfileDraft.discipline} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, discipline: event.target.value }))}>
                   <option>教育学</option>
                   <option>医学/临床</option>
                   <option>工程技术</option>
@@ -243,7 +282,7 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
               </label>
               <label>
                 <span>当前阶段</span>
-                <select value={projectProfileDraft.stage} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, stage: event.target.value }))}>
+                <select disabled={busy} value={projectProfileDraft.stage} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, stage: event.target.value }))}>
                   <option>准备申报</option>
                   <option>已有方向</option>
                   <option>已有草稿</option>
@@ -254,15 +293,15 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
               </label>
               <label>
                 <span>截止时间</span>
-                <input type="date" value={projectProfileDraft.deadline} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, deadline: event.target.value }))} />
+                <input disabled={busy} type="date" value={projectProfileDraft.deadline} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, deadline: event.target.value }))} />
               </label>
               <label className="is-wide">
                 <span>研究方向</span>
-                <input value={projectProfileDraft.direction} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, direction: event.target.value }))} placeholder="一句话描述课题方向" />
+                <input disabled={busy} value={projectProfileDraft.direction} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, direction: event.target.value }))} placeholder="一句话描述课题方向" />
               </label>
               <label className="is-wide">
                 <span>基础说明</span>
-                <textarea value={projectProfileDraft.sourceNotes} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, sourceNotes: event.target.value }))} placeholder="补充团队基础、学校场景、已有成果、数据来源或申报限制。" />
+                <textarea disabled={busy} value={projectProfileDraft.sourceNotes} onChange={(event) => setProjectProfileDraft((prev) => ({ ...prev, sourceNotes: event.target.value }))} placeholder="补充团队基础、学校场景、已有成果、数据来源或申报限制。" />
               </label>
             </div>
             <div className="grant-application-dialog-actions">
@@ -274,6 +313,16 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+      <ProjectDetailsDrawer open={Boolean(detail)} onClose={() => setDetailId(null)}
+        onEnter={detail ? () => void enterProject(detail) : undefined} enterDisabled={busy} entering={busy} error={operationError}
+        items={detail ? [
+          { key: 'name', label: '项目名称', children: detail.name },
+          { key: 'kind', label: '项目类型', children: detail.isLegacy ? '历史项目' : '独立项目' },
+          { key: 'active', label: '工作区', children: detail.id === projectList.activeProjectId ? '当前项目' : '其他项目' },
+          { key: 'created', label: '创建时间', children: formatProjectListTime(detail.created_at) },
+          { key: 'updated', label: '更新时间', children: formatProjectListTime(detail.updated_at) },
+        ] : []} />
+
     </div>
   );
 }

@@ -1,0 +1,10 @@
+.official-document-export-feedback { flex: 0 0 auto; min-width: 0; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--yb-border-soft); border-radius: 8px; color: var(--yb-text); background: var(--yb-control-bg); }
+.official-document-export-feedback-copy { display: flex; min-width: 0; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; font-size: 14px; line-height: 22px; }
+.official-document-export-feedback-copy > svg { flex: 0 0 auto; width: 16px; height: 16px; align-self: center; }
+.official-document-export-feedback-copy > strong { flex: 0 0 auto; font-weight: 500; }
+.official-document-export-feedback-copy > span { flex: 1 1 260px; min-width: 0; color: var(--yb-text-soft); overflow-wrap: anywhere; }
+.official-document-export-feedback.is-success .official-document-export-feedback-copy > :is(svg,strong) { color: var(--yb-success, #389e0d); }
+:root[data-ui-theme='dark'] .official-document-export-feedback.is-success .official-document-export-feedback-copy > :is(svg,strong) { color: #8bd8bd; }
+.official-document-export-feedback.is-error .official-document-export-feedback-copy > :is(svg,strong) { color: var(--yb-danger, #cf1322); }
+:root[data-ui-theme='dark'] .official-document-export-feedback.is-error .official-document-export-feedback-copy > :is(svg,strong) { color: #ffa39e; }
+.official-document-export-feedback > .yb-business-progress { margin-top: 8px; }

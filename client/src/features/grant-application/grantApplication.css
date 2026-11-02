@@ -37,7 +37,7 @@
 .grant-application-panel {
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--yb-card-bg);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
 }
 
@@ -66,14 +66,14 @@
   padding: 0 12px;
   border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: #1d4ed8;
   font-size: 12px;
   font-weight: 900;
 }
 
 .grant-application-help-button:hover {
-  background: #eef5ff;
+  background: var(--yb-control-bg);
 }
 
 .grant-application-header h2 {
@@ -99,7 +99,7 @@
   padding: 18px 20px;
   border: 1px solid rgba(37, 99, 235, 0.16);
   border-radius: 14px;
-  background: #f3f7ff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-header-side strong {
@@ -130,7 +130,7 @@
   padding: 0 11px;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: #172033;
   font: inherit;
   font-size: 12px;
@@ -166,12 +166,12 @@
 
 .grant-application-tabs button:hover {
   border-color: rgba(37, 99, 235, 0.14);
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--yb-control-bg);
 }
 
 .grant-application-tabs button.is-active {
   border-color: rgba(37, 99, 235, 0.24);
-  background: #ffffff;
+  background: var(--yb-control-bg);
   box-shadow: 0 10px 20px rgba(37, 99, 235, 0.08);
 }
 
@@ -223,7 +223,7 @@
   min-width: 0;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--yb-control-bg);
   color: #172033;
   font: inherit;
   outline: none;
@@ -269,7 +269,7 @@
   padding: 11px 12px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-profile-readonly div.is-wide {
@@ -414,7 +414,7 @@
   padding: 10px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-proposal-command-bar .primary-action,
@@ -440,10 +440,10 @@
   padding: 12px 14px;
   border: 1px solid rgba(37, 99, 235, 0.16);
   border-radius: 12px;
-  background: #f3f7ff;
+  background: var(--yb-card-bg);
 }
 
-.grant-application-ai-progress div {
+.grant-application-ai-progress > div:not(.yb-business-progress) {
   display: grid;
   min-width: 0;
   gap: 3px;
@@ -498,7 +498,7 @@
   padding: 14px;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 14px;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-visual-options {
@@ -509,7 +509,7 @@
   padding: 10px 12px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-visual-options label {
@@ -520,7 +520,7 @@
   padding: 0 10px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--yb-card-bg);
   color: #536179;
   font-size: 12px;
   font-weight: 800;
@@ -548,24 +548,24 @@
   padding: 11px 12px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-control-bg);
   color: #536179;
   text-align: left;
 }
 
 .grant-application-module-list button:hover {
   border-color: rgba(37, 99, 235, 0.2);
-  background: #f6f9ff;
+  background: var(--yb-control-bg);
 }
 
 .grant-application-module-list button.is-active {
   border-color: rgba(37, 99, 235, 0.32);
-  background: #eef5ff;
+  background: var(--yb-control-bg);
 }
 
 .grant-application-module-list button.is-running {
   border-color: rgba(37, 99, 235, 0.45);
-  background: #eff6ff;
+  background: var(--yb-control-bg);
   box-shadow: 0 10px 22px rgba(37, 99, 235, 0.1);
 }
 
@@ -613,7 +613,7 @@
   padding: 12px 14px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-module-editor-head div {
@@ -650,7 +650,7 @@
   padding: 10px 12px;
   border: 1px solid rgba(37, 99, 235, 0.16);
   border-radius: 12px;
-  background: #f3f7ff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-quality-card strong {
@@ -666,24 +666,24 @@
 
 .grant-application-quality-card.is-pass {
   border-color: rgba(20, 184, 166, 0.2);
-  background: #f0fdfa;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-quality-card.is-warning {
   border-color: rgba(245, 158, 11, 0.24);
-  background: #fffbeb;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-quality-card.is-risk {
   border-color: rgba(239, 68, 68, 0.2);
-  background: #fff5f5;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-quality-report {
   padding: 11px 12px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-quality-report summary {
@@ -702,7 +702,7 @@
   padding: 0 12px;
   border: 1px solid rgba(37, 99, 235, 0.16);
   border-radius: 999px;
-  background: #eef5ff;
+  background: var(--yb-card-bg);
   color: #1d4ed8;
   font-size: 13px;
   font-weight: 900;
@@ -722,7 +722,7 @@
   padding: 14px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-field-mapping {
@@ -731,7 +731,7 @@
   padding: 10px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-field-mapping-head {
@@ -766,14 +766,15 @@
   line-height: 1.45;
 }
 
-.grant-application-tool-count {
+:root .grant-application-field-mapping-head .grant-application-tool-count {
   flex: 0 0 auto;
   padding: 4px 8px;
-  border-radius: 999px;
-  background: #eef5ff;
-  color: #1d4ed8 !important;
-  font-size: 11px !important;
-  font-weight: 900;
+  border-radius: 6px;
+  background: var(--yb-control-bg);
+  color: var(--yb-primary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
   white-space: nowrap;
 }
 
@@ -805,7 +806,7 @@
   padding: 9px 10px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-field-item summary {
@@ -857,7 +858,7 @@
   padding: 3px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 12px;
-  background: #f6f9ff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-mode-switch button {
@@ -873,7 +874,7 @@
 }
 
 .grant-application-mode-switch button.is-active {
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: #1d4ed8;
   box-shadow: 0 6px 14px rgba(37, 99, 235, 0.1);
 }
@@ -887,7 +888,7 @@
   padding: 14px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 12px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
   box-sizing: border-box;
   overflow: auto;
   scrollbar-gutter: stable;
@@ -909,7 +910,7 @@
   border: 1px dashed rgba(37, 99, 235, 0.24);
   border-radius: 12px;
   color: #7b879a;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
   font-size: 13px;
   line-height: 1.65;
   text-align: center;
@@ -990,7 +991,7 @@
   padding: 8px 10px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 10px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
   color: #627089;
   font-size: 12px;
   line-height: 1.45;
@@ -1018,7 +1019,7 @@
   padding: 0 12px;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: #172033;
   font: inherit;
   outline: none;
@@ -1062,7 +1063,7 @@
   min-width: 0;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: #172033;
   font: inherit;
   outline: none;
@@ -1096,10 +1097,10 @@
   padding: 12px 14px;
   border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: 12px;
-  background: #f3f7ff;
+  background: var(--yb-card-bg);
 }
 
-.grant-application-task div {
+.grant-application-task > div:not(.yb-business-progress) {
   display: grid;
   min-width: 0;
   gap: 3px;
@@ -1133,15 +1134,15 @@
   padding: 14px;
   border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: 12px;
-  background: #f3f7ff;
+  background: var(--yb-card-bg);
 }
 
 .grant-application-export-progress.is-error {
   border-color: rgba(239, 68, 68, 0.28);
-  background: #fff5f5;
+  background: var(--yb-card-bg);
 }
 
-.grant-application-export-progress div {
+.grant-application-export-progress > div:not(.yb-business-progress) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1381,3 +1382,8 @@
     justify-content: flex-start;
   }
 }
+
+/* 已结束的本地阶段保留说明与结果，避免两层摘要堆叠。 */
+:root .grant-application-ai-progress:has(> .yb-progress-complete) { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+:root .grant-application-ai-progress:has(> .yb-progress-complete) > div:not(.yb-business-progress) { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
+:root .grant-application-ai-progress > .yb-progress-complete { width:auto; }

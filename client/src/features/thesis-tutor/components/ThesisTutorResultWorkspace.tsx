@@ -1,3 +1,8 @@
+import './thesisResultWorkspace.css';
+import * as Dialog from '@radix-ui/react-dialog';
+import { useRef, useState } from 'react';
+import WorkspaceViewControl from '../../../shared/ui/WorkspaceViewControl';
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
 import type { WordExportProgressEvent } from '../../../shared/types/ipc';
 import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
@@ -56,13 +61,28 @@ export function ThesisTutorResultWorkspace({
   importSource,
   startDiagnosisTemplate,
 }: ThesisTutorResultWorkspaceProps) {
+  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'compare'>('compare');
   const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
-  const evidenceAudit = auditThesisEvidence(result, references);
-  const showEvidenceAudit = ['literature', 'drafting', 'writing', 'review', 'format'].includes(activePanel) && Boolean(result.trim());
+  const exportTriggerRef = useRef<HTMLElement | null>(null);
+  const restoreExportFocus = (event: Event) => {
+    const trigger = exportTriggerRef.current;
+    if (trigger?.isConnected && trigger.getClientRects().length) { event.preventDefault(); trigger.focus({ preventScroll: true }); }
+  };
+  const evidenceAudit = auditThesisEvidence(draft, references);
+  const showEvidenceAudit = ['literature', 'drafting', 'writing', 'review', 'format'].includes(activePanel) && Boolean(draft.trim());
   const needsExportReminder = showEvidenceAudit && (evidenceAudit.items.length > 0 || (['drafting', 'writing'].includes(activePanel) && evidenceAudit.markerCount === 0));
 
+  const exporting = exportProgress?.phase === 'running';
+
   function requestExportWord() {
-    if (needsExportReminder) setExportConfirmOpen(true);
+    if (saving || isRunning || exporting || !draft.trim()) return;
+    if (needsExportReminder) {
+      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const menu = active?.closest('details');
+      exportTriggerRef.current = menu?.querySelector<HTMLElement>('summary') || active;
+      if (menu) menu.open = false;
+      setExportConfirmOpen(true);
+    }
     else exportWord();
   }
 
@@ -78,24 +98,18 @@ export function ThesisTutorResultWorkspace({
           <details className="thesis-tutor-action-menu">
             <summary>更多操作</summary>
             <div>
-              <button type="button" onClick={copyResult} disabled={!result}>复制结果</button>
-              <button type="button" onClick={requestExportWord} disabled={saving || isRunning || !result}>导出 Word</button>
+              <button type="button" onClick={copyResult} disabled={!draft.trim()}>复制结果</button>
+              <button type="button" onClick={requestExportWord} disabled={saving || isRunning || exporting || !draft.trim()}>{exporting ? '导出中…' : '导出 Word'}</button>
             </div>
           </details>
         </div>
       </div>
       {exportProgress && exportProgress.phase !== 'canceled' && (
         <div className={`thesis-tutor-export-status is-${exportProgress.phase}`}>
-          <div className="thesis-tutor-task-head">
-            <span>{exportProgress.message}</span>
-            <strong>{exportProgress.progress}%</strong>
-          </div>
-          <div className="thesis-tutor-task-track" aria-hidden="true">
-            <i style={{ width: `${Math.max(0, Math.min(100, exportProgress.progress))}%` }} />
-          </div>
+          <BusinessTaskProgress label={exportProgress.message} percent={exportProgress.progress} status={exportProgress.phase === 'error' ? 'exception' : exportProgress.phase === 'success' ? 'success' : 'active'} />
         </div>
       )}
-      {result.trim() && (
+      {draft.trim() && (
         <details className="thesis-tutor-flow-actions thesis-tutor-flow-details">
           <summary>保存到项目或继续下一步</summary>
           <div>
@@ -142,31 +156,36 @@ export function ThesisTutorResultWorkspace({
           </div>
         </details>
       )}
-      <div className={`thesis-tutor-result-body ${result ? 'has-result' : 'is-empty'}`}>
-        <div className="thesis-tutor-editor-zone">
+      <div className="thesis-tutor-result-view-bar">
+        <WorkspaceViewControl label="论文结果查看方式" value={viewMode} onChange={setViewMode} options={[{ value: 'edit', label: '编辑工作稿' }, { value: 'preview', label: '预览工作稿' }, { value: 'compare', label: '编辑与预览' }]} />
+        <span>预览与当前工作稿同步；修改后请保存。</span>
+      </div>
+      <div className={`thesis-tutor-result-body is-view-${viewMode} ${draft.trim() ? 'has-result' : 'is-empty'}`}>
+        {viewMode !== 'preview' && <div className="thesis-tutor-editor-zone">
           {getStoredUiAppearance() === 'modern' && <span className="modern-thesis-result-label">可编辑工作稿</span>}
-        <MarkdownEditor
-          value={draft}
-          onChange={setDraft}
+          <MarkdownEditor
+            ariaLabel="论文工作稿"
+            value={draft}
+            onChange={setDraft}
           placeholder={`${panel.resultPlaceholder}\n\n也可以直接输入或粘贴内容；建议先补充“${panel.inputTitle}”和“${panel.materialTitle}”，再点击“${nextActionLabel}”。`}
-          disabled={isRunning}
+          disabled={isRunning || saving}
         />
-        </div>
-        {result ? (
-          <div className="thesis-tutor-preview">
-            {getStoredUiAppearance() === 'modern' && <span className="modern-thesis-result-label">生成结果参照</span>}
-            <MarkdownRenderer allowRawHtml={false}>{result}</MarkdownRenderer>
+        </div>}
+        {viewMode !== 'edit' && (draft.trim() ? (
+          <div className="thesis-tutor-preview" role="region" aria-label="工作稿预览">
+            {getStoredUiAppearance() === 'modern' && <span className="modern-thesis-result-label">工作稿预览</span>}
+            <MarkdownRenderer allowRawHtml={false}>{draft}</MarkdownRenderer>
           </div>
         ) : (
           <div className="thesis-tutor-result-hint">
             <p>当前为空，生成或手动输入后可保存、复制和导出 Word。</p>
           </div>
-        )}
+        ))}
       </div>
       <Dialog.Root open={exportConfirmOpen} onOpenChange={setExportConfirmOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="thesis-tutor-help-card thesis-tutor-evidence-export-dialog">
+          <Dialog.Content onCloseAutoFocus={restoreExportFocus} className="thesis-tutor-help-card thesis-tutor-evidence-export-dialog">
             <Dialog.Title>导出前核对证据</Dialog.Title>
             <Dialog.Description>
               {evidenceAudit.items.length
@@ -176,7 +195,7 @@ export function ThesisTutorResultWorkspace({
             </Dialog.Description>
             <div className="thesis-tutor-evidence-export-actions">
               <Dialog.Close asChild><button type="button" className="secondary-action">返回核对</button></Dialog.Close>
-              <button type="button" className="primary-action" onClick={() => { setExportConfirmOpen(false); exportWord(); }}>仍要导出</button>
+              <button type="button" className="primary-action" disabled={saving || isRunning || exporting || !draft.trim()} onClick={() => { setExportConfirmOpen(false); exportWord(); }}>仍要导出</button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
@@ -184,5 +203,3 @@ export function ThesisTutorResultWorkspace({
     </div>
   );
 }
-import * as Dialog from '@radix-ui/react-dialog';
-import { useState } from 'react';

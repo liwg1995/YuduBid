@@ -1,0 +1,74 @@
+/* 数据列表：正文14/22、说明12/20，间距8/16/24。 */
+.modern-knowledge-library { gap: 16px; }
+.modern-knowledge-library-head { align-items: center; }
+.modern-knowledge-library-head h1 { margin: 0 0 8px; font-size: 20px; line-height: 28px; }
+.modern-knowledge-library-head p { font-size: 14px; line-height: 22px; }
+.modern-knowledge-library-head button { min-height: 32px; font-size: 14px; font-weight: 500; }
+.modern-knowledge-library-nav { display: flex; gap: 24px; border-bottom: 1px solid #354157; }
+.modern-knowledge-library-nav button { min-height: 40px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 0; background: transparent; }
+.modern-knowledge-library-nav button.is-active { border-bottom-color: #ab9af4; background: transparent; box-shadow: none; }
+.modern-knowledge-library-nav button:hover, .modern-knowledge-library-head button:hover { transform: none; }
+.modern-knowledge-library-nav strong { font-size: 14px; line-height: 22px; font-weight: 500; }
+.modern-knowledge-page, .modern-knowledge-viewer { gap: 16px; }
+.modern-knowledge-header { padding: 0 0 16px; }
+.modern-knowledge-header h2 { margin: 0 0 8px; font-size: 16px; line-height: 24px; }
+.modern-knowledge-header p { font-size: 14px; line-height: 22px; }
+.modern-knowledge-header > div:last-child strong { font-size: 16px; }
+.modern-knowledge-header > div:last-child small { font-size: 12px; }
+.modern-knowledge-header button, .modern-knowledge-empty button { min-height: 32px; font-size: 14px; font-weight: 500; }
+.modern-knowledge-workspace { grid-template-columns: 200px minmax(0, 1fr); gap: 16px; }
+.modern-knowledge-panel-head, .modern-knowledge-document-head { min-height: 56px; padding: 16px; }
+.modern-knowledge-panel-head button, .modern-knowledge-create button { min-height: 32px; font-size: 14px; }
+.modern-knowledge-create { gap: 8px; padding: 16px; }
+.modern-knowledge-create input { min-height: 32px; font-size: 14px; }
+.modern-knowledge-folder-list { padding: 8px; }
+.modern-knowledge-folder > button strong { font-size: 14px; line-height: 22px; font-weight: 500; }
+.modern-knowledge-folder > button small, .modern-knowledge-folder-foot, .modern-knowledge-document-head > strong { font-size: 12px; line-height: 20px; }
+.modern-knowledge-folder > div { opacity: 1; }
+.modern-knowledge-folder > div button { width: 28px; min-height: 32px; }
+.modern-knowledge-document-head h3 { overflow-wrap: anywhere; font-size: 16px; line-height: 24px; }
+.modern-knowledge-document-head span { font-size: 12px; }
+.modern-knowledge-empty { min-height: 0; flex: 1; gap: 8px; padding: 24px; }
+.modern-knowledge-empty strong { font-size: 16px; line-height: 24px; }
+.modern-knowledge-empty p { max-width: 560px; margin: 0; overflow-wrap: anywhere; font-size: 14px; line-height: 22px; }
+.modern-knowledge-empty button { margin: 8px 0 0; }
+.knowledge-document-table { display: flex; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
+.knowledge-list-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px; }
+.knowledge-list-toolbar .enterprise-search-input { width: 280px; max-width: 100%; }
+.knowledge-list-toolbar .ant-select { width: 140px; }
+.knowledge-list-toolbar > span:last-child { margin-left: auto; color: #b1bad0; font-size: 12px; line-height: 20px; }
+.knowledge-list-table-scroll { min-height: 0; flex: 1; overflow: auto; padding: 0 16px 16px; }
+.knowledge-document-table .ant-table-cell { vertical-align: top; }
+.knowledge-list-name { min-width: 160px; }
+.modern-knowledge-page .knowledge-list-name button, .modern-knowledge-page .knowledge-list-actions button, .knowledge-list-no-results button { border: 0; padding: 0; color: #b9acff; background: transparent; font-size: 14px; line-height: 22px; text-align: left; }
+.knowledge-list-name button { overflow-wrap: anywhere; }
+.knowledge-list-name button:disabled { color: #edf0fa; opacity: 1; cursor: default; }
+.knowledge-list-name small { display: block; margin-top: 8px; color: #b1bad0; overflow-wrap: anywhere; font-size: 12px; }
+.knowledge-list-error { margin: 8px 0 0; color: #ffa39e; font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+.knowledge-list-actions { display: flex; gap: 16px; white-space: nowrap; }
+.knowledge-list-progress > span { display: block; font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+.knowledge-list-progress .ant-progress { margin: 0; }
+.knowledge-list-progress .ant-progress-indicator { width: 4.5ch; font-variant-numeric: tabular-nums; }
+.knowledge-list-pending { color: #b1bad0; }
+.knowledge-list-count { font-variant-numeric: tabular-nums; }
+.knowledge-list-no-results { padding: 24px; }
+.knowledge-list-no-results p { font-size: 14px; }
+.modern-knowledge-viewer-header h2 { white-space: normal; overflow-wrap: anywhere; font-size: 20px; line-height: 28px; }
+.modern-knowledge-viewer-header p, .modern-knowledge-viewer-header button, .modern-knowledge-viewer-modes button { font-size: 14px; line-height: 22px; }
+.modern-knowledge-viewer-header button { min-height: 32px; }
+.modern-knowledge-viewer-modes button small { font-size: 12px; }
+@container (max-width: 760px) { .modern-knowledge-workspace { grid-template-columns: 180px minmax(0,1fr); } }
+@container (max-width: 570px) { .modern-knowledge-library-nav { flex-direction: row; } .modern-knowledge-workspace { display: flex; } .modern-knowledge-documents { min-height: 420px; } .modern-knowledge-folder-list { max-height: 160px; } }
+.knowledge-document-table .ant-table, .knowledge-list-progress, .knowledge-list-count { color: #edf0fa; }
+.knowledge-document-table .ant-tag { color: #b1bad0; border-color: #526176; background: #263247; }
+.knowledge-document-table .ant-tag-success { color: #95de64; border-color: #3c682f; background: #203520; }
+.knowledge-document-table .ant-tag-error { color: #ffaba8; border-color: #854649; background: #3d232b; }
+.modern-knowledge-folder > button strong { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.modern-knowledge-folder > button { padding: 8px; }
+.modern-knowledge-folder-list > p { font-size: 14px; line-height: 22px; }
+.modern-knowledge-page[hidden] { display: none; }
+.modern-knowledge-viewer .knowledge-empty-box { font-size: 14px; line-height: 22px; }
+.modern-knowledge-viewer .knowledge-empty-box strong { font-size: 16px; line-height: 24px; }
+.modern-knowledge-viewer .knowledge-empty-box p { font-size: 14px; line-height: 22px; }
+.modern-knowledge-viewer-body .knowledge-item-card > strong { font-size: 16px; line-height: 24px; }
+.modern-knowledge-viewer-body .knowledge-item-card > p { font-size: 14px; line-height: 22px; }

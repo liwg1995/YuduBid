@@ -1,0 +1,2 @@
+:root[data-ui-appearance="modern"] body .yb-project-delete-dialog > .yb-operation-error { margin:16px 24px 0; }
+:root body .yb-project-delete-dialog > .yb-operation-error { overflow-wrap:anywhere; font-size:14px; line-height:22px; }

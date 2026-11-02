@@ -7,8 +7,10 @@ import BidAnalysisPage from './BidAnalysisPage';
 import OutlineEditPage from './OutlineEditPage';
 import GlobalFactsPage from './GlobalFactsPage';
 import ContentEditPage from './ContentEditPage';
+import ExpandChapterPicker from '../components/ExpandChapterPicker';
+import TaskProgressSummary from '../../../shared/ui/TaskProgressSummary';
 import ModernTechnicalProjects from '../components/ModernTechnicalProjects';
-import ModernTechnicalWorkflow, { type WorkflowAction } from '../components/ModernTechnicalWorkflow';
+import ModernTechnicalWorkflow, { type WorkflowAction, type WorkflowStepStatus } from '../components/ModernTechnicalWorkflow';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import { registerNavigationBlocker } from '../../../shared/navigationBlocker';
 import './modernExpand.css';
@@ -244,7 +246,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     if (getStoredUiAppearance() !== 'modern') return true;
     return confirm({
       title: '当前内容尚未保存',
-      description: '离开后，本次填写的生成设置或全局事实修改会丢失。',
+      description: '离开后，本次尚未保存的修改会丢失。',
       confirmLabel: '放弃修改并继续',
     });
   }, [confirm, state.step]);
@@ -264,6 +266,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const [technicalVolumeOpen, setTechnicalVolumeOpen] = useState(false);
   const [technicalVolumeDraftIds, setTechnicalVolumeDraftIds] = useState<string[]>([]);
   const [contentEditSelectedItemId, setContentEditSelectedItemId] = useState('');
+  const [expandStarting, setExpandStarting] = useState(false);
+  const expandStartingRef = useRef(false);
   const [expandSelectedItemIds, setExpandSelectedItemIds] = useState<Set<string>>(new Set());
   const [previewExpandItemId, setPreviewExpandItemId] = useState('');
   const [expandTargetWords, setExpandTargetWords] = useState(0);
@@ -355,7 +359,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         ? Math.round((expandCompleted / expandTotal) * 100)
         : 0;
   const expandProgressText = expandDone
-    ? '所选小节已扩写完成'
+    ? '正文任务已完成'
       : expandFailed
       ? state.contentGenerationTask?.error || '扩写失败'
       : expandTaskStatus === 'stopped'
@@ -786,6 +790,9 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       missingFactPolicy: state.contentGenerationOptions?.missingFactPolicy,
     };
 
+    if (expandStartingRef.current) return;
+    expandStartingRef.current = true;
+    setExpandStarting(true);
     try {
       await window.yibiao?.tasks.startContentGeneration({
         workflowKind,
@@ -797,6 +804,9 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       showToast('继续扩写任务已在后台启动', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '启动继续扩写失败', 'error');
+    } finally {
+      expandStartingRef.current = false;
+      setExpandStarting(false);
     }
   };
 
@@ -1333,22 +1343,24 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     );
   });
 
-  const renderModernExpandTree = (items: OutlineItem[], level = 0): ReactNode => items.map((item) => {
-    const selectableIds = collectLeafItems([item]).map((leaf) => leaf.id).filter((id) => generatedLeafIdSet.has(id));
-    const selectedCount = selectableIds.filter((id) => expandSelectedItemIds.has(id)).length;
-    const selected = selectableIds.length > 0 && selectedCount === selectableIds.length;
-    const partial = selectedCount > 0 && !selected;
-    const canPreview = !item.children?.length && Boolean(getLeafContent(item, state.contentGenerationSections).trim());
-    return <div className="modern-expand-node" key={item.id} style={{ '--content-level': level } as CSSProperties}>
-      <div className={`modern-expand-item${selected ? ' is-selected' : ''}${partial ? ' is-partial' : ''}`}>
-        <button type="button" className="modern-expand-pick" onClick={() => toggleExpandSelection(item)} disabled={!selectableIds.length || isContentGenerating || isContentPaused} aria-pressed={selected}>
-          <span className="modern-expand-check" aria-hidden="true">{selected ? '✓' : partial ? '–' : ''}</span><span className="modern-expand-item-title"><strong>{item.title || item.id || '未命名小节'}</strong><small>{item.id} · {selectableIds.length ? `已选 ${selectedCount}/${selectableIds.length}` : '暂无正文'}</small></span>
-        </button>
-        {canPreview && <button type="button" className="modern-expand-preview" onClick={() => setPreviewExpandItemId(item.id)}>预览</button>}
-      </div>
-      {item.children?.length ? renderModernExpandTree(item.children, level + 1) : null}
-    </div>;
-  });
+  function workflowStepStatus(step: TechnicalPlanStep): WorkflowStepStatus {
+    const task = step === 'bid-analysis' ? state.bidAnalysisTask
+      : step === 'outline-generation' ? state.outlineGenerationTask
+      : step === 'global-facts' ? state.globalFactsTask
+      : step === 'content-edit' ? state.contentGenerationTask : undefined;
+    if (task?.status === 'error') return 'error';
+    if (task?.stats?.outlineQuestion && task.status === 'running') return 'waiting';
+    if (task && ['running', 'pausing', 'stopping'].includes(task.status)) return 'running';
+    if (task?.status === 'paused') return 'paused';
+    const leaves = collectLeafItems(state.outlineData?.outline || []);
+    const complete = step === 'document-analysis' ? Boolean(state.tenderFile || state.originalPlanFile)
+      : step === 'generation-settings' ? Boolean(state.generationSettingsSnapshot)
+      : step === 'outline-generation' ? Boolean(state.outlineData?.outline?.length)
+      : step === 'global-facts' ? Boolean(state.globalFacts.length) && task?.status === 'success'
+      : step === 'content-edit' ? leaves.length > 0 && leaves.every((item) => item.content?.trim()) && task?.status === 'success'
+      : task?.status === 'success';
+    return complete ? 'success' : 'pending';
+  }
 
   const generatedContentCount = state.outlineData?.outline
     ? collectLeafItems(state.outlineData.outline).filter((item) => item.content?.trim()).length
@@ -1547,7 +1559,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         </AgentFloatingPanel>
       )}
       <ModernTechnicalWorkflow modern={modernAppearance} projectName={projectName || state.projectName || '技术方案项目'}
-        activeStep={state.step} steps={steps.map((step) => ({ id: step, label: stepLabels[step] }))}
+        activeStep={state.step} steps={steps.map((step) => ({ id: step, label: stepLabels[step], status: workflowStepStatus(step) }))}
         nextDisabled={isNextDisabled} nextHint={nextTooltip} onStepChange={switchStep}
         onBackToProjects={() => void returnToProjects()} actions={workflowActions}>
       {state.step === 'document-analysis' && (
@@ -1633,6 +1645,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           outlineData={state.outlineData}
           mutationLocked={[state.contentGenerationTask, state.globalFactsTask].some(task => ['running', 'pausing', 'paused', 'stopping'].includes(task?.status || ''))}
           task={state.outlineGenerationTask}
+          onDraftDirtyChange={reportDraftDirty}
           openGenerationConfigRequestId={navigationTarget?.panelId === 'outline-generation-config' ? navigationTarget.requestId : undefined}
           onOutlineConfigChange={async (outlineMode, referenceKnowledgeDocumentIds) => {
             const saved = await window.yibiao?.technicalPlan.saveOutlineConfig({ workflowKind, projectId, outlineMode, referenceKnowledgeDocumentIds });
@@ -1669,6 +1682,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           task={state.contentGenerationTask}
           contentGenerationOptions={state.contentGenerationOptions}
           sections={state.contentGenerationSections}
+          onDraftDirtyChange={reportDraftDirty}
           onSelectedItemChange={setContentEditSelectedItemId}
           onContentGenerationOptionsChange={saveContentGenerationOptions}
           onContentSaved={saveChapterContent}
@@ -1677,44 +1691,44 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       {state.step === 'expand' && modernAppearance && (
         <section className="plan-step-body modern-expand-page">
           <header className="modern-expand-header">
-            <div><span>CONTENT ENRICHMENT / 07</span><h2>扩写改写</h2><p>{requiresOriginalPlan ? '保留原方案事实与表达重点，为关键小节补充论证深度。' : '保留章节结构，为关键小节补充步骤、风险与交付内容。'}</p></div>
+            <div><h2>扩写改写</h2><p>{requiresOriginalPlan ? '保留原方案事实与表达重点，为关键小节补充论证深度。' : '保留章节结构，为关键小节补充步骤、风险与交付内容。'}</p></div>
             <div className="modern-expand-controls">
               {expandRunning && !expandStopping && <><button type="button" onClick={pauseExpand}>暂停</button><button type="button" className="is-danger" onClick={stopExpand}>停止</button></>}
               {expandPaused && <button type="button" className="is-primary" onClick={resumeExpand}>继续扩写</button>}
-              {!expandRunning && !expandPaused && <button type="button" className="is-primary" onClick={startExpandOnly} disabled={!selectedExpandLeaves.length}>{expandStopping ? '停止中...' : '开始扩写'}</button>}
+              {!expandRunning && !expandPaused && <button type="button" className="is-primary" onClick={startExpandOnly} disabled={expandStarting || expandStopping || !selectedExpandLeaves.length || !globalFactsReady}>{expandStarting ? '正在启动…' : expandStopping ? '停止中…' : '开始扩写'}</button>}
               {expandStopping && <button type="button" disabled>停止中...</button>}
             </div>
           </header>
-          <section className="modern-expand-progress" aria-label="扩写进度">
-            <div><span className={`is-${expandStatusClass}`}>{taskStatusLabels[expandTaskStatus] || '未开始'}</span><strong>{expandProgressText}</strong><small>{expandStatusDescription}</small></div>
-            <div className={`modern-expand-progress-track${expandRunning ? ' is-running' : ''}`} role="progressbar" aria-valuenow={expandProgress} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.max(0, Math.min(100, expandProgress))}%` }} /></div>
-            {expandRunning && <div className="modern-expand-working" role="status"><span aria-hidden="true"><i /><i /><i /></span>正在扩写所选小节</div>}
-            {expandDone && <button type="button" onClick={() => switchStep('content-edit')}>查看最新正文 →</button>}
-          </section>
+          {(expandRunning || expandPaused || expandDone || expandFailed || expandTaskStatus === 'stopped') && <section className="modern-expand-progress" aria-label="正文任务状态">
+            <div className="modern-expand-status-copy"><span className={`is-${expandStatusClass}`}>{taskStatusLabels[expandTaskStatus] || '未开始'}</span><strong>{expandProgressText}</strong><p role={expandFailed ? 'alert' : 'status'}>{expandStatusDescription}</p></div>
+            {(expandRunning || expandPaused || expandFailed) && <div className="modern-expand-stage-progress"><TaskProgressSummary label={expandPhase === 'planning' ? '配图编排' : expandPhase === 'illustrating' ? '配图生成' : expandPhase === 'auditing' ? '一致性检查' : '正文扩写'} percent={expandProgress} status={expandFailed ? 'exception' : expandRunning ? 'active' : 'normal'} /></div>}
+            {expandDone && <button type="button" onClick={() => switchStep('content-edit')}>查看最新正文</button>}
+          </section>}
+          {!selectedExpandLeaves.length && <p className="modern-expand-guidance" role="status">{generatedLeaves.length ? '先勾选需要扩写的小节，再调整参数并开始扩写。' : '请先生成正文，再选择需要扩写的小节。'}</p>}
+          {!globalFactsReady && generatedLeaves.length > 0 && <p className="modern-expand-guidance">请先完成全局事实设定，才能开始扩写。</p>}
           <div className="modern-expand-workspace">
             <section className="modern-expand-choices">
-              <div className="modern-expand-panel-head"><div><span>01 / SELECT</span><h3>选择小节</h3><p>从已有正文中选择需要加深的内容。</p></div><strong>{selectedExpandLeaves.length} / {generatedLeaves.length}</strong></div>
-              <div className="modern-expand-select-tools"><button type="button" onClick={selectAllExpandItems} disabled={isContentGenerating || isContentPaused || !generatedLeaves.length}>全部选择</button><button type="button" onClick={clearExpandSelection} disabled={isContentGenerating || isContentPaused || !expandSelectedItemIds.size}>清空选择</button></div>
-              <div className="modern-expand-list">{state.outlineData?.outline?.length ? renderModernExpandTree(state.outlineData.outline) : <p>暂无目录，请先完成目录生成。</p>}</div>
+              <div className="modern-expand-panel-head"><div><h3>选择小节</h3><p>从已有正文中选择需要加深的内容。</p></div><strong aria-label={`已选 ${selectedExpandLeaves.length} 个，共 ${generatedLeaves.length} 个可扩写小节`}>{selectedExpandLeaves.length} / {generatedLeaves.length}</strong></div>
+              <div className="modern-expand-select-tools"><button type="button" onClick={selectAllExpandItems} disabled={expandStarting || isContentGenerating || isContentPaused || !generatedLeaves.length}>全部选择</button><button type="button" onClick={clearExpandSelection} disabled={expandStarting || isContentGenerating || isContentPaused || !expandSelectedItemIds.size}>清空选择</button></div>
+              <div className="modern-expand-list"><ExpandChapterPicker items={state.outlineData?.outline || []} generatedIds={generatedLeafIdSet} selectedIds={expandSelectedItemIds} disabled={expandStarting || isContentGenerating || isContentPaused} onChange={setExpandSelectedItemIds} onPreview={setPreviewExpandItemId} onOpenContent={() => void switchStep('content-edit')} /></div>
               <div className="modern-expand-selection-footer"><span>所选正文</span><strong>{selectedExpandWords.toLocaleString('zh-CN')} 字</strong></div>
             </section>
             <section className="modern-expand-settings">
-              <div className="modern-expand-panel-head"><div><span>02 / ADJUST</span><h3>扩写参数</h3><p>按目标控制篇幅，按内容需要添加图示。</p></div></div>
+              <div className="modern-expand-panel-head"><div><h3>扩写参数</h3><p>按目标控制篇幅，按内容需要添加图示。</p></div></div>
               <div className="modern-expand-setting-scroll">
-                <div className="modern-expand-setting-group"><h4>篇幅与速度</h4>
-                  <label><span><strong>所选小节目标字数</strong><small>0 表示每个所选小节扩写一轮。</small></span><BufferedNumberInput type="number" min="0" step="500" value={expandTargetWords} disabled={isContentGenerating || isContentPaused} onChange={(event) => setExpandTargetWords(Math.max(0, Math.round(Number(event.target.value) || 0)))} /></label>
-                  <label><span><strong>补充表格</strong><small>{expandTableOptions.find((option) => option.value === expandTableRequirement)?.description}</small></span><select value={expandTableRequirement} disabled={isContentGenerating || isContentPaused} onChange={(event) => setExpandTableRequirement(event.target.value as ContentTableRequirement)}>{expandTableOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
-                  <label><span><strong>扩写并发速度</strong><small>接口限流较严格时建议 1–3。</small></span><BufferedNumberInput type="number" min="1" step="1" value={expandConcurrency} disabled={isContentGenerating || isContentPaused} onChange={(event) => setExpandConcurrency(Math.max(1, Math.round(Number(event.target.value) || 1)))} /></label>
+                <div className="modern-expand-setting-group"><h4>篇幅设置</h4>
+                  <label><span><strong>所选小节目标字数</strong><small>0 表示每个所选小节扩写一轮。</small></span><BufferedNumberInput type="number" min="0" step="500" value={expandTargetWords} disabled={expandStarting || isContentGenerating || isContentPaused} onChange={(event) => setExpandTargetWords(Math.max(0, Math.round(Number(event.target.value) || 0)))} /></label>
+                  <label><span><strong>补充表格</strong><small>{expandTableOptions.find((option) => option.value === expandTableRequirement)?.description}</small></span><select value={expandTableRequirement} disabled={expandStarting || isContentGenerating || isContentPaused} onChange={(event) => setExpandTableRequirement(event.target.value as ContentTableRequirement)}>{expandTableOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
                 </div>
                 <div className="modern-expand-setting-group"><h4>图示补充</h4>
-                  <label><span><strong>Mermaid 图</strong><small>补充流程、结构和关系图。</small></span><input type="checkbox" checked={expandUseMermaidImages} disabled={isContentGenerating || isContentPaused} onChange={(event) => setExpandUseMermaidImages(event.target.checked)} /></label>
-                  <label><span><strong>HTML 配图</strong><small>适用于甘特图、WBS 等图示。</small></span><input type="checkbox" checked={expandUseHtmlImages} disabled={isContentGenerating || isContentPaused} onChange={(event) => setExpandUseHtmlImages(event.target.checked)} /></label>
-                  {expandUseHtmlImages && <label><span><strong>HTML 配图上限</strong><small>在所选小节中分配。</small></span><BufferedNumberInput type="number" min="0" max={Math.max(1, selectedExpandLeaves.length)} value={expandMaxHtmlImages} disabled={isContentGenerating || isContentPaused} onChange={(event) => setExpandMaxHtmlImages(Math.max(0, Math.min(Math.round(Number(event.target.value) || 0), Math.max(1, selectedExpandLeaves.length))))} /></label>}
-                  <label><span><strong>技术图谱</strong><small>{expandTechnicalDiagramAvailable ? '适合架构、拓扑与数据流。' : '请先在技能管理启用 technical-diagram。'}</small></span><input type="checkbox" checked={expandUseTechnicalDiagrams && expandTechnicalDiagramAvailable} disabled={isContentGenerating || isContentPaused || !expandTechnicalDiagramAvailable} onChange={(event) => setExpandUseTechnicalDiagrams(event.target.checked)} /></label>
-                  <label><span><strong>AI 生图</strong><small>{expandImageModelAvailable ? '择优生成少量图示。' : '请先在设置中配置生图模型。'}</small></span><input type="checkbox" checked={expandUseAiImages && expandImageModelAvailable} disabled={isContentGenerating || isContentPaused || !expandImageModelAvailable} onChange={(event) => setExpandUseAiImages(event.target.checked)} /></label>
-                  <label><span><strong>AI 图最大数量</strong><small>只在开启 AI 生图时生效。</small></span><BufferedNumberInput type="number" min="0" max={Math.max(1, selectedExpandLeaves.length)} value={expandMaxAiImages} disabled={isContentGenerating || isContentPaused || !expandUseAiImages || !expandImageModelAvailable} onChange={(event) => setExpandMaxAiImages(Math.max(0, Math.min(Math.round(Number(event.target.value) || 0), Math.max(1, selectedExpandLeaves.length))))} /></label>
+                  <label><span><strong>Mermaid 图</strong><small>补充流程、结构和关系图。</small></span><input type="checkbox" checked={expandUseMermaidImages} disabled={expandStarting || isContentGenerating || isContentPaused} onChange={(event) => setExpandUseMermaidImages(event.target.checked)} /></label>
+                  <label><span><strong>HTML 配图</strong><small>适用于甘特图、WBS 等图示。</small></span><input type="checkbox" checked={expandUseHtmlImages} disabled={expandStarting || isContentGenerating || isContentPaused} onChange={(event) => setExpandUseHtmlImages(event.target.checked)} /></label>
+                  {expandUseHtmlImages && <label><span><strong>HTML 配图上限</strong><small>在所选小节中分配。</small></span><BufferedNumberInput type="number" min="0" max={Math.max(1, selectedExpandLeaves.length)} value={expandMaxHtmlImages} disabled={expandStarting || isContentGenerating || isContentPaused} onChange={(event) => setExpandMaxHtmlImages(Math.max(0, Math.min(Math.round(Number(event.target.value) || 0), Math.max(1, selectedExpandLeaves.length))))} /></label>}
+                  <label><span><strong>技术图谱</strong><small>{expandTechnicalDiagramAvailable ? '适合架构、拓扑与数据流。' : '请先在技能管理启用 technical-diagram。'}</small></span><input type="checkbox" checked={expandUseTechnicalDiagrams && expandTechnicalDiagramAvailable} disabled={expandStarting || isContentGenerating || isContentPaused || !expandTechnicalDiagramAvailable} onChange={(event) => setExpandUseTechnicalDiagrams(event.target.checked)} /></label>
+                  <label><span><strong>AI 生图</strong><small>{expandImageModelAvailable ? '择优生成少量图示。' : '请先在设置中配置生图模型。'}</small></span><input type="checkbox" checked={expandUseAiImages && expandImageModelAvailable} disabled={expandStarting || isContentGenerating || isContentPaused || !expandImageModelAvailable} onChange={(event) => setExpandUseAiImages(event.target.checked)} /></label>
+                  {expandUseAiImages && <label><span><strong>AI 图最大数量</strong><small>只在开启 AI 生图时生效。</small></span><BufferedNumberInput type="number" min="0" max={Math.max(1, selectedExpandLeaves.length)} value={expandMaxAiImages} disabled={expandStarting || isContentGenerating || isContentPaused || !expandUseAiImages || !expandImageModelAvailable} onChange={(event) => setExpandMaxAiImages(Math.max(0, Math.min(Math.round(Number(event.target.value) || 0), Math.max(1, selectedExpandLeaves.length))))} /></label>}
                 </div>
-                <div className="modern-expand-setting-group"><h4>质量检查</h4><label><span><strong>扩写后一致性审计</strong><small>检查新增内容是否与全局事实冲突。</small></span><input type="checkbox" checked={expandConsistencyAudit} disabled={isContentGenerating || isContentPaused} onChange={(event) => setExpandConsistencyAudit(event.target.checked)} /></label></div>
+                <details className="modern-expand-advanced"><summary>高级设置<span>并发控制与一致性检查</span></summary><div className="modern-expand-setting-group"><label><span><strong>扩写并发速度</strong><small>接口限流较严格时建议 1–3。</small></span><BufferedNumberInput type="number" min="1" step="1" value={expandConcurrency} disabled={expandStarting || isContentGenerating || isContentPaused} onChange={(event) => setExpandConcurrency(Math.max(1, Math.round(Number(event.target.value) || 1)))} /></label><label><span><strong>扩写后一致性审计</strong><small>检查新增内容是否与全局事实冲突。</small></span><input type="checkbox" checked={expandConsistencyAudit} disabled={expandStarting || isContentGenerating || isContentPaused} onChange={(event) => setExpandConsistencyAudit(event.target.checked)} /></label></div></details>
               </div>
             </section>
           </div>
@@ -2113,13 +2127,16 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
 
 function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, onSectionChange }: TechnicalPlanHomeProps) {
   const { showToast } = useToast();
+  const { confirm } = useAppDialog();
+  const [projectAction, setProjectAction] = useState('');
+  const projectActionRef = useRef(false);
+  const [projectsError, setProjectsError] = useState('');
   const [projectList, setProjectList] = useState<TechnicalPlanProjectList | null>(null);
   const [activeProject, setActiveProject] = useState<TechnicalPlanProject | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [editingProjectId, setEditingProjectId] = useState('');
   const [editingProjectName, setEditingProjectName] = useState('');
-  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState('');
   const [projectKeyword, setProjectKeyword] = useState('');
   const [loadingProjects, setLoadingProjects] = useState(true);
   const workflowTitle = workflowLabel(workflowKind);
@@ -2142,11 +2159,14 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
   const loadProjects = async () => {
     try {
       setLoadingProjects(true);
+      setProjectsError('');
       const nextList = await window.yibiao?.technicalPlan.listProjects(workflowKind);
       setProjectList(nextList || null);
       return nextList || null;
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '读取技术方案项目失败', 'error');
+      const message = error instanceof Error ? error.message : '读取技术方案项目失败';
+      setProjectsError(message);
+      showToast(message, 'error');
       return null;
     } finally {
       setLoadingProjects(false);
@@ -2174,6 +2194,9 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
       showToast('请先填写项目名称', 'info');
       return;
     }
+    if (projectActionRef.current) return;
+    projectActionRef.current = true;
+    setProjectAction('create');
     try {
       const result = await window.yibiao?.technicalPlan.createProject({ workflowKind, projectName });
       if (result?.projects) setProjectList(result.projects);
@@ -2183,15 +2206,24 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
       showToast('项目已创建', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '创建项目失败', 'error');
+    } finally {
+      projectActionRef.current = false;
+      setProjectAction('');
     }
   };
 
   const enterProject = async (project: TechnicalPlanProject) => {
+    if (projectActionRef.current) return;
+    projectActionRef.current = true;
+    setProjectAction('enter');
     try {
       await window.yibiao?.technicalPlan.switchProject({ workflowKind, projectId: project.id });
       setActiveProject(project);
     } catch (error) {
       showToast(error instanceof Error ? error.message : '进入项目失败', 'error');
+    } finally {
+      projectActionRef.current = false;
+      setProjectAction('');
     }
   };
 
@@ -2207,6 +2239,9 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
       setEditingProjectName('');
       return;
     }
+    if (projectActionRef.current) return;
+    projectActionRef.current = true;
+    setProjectAction('rename');
     try {
       const nextList = await window.yibiao?.technicalPlan.renameProject({ workflowKind, projectId: project.id, name: name.trim() });
       if (nextList) setProjectList(nextList);
@@ -2216,25 +2251,35 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
       showToast('项目名称已更新', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '重命名项目失败', 'error');
+    } finally {
+      projectActionRef.current = false;
+      setProjectAction('');
     }
   };
 
   const deleteProject = async (project: TechnicalPlanProject) => {
-    if (pendingDeleteProjectId !== project.id) {
-      setPendingDeleteProjectId(project.id);
-      return;
-    }
+    if (project.id === 'default' || projectActionRef.current) return;
+    projectActionRef.current = true;
+    setProjectAction('delete');
     try {
+      const accepted = await confirm({
+        title: '删除项目？',
+        description: `删除“${project.name}”将同时移除该项目的招标文件、解析结果、目录和正文，此操作无法撤销。`,
+        confirmLabel: '删除项目',
+        danger: true,
+      });
+      if (!accepted) return;
       const nextList = await window.yibiao?.technicalPlan.deleteProject({ workflowKind, projectId: project.id });
       if (nextList) setProjectList(nextList);
       if (activeProject?.id === project.id) setActiveProject(null);
-      setPendingDeleteProjectId('');
       showToast('项目已删除', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '删除项目失败', 'error');
+    } finally {
+      projectActionRef.current = false;
+      setProjectAction('');
     }
   };
-
   if (activeProject) {
     return (
       <TechnicalPlanWorkbench
@@ -2253,13 +2298,13 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
 
   if (getStoredUiAppearance() === 'modern') {
     return <ModernTechnicalProjects workflowTitle={workflowTitle} projects={projects} filteredProjects={filteredProjects}
-      loading={loadingProjects} keyword={projectKeyword} onKeywordChange={setProjectKeyword}
+      loading={loadingProjects} error={projectsError} onRetry={() => void loadProjects()} busy={Boolean(projectAction)} action={projectAction} keyword={projectKeyword} onKeywordChange={setProjectKeyword}
       createOpen={createDialogOpen} onCreateOpenChange={setCreateDialogOpen}
       newProjectName={newProjectName} onNewProjectNameChange={setNewProjectName} onCreate={() => void createProject()}
       editingProjectId={editingProjectId} editingProjectName={editingProjectName}
       onEditingProjectNameChange={setEditingProjectName} onStartRename={startRenameProject}
       onCancelRename={() => setEditingProjectId('')} onRename={(project) => void renameProject(project)}
-      pendingDeleteProjectId={pendingDeleteProjectId} onDelete={(project) => void deleteProject(project)}
+      onDelete={(project) => void deleteProject(project)}
       onEnter={(project) => void enterProject(project)} />;
   }
 
@@ -2340,7 +2385,7 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
               )}
               {project.id !== 'default' && (
                 <button type="button" className="secondary-action danger-action" onClick={() => deleteProject(project)}>
-                  {pendingDeleteProjectId === project.id ? '确认删除' : '删除'}
+                  删除
                 </button>
               )}
               <button type="button" className="primary-action" onClick={() => enterProject(project)}>

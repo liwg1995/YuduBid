@@ -1,0 +1,37 @@
+/* 项目列表：单一新建主操作、标题导航、低频操作收进菜单。 */
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-projects { overflow: hidden; gap: 16px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-head { flex-wrap: wrap; padding: 8px 0 16px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-head h1 { margin: 0 0 8px; font-size: 20px; line-height: 28px; font-weight: 500; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-head :is(p, button) { font-size: 14px; line-height: 22px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview { flex-wrap: wrap; min-height: auto; padding: 0; border: 0; background: transparent; gap: 12px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview label { flex: 1 1 280px; max-width: 540px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview span { font-size: 14px; font-weight: 400; letter-spacing: 0; white-space: nowrap; color: var(--yb-text-soft); }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview input { width: 100%; font-size: 14px; min-height: 32px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview .technical-project-sort { flex: 0 0 auto; max-width: none; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview select { min-height: 32px; padding: 4px 8px; border: 1px solid var(--yb-control-border); border-radius: 6px; background: var(--yb-control-bg); color: var(--yb-text); font-size: 14px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-overview small { margin-left: auto; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-list { overscroll-behavior: contain; scrollbar-width: thin; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-list article { min-height: 80px; margin-bottom: 0; padding: 16px; border: 0; border-bottom: 1px solid var(--yb-border); border-radius: 0; background: transparent; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-list article:hover { background: var(--yb-control-bg); }
+:root[data-ui-appearance='modern'] .modern-shell .technical-project-title { align-self: flex-start; max-width: 100%; padding: 0; border: 0; background: transparent; color: var(--yb-text); font-size: 14px; font-weight: 500; line-height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; cursor: pointer; }
+:root[data-ui-appearance='modern'] .modern-shell .technical-project-title:hover { color: var(--yb-primary); }
+.technical-project-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+:root[data-ui-appearance='modern'] .modern-shell .technical-project-meta :is(span, time) { font-size: 12px; font-weight: 400; line-height: 20px; color: var(--yb-text-soft); }
+:root[data-ui-appearance='modern'] .modern-shell .technical-project-meta .technical-project-current { padding: 0 6px; border: 1px solid var(--yb-border); border-radius: 4px; color: var(--yb-primary); }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-actions button,
+:root[data-ui-appearance='modern'] .modern-shell .technical-project-rename button { min-height: 32px; font-size: 14px; line-height: 22px; font-weight: 400; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-actions .technical-project-more,
+:root[data-ui-appearance='modern'] .modern-shell .technical-project-clear { border: 0; padding: 4px 8px; color: var(--yb-text-soft); background: transparent; font-size: 14px; cursor: pointer; }
+.technical-project-rename { display: flex; min-width: 0; gap: 8px; flex-wrap: wrap; }
+.technical-project-rename input { flex: 1 1 180px; min-width: 0; }
+.technical-project-create-form label { display: grid; gap: 8px; font-size: 14px; }
+.technical-project-create-form input { width: 100%; box-sizing: border-box; min-height: 32px; border: 1px solid var(--yb-control-border); border-radius: 6px; padding: 6px 10px; background: var(--yb-control-bg); color: var(--yb-text); font-size: 14px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-projects :is(button, input, select):focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-projects button:disabled { opacity: .5; cursor: not-allowed; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-list .yb-empty-state { margin: 24px auto; max-width: 520px; padding: 32px 24px; font-size: 14px; line-height: 22px; }
+@media (max-width: 900px) {
+  :root[data-ui-appearance='modern'] .modern-shell .modern-technical-list article { flex-wrap: wrap; }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-technical-project-actions { margin-left: 52px; }
+}
+
+:root[data-ui-appearance='modern'] .modern-shell .modern-technical-list article:is(:hover, .is-active) { border-color: var(--yb-border); }

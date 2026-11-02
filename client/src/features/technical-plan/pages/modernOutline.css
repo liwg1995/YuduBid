@@ -22,8 +22,6 @@
 .modern-outline-status.is-success { color: #8fdfc4; }
 .modern-outline-status.is-error { color: #edabb0; }
 .modern-outline-progress strong { color: #e8e7fa; font-size: 13px; font-variant-numeric: tabular-nums; }
-.modern-outline-progress > div:first-child > div { height: 5px; flex: 1; overflow: hidden; border-radius: 3px; background: #37475d; }
-.modern-outline-progress > div:first-child > div span { display: block; height: 100%; border-radius: inherit; background: #a79bf0; transition: width .3s ease; }
 .modern-outline-progress button { border: 0; color: #ab9ff3; background: transparent; font-size: 10px; cursor: pointer; }
 .modern-outline-progress-detail { border-top: 1px solid #35455b; padding: 9px 13px 12px; }
 .modern-outline-progress-detail > p { margin: 0 0 5px; color: #b4bfd1; font-size: 11px; }
@@ -40,18 +38,6 @@
 .modern-outline-tree > header button, .modern-outline-detail-body > div:last-child button { min-height: 31px; border: 1px solid #4b5c73; border-radius: 5px; padding: 0 8px; color: #d3dceb; background: #2b3a50; font-size: 10px; cursor: pointer; }
 .modern-outline-tree > header button:disabled, .modern-outline-detail-body button:disabled { opacity: .45; cursor: not-allowed; }
 .modern-outline-tree-body { min-height: 0; flex: 1; overflow: auto; padding: 10px; }
-.modern-outline-node .modern-outline-node { margin-left: 21px; border-left: 1px solid #475873; padding-left: 12px; }
-.modern-outline-item { display: flex; align-items: stretch; min-height: 67px; margin: 5px 0; border: 1px solid transparent; border-radius: 9px; background: #1d2d42; }
-.modern-outline-node .modern-outline-node > .modern-outline-item { background: #19283c; }
-.modern-outline-node .modern-outline-node .modern-outline-node > .modern-outline-item { background: #172437; }
-.modern-outline-item:hover { border-color: #4a5870; background: #27384d; }
-.modern-outline-item.is-active { border-color: #7e73bc; background: #303650; }
-.modern-outline-expand { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; align-self: center; margin-left: 10px; border: 1px solid #36547a; border-radius: 8px; padding: 0; color: #ac9ff0; background: #223b5a; font-size: 13px; cursor: pointer; }
-.modern-outline-expand:disabled { color: #5d718a; cursor: default; }
-.modern-outline-select { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-content: center; gap: 3px 7px; min-width: 0; flex: 1; border: 0; padding: 9px 12px; color: #e4e9f6; background: transparent; text-align: left; cursor: pointer; }
-.modern-outline-select span { color: #ad9ff0; font-size: 12px; }
-.modern-outline-select strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-.modern-outline-select small { grid-column: 2; overflow: hidden; color: #96a7bc; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .modern-outline-detail > header { align-items: flex-start; flex-direction: column; gap: 2px; }
 .modern-outline-detail-body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 12px; overflow: auto; padding: 17px; }
 .modern-outline-detail-body h4 { margin: 0; color: #e9eefa; font-size: 14px; line-height: 1.4; }
@@ -71,3 +57,41 @@
 @media (max-width: 1040px) { .modern-outline-workspace { grid-template-columns: 1fr; overflow: auto; } .modern-outline-tree { min-height: 370px; } .modern-outline-detail { min-height: 270px; } }
 @media (max-width: 790px) { .modern-outline-header { align-items: flex-start; flex-direction: column; } .modern-outline-tree > header { align-items: flex-start; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .modern-outline-progress > div:first-child > div span { transition: none; } }
+
+/* 层级列表以标题为主，低频操作与完整描述按需查看。 */
+.modern-outline-page { container: outline-workspace / inline-size; gap: 12px; }
+.modern-outline-header { padding-bottom: 12px; }
+.modern-outline-header h2 { margin: 0 0 4px; font-size: 20px; font-weight: 500; }
+.modern-outline-header p, .modern-outline-detail-body p { color: var(--yb-text-soft); font-size: 14px; line-height: 22px; }
+.modern-outline-header > button { min-height: 32px; font-size: 14px; font-weight: 500; }
+.modern-outline-workspace { grid-template-columns: minmax(320px, 1fr) 320px; gap: 16px; }
+.modern-outline-tree, .modern-outline-detail { background: var(--yb-surface); }
+.modern-outline-tree > header, .modern-outline-detail > header { padding: 12px 16px; }
+.modern-outline-tree h3, .modern-outline-detail h3 { margin: 0; font-size: 16px; font-weight: 500; }
+.modern-outline-tree h3 small, .modern-outline-detail header small { font-size: 12px; }
+.modern-outline-tree > header button, .modern-outline-detail-body > div:last-child button { min-height: 32px; font-size: 14px; }
+.outline-structure-search { flex: 0 0 auto; padding: 8px 16px; border-bottom: 1px solid var(--yb-border); }
+.outline-structure-search input { box-sizing: border-box; width: 100%; height: 32px; border: 1px solid var(--yb-control-border); border-radius: 6px; padding: 4px 8px; color: var(--yb-text); background: var(--yb-control-bg); font-size: 14px; }
+.modern-outline-tree-body .ant-tree { background: transparent; }
+.modern-outline-tree-body .ant-tree-treenode { width: 100%; align-items: flex-start; }
+.modern-outline-tree-body .ant-tree-node-content-wrapper { min-width: 0; flex: 1; padding: 4px 8px; }
+.modern-outline-tree-body .ant-tree-title { display: block; }
+.outline-structure-label { display: flex; align-items: flex-start; gap: 8px; min-height: 24px; line-height: 22px; }
+.outline-structure-label > span { flex: 0 0 auto; color: var(--yb-text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.outline-structure-label > strong { min-width: 0; color: var(--yb-text); font-size: 14px; font-weight: 400; overflow-wrap: anywhere; white-space: normal; }
+.modern-outline-detail-body { gap: 16px; padding: 16px; }
+.modern-outline-detail-body label { font-size: 14px; }
+.modern-outline-detail-body .outline-change-notice { border-left: 2px solid var(--yb-primary); padding-left: 8px; font-size: 12px; color: var(--yb-text-soft); }
+.outline-structure-tools { z-index: 80; display: flex; min-width: 180px; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--yb-border); border-radius: 8px; background: var(--yb-surface); box-shadow: 0 12px 32px #0005; }
+.outline-structure-tools button { min-height: 32px; border: 0; border-radius: 4px; padding: 4px 12px; color: var(--yb-text); background: transparent; font-size: 14px; text-align: left; cursor: pointer; }
+.outline-structure-tools button:hover { background: var(--yb-control-bg); }
+.outline-structure-tools button:disabled { opacity: .45; cursor: not-allowed; }
+.outline-structure-tools button:focus-visible { outline: 2px solid var(--yb-primary); }
+@container outline-workspace (max-width: 720px) {
+  .modern-outline-workspace { display: flex; flex-direction: column; overflow: auto; }
+  .modern-outline-tree { flex: 0 0 320px; }
+  .modern-outline-detail { flex: 0 0 360px; }
+}
+.modern-outline-progress > div:first-child > .outline-task-progress-summary { flex: 0 1 360px; height: auto; min-width: 180px; overflow: visible; border-radius: 0; background: transparent; }
+.modern-outline-progress > div:first-child { min-height: 40px; flex-wrap: wrap; }
+.modern-outline-progress > div:first-child > button { margin-left: auto; min-height: 28px; font-size: 12px; }

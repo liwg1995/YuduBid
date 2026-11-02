@@ -123,7 +123,8 @@ export function ThesisTutorSidebar({
               </label>
               <button
                 type="button"
-                className={historyImportantOnly ? 'is-active' : ''}
+                className={`secondary-action${historyImportantOnly ? ' is-active' : ''}`}
+                aria-pressed={historyImportantOnly}
                 onClick={toggleHistoryImportantOnly}
               >
                 只看重要
@@ -135,7 +136,7 @@ export function ThesisTutorSidebar({
                   <article key={item.id} className={item.important ? 'is-important' : ''}>
                     <div className="thesis-tutor-history-meta">
                       <span>{item.important ? '重要版本' : item.panelLabel}</span>
-                      <em>{new Date(item.created_at).toLocaleDateString('zh-CN')}</em>
+                      <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
                     </div>
                     <input
                       defaultValue={item.customTitle || item.title}
@@ -143,15 +144,15 @@ export function ThesisTutorSidebar({
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') event.currentTarget.blur();
                       }}
-                      aria-label="历史版本名称"
+                      aria-label={`${item.customTitle || item.title}的版本名称`}
                     />
                     <p>{item.input || item.panelLabel}</p>
                     <div className="thesis-tutor-history-actions">
-                      <button type="button" onClick={() => restoreHistoryItem(item)}>恢复到结果区</button>
-                      <button type="button" onClick={() => toggleHistoryImportant(item)}>
+                      <button type="button" className="secondary-action" onClick={() => restoreHistoryItem(item)}>恢复到结果区</button>
+                      <button type="button" className="secondary-action" aria-pressed={Boolean(item.important)} onClick={() => toggleHistoryImportant(item)}>
                         {item.important ? '取消重要' : '标记重要'}
                       </button>
-                      <button type="button" className="is-danger" onClick={() => removeHistoryItem(item)}>删除</button>
+                      <button type="button" className="secondary-action is-danger" onClick={() => removeHistoryItem(item)}>删除</button>
                     </div>
                   </article>
                 ))}

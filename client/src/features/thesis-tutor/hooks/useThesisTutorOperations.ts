@@ -1,4 +1,5 @@
-import type { Dispatch, SetStateAction } from 'react';
+import { requireWordExportSuccess, lastWordExportPercent } from '../../../shared/utils/wordExportFeedback';
+import { useRef, type Dispatch, type SetStateAction } from 'react';
 import type { WordExportProgressEvent } from '../../../shared/types/ipc';
 import type { ToastType } from '../../../shared/ui/ToastProvider';
 import type {
@@ -97,6 +98,8 @@ export function useThesisTutorOperations({
   finishOperationProgress,
   showToast,
 }: UseThesisTutorOperationsOptions) {
+  const exportLock = useRef(false);
+
   async function saveProfile() {
     if (!window.yibiao?.thesisTutor) return;
     try {
@@ -276,6 +279,7 @@ export function useThesisTutorOperations({
   }
 
   async function exportWord() {
+    if (exportLock.current) return;
     if (!result.trim()) {
       showToast('请先生成或填写结果内容', 'info');
       return;
@@ -284,8 +288,9 @@ export function useThesisTutorOperations({
       showToast('当前环境未注入导出服务', 'error');
       return;
     }
-    const requestId = `thesis-tutor-${Date.now()}`;
+    const requestId = `thesis-tutor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const title = profile.title ? `${profile.title}-${panel.label}` : `论文导师-${panel.label}`;
+    exportLock.current = true;
     try {
       setExportProgress({ requestId, phase: 'running', progress: 1, message: '正在准备导出 Word' });
       const exportResult = await window.yibiao.export.exportWord({
@@ -298,12 +303,14 @@ export function useThesisTutorOperations({
         setExportProgress({ requestId, phase: 'canceled', progress: 0, message: '已取消导出' });
         return;
       }
-      if (exportResult.success) showToast(exportResult.message || '论文导师结果已导出 Word', 'success');
+      requireWordExportSuccess(exportResult);
+      setExportProgress({ requestId, phase: 'success', progress: 100, message: exportResult.message || '论文导师结果已导出 Word' });
+      showToast(exportResult.message || '论文导师结果已导出 Word', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出 Word 失败';
       showToast(message, 'error');
-      setExportProgress({ requestId, phase: 'error', progress: 100, message });
-    }
+      setExportProgress(previous => ({ requestId, phase: 'error', progress: lastWordExportPercent(previous?.requestId === requestId ? previous.progress : 0), message }));
+    } finally { exportLock.current = false; }
   }
 
   async function copyResult() {

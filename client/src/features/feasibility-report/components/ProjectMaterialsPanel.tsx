@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useAppDialog, useToast } from '../../../shared/ui';
 import type { FeasibilityProjectInfo, FeasibilityReportState } from '../types';
 
 interface ProjectMaterialsPanelProps {
   projectId: string;
+  disabled?: boolean;
   state: FeasibilityReportState;
   onStateChange: (state: FeasibilityReportState) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onSavingChange?: (saving: boolean) => void;
 }
 
 const fields: Array<{
@@ -40,11 +42,15 @@ function hasDownstreamContent(state: FeasibilityReportState) {
   );
 }
 
-export default function ProjectMaterialsPanel({ projectId, state, onStateChange, onDirtyChange }: ProjectMaterialsPanelProps) {
+export default function ProjectMaterialsPanel({ projectId, state, disabled = false, onStateChange, onDirtyChange, onSavingChange }: ProjectMaterialsPanelProps) {
   const { showToast } = useToast();
   const { confirm } = useAppDialog();
   const [form, setForm] = useState<FeasibilityProjectInfo>(state.projectInfo);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const [saveError, setSaveError] = useState('');
+  useEffect(() => { onSavingChange?.(saving); return () => onSavingChange?.(false); }, [saving, onSavingChange]);
 
   const savedInfoSignature = JSON.stringify(state.projectInfo);
   useEffect(() => { setForm(state.projectInfo); }, [projectId, savedInfoSignature]);
@@ -54,25 +60,29 @@ export default function ProjectMaterialsPanel({ projectId, state, onStateChange,
   useEffect(() => () => { onDirtyChange?.(false); }, [onDirtyChange]);
 
   const updateField = (key: keyof FeasibilityProjectInfo, value: string) => {
+    if (key === 'projectName' && value.trim()) setSaveError(current => current === '请填写报告项目名称' ? '' : current);
     setForm((current) => ({ ...current, [key]: value }));
   };
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    if (savingRef.current || disabled) return;
     if (!form.projectName.trim()) {
+      setSaveError('请填写报告项目名称'); nameRef.current?.focus();
       showToast('请填写报告项目名称', 'info');
       return;
     }
-    if (!dirty || saving) return;
+    if (!dirty) return;
+    savingRef.current = true;
     if (hasDownstreamContent(state)) {
       const accepted = await confirm({
         title: '确认更新项目资料',
         description: '项目资料发生变化后，已有资料分析、报告目录、关键参数和正文将被清空，已导入的资料文件会保留。',
         confirmLabel: '更新并清空下游',
       });
-      if (!accepted) return;
+      if (!accepted) { savingRef.current = false; return; }
     }
-    setSaving(true);
+    setSaveError(''); setSaving(true);
     try {
       const bridge = window.yibiao?.feasibilityReport;
       if (!bridge) throw new Error('可研报告本地服务尚未就绪');
@@ -80,9 +90,10 @@ export default function ProjectMaterialsPanel({ projectId, state, onStateChange,
       onStateChange(nextState);
       showToast('项目资料已保存', 'success');
     } catch (error) {
+      setSaveError(getErrorMessage(error));
       showToast(`保存项目资料失败：${getErrorMessage(error)}`, 'error');
     } finally {
-      setSaving(false);
+      savingRef.current = false; setSaving(false);
     }
   };
 
@@ -93,10 +104,11 @@ export default function ProjectMaterialsPanel({ projectId, state, onStateChange,
           <h3>项目基础信息</h3>
           <p>这些信息将作为资料分析、目录生成和正文编制的统一项目边界。</p>
         </div>
-        <span className={`feasibility-save-state${dirty ? ' is-dirty' : ''}`}>{dirty ? '有未保存修改' : '已保存'}</span>
+        <span className={`feasibility-save-state${saveError ? ' is-error' : dirty ? ' is-dirty' : ''}`}>{saving ? '正在保存' : saveError ? '保存未完成' : dirty ? '有未保存修改' : '已保存'}</span>
       </section>
 
-      <div className="feasibility-materials-grid">
+      {saveError && <div className="feasibility-operation-error" role="alert"><strong>项目资料未保存</strong><span>{saveError}</span></div>}
+      <div className="feasibility-material-fields-scroll"><fieldset className="feasibility-material-fields" disabled={saving || disabled}><div className="feasibility-materials-grid">
         <label className="field-project-type">
           <span>项目类型</span>
           <select value={form.projectType} onChange={(event) => updateField('projectType', event.target.value)}>
@@ -110,15 +122,16 @@ export default function ProjectMaterialsPanel({ projectId, state, onStateChange,
             {field.multiline ? (
               <textarea value={form[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} rows={5} />
             ) : (
-              <input value={form[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} />
+              <input ref={field.key === 'projectName' ? nameRef : undefined} aria-required={field.key === 'projectName' ? true : undefined} aria-invalid={field.key === 'projectName' && Boolean(saveError && !form.projectName.trim())} value={form[field.key]} onChange={(event) => updateField(field.key, event.target.value)} placeholder={field.placeholder} />
             )}
           </label>
         ))}
       </div>
 
+      </fieldset></div>
       <div className="feasibility-panel-actions">
-        <button type="button" className="secondary-action" disabled={!dirty || saving} onClick={() => setForm(state.projectInfo)}>撤销修改</button>
-        <button type="submit" className="primary-action" disabled={!dirty || saving}>{saving ? '正在保存...' : '保存项目资料'}</button>
+        <button type="button" className="secondary-action" disabled={!dirty || saving || disabled} onClick={() => { setSaveError(''); setForm(state.projectInfo); }}>撤销修改</button>
+        <button type="submit" className="primary-action" disabled={!dirty || saving || disabled}>{saving ? '正在保存...' : '保存项目资料'}</button>
       </div>
     </form>
   );

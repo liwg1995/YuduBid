@@ -1,3 +1,9 @@
+import SoftwareExportConfirmDialog from '../components/SoftwareExportConfirmDialog';
+import WorkspaceLoading from '../../../shared/ui/WorkspaceLoading';
+import WorkspaceViewControl from '../../../shared/ui/WorkspaceViewControl';
+import { SoftwareBasicFields, SoftwareEnvironmentFields } from '../components/SoftwareRegistrationFields';
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -71,31 +77,6 @@ const requiredFields: Array<keyof SoftwareCopyrightFields> = [
   'industry',
 ];
 
-const basicFieldRows: Array<{ key: keyof SoftwareCopyrightFields; label: string; placeholder?: string; inputType?: 'text' | 'date' }> = [
-  { key: 'softwareName', label: '软件全称', placeholder: '例如：禹都AI解决方案助手软件' },
-  { key: 'shortName', label: '软件简称', placeholder: '可选' },
-  { key: 'version', label: '版本号', placeholder: 'V1.0' },
-  { key: 'category', label: '软件分类', placeholder: '应用软件' },
-  { key: 'developmentCompletedDate', label: '开发完成日期', inputType: 'date' },
-  { key: 'developmentMode', label: '开发方式', placeholder: '单独开发' },
-  { key: 'softwareDescription', label: '软件说明', placeholder: '原创' },
-  { key: 'publishStatus', label: '发表状态', placeholder: '未发表' },
-  { key: 'firstPublishDate', label: '首次发表日期', inputType: 'date' },
-  { key: 'copyrightOwner', label: '著作权人', placeholder: '国家/省市/类型/姓名或单位/证件信息' },
-];
-
-const environmentFieldRows: Array<{ key: keyof SoftwareCopyrightFields; label: string; placeholder?: string }> = [
-  { key: 'developmentHardware', label: '开发硬件环境', placeholder: '≤50字符，例如 Intel i7/16GB/512GB' },
-  { key: 'runningHardware', label: '运行硬件环境', placeholder: '≤50字符，可沿用开发硬件' },
-  { key: 'developmentOs', label: '开发操作系统', placeholder: '例如 Windows 11 / macOS 15' },
-  { key: 'developmentTools', label: '开发环境 / 工具', placeholder: '开发环境: Windows 11/开发工具: VS Code' },
-  { key: 'runningPlatform', label: '运行平台 / 操作系统', placeholder: '例如 Windows 10 及以上' },
-  { key: 'runtimeSupport', label: '运行支撑环境', placeholder: '例如 Electron、Node.js、Chromium' },
-  { key: 'programmingLanguage', label: '编程语言', placeholder: 'TypeScript、JavaScript' },
-  { key: 'sourceLineCount', label: '源程序量', placeholder: '纯数字' },
-  { key: 'developmentPurpose', label: '开发目的', placeholder: '≤50字符' },
-  { key: 'industry', label: '面向领域 / 行业', placeholder: '≤50字符' },
-];
 
 const defaultExportItems: SoftwareCopyrightOptions['exportItems'] = {
   application: true,
@@ -184,6 +165,8 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
   const [sourceSelectionSaving, setSourceSelectionSaving] = useState(false);
   const [fields, setFields] = useState<SoftwareCopyrightFields>(emptyFields);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
   const [saving, setSaving] = useState(false);
   const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
   const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
@@ -200,6 +183,8 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
   const [draftFile, setDraftFile] = useState<SoftwareCopyrightDraftFile | null>(null);
   const [draftContent, setDraftContent] = useState('');
   const [draftLoading, setDraftLoading] = useState(false);
+  const [draftLoadError, setDraftLoadError] = useState('');
+  const [draftLoadRevision, setDraftLoadRevision] = useState(0);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const confirmDiscardDraft = useCallback(() => confirm({
@@ -236,7 +221,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
   const [workflowHost, setWorkflowHost] = useState<HTMLDivElement | null>(null);
   const [finalStageHost, setFinalStageHost] = useState<HTMLDivElement | null>(null);
   const [submissionPrecheckReady, setSubmissionPrecheckReady] = useState(false);
-  const [activeWorkflowSection, setActiveWorkflowSection] = useState<SoftwareCopyrightWorkflowSection>('task');
+  const [activeWorkflowSection, setActiveWorkflowSection] = useState<SoftwareCopyrightWorkflowSection>('source');
   const [manualTitleFocusRequest, setManualTitleFocusRequest] = useState(0);
   const sourceSectionRef = useRef<HTMLElement>(null);
   const manualSectionRef = useRef<HTMLElement>(null);
@@ -438,6 +423,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
   ];
 
   useEffect(() => {
+    setLoadError(''); setLoading(true);
     let mounted = true;
     window.yibiao?.softwareCopyright.loadState()
       .then((nextState) => {
@@ -445,7 +431,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
         setState(nextState);
         setFields({ ...emptyFields, ...nextState.fields });
       })
-      .catch((error) => showToast(error.message || '读取软著生成状态失败', 'error'))
+      .catch((error) => { setLoadError(error instanceof Error ? error.message : String(error)); showToast(error.message || '读取软著生成状态失败', 'error'); })
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -459,7 +445,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
       mounted = false;
       unsubscribe?.();
     };
-  }, [showToast]);
+  }, [showToast, loadRevision]);
 
   useEffect(() => {
     let mounted = true;
@@ -529,8 +515,12 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
     let mounted = true;
     if (!activeDraftKey) return undefined;
 
-    setDraftLoading(true);
-    window.yibiao?.softwareCopyright.readDraft(activeDraftKey)
+    setDraftLoading(true); setDraftLoadError(''); setDraftFile(null); setDraftContent(''); setDraftDirty(false);
+    Promise.resolve().then(() => {
+      const api = window.yibiao?.softwareCopyright;
+      if (!api) throw new Error('草稿读取服务尚未就绪，请重启客户端后重试');
+      return api.readDraft(activeDraftKey);
+    })
       .then((file) => {
         if (!mounted) return;
         setDraftFile(file);
@@ -538,7 +528,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
         setDraftDirty(false);
       })
       .catch((error) => {
-        if (mounted) showToast(error instanceof Error ? error.message : '读取草稿失败', 'error');
+        if (mounted) { const message = error instanceof Error ? error.message : '读取草稿失败'; setDraftLoadError(message); showToast(message, 'error'); }
       })
       .finally(() => {
         if (mounted) setDraftLoading(false);
@@ -547,7 +537,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
     return () => {
       mounted = false;
     };
-  }, [activeDraftKey, showToast]);
+  }, [activeDraftKey, showToast, draftLoadRevision]);
 
   useEffect(() => {
     if (activeDraftKey !== 'manual' && draftViewMode === 'structure') setDraftViewMode('edit');
@@ -1107,17 +1097,16 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
   }
 
   async function handleSaveDraft() {
-    if (!activeDraftKey || !draftDirty) return;
+    if (!activeDraftKey || !draftDirty || draftLoading || draftLoadError || draftSaving || isRunning) return;
     setDraftSaving(true);
     try {
       const result = await window.yibiao?.softwareCopyright.saveDraft({ key: activeDraftKey, content: draftContent });
-      if (result) {
-        setDraftFile(result);
-        setDraftContent(result.content);
-        setDraftDirty(false);
-        setState(result.state);
-        setValidation(null);
-      }
+      if (!result) throw new Error('草稿保存服务未返回结果，请稍后重试');
+      setDraftFile(result);
+      setDraftContent(result.content);
+      setDraftDirty(false);
+      setState(result.state);
+      setValidation(null);
       showToast('草稿已保存，需重新确认后再导出', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '保存草稿失败', 'error');
@@ -1239,11 +1228,14 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
 
   function scrollToElement(element: HTMLElement | null) {
     if (!element) return;
-    const reduceMotion = shouldReduceMotion();
-    element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-    element.classList.remove('is-readiness-target');
-    window.requestAnimationFrame(() => element.classList.add('is-readiness-target'));
-    window.setTimeout(() => element.classList.remove('is-readiness-target'), 1600);
+    const section = element.closest<HTMLElement>('[data-workflow-stage]')?.dataset.workflowStage as SoftwareCopyrightWorkflowSection | undefined;
+    if (section) setActiveWorkflowSection(section);
+    window.requestAnimationFrame(() => {
+      element.scrollIntoView({ behavior: shouldReduceMotion() ? 'auto' : 'smooth', block: 'start' });
+      element.classList.remove('is-readiness-target');
+      element.classList.add('is-readiness-target');
+      window.setTimeout(() => element.classList.remove('is-readiness-target'), 1600);
+    });
   }
 
   function handleWorkflowNavigate(section: SoftwareCopyrightWorkflowSection, element: HTMLElement | null) {
@@ -1333,14 +1325,16 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
     scrollToElement(draftsSectionRef.current);
   }
 
+  if (loadError) return <WorkspaceLoadError message={loadError} onRetry={() => setLoadRevision(value => value + 1)} />;
+
   if (loading) {
-    return <div className="software-copyright-page"><div className="software-copyright-empty">正在读取软著生成状态...</div></div>;
+    return <WorkspaceLoading title="正在读取软著生成状态" />;
   }
 
   const isModern = getStoredUiAppearance() === 'modern';
 
   return (
-    <div className={`software-copyright-page${isModern ? ' modern-software-copyright' : ''}`}>
+    <div data-workflow-section={activeWorkflowSection} className={`software-copyright-page${isModern ? ' modern-software-copyright' : ''}`}>
       <section className="software-copyright-header">
         <div>
           <div className="software-copyright-header-eyebrow">
@@ -1421,11 +1415,14 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
         </button>
       </nav>}
 
-      <SoftwareCopyrightJourneyGuide steps={journeySteps} />
+      <details className="software-copyright-guide-disclosure">
+        <summary>查看使用引导</summary>
+        <SoftwareCopyrightJourneyGuide steps={journeySteps} />
+      </details>
 
       <div className="software-copyright-layout">
         <main className="software-copyright-main">
-          <section className="software-copyright-panel software-copyright-stage-source" ref={sourceSectionRef}>
+          <section className="software-copyright-panel software-copyright-stage-source" data-workflow-stage="source" hidden={isModern && activeWorkflowSection !== 'source'} ref={sourceSectionRef}>
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">项目来源</span>
@@ -1481,7 +1478,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
           </section>
 
           {state?.options.screenshotMode === 'manual' && (
-            <section className="software-copyright-panel software-copyright-stage-manual" ref={manualSectionRef}>
+            <section className="software-copyright-panel software-copyright-stage-manual" data-workflow-stage="source" hidden={isModern && activeWorkflowSection !== 'source'} ref={manualSectionRef}>
               <div className="software-copyright-panel-head">
                 <div>
                   <span className="section-kicker">手册素材</span>
@@ -1510,7 +1507,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
           )}
 
           {state?.options.screenshotMode === 'ai' && (
-            <section className="software-copyright-panel software-copyright-stage-manual" ref={manualSectionRef}>
+            <section className="software-copyright-panel software-copyright-stage-manual" data-workflow-stage="source" hidden={isModern && activeWorkflowSection !== 'source'} ref={manualSectionRef}>
               <div className="software-copyright-panel-head">
                 <div>
                   <span className="section-kicker">手册素材</span>
@@ -1548,7 +1545,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
             </section>
           )}
 
-          <section className="software-copyright-panel software-copyright-stage-code" ref={codeSectionRef}>
+          <section className="software-copyright-panel software-copyright-stage-code" data-workflow-stage="source" hidden={isModern && activeWorkflowSection !== 'source'} ref={codeSectionRef}>
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">代码材料</span>
@@ -1761,7 +1758,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
             )}
           </section>
 
-          <section className="software-copyright-panel software-copyright-stage-fields" ref={fieldsSectionRef}>
+          <section className="software-copyright-panel software-copyright-stage-fields" data-workflow-stage="fields" hidden={isModern && activeWorkflowSection !== 'fields'} ref={fieldsSectionRef}>
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">申请字段</span>
@@ -1769,17 +1766,10 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
               </div>
               <button type="button" className="secondary-action" onClick={handleSaveFields} disabled={saving || isRunning}>{saving ? '保存中' : '保存字段'}</button>
             </div>
-            <div className="software-copyright-form-grid">
-              {basicFieldRows.map((field) => (
-                <label className="software-copyright-field" data-software-copyright-field={field.key} key={field.key}>
-                  <span>{field.label}</span>
-                  <input type={field.inputType || 'text'} value={fields[field.key]} placeholder={field.placeholder} onChange={(event) => updateField(field.key, event.target.value)} disabled={isRunning} />
-                </label>
-              ))}
-            </div>
+            <SoftwareBasicFields fields={fields} updateField={updateField} disabled={isRunning} />
           </section>
 
-          <section className="software-copyright-panel software-copyright-stage-environment">
+          <section className="software-copyright-panel software-copyright-stage-environment" data-workflow-stage="fields" hidden={isModern && activeWorkflowSection !== 'fields'}>
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">环境与功能</span>
@@ -1792,14 +1782,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
                 </button>
               </div>
             </div>
-            <div className="software-copyright-form-grid">
-              {environmentFieldRows.map((field) => (
-                <label className="software-copyright-field" data-software-copyright-field={field.key} key={field.key}>
-                  <span>{field.label}</span>
-                  <input value={fields[field.key]} placeholder={field.placeholder} onChange={(event) => updateField(field.key, event.target.value)} disabled={isRunning} />
-                </label>
-              ))}
-            </div>
+            <SoftwareEnvironmentFields fields={fields} updateField={updateField} disabled={isRunning} />
             <label className="software-copyright-field is-wide" data-software-copyright-field="mainFunctions">
               <span>软件的主要功能</span>
               <textarea value={fields.mainFunctions} placeholder="可留空由文本模型根据项目证据生成，建议提交前人工核对。" onChange={(event) => updateField('mainFunctions', event.target.value)} disabled={isRunning} />
@@ -1816,14 +1799,14 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
                   {generatingTechnicalFeatures ? 'AI生成中...' : 'AI生成技术特点'}
                 </button>
               </div>
-              <textarea value={fields.technicalFeatures} placeholder="例如 Electron 桌面应用、AI 文档生成、Markdown/Word 导出等，≤100字符更适合官网字段。" onChange={(event) => updateField('technicalFeatures', event.target.value)} disabled={isRunning} />
+              <textarea aria-label="软件的技术特点" value={fields.technicalFeatures} placeholder="例如 Electron 桌面应用、AI 文档生成、Markdown/Word 导出等，≤100字符更适合官网字段。" onChange={(event) => updateField('technicalFeatures', event.target.value)} disabled={isRunning} />
               <small className="software-copyright-field-helper">根据当前源码技术栈、编程语言、主要功能和项目说明生成，结果仍需人工核对。</small>
             </div>
           </section>
 
           <div className="software-copyright-workflow-host" ref={setWorkflowHost} />
 
-          <section className="software-copyright-panel software-copyright-submission-panel" ref={submissionSectionRef}>
+          <section className="software-copyright-panel software-copyright-submission-panel" data-workflow-stage="result" hidden={isModern && activeWorkflowSection !== 'result'} ref={submissionSectionRef}>
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">申报辅助</span>
@@ -1837,7 +1820,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
             />
           </section>
 
-          <div className="software-copyright-readiness-host" ref={readinessSectionRef}>
+          <div className="software-copyright-readiness-host" data-workflow-stage="result" hidden={isModern && activeWorkflowSection !== 'result'} ref={readinessSectionRef}>
             <SubmissionReadinessPanel
               items={readinessItems}
               checking={validating}
@@ -1847,11 +1830,11 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
             />
           </div>
 
-          <div className="software-copyright-final-host" ref={setFinalStageHost} />
+          <div className="software-copyright-final-host" data-workflow-stage="result" hidden={isModern && activeWorkflowSection !== 'result'} ref={setFinalStageHost} />
         </main>
 
-        <aside className="software-copyright-side">
-          <section className="software-copyright-panel software-copyright-stage-settings" ref={settingsSectionRef}>
+        <aside className="software-copyright-side" hidden={isModern && activeWorkflowSection !== 'task'}>
+          <section className="software-copyright-panel software-copyright-stage-settings" data-workflow-stage="task" hidden={isModern && activeWorkflowSection !== 'task'} ref={settingsSectionRef}>
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">模型</span>
@@ -1907,7 +1890,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
 
           {workflowHost && createPortal(
             <>
-          <section className="software-copyright-panel software-copyright-workflow-panel is-task" ref={taskSectionRef}>
+          <section className="software-copyright-panel software-copyright-workflow-panel is-task" data-workflow-stage="task" hidden={isModern && activeWorkflowSection !== 'task'} ref={taskSectionRef}>
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">生成</span>
@@ -1915,9 +1898,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
               </div>
               {task && <em className={`software-copyright-task-status is-${task.status}`}>{task.status === 'running' ? '运行中' : task.status === 'success' ? '完成' : '失败'}</em>}
             </div>
-            <div className="software-copyright-progress" aria-label="生成进度">
-              <span style={{ width: `${Math.max(0, Math.min(100, task?.progress || 0))}%` }} />
-            </div>
+            {task && <BusinessTaskProgress label="材料生成" percent={task.progress} status={task.status === 'error' ? 'exception' : task.status === 'success' ? 'success' : 'active'} />}
             <div className="software-copyright-step-actions">
               <button type="button" className="primary-action" onClick={handleGenerateDraft} disabled={!canGenerateDraft}>
                 {isRunning && task?.type === 'software-copyright-draft-generation' ? '生成草稿中...' : '生成草稿'}
@@ -1965,7 +1946,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
             </div>
           </section>
 
-          <section className="software-copyright-panel software-copyright-workflow-panel is-drafts" ref={draftsSectionRef}>
+          <section className="software-copyright-panel software-copyright-workflow-panel is-drafts" data-workflow-stage="drafts" hidden={isModern && activeWorkflowSection !== 'drafts'} ref={draftsSectionRef}>
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">草稿</span>
@@ -1994,17 +1975,17 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
                 </div>
                 <div className="software-copyright-draft-content">
                 <div className="software-copyright-draft-meta">
-                  <span>{draftFile?.name || '正在读取草稿'}</span>
+                  <span>{draftFile?.name || (draftLoadError ? '草稿未能读取' : '正在读取草稿')}</span>
                   {draftFile?.updatedAt && <span>{new Date(draftFile.updatedAt).toLocaleString()}</span>}
                 </div>
-                <div className="software-copyright-draft-mode" aria-label="草稿查看方式">
-                  {activeDraftKey === 'manual' && <button type="button" className={draftViewMode === 'structure' ? 'is-active' : ''} onClick={() => setDraftViewMode('structure')}>章节</button>}
-                  <button type="button" className={draftViewMode === 'edit' ? 'is-active' : ''} onClick={() => setDraftViewMode('edit')}>编辑</button>
-                  <button type="button" className={draftViewMode === 'preview' ? 'is-active' : ''} onClick={() => setDraftViewMode('preview')}>预览</button>
-                  <button type="button" className={draftViewMode === 'history' ? 'is-active' : ''} disabled={draftDirty} onClick={() => setDraftViewMode('history')}>版本</button>
-                </div>
+                <WorkspaceViewControl label="草稿查看方式" value={draftViewMode} onChange={setDraftViewMode} options={[
+                  ...(activeDraftKey === 'manual' ? [{ value: 'structure' as const, label: '章节' }] : []),
+                  { value: 'edit', label: '编辑' }, { value: 'preview', label: '预览' }, { value: 'history', label: '版本', disabled: draftDirty },
+                ]} />
                 {draftLoading ? (
                   <div className="software-copyright-empty">正在读取草稿内容...</div>
+                ) : draftLoadError ? (
+                  <div className="software-copyright-empty" role="alert"><strong>草稿读取失败</strong><p>{draftLoadError}</p><button type="button" className="secondary-action" onClick={() => setDraftLoadRevision(value => value + 1)}>重试读取草稿</button></div>
                 ) : draftViewMode === 'history' ? (
                   <DraftVersionHistory
                     draftKey={activeDraftKey}
@@ -2024,6 +2005,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
                 ) : draftViewMode === 'edit' ? (
                   <MarkdownEditor
                     className="software-copyright-draft-editor"
+                    ariaLabel="软著草稿"
                     value={draftContent}
                     onChange={handleDraftContentChange}
                     placeholder="草稿内容为空"
@@ -2031,7 +2013,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
                   />
                 ) : (
                   <div className="markdown-viewer software-copyright-draft-preview">
-                    <MarkdownRenderer>{draftContent || '草稿内容为空'}</MarkdownRenderer>
+                    <MarkdownRenderer allowRawHtml={false}>{draftContent || '草稿内容为空'}</MarkdownRenderer>
                   </div>
                 )}
                 {draftViewMode !== 'history' && (
@@ -2058,7 +2040,7 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
 
           {finalStageHost && createPortal(
             <>
-          <section ref={finalExportSectionRef} className={`software-copyright-panel software-copyright-final-export is-${preExportReady ? 'ready' : 'locked'}`}>
+          <section data-workflow-stage="result" ref={finalExportSectionRef} className={`software-copyright-panel software-copyright-final-export is-${preExportReady ? 'ready' : 'locked'}`}>
             <div className="software-copyright-panel-head">
               <div>
                 <span className="section-kicker">最后一步</span>
@@ -2176,77 +2158,10 @@ function SoftwareCopyrightWorkbench({ onBackToProjects }: SoftwareCopyrightWorkb
       <Dialog.Root open={agentConfirmOpen} onOpenChange={setAgentConfirmOpen}><Dialog.Portal><Dialog.Overlay className="content-regenerate-modal" /><Dialog.Content className="software-copyright-agent-dialog"><Dialog.Title>确认执行 Agent 建议</Dialog.Title><Dialog.Description>将执行“{softwareCopyrightAgentLabels[agentRun?.shadowEvaluation?.agentAction || ''] || '下一步'}”。生成草稿可能产生模型费用；确认草稿会创建与当前材料绑定的正式快照。</Dialog.Description><div className="software-copyright-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={() => void executeSoftwareCopyrightAgentRecommendation()}>确认执行</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
 
       <Dialog.Root open={agentContinuousConfirmOpen} onOpenChange={setAgentContinuousConfirmOpen}><Dialog.Portal><Dialog.Overlay className="content-regenerate-modal" /><Dialog.Content className="software-copyright-agent-dialog"><Dialog.Title>确认自动准备软著材料</Dialog.Title><Dialog.Description>Agent 将保存已填写字段并生成尚未生成的软著草稿与代码鉴别材料，可能产生模型费用。代码范围、操作手册图片、权属信息、正式快照和最终导出仍需逐项人工确认。</Dialog.Description><div className="software-copyright-agent-actions"><Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close><button type="button" className="primary-action" onClick={confirmSoftwareCopyrightContinuousRun}>开始自动准备</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
-      <Dialog.Root open={exportConfirmOpen} onOpenChange={setExportConfirmOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="software-copyright-export-confirm-card">
-            <div className="software-copyright-export-confirm-head">
-              <div>
-                <Dialog.Title>确认导出正式资料</Dialog.Title>
-                <Dialog.Description>
-                  提交前总检已经通过，请最后确认软件信息和导出项目。
-                </Dialog.Description>
-              </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭导出确认">×</Dialog.Close>
-            </div>
-
-            <div className="software-copyright-export-confirm-grid">
-              <article>
-                <span>软件全称</span>
-                <strong>{fields.softwareName || '未填写'}</strong>
-              </article>
-              <article>
-                <span>版本号</span>
-                <strong>{fields.version || '未填写'}</strong>
-              </article>
-              <article>
-                <span>草稿状态</span>
-                <strong>{state?.draftConfirmed ? '已确认' : '未确认'}</strong>
-              </article>
-              <article>
-                <span>代码页数</span>
-                <strong>{codeManifest?.total_pages || fields.pageCount || '未生成'}</strong>
-              </article>
-            </div>
-
-            <div className="software-copyright-export-confirm-section">
-              <strong>导出项目</strong>
-              <div className="software-copyright-export-confirm-tags">
-                {selectedExportLabels.map((label) => <span key={label}>{label}</span>)}
-              </div>
-            </div>
-
-            <div className="software-copyright-export-confirm-section">
-              <strong>检查摘要</strong>
-              <ul>
-                {missingFields.length > 0 && <li>仍有 {missingFields.length} 项建议补全字段。</li>}
-                {!state?.draftConfirmed && <li>草稿尚未确认，请先返回确认草稿。</li>}
-                {codeRiskTips.map((tip) => <li key={tip}>{tip}</li>)}
-                {selectedExportLabels.length === 0 && <li>尚未选择任何导出项目。</li>}
-                {missingFields.length === 0 && state?.draftConfirmed && codeRiskTips.length === 0 && selectedExportLabels.length > 0 && (
-                  <li>当前未发现阻塞导出的检查项，仍建议导出后按当地受理要求人工复核。</li>
-                )}
-              </ul>
-            </div>
-
-            <div className="software-copyright-export-confirm-note">
-              导出材料格式需根据当地受理要求人为微调，请勿直接使用！
-            </div>
-
-            <div className="software-copyright-export-confirm-actions">
-              <Dialog.Close className="secondary-action" type="button">返回修改</Dialog.Close>
-              <button
-                type="button"
-                className="primary-action"
-                onClick={handleConfirmExportFinal}
-                disabled={!canExportFinal}
-              >
-                确认导出
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <SoftwareExportConfirmDialog open={exportConfirmOpen} onOpenChange={setExportConfirmOpen}
+        softwareName={fields.softwareName} version={fields.version} draftConfirmed={Boolean(state?.draftConfirmed)}
+        codePageCount={codeManifest?.total_pages || fields.pageCount || ''} exportLabels={selectedExportLabels}
+        missingFieldCount={missingFields.length} codeRiskTips={codeRiskTips} canExport={canExportFinal} onConfirm={handleConfirmExportFinal} />
     </div>
   );
 }

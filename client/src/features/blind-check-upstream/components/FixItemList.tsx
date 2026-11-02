@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { ChevronRightIcon } from '@radix-ui/react-icons';
 import type { BlindCheckFixItem } from '../types';
+import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
 import { severityLabels } from './FindingGroupList';
 import { DetailRow, DetailRows, Occurrence, OccurrenceList, OccurrenceNote } from './IssueDetail';
 
@@ -24,6 +25,7 @@ const editLabels: Record<BlindCheckFixItem['edits'][number]['op'], string> = {
  * 筛选按处数计，部分修复的问题在两个筛选里都会出现；待人工的排在前面，展开看原因、做法、仍存在的位置和修改内容。
  */
 export default function FixItemList({ items }: { items: BlindCheckFixItem[] }) {
+  const listId = useId();
   const [filter, setFilter] = useState<FixFilter>('all');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const counts = useMemo(() => ({
@@ -49,20 +51,21 @@ export default function FixItemList({ items }: { items: BlindCheckFixItem[] }) {
 
   return (
     <div className="blind-check-fix-items">
-      <div className="rejection-bid-result-filter" role="tablist" aria-label="按处理结果筛选">
+      <div className="rejection-bid-result-filter" role="tablist" aria-label="按处理结果筛选" onKeyDown={handleTabListKeyDown}>
         {filters.filter((item) => item.id === 'all' || counts[item.id] > 0 || item.id === filter).map((item) => (
-          <button type="button" key={item.id} className={filter === item.id ? 'is-active' : ''} onClick={() => setFilter(item.id)}>
+          <button type="button" role="tab" aria-selected={filter === item.id} tabIndex={filter === item.id ? 0 : -1} aria-controls={`${listId}-panel`} id={`${listId}-${item.id}`} key={item.id} className={filter === item.id ? 'is-active' : ''} onClick={() => setFilter(item.id)}>
             {item.label}
             <span>{`${counts[item.id]} 处`}</span>
           </button>
         ))}
       </div>
-      <div className="blind-check-group-list">
-        {visible.map((item) => {
+      <div className="blind-check-group-list" role="tabpanel" id={`${listId}-panel`} aria-labelledby={`${listId}-${filter}`}>
+        {visible.map((item, index) => {
+          const detailId = `${listId}-detail-${index}`;
           const open = expanded.has(item.id);
           return (
             <article className={`blind-check-group is-${item.severity}${item.pending ? '' : ' is-fix-fixed'}${open ? ' is-expanded' : ''}`} key={item.id}>
-              <button type="button" className="blind-check-group-row" onClick={() => toggle(item.id)} aria-expanded={open}>
+              <button type="button" className="blind-check-group-row" onClick={() => toggle(item.id)} aria-expanded={open} aria-controls={detailId}>
                 <ChevronRightIcon className="blind-check-group-chevron" aria-hidden="true" />
                 <em className={`rejection-finding-severity is-${item.severity}`}>{severityLabels[item.severity]}</em>
                 <strong title={item.message}>{item.message}</strong>
@@ -74,7 +77,7 @@ export default function FixItemList({ items }: { items: BlindCheckFixItem[] }) {
                 <span className="blind-check-group-count">{`共 ${item.count} 处`}</span>
               </button>
               {open && (
-                <div className="blind-check-group-detail">
+                <div className="blind-check-group-detail" id={detailId}>
                   <DetailRows>
                     {item.pending > 0 && <DetailRow label="未修复原因">{item.reason || '自动修复无法处理'}</DetailRow>}
                     {item.pending > 0 && item.suggestion && <DetailRow label="人工处理">{item.suggestion}</DetailRow>}

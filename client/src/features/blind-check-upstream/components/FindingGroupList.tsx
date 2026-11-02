@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { ChevronRightIcon } from '@radix-ui/react-icons';
 import type { BlindCheckCategory, BlindCheckIssue, BlindCheckSeverity } from '../types';
 import { DetailRow, DetailRows, Occurrence, OccurrenceList, OccurrenceNote } from './IssueDetail';
@@ -27,6 +27,7 @@ export const severityLabels: Record<BlindCheckSeverity, string> = {
  * 清单由 Main 按复核后的结论产出，这里只负责显示，不区分程序还是 AI 发现的。
  */
 export default function FindingGroupList({ issues }: { issues: BlindCheckIssue[] }) {
+  const detailPrefix = useId();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   const toggle = (key: string) => {
@@ -40,11 +41,12 @@ export default function FindingGroupList({ issues }: { issues: BlindCheckIssue[]
 
   return (
     <div className="blind-check-group-list">
-      {issues.map((issue) => {
+      {issues.map((issue, index) => {
+        const detailId = `${detailPrefix}-${index}`;
         const open = expanded.has(issue.id);
         return (
           <article className={`blind-check-group is-${issue.severity}${open ? ' is-expanded' : ''}`} key={issue.id}>
-            <button type="button" className="blind-check-group-row" onClick={() => toggle(issue.id)} aria-expanded={open}>
+            <button type="button" className="blind-check-group-row" onClick={() => toggle(issue.id)} aria-expanded={open} aria-controls={detailId}>
               <ChevronRightIcon className="blind-check-group-chevron" aria-hidden="true" />
               <em className={`rejection-finding-severity is-${issue.severity}`}>{severityLabels[issue.severity]}</em>
               <strong title={issue.message}>{issue.message}</strong>
@@ -53,7 +55,7 @@ export default function FindingGroupList({ issues }: { issues: BlindCheckIssue[]
             </button>
 
             {open && (
-              <div className="blind-check-group-detail">
+              <div id={detailId} className="blind-check-group-detail">
                 <DetailRows>
                   {issue.requirements.length > 0 && (
                     <DetailRow label="招标要求">

@@ -51,3 +51,27 @@
 @container (max-width: 860px) { .modern-workflow-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .modern-workflow-steps { border-right: 0; border-bottom: 1px solid #2c3a4d; padding: 8px 12px; } .modern-workflow-steps-head, .modern-workflow-steps > p { display: none; } .modern-workflow-steps nav { flex-direction: row; overflow-x: auto; } .modern-workflow-steps nav button { min-width: max-content; } .modern-workflow-stage { padding: 16px; } }
 @media (max-width: 820px) { .modern-workflow-commandbar { align-items: stretch; flex-direction: column; } .modern-workflow-commandbar > div:last-child { justify-content: flex-end; } }
 @media (prefers-reduced-motion: reduce) { .modern-workflow-stage { animation: none; } .modern-workflow-steps nav button, .modern-workflow-command { transition: none; } .modern-workflow-steps nav button:not(:disabled):hover, .modern-workflow-command:hover:not(:disabled) { transform: none; } }
+
+.modern-workflow-step-label .workflow-status { display: block; margin-top: 4px; color: var(--yb-text-muted); font-size: 12px; font-weight: 400; }
+.modern-workflow-step-label .is-success { color: #74d8ba; }
+.modern-workflow-step-label .is-error { color: #ffacb7; }
+.modern-workflow-step-label .is-running, .modern-workflow-step-label .is-waiting { color: #d0c5ff; }
+.modern-workflow-next-hint { flex: 0 0 auto; margin: 0; padding: 8px 16px; border-top: 1px solid var(--yb-border); color: var(--yb-text-soft); background: var(--yb-surface); font-size: 13px; line-height: 1.5; }
+.modern-workflow-commandbar .modern-workflow-command { font-size: 13px; }
+
+/* 多阶段流程按需打开：避免业务导航、流程、目录并排争夺正文宽度。 */
+.modern-workflow-layout { display: flex; flex-direction: column; background: var(--yb-bg); }
+.modern-workflow-main { flex: 1; }
+.modern-workflow-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 16px; background: var(--yb-surface); }
+.modern-workflow-heading-top { flex: 1; }
+.modern-workflow-stage-picker { display: inline-flex; align-items: center; gap: 16px; min-height: 32px; border: 1px solid var(--yb-control-border); border-radius: 6px; padding: 4px 12px; color: var(--yb-text); background: var(--yb-control-bg); font: inherit; font-size: 14px; cursor: pointer; }
+.modern-workflow-stage-picker span { color: var(--yb-text-soft); font-size: 12px; }
+.modern-workflow-stage-popover { z-index: 80; width: 300px; max-width: calc(100vw - 32px); overflow: hidden; border: 1px solid var(--yb-border); border-radius: 8px; background: var(--yb-surface); box-shadow: 0 12px 32px #0005; }
+.modern-workflow-stage-popover .modern-workflow-steps { display: flex; max-height: min(560px, 75vh); border: 0; padding: 16px; color: var(--yb-text); background: var(--yb-surface); }
+.modern-workflow-stage-popover .modern-workflow-steps-head { display: flex; }
+.modern-workflow-stage-popover .modern-workflow-steps nav { flex-direction: column; overflow-y: auto; }
+.modern-workflow-stage-popover .modern-workflow-steps nav button { min-height: 48px; min-width: 0; padding: 6px 8px; }
+.modern-workflow-stage-popover .modern-workflow-step-label { font-size: 14px; font-weight: 500; }
+.modern-workflow-stage-popover .modern-workflow-steps > p { display: none; }
+.modern-workflow-stage-popover button:focus-visible, .modern-workflow-stage-picker:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: -2px; }
+@media (max-width: 760px) { .modern-workflow-heading { align-items: stretch; flex-direction: column; gap: 8px; } .modern-workflow-stage-picker { justify-content: space-between; } }

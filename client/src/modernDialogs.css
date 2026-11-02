@@ -1,6 +1,7 @@
 /* Radix 弹窗挂在 body 下，无法通过 .modern-shell 继承页面样式。
    这里统一 Modern 弹窗的表面、层级和操作密度；文档纸张及全屏预览保留自身布局。 */
 :root[data-ui-appearance="modern"] body [role="dialog"]:not(:is(
+  .project-management-select-menu,
   .export-template-fullscreen-dialog,
   .official-document-reminder-card,
   .official-document-template-preview-card,
@@ -53,7 +54,7 @@
   .app-action-dialog-head,
   .presales-ppt-export-head
 ) {
-  padding: 19px 22px 17px;
+  padding: 24px 24px 16px;
   border-bottom: 1px solid #3d4b63;
   background: linear-gradient(110deg, #263451, #1f2b42 82%);
 }
@@ -89,7 +90,7 @@
 ) > h2 {
   margin: 0;
   color: #f4f1ff;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.4;
 }
 
@@ -107,7 +108,7 @@
 ) > p {
   margin: 0;
   color: #b9c7db;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -137,7 +138,7 @@
 ) :is(h2, h3) {
   margin: 0;
   color: #f4f1ff;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.35;
 }
 
@@ -148,9 +149,9 @@
   .app-action-dialog-field
 ) {
   min-width: 0;
-  padding: 17px 22px;
+  padding: 16px 24px;
   color: #bfcbdd;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -161,7 +162,7 @@
   .app-action-dialog-actions
 ) {
   gap: 8px;
-  padding: 12px 22px 16px;
+  padding: 16px 24px;
   border-top: 1px solid #36455c;
   background: #19283b;
 }
@@ -175,7 +176,7 @@
   min-height: 34px;
   border-radius: 7px;
   padding: 7px 13px;
-  font-size: 11px;
+  font-size: 14px;
 }
 
 /* 表单和配置弹窗：内容内部滚动，按钮始终靠近正在编辑的内容。 */
@@ -206,21 +207,22 @@
 }
 
 :root[data-ui-appearance="modern"] body [role="dialog"]:not(:is(
+  .project-management-select-menu,
   .export-template-fullscreen-dialog,
   .content-word-dialog,
   .feasibility-full-preview,
   .software-copyright-ai-preview-dialog,
   .knowledge-source-viewer
-)) :is(input, select, textarea) {
+)) :is(input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)) {
   border-color: #42536d;
   border-radius: 7px;
   color: #e9edf8;
   background: #202e43;
   box-shadow: none;
-  font-size: 12px;
+  font-size: 14px;
 }
 
-:root[data-ui-appearance="modern"] body [role="dialog"] :is(input, select, textarea):focus-visible {
+:root[data-ui-appearance="modern"] body [role="dialog"] :is(input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):focus-visible {
   outline: 2px solid #aa9cf4;
   outline-offset: 1px;
 }
@@ -299,7 +301,7 @@
   .bid-export-choice-card
 ) .content-regenerate-card-head h2 {
   color: #f1edff;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.35;
 }
 
@@ -311,7 +313,7 @@
   .bid-export-choice-card
 ) .content-regenerate-card-head p {
   color: #b3c0d4;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -353,7 +355,7 @@
   padding-bottom: 12px;
   border-bottom: 1px solid #3a4961;
   color: #f1edff;
-  font-size: 18px;
+  font-size: 16px;
 }
 :root[data-ui-appearance="modern"] body .image-edit-dialog img {
   max-height: min(220px, 30dvh);
@@ -370,8 +372,22 @@
 }
 
 @media (max-width: 680px) {
-  :root[data-ui-appearance="modern"] body [role="dialog"]:not(.export-template-fullscreen-dialog) {
+  :root[data-ui-appearance="modern"] body [role="dialog"]:not(:is(.export-template-fullscreen-dialog, .project-management-select-menu)) {
     max-width: calc(100vw - 20px);
     max-height: calc(100dvh - 20px);
   }
 }
+
+/* Portal 中的确认弹窗仍遵循 16/14 字阶与 8/16/24 间距。 */
+:root[data-ui-appearance="modern"] body :is(.app-dialog-card-head, .app-action-dialog-head) { background: var(--yb-surface); border-color: var(--yb-border); }
+:root[data-ui-appearance="modern"] body :is(.app-dialog-card-head, .app-action-dialog-head) h2 { font-weight: 500; line-height: 24px; overflow-wrap: anywhere; }
+:root[data-ui-appearance="modern"] body :is(.app-dialog-card-head, .app-action-dialog-head) p { font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+:root[data-ui-appearance="modern"] body :is(.app-dialog-actions, .app-action-dialog-actions) { background: var(--yb-surface); border-color: var(--yb-border); }
+:root[data-ui-appearance="modern"] body :is(.app-dialog-actions, .app-action-dialog-actions) button { min-height: 32px; padding: 4px 16px; line-height: 22px; font-weight: 400; }
+:root[data-ui-appearance="modern"] body .app-action-dialog-field { flex: 0 0 auto; font-weight: 400; }
+:root[data-ui-appearance="modern"] body :is(.app-dialog-card, .app-action-dialog-card) button:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+
+:root[data-ui-appearance="modern"] body .app-action-dialog-card { max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+:root[data-ui-appearance="modern"] body .app-action-dialog-actions { flex-wrap: wrap; }
+
+:root[data-ui-appearance="modern"] body .app-dialog-card { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scroll-padding-block: 16px 72px; }

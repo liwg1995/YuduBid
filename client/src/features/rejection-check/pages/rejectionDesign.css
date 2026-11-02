@@ -1,0 +1,163 @@
+.rejection-load-state { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; height:100%; min-height:0; color:var(--yb-text); font-size:14px; line-height:22px; }
+.rejection-load-state p { max-width:640px; margin:0; overflow-wrap:anywhere; }
+.rejection-action-error { display:flex; flex:0 0 auto; flex-wrap:wrap; align-items:baseline; gap:8px 16px; max-height:140px; padding:12px 16px; overflow:auto; border:1px solid #b42318; border-radius:6px; color:#b42318; font-size:14px; line-height:22px; overflow-wrap:anywhere; }
+:root[data-ui-theme='dark'] .rejection-action-error,:root[data-ui-appearance='modern'] .rejection-action-error { color:#ffa39e; border-color:#a85d66; }
+.rejection-operation-status { flex:0 0 auto; padding:8px 16px; color:var(--yb-text-soft); font-size:14px; line-height:22px; }
+.rejection-task-summary { flex:0 0 auto; padding:8px 16px; }
+.rejection-task-summary .yb-task-progress-summary { max-width:480px; }
+:root .modern-rejection-page { --yb-text:#edf0fa; --yb-text-soft:#b1bad0; --yb-text-muted:#9aa9bf; --yb-border-soft:#354157; --yb-surface:#161f30; container-type:inline-size; font-size:14px; line-height:22px; border-radius:8px; }
+:root .modern-rejection-steps { gap:8px; padding:8px 16px; }
+:root .modern-rejection-steps button { min-height:32px; padding:4px 12px; font-size:14px; line-height:22px; }
+:root .modern-rejection-steps button span { font-size:12px; }
+:root .modern-rejection-steps > strong { font-size:12px; line-height:20px; white-space:nowrap; }
+:root :is(.modern-rejection-documents,.modern-rejection-items,.modern-rejection-results) { gap:16px; padding:16px; }
+:root .modern-rejection-page-head { gap:16px; padding:0 0 16px; }
+:root .modern-rejection-page-head > div:first-child { min-width:0; }
+:root .modern-rejection-page-head h2 { margin:0 0 8px; font-size:20px; line-height:28px; font-weight:600; }
+:root .modern-rejection-page-head p { color:#b1bad0; font-size:14px; line-height:22px; overflow-wrap:anywhere; }
+:root .modern-rejection-page-head > div:last-child small { font-size:12px; line-height:20px; }
+:root :is(.modern-rejection-documents-grid,.modern-rejection-items-workspace,.modern-rejection-results-workspace) { gap:16px; }
+:root .modern-rejection-sources { gap:16px; }
+:root .modern-rejection-sources header { padding:16px; }
+:root .modern-rejection-sources h3 { margin:0 0 8px; font-size:16px; line-height:24px; font-weight:500; }
+:root .modern-rejection-sources p { color:#b1bad0; font-size:12px; line-height:20px; }
+:root .modern-rejection-document-row { gap:8px; margin:16px; }
+:root .modern-rejection-document-row strong { overflow:visible; font-size:14px; line-height:22px; font-weight:500; white-space:normal; overflow-wrap:anywhere; }
+:root .modern-rejection-document-row small,:root .modern-rejection-combined { color:#b1bad0; font-size:12px; line-height:20px; }
+:root .modern-rejection-document-row button { min-height:32px; font-size:14px; line-height:22px; }
+:root .modern-rejection-source-empty { padding:24px 16px; margin:16px; color:#b1bad0; font-size:14px; line-height:22px; }
+:root .modern-rejection-source-actions { gap:8px; padding:8px 16px; }
+:root :is(.modern-rejection-source-actions button,.modern-rejection-head-action,.modern-rejection-result-actions button,.modern-rejection-footer button,.modern-rejection-reader-head button,.modern-rejection-items-tabs button) { min-height:32px; padding:4px 12px; border-radius:6px; font-size:14px; line-height:22px; }
+:root .modern-rejection-reader-head { flex-wrap:wrap; gap:8px 16px; padding:16px; }
+:root .modern-rejection-reader-head > div:first-child { min-width:0; }
+:root .modern-rejection-reader-head h3 { margin:0 0 4px; font-size:16px; line-height:24px; }
+:root .modern-rejection-reader-head small { color:#b1bad0; font-size:12px; line-height:20px; overflow-wrap:anywhere; }
+:root :is(.modern-rejection-reader-content,.modern-rejection-items-content,.modern-rejection-result-content) { padding:16px; }
+:root .modern-rejection-result-content > * { flex-shrink:0; }
+:root .modern-rejection-empty strong { font-size:16px; line-height:24px; }
+:root .modern-rejection-empty p { color:#b1bad0; font-size:14px; line-height:22px; }
+:root .modern-rejection-items-context { gap:8px; padding:16px; }
+:root .modern-rejection-items-context :is(p,span) { color:#b1bad0; font-size:12px; line-height:20px; }
+:root .modern-rejection-items-context > div strong { font-size:14px; line-height:22px; font-weight:500; }
+:root .modern-rejection-riskbar { grid-template-columns:minmax(180px,1.5fr) repeat(4,minmax(60px,1fr)); }
+:root .modern-rejection-riskbar > div { min-height:56px; gap:4px; padding:8px 12px; }
+:root .modern-rejection-riskbar span { color:#b1bad0; font-size:12px; line-height:20px; }
+:root .modern-rejection-riskbar strong { font-size:16px; line-height:24px; font-variant-numeric:tabular-nums; }
+:root .modern-rejection-riskbar strong:is(.is-ready,.is-blocked) { font-size:14px; line-height:22px; }
+:root .modern-rejection-riskbar > button { grid-column:1 / -1; min-height:32px; padding:4px 12px; text-align:right; font-size:14px; line-height:22px; }
+:root .modern-rejection-blockers { max-height:140px; overflow:auto; padding:8px 12px; font-size:12px; line-height:20px; }
+:root .modern-rejection-blockers summary { cursor:pointer; }
+:root .modern-rejection-blockers ul { margin:8px 0 0; padding-left:20px; }
+:root .modern-rejection-result-nav { gap:8px; padding:8px; }
+:root .modern-rejection-result-nav button { display:flex; flex-direction:column; gap:4px; min-height:56px; padding:8px; border-radius:6px; }
+:root .modern-rejection-result-nav button strong { font-size:14px; line-height:22px; font-weight:500; }
+:root .modern-rejection-result-nav button small { color:#b1bad0; font-size:12px; line-height:20px; }
+:root .modern-rejection-result-detail > header { padding:16px; }
+:root .modern-rejection-result-detail h3 { margin:0 0 4px; font-size:16px; line-height:24px; }
+:root .modern-rejection-result-detail > header p { color:#b1bad0; font-size:12px; line-height:20px; }
+:root .modern-rejection-footer { flex-wrap:wrap; gap:8px 16px; padding:8px 16px; }
+:root .modern-rejection-footer > div { flex-wrap:wrap; gap:8px; }
+:root .rejection-check-running { flex:0 0 auto; align-items:flex-start; justify-content:flex-start; gap:16px; padding:16px; border-radius:6px; border-color:var(--yb-border-soft); color:var(--yb-text); background:var(--yb-surface); text-align:left; box-shadow:none; }
+:root .rejection-check-running > strong { color:inherit; font-size:16px; line-height:24px; }
+:root .rejection-check-running > p { color:var(--yb-text-soft); font-size:14px; line-height:22px; }
+:root .rejection-check-running-kicker { color:var(--yb-text-soft); font-size:12px; line-height:20px; letter-spacing:normal; }
+:root .rejection-check-running-stages { gap:8px; margin:0; }
+:root .rejection-check-running-stages small { font-size:12px; line-height:20px; }
+:root .rejection-check-running-track { height:4px; width:100%; max-width:480px; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-row { flex-wrap:wrap; align-items:flex-start; gap:8px; padding:12px 16px; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-toggle { min-width:180px; flex:1 1 240px; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-title-wrap strong { font-size:14px; line-height:22px; overflow-wrap:anywhere; white-space:normal; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-title-wrap small { font-size:12px; line-height:20px; }
+:root :is(.modern-rejection-page,.rejection-check-page) :is(.rejection-finding-delete,.rejection-finding-copy,.rejection-resolution-select) { min-height:32px; padding:4px 8px; border-radius:6px; font-size:14px; line-height:22px; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-detail { gap:16px; padding:16px; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-detail-block > strong { font-size:14px; line-height:22px; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-summary h3 { font-size:16px; line-height:24px; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-summary p { font-size:14px; line-height:22px; }
+:root .rejection-check-config-card { max-height:85vh; overflow:auto; }
+:root .rejection-check-config-card .content-generation-config-row strong { font-size:14px; line-height:22px; }
+:root .rejection-check-config-card .content-generation-config-row small { font-size:12px; line-height:20px; }
+:root .rejection-check-page { display:flex; flex-direction:column; height:100%; min-height:0; gap:16px; overflow:hidden; }
+.rejection-classic-body { flex:1; min-height:0; display:flex; flex-direction:column; gap:16px; overflow:auto; }
+.rejection-classic-body > * { flex-shrink:0; }
+:root .rejection-classic-body > .rejection-check-result-panel { display:flex; flex:1; flex-direction:column; min-height:0; gap:16px; }
+:root .rejection-classic-body .rejection-check-result-content { flex:1; min-height:0; overflow:auto; padding:16px; }
+:root .rejection-classic-body .rejection-check-result-content > * { flex-shrink:0; }
+:root .rejection-check-page :is(.rejection-check-result-content,.rejection-reader-card,.rejection-result-content,.rejection-finding-list) { padding-bottom:16px; scroll-padding-bottom:16px; }
+:root .app-shell .rejection-check-page > .floating-toolbar { position:static; inset:auto; width:max-content; max-width:100%; margin:0 auto; transform:none; flex:0 0 auto; flex-wrap:wrap; }
+:root .rejection-check-page > .floating-toolbar .floating-toolbar-drag-handle { display:none; }
+@container (max-width:1000px) {
+  :root .modern-rejection-documents-grid { grid-template-columns:minmax(0,1fr); overflow:auto; }
+  :root .modern-rejection-sources { overflow:visible; }
+  :root .modern-rejection-reader { min-height:360px; flex-shrink:0; }
+  :root .modern-rejection-results-workspace { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); gap:8px; }
+  :root .modern-rejection-result-nav { flex-direction:row; }
+  :root .modern-rejection-result-nav button { flex:0 0 128px; }
+  :root .modern-rejection-page-head { flex-wrap:wrap; gap:8px 16px; }
+  :root .modern-rejection-items-workspace { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); }
+  :root .modern-rejection-items-context { flex-direction:row; flex-wrap:wrap; align-items:baseline; max-height:120px; gap:8px 16px; }
+  :root .modern-rejection-items-context > div { padding:0; border:0; }
+  :root .modern-rejection-items-context > div strong { max-width:360px; }
+  :root .modern-rejection-steps > strong { display:none; }
+}
+@container (max-width:700px) {
+  :root .modern-rejection-riskbar { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  :root .modern-rejection-riskbar > div:first-child { grid-column:1 / -1; }
+  :root .modern-rejection-riskbar > div { min-height:40px; padding:4px 8px; }
+  :root .modern-rejection-page-head > div:first-child p { font-size:12px; line-height:20px; }
+  :root .rejection-check-running-stages { grid-template-columns:minmax(0,1fr); }
+}
+:root .modern-rejection-page-head > div:first-child { flex:1 1 240px; }
+:root .modern-rejection-results > .modern-rejection-page-head p { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+:root .modern-rejection-riskbar { grid-template-columns:minmax(150px,1.3fr) repeat(4,minmax(56px,.65fr)) auto; }
+:root .modern-rejection-riskbar > button { grid-column:auto; white-space:nowrap; }
+:root .modern-rejection-result-nav { padding:4px; }
+:root .modern-rejection-result-nav button { min-height:48px; padding:4px 8px; gap:2px; }
+@container (max-width:700px) {
+  :root .modern-rejection-riskbar { grid-template-columns:minmax(140px,1.3fr) repeat(4,minmax(52px,.65fr)); }
+  :root .modern-rejection-riskbar > div:first-child { grid-column:auto; }
+  :root .modern-rejection-riskbar > button { grid-column:1 / -1; }
+}
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-row { display:flex; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-item { border-radius:6px; box-shadow:none; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-summary { flex-wrap:wrap; align-items:flex-start; gap:8px 16px; margin-bottom:0; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-summary .section-kicker { display:none; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-summary h3 { margin:0 0 4px; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-result-status { min-width:120px; padding:8px 12px; border-radius:6px; }
+:root :is(.modern-rejection-page,.rejection-check-page) .rejection-finding-markdown { font-size:14px; line-height:22px; }
+.rejection-config-fields { display:block; min-width:0; margin:0; padding:0; border:0; }
+:root .modern-rejection-sources article { flex:0 0 auto; }
+@container (max-width:1000px) {
+  :root .modern-rejection-documents-grid { display:flex; flex-direction:column; overflow:auto; }
+  :root .modern-rejection-sources { flex:0 0 auto; overflow:visible; }
+  :root .modern-rejection-reader { flex:0 0 auto; min-height:360px; }
+}
+:root .rejection-classic-body > .rejection-check-result-panel { padding:16px; border-radius:8px; }
+:root .rejection-check-page .rejection-check-result-title { min-height:0; }
+:root .rejection-check-page .rejection-check-result-title .section-kicker { display:none; }
+:root .rejection-check-page .rejection-check-result-title h2 { font-size:20px; line-height:28px; }
+:root .rejection-check-page .rejection-check-context { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 16px; padding:12px 16px; border-radius:6px; }
+:root .rejection-check-page .rejection-check-context > :is(span,small) { display:none; }
+:root .rejection-check-page .rejection-check-context > strong { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:14px; line-height:22px; }
+:root .rejection-check-page .rejection-check-context-action { position:static; min-width:0; white-space:nowrap; }
+:root .rejection-check-page .rejection-check-overview { display:flex; flex-wrap:wrap; align-items:flex-start; gap:8px 16px; padding:12px 16px; border-radius:6px; }
+:root .rejection-check-page .rejection-check-overview > div:first-child { flex:1 1 220px; }
+:root .rejection-check-page .rejection-check-overview .section-kicker { display:none; }
+:root .rejection-check-page .rejection-check-overview strong { font-size:14px; line-height:22px; }
+:root .rejection-check-page .rejection-check-overview dl { flex:1 1 260px; display:flex; gap:8px; margin:0; }
+:root .rejection-check-page .rejection-check-overview dl > div { flex:1; min-width:0; padding:4px; }
+:root .rejection-check-page .rejection-check-overview dt { font-size:12px; line-height:20px; }
+:root .rejection-check-page .rejection-check-overview dd { font-size:16px; line-height:24px; }
+:root .rejection-check-page .rejection-check-overview > button { white-space:nowrap; }
+.rejection-overview-details { max-height:120px; overflow:auto; font-size:12px; line-height:20px; }
+.rejection-overview-details summary { cursor:pointer; }
+:root .rejection-check-page .rejection-check-result-tabs { display:flex; flex:0 0 auto; overflow:auto; gap:8px; padding:4px; }
+:root .rejection-check-page .rejection-check-result-tab { flex:0 0 128px; min-height:48px; padding:8px; border-radius:6px; }
+:root .rejection-check-page .rejection-check-result-tab-main { flex-direction:column; align-items:flex-start; gap:4px; }
+:root .rejection-check-page .rejection-check-result-tab strong { font-size:14px; line-height:22px; }
+:root .rejection-check-page .rejection-check-result-tab em { font-size:12px; line-height:20px; }
+:root .rejection-check-page :is(.rejection-result-viewer,.rejection-empty-reader,.rejection-custom-editor .markdown-editor-textarea) { padding-bottom:16px; scroll-padding-bottom:16px; }
+:root[data-ui-theme='dark'] .app-shell .rejection-check-result-tab.is-error em { color:#ffa39e; background:#49313b; }
+:root[data-ui-theme='dark'] .app-shell .rejection-check-result-tab.is-success em { color:#95de64; background:#263b2b; }
+:root :is(.modern-rejection-page,.rejection-check-page) :is(.rejection-scoring-table-wrap,.rejection-compliance-table-wrap) { min-height:0; overflow:auto; border-radius:6px; }
+:root :is(.modern-rejection-page,.rejection-check-page) :is(.rejection-scoring-table,.rejection-compliance-table) :is(th,td) { padding:12px 16px; color:var(--yb-text); background:var(--yb-surface); border-color:var(--yb-border-soft); font-size:14px; line-height:22px; }
+:root :is(.modern-rejection-page,.rejection-check-page) :is(.rejection-scoring-table,.rejection-compliance-table) th { position:sticky; top:0; z-index:1; background:var(--yb-control-bg); }

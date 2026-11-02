@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { captureListRemovalFocus, restoreListRemovalFocus, type ListRemovalFocus } from '../../../shared/ui/listRemovalFocus';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { EmployeeRecordsTable, ProjectRecordsTable } from '../components/CredentialRecordTables';
+import CredentialCompanyList from '../components/CredentialCompanyList';
 import { AppDialog, AppSwitch, EmptyState, InlineSpinner, useToast } from '../../../shared/ui';
 import './credentialLibrary.css';
 import './modernCredentialLibrary.css';
+import './credentialDesignSystem.css';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import CredentialImageField, { type CredentialImageItemView } from '../components/CredentialImageField';
 import {
@@ -136,37 +140,63 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
   const activeCompanyIdRef = useRef('');
   const profileEditVersionRef = useRef(0);
   const [snapshot, setSnapshot] = useState<CredentialLibrarySnapshot | null>(null);
+  const [companiesError, setCompaniesError] = useState('');
+  const [enterError, setEnterError] = useState('');
+  const [companyQuery, setCompanyQuery] = useState('');
+  const [companyPage, setCompanyPage] = useState(1);
+  const [companySortOrder, setCompanySortOrder] = useState<'ascend' | 'descend' | null>('descend');
+  const companyScrollPosition = useRef(0);
+  const returnCompanyId = useRef('');
+  const enteringRef = useRef(false);
+  const companyMutationRef = useRef(false);
+  const companiesRootRef = useRef<HTMLDivElement>(null);
+  const companyDeleteFocus = useRef<ListRemovalFocus | null>(null);
   const [companies, setCompanies] = useState<CredentialCompany[]>([]);
   const [activeCompanyId, setActiveCompanyId] = useState('');
+  const companyHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const [createCompanyOpen, setCreateCompanyOpen] = useState(false);
+  const [companyActionError, setCompanyActionError] = useState('');
   const [deleteCompanyTarget, setDeleteCompanyTarget] = useState<CredentialCompany | null>(null);
+  useEffect(() => { setCompanyActionError(''); }, [createCompanyOpen, deleteCompanyTarget?.companyId]);
   const [companyNameDraft, setCompanyNameDraft] = useState('');
   const [creditCodeDraft, setCreditCodeDraft] = useState('');
   const [profile, setProfile] = useState<CredentialLibraryProfile>(emptyCredentialProfile);
   const [activeTab, setActiveTab] = useState<CredentialTab>('basic');
   const [loading, setLoading] = useState(true);
+  useLayoutEffect(() => { if (activeCompanyId && !loading) companyHeadingRef.current?.focus({ preventScroll: true }); }, [activeCompanyId, loading]);
   const [busy, setBusy] = useState<string | null>(null);
   const [profileStatus, setProfileStatus] = useState('');
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
   const [editor, setEditor] = useState<EditorState | null>(null);
+  const [editorError, setEditorError] = useState('');
+  const [recordDeleteError, setRecordDeleteError] = useState('');
+  const [profileError, setProfileError] = useState('');
+  const recordMutationRef = useRef(false);
+  const failedProfileFields = useRef(new Set<string>());
+  const editorTrigger = useRef<HTMLElement | null>(null);
+  const recordDeleteTrigger = useRef<HTMLElement | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  useEffect(() => { setRecordDeleteError(''); }, [pendingDelete?.id]);
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
 
-  /** 首次进入时读取企业列表。 */
-  useEffect(() => {
-    let mounted = true;
-    void window.yibiao!.credentialLibrary.listCompanies()
-      .then((data) => {
-        if (!mounted) return;
-        setCompanies(data);
-      })
-      .catch((error) => showToast(error instanceof Error ? error.message : '读取资信库失败', 'error'))
-      .finally(() => mounted && setLoading(false));
-    return () => { mounted = false; };
+  const loadCompanies = useCallback(async () => {
+    setLoading(true);
+    setCompaniesError('');
+    try { setCompanies(await window.yibiao!.credentialLibrary.listCompanies()); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : '读取资信库失败';
+      setCompaniesError(message);
+      showToast(message, 'error');
+    } finally { setLoading(false); }
   }, [showToast]);
+  useEffect(() => { void loadCompanies(); }, [loadCompanies]);
 
   const enterCompany = async (companyId: string) => {
+    if (enteringRef.current) return false;
+    enteringRef.current = true;
+    returnCompanyId.current = companyId;
+    setEnterError('');
     setLoading(true);
     try {
       const data = await window.yibiao!.credentialLibrary.load(companyId);
@@ -174,17 +204,27 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
       setActiveCompanyId(companyId);
       setSnapshot(data);
       setProfile(data.profile);
+      failedProfileFields.current.clear();
+      setProfileError('');
+      setProfileStatus('');
       setActiveTab('basic');
+      return true;
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '读取企业资信信息失败', 'error');
+      const message = error instanceof Error ? error.message : '读取企业资信信息失败';
+      setEnterError(message);
+      showToast(message, 'error');
+      return false;
     } finally {
+      enteringRef.current = false;
       setLoading(false);
     }
   };
 
   const createCompany = async () => {
     const name = companyNameDraft.trim();
-    if (!name) return;
+    if (!name || companyMutationRef.current) return;
+    companyMutationRef.current = true;
+    setCompanyActionError('');
     setBusy('create-company');
     try {
       const result = await window.yibiao!.credentialLibrary.createCompany({ companyName: name, unifiedSocialCreditCode: creditCodeDraft.trim() });
@@ -192,17 +232,29 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
       setCreateCompanyOpen(false);
       setCompanyNameDraft('');
       setCreditCodeDraft('');
-      await enterCompany(result.companyId);
-      showToast('企业已创建，可以开始填写资信信息', 'success');
+      const entered = await enterCompany(result.companyId);
+      showToast(entered ? '企业已创建，可以开始填写资信信息' : '企业已创建，请在列表中重新进入资料', entered ? 'success' : 'info');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '创建企业失败', 'error');
+      const message = error instanceof Error ? error.message : '创建企业失败';
+      setCompanyActionError(message);
+      showToast(message, 'error');
     } finally {
+      companyMutationRef.current = false;
       setBusy(null);
     }
   };
 
+  const openCompanyDelete = (company: CredentialCompany) => {
+    const root = companiesRootRef.current;
+    const item = Array.from(root?.querySelectorAll<HTMLElement>('[data-company-id]') || []).find(button => button.dataset.companyId === company.companyId);
+    companyDeleteFocus.current = captureListRemovalFocus(root, '[data-company-id]', item);
+    setDeleteCompanyTarget(company);
+  };
+
   const deleteCompany = async () => {
-    if (!deleteCompanyTarget) return;
+    if (!deleteCompanyTarget || companyMutationRef.current) return;
+    companyMutationRef.current = true;
+    setCompanyActionError('');
     setBusy('delete-company');
     try {
       const result = await window.yibiao!.credentialLibrary.deleteCompany(deleteCompanyTarget.companyId);
@@ -214,8 +266,11 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
         showToast('企业及其资信资料已删除', 'success');
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '删除企业失败', 'error');
+      const message = error instanceof Error ? error.message : '删除企业失败';
+      setCompanyActionError(message);
+      showToast(message, 'error');
     } finally {
+      companyMutationRef.current = false;
       setBusy(null);
     }
   };
@@ -248,7 +303,9 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     const editVersion = profileEditVersionRef.current;
     const changed = Object.entries(partial).some(([key, value]) => snapshot?.profile[key as keyof CredentialLibraryProfile] !== value);
     if (!changed) {
-      setProfileStatus((current) => notify || current !== '待保存' ? '已保存' : current);
+      Object.keys(partial).forEach((key) => failedProfileFields.current.delete(key));
+      if (!failedProfileFields.current.size) setProfileError('');
+      setProfileStatus((current) => failedProfileFields.current.size ? '保存失败' : notify || current !== '待保存' ? '已保存' : current);
       if (notify) showToast('当前信息已保存', 'success');
       return true;
     }
@@ -256,9 +313,11 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     try {
       const data = await window.yibiao!.credentialLibrary.saveProfile(companyId, partial);
       if (activeCompanyIdRef.current === companyId) {
+        Object.keys(partial).forEach((key) => failedProfileFields.current.delete(key));
+        if (!failedProfileFields.current.size) setProfileError('');
         setSnapshot(data);
         setProfile((current) => ({ ...current, createdAt: data.profile.createdAt, updatedAt: data.profile.updatedAt }));
-        setProfileStatus(profileEditVersionRef.current === editVersion ? '已保存' : '待保存');
+        setProfileStatus(failedProfileFields.current.size ? '保存失败' : profileEditVersionRef.current === editVersion ? '已保存' : '待保存');
       }
       if (Object.prototype.hasOwnProperty.call(partial, 'companyName')) setCompanies(await window.yibiao!.credentialLibrary.listCompanies());
       if (notify && activeCompanyIdRef.current === companyId) {
@@ -267,7 +326,11 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
       }
       return true;
     } catch (error) {
-      if (activeCompanyIdRef.current === companyId) setProfileStatus('保存失败');
+      if (activeCompanyIdRef.current === companyId) {
+        Object.keys(partial).forEach((key) => failedProfileFields.current.add(key));
+        setProfileError(error instanceof Error ? error.message : '保存企业资料失败');
+        setProfileStatus('保存失败');
+      }
       if (activeCompanyIdRef.current === companyId) {
         if (profileSaveToastIdRef.current !== null) {
           dismissToast(profileSaveToastIdRef.current);
@@ -330,8 +393,8 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
   /** 支持方向键、Home 和 End 切换顶部 Tab。 */
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex = index;
-    if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
-    else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (index - 1 + tabs.length) % tabs.length;
     else if (event.key === 'Home') nextIndex = 0;
     else if (event.key === 'End') nextIndex = tabs.length - 1;
     else return;
@@ -375,13 +438,27 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
         images={images.map((image) => ({ id: image.imageId, name: image.originalName, url: image.assetUrl }))}
         disabled={busy !== null}
         onFiles={(files) => void addProfileImages(fieldKey, files)}
-        onRemove={(image) => setPendingDelete({ kind: 'image', id: image.id, label: image.name })}
+        onRemove={(image) => openDeleteDialog({ kind: 'image', id: image.id, label: image.name })}
       />
     );
   };
 
+  const openDeleteDialog = (target: PendingDelete) => {
+    if (busy !== null || recordMutationRef.current) return;
+    recordDeleteTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPendingDelete(target);
+  };
+
+  const restoreRecordFocus = (event: Event, origin: HTMLElement | null) => {
+    const target = origin?.isConnected ? origin : document.querySelector<HTMLInputElement>('#credential-tab-panel input[type=search]') || document.getElementById(`credential-tab-${activeTab}`);
+    if (target) { event.preventDefault(); target.focus({ preventScroll: true }); }
+  };
+
   /** 打开列表记录新增或编辑弹窗。 */
   const openEditor = (type: EditorType, record?: CredentialRecord) => {
+    if (busy !== null || recordMutationRef.current) return;
+    editorTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setEditorError('');
     const nextRecord = record || (type === 'certificate'
       ? createEmptyCertificate()
       : type === 'employee'
@@ -409,6 +486,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
 
   /** 关闭编辑器并释放草稿图片预览地址。 */
   const closeEditor = () => {
+    if (recordMutationRef.current) return;
     editor?.newImages.forEach((image) => URL.revokeObjectURL(image.url));
     setEditor(null);
   };
@@ -490,13 +568,15 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
 
   /** 保存当前列表记录和图片草稿。 */
   const saveEditor = async () => {
-    if (!editor) return;
+    if (!editor || recordMutationRef.current) return;
+    setEditorError('');
     const newImages = editor.newImages.map((image) => ({
       fieldKey: image.fieldKey,
       filePath: window.yibiao!.file.getPathForFile(image.file),
       customName: image.customName,
     }));
     if (newImages.some((image) => !image.filePath)) {
+      setEditorError('未能读取部分图片路径，请重新选择');
       showToast('未能读取部分图片路径，请重新选择', 'error');
       return;
     }
@@ -509,6 +589,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
         customName: editor.imageNameDrafts[image.imageId] ?? image.customName,
       })),
     };
+    recordMutationRef.current = true;
     setBusy(`save-${editor.type}`);
     try {
       let result: CredentialLibraryMutationResult;
@@ -527,17 +608,23 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
       } else {
         showToast('保存成功', 'success');
       }
+      recordMutationRef.current = false;
       closeEditor();
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '保存失败', 'error');
+      const message = error instanceof Error ? error.message : '保存失败';
+      setEditorError(message);
+      showToast(message, 'error');
     } finally {
+      recordMutationRef.current = false;
       setBusy(null);
     }
   };
 
   /** 执行图片或列表记录的永久删除。 */
   const confirmDelete = async () => {
-    if (!pendingDelete) return;
+    if (!pendingDelete || recordMutationRef.current) return;
+    recordMutationRef.current = true;
+    setRecordDeleteError('');
     setBusy(`delete-${pendingDelete.kind}`);
     try {
       let result: CredentialLibraryMutationResult;
@@ -554,8 +641,11 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
         showToast('删除成功', 'success');
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '删除失败', 'error');
+      const message = error instanceof Error ? error.message : '删除失败';
+      setRecordDeleteError(message);
+      showToast(message, 'error');
     } finally {
+      recordMutationRef.current = false;
       setBusy(null);
     }
   };
@@ -565,7 +655,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     <section className="credential-section-card">
       <div className="credential-section-head">
         <div><strong>企业基本信息</strong><small>资料仅属于当前企业，除企业名称外均可按需填写。</small></div>
-        <span className="credential-save-status" aria-live="polite">{profileStatus}</span>
+        <span className={`credential-save-status${profileError ? ' is-error' : ''}`} aria-live="polite">{profileStatus}</span>
       </div>
       <div className="credential-form-grid">
         <FormField label="公司名称"><input value={profile.companyName} onChange={(event) => updateProfile('companyName', event.target.value)} onBlur={() => void saveProfile({ companyName: profile.companyName })} /></FormField>
@@ -589,7 +679,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
   const renderIntroPanel = () => (
     <div className="credential-panel-stack">
       <section className="credential-section-card">
-        <div className="credential-section-head"><div><strong>公司介绍</strong><small>用于统一维护企业简介、优势和服务能力。</small></div><span className="credential-save-status">{profileStatus}</span></div>
+        <div className="credential-section-head"><div><strong>公司介绍</strong><small>用于统一维护企业简介、优势和服务能力。</small></div><span className={`credential-save-status${profileError ? ' is-error' : ''}`}>{profileStatus}</span></div>
         <FormField label="公司介绍"><textarea rows={12} value={profile.companyIntro} onChange={(event) => updateProfile('companyIntro', event.target.value)} onBlur={() => void saveProfile({ companyIntro: profile.companyIntro })} /></FormField>
       </section>
       {renderProfileImageField('officeEnvironment', '办公环境', '支持上传多张办公室、生产场地或服务环境原图。')}
@@ -617,7 +707,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
                   <td>{item.number || '-'}</td>
                   <td>{item.validityMode === 'long-term' ? '长期' : item.validityMode === 'range' ? [item.validFrom, item.validTo].filter(Boolean).join(' 至 ') || '-' : '-'}</td>
                   <td>{getImages('certificate', item.certificateId).length} 张</td>
-                  <td className="credential-table-actions"><button type="button" className="text-button" onClick={() => openEditor('certificate', item)}>编辑</button><button type="button" className="text-button is-danger" onClick={() => setPendingDelete({ kind: 'certificate', id: item.certificateId, label: item.name || '未命名证书' })}>删除</button></td>
+                  <td className="credential-table-actions"><button type="button" className="text-button" onClick={() => openEditor('certificate', item)}>编辑</button><button type="button" className="text-button is-danger" onClick={() => openDeleteDialog({ kind: 'certificate', id: item.certificateId, label: item.name || '未命名证书' })}>删除</button></td>
                 </tr>
               ))}</tbody>
             </table>
@@ -632,9 +722,9 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     <section className="credential-section-card credential-list-card">
       <div className="credential-list-toolbar">
         <div><strong>员工档案</strong><small>集中维护人员信息、身份证明、劳动关系和技能证书。</small></div>
-        <div className="credential-list-actions"><input type="search" value={employeeSearch} placeholder="搜索姓名、职务、身份证号" onChange={(event) => setEmployeeSearch(event.target.value)} /><button type="button" className="primary-action" onClick={() => openEditor('employee')}>新增员工</button></div>
+        <div className="credential-list-actions"><input type="search" aria-label="搜索员工" value={employeeSearch} placeholder="搜索姓名、职务、身份证号或电话" onChange={(event) => setEmployeeSearch(event.target.value)} /><button type="button" className="primary-action" onClick={() => openEditor('employee')}>新增员工</button></div>
       </div>
-      {visibleEmployees.length ? (
+      {getStoredUiAppearance() === 'modern' ? <EmployeeRecordsTable records={visibleEmployees} total={snapshot?.employees.length || 0} query={employeeSearch} disabled={busy !== null} onClearSearch={() => setEmployeeSearch('')} imageCount={(id) => getImages('employee', id).length} onEdit={(item) => openEditor('employee', item)} onDelete={(item) => openDeleteDialog({ kind: 'employee', id: item.employeeId, label: item.name || '未命名人员' })} /> : visibleEmployees.length ? (
         <div className="credential-table-wrap">
           <table className="credential-table">
             <thead><tr><th>姓名</th><th>职务 / 职称</th><th>联系电话</th><th>学历 / 专业</th><th>资料图片</th><th>操作</th></tr></thead>
@@ -645,7 +735,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
                 <td>{item.phone || '-'}</td>
                 <td>{[item.education, item.major].filter(Boolean).join(' / ') || '-'}</td>
                 <td>{getImages('employee', item.employeeId).length} 张</td>
-                <td className="credential-table-actions"><button type="button" className="text-button" onClick={() => openEditor('employee', item)}>编辑</button><button type="button" className="text-button is-danger" onClick={() => setPendingDelete({ kind: 'employee', id: item.employeeId, label: item.name || '未命名人员' })}>删除</button></td>
+                <td className="credential-table-actions"><button type="button" className="text-button" onClick={() => openEditor('employee', item)}>编辑</button><button type="button" className="text-button is-danger" onClick={() => openDeleteDialog({ kind: 'employee', id: item.employeeId, label: item.name || '未命名人员' })}>删除</button></td>
               </tr>
             ))}</tbody>
           </table>
@@ -659,9 +749,9 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     <section className="credential-section-card credential-list-card">
       <div className="credential-list-toolbar">
         <div><strong>项目业绩</strong><small>维护合同、中标、验收和回款材料。</small></div>
-        <div className="credential-list-actions"><input type="search" value={projectSearch} placeholder="搜索项目、客户或负责人" onChange={(event) => setProjectSearch(event.target.value)} /><button type="button" className="primary-action" onClick={() => openEditor('project')}>新增业绩</button></div>
+        <div className="credential-list-actions"><input type="search" aria-label="搜索项目业绩" value={projectSearch} placeholder="搜索项目、客户或负责人" onChange={(event) => setProjectSearch(event.target.value)} /><button type="button" className="primary-action" onClick={() => openEditor('project')}>新增业绩</button></div>
       </div>
-      {visibleProjects.length ? (
+      {getStoredUiAppearance() === 'modern' ? <ProjectRecordsTable records={visibleProjects} total={snapshot?.projects.length || 0} query={projectSearch} disabled={busy !== null} onClearSearch={() => setProjectSearch('')} onEdit={(item) => openEditor('project', item)} onDelete={(item) => openDeleteDialog({ kind: 'project', id: item.projectId, label: item.projectName || '未命名项目' })} /> : visibleProjects.length ? (
         <div className="credential-table-wrap">
           <table className="credential-table">
             <thead><tr><th>项目名称</th><th>客户 / 类型</th><th>负责人</th><th>合同金额</th><th>状态</th><th>操作</th></tr></thead>
@@ -672,7 +762,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
                 <td>{item.projectManager || '-'}</td>
                 <td>{item.contractAmount || '-'}</td>
                 <td>{item.projectStatus || '-'}</td>
-                <td className="credential-table-actions"><button type="button" className="text-button" onClick={() => openEditor('project', item)}>编辑</button><button type="button" className="text-button is-danger" onClick={() => setPendingDelete({ kind: 'project', id: item.projectId, label: item.projectName || '未命名项目' })}>删除</button></td>
+                <td className="credential-table-actions"><button type="button" className="text-button" onClick={() => openEditor('project', item)}>编辑</button><button type="button" className="text-button is-danger" onClick={() => openDeleteDialog({ kind: 'project', id: item.projectId, label: item.projectName || '未命名项目' })}>删除</button></td>
               </tr>
             ))}</tbody>
           </table>
@@ -692,7 +782,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
       <div className="credential-panel-stack">
         {proofs.map((proof) => (
           <section className="credential-section-card credential-finance-card" key={proof.imageKey}>
-            <div className="credential-section-head"><div><strong>{proof.title}</strong><small>当前类别保存一条信息，图片可上传多张。</small></div><span className="credential-save-status">{profileStatus}</span></div>
+            <div className="credential-section-head"><div><strong>{proof.title}</strong><small>当前类别保存一条信息，图片可上传多张。</small></div><span className={`credential-save-status${profileError ? ' is-error' : ''}`}>{profileStatus}</span></div>
             <div className="credential-form-grid">
               <FormField label="信息时间"><input type="date" value={profile[proof.dateKey]} onChange={(event) => updateProfile(proof.dateKey, event.target.value)} onBlur={() => void saveProfile({ [proof.dateKey]: profile[proof.dateKey] })} /></FormField>
               <FormField label="备注" wide><textarea rows={3} value={profile[proof.noteKey]} onChange={(event) => updateProfile(proof.noteKey, event.target.value)} onBlur={() => void saveProfile({ [proof.noteKey]: profile[proof.noteKey] })} /></FormField>
@@ -701,7 +791,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
           </section>
         ))}
         <section className="credential-section-card">
-          <div className="credential-section-head"><div><strong>开户行信息</strong><small>维护企业基本账户及开户许可证原图。</small></div><span className="credential-save-status">{profileStatus}</span></div>
+          <div className="credential-section-head"><div><strong>开户行信息</strong><small>维护企业基本账户及开户许可证原图。</small></div><span className={`credential-save-status${profileError ? ' is-error' : ''}`}>{profileStatus}</span></div>
           <div className="credential-form-grid">
             <FormField label="开户名称"><input value={profile.bankAccountName} onChange={(event) => updateProfile('bankAccountName', event.target.value)} onBlur={() => void saveProfile({ bankAccountName: profile.bankAccountName })} /></FormField>
             <FormField label="银行账号"><input value={profile.bankAccountNumber} onChange={(event) => updateProfile('bankAccountNumber', event.target.value)} onBlur={() => void saveProfile({ bankAccountNumber: profile.bankAccountNumber })} /></FormField>
@@ -727,7 +817,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
                 <td><strong>{item.name || '未命名资料'}</strong></td>
                 <td>{item.note || '-'}</td>
                 <td>{getImages('other', item.materialId).length} 张</td>
-                <td className="credential-table-actions"><button type="button" className="text-button" onClick={() => openEditor('other', item)}>编辑</button><button type="button" className="text-button is-danger" onClick={() => setPendingDelete({ kind: 'other', id: item.materialId, label: item.name || '未命名资料' })}>删除</button></td>
+                <td className="credential-table-actions"><button type="button" className="text-button" onClick={() => openEditor('other', item)}>编辑</button><button type="button" className="text-button is-danger" onClick={() => openDeleteDialog({ kind: 'other', id: item.materialId, label: item.name || '未命名资料' })}>删除</button></td>
               </tr>
             ))}</tbody>
           </table>
@@ -739,7 +829,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
   /** 渲染水印设置；本阶段只保存配置，不生成水印图。 */
   const renderWatermarkPanel = () => (
     <section className="credential-section-card credential-watermark-card">
-      <div className="credential-section-head"><div><strong>图片水印</strong><small>工作区始终保存用户上传的原图；后续使用图片时再按此配置添加水印。</small></div><span className="credential-save-status">{profileStatus}</span></div>
+      <div className="credential-section-head"><div><strong>图片水印</strong><small>工作区始终保存用户上传的原图；后续使用图片时再按此配置添加水印。</small></div><span className={`credential-save-status${profileError ? ' is-error' : ''}`}>{profileStatus}</span></div>
       <div className="credential-switch-row">
         <div><strong>自动添加水印</strong><small>{profile.watermarkEnabled ? '使用资信图片时自动添加水印' : '使用资信图片时保持原图'}</small></div>
         <AppSwitch checked={profile.watermarkEnabled} onCheckedChange={(checked) => { updateProfile('watermarkEnabled', checked); void saveProfile({ watermarkEnabled: checked }); }} aria-label="是否自动添加水印" />
@@ -854,34 +944,34 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
   const modernAppearance = getStoredUiAppearance() === 'modern';
 
   if (!activeCompanyId) {
-    return <div className="credential-library-page credential-companies-page">
+    return <div ref={companiesRootRef} className="credential-library-page credential-companies-page">
       {modernAppearance ? <section className="modern-credential-companies">
-        <header className="modern-credential-companies-head"><div><span>KNOWLEDGE / CREDENTIALS</span><h1>资信库</h1><p>每家企业拥有独立的资质、员工、业绩和原始资料。</p></div><button type="button" onClick={() => setCreateCompanyOpen(true)}>＋ 创建企业</button></header>
-        <div className="modern-credential-companies-summary"><span>企业档案</span><strong>{companies.length}</strong><small>选择企业，进入对应资料工作区</small></div>
-        {companies.length ? <div className="modern-credential-company-list">{companies.map((company) => <article key={company.companyId}><div className="modern-credential-company-mark">{company.companyName.slice(0, 1)}</div><div><strong>{company.companyName}</strong><small>创建于 {new Date(company.createdAt).toLocaleString('zh-CN', { hour12: false })}</small></div><button type="button" onClick={() => void enterCompany(company.companyId)}>进入资料 →</button><button type="button" className="is-danger" onClick={() => setDeleteCompanyTarget(company)}>删除</button></article>)}</div> : <div className="modern-credential-companies-empty"><strong>还没有企业档案</strong><p>创建企业后，即可管理专属资信资料。</p><button type="button" onClick={() => setCreateCompanyOpen(true)}>创建第一家企业</button></div>}
+        <header className="modern-credential-companies-head"><div><h1>资信库</h1><p>选择企业，管理其资质、员工、业绩和原始资料。</p></div><button type="button" disabled={busy !== null || Boolean(companiesError)} data-create-company onClick={() => setCreateCompanyOpen(true)}>创建企业</button></header>
+        {enterError && <div className="credential-list-error" role="alert"><strong>读取企业资料失败</strong><p>{enterError}</p><span>请再次选择企业重试，现有资料未修改。</span></div>}
+        {companiesError ? <div className="modern-credential-companies-empty" role="alert"><strong>读取资信库失败</strong><p>{companiesError}</p><button type="button" onClick={() => void loadCompanies()}>重新读取</button></div> : companies.length ? <CredentialCompanyList companies={companies} query={companyQuery} page={companyPage} sortOrder={companySortOrder} onSortChange={setCompanySortOrder} scrollPosition={companyScrollPosition} returnCompanyId={returnCompanyId} disabled={busy !== null} onQueryChange={setCompanyQuery} onPageChange={setCompanyPage} onEnter={(id) => void enterCompany(id)} onDelete={openCompanyDelete} /> : <div className="modern-credential-companies-empty"><strong>还没有企业档案</strong><p>创建企业后，即可管理专属资信资料。</p><button type="button" data-create-company onClick={() => setCreateCompanyOpen(true)}>创建第一家企业</button></div>}
       </section> :
       <section className="credential-library-shell credential-companies-shell">
         <header className="bid-analysis-command-bar credential-library-command-bar">
           <div><span className="section-kicker">知识库</span><strong>资信库</strong><p>先选择企业，再填写其基本信息、资质、员工、业绩和其他资料。</p></div>
-          <button type="button" className="primary-action create-action" onClick={() => setCreateCompanyOpen(true)}>创建企业</button>
+          <button type="button" className="primary-action create-action" data-create-company onClick={() => setCreateCompanyOpen(true)}>创建企业</button>
         </header>
-        <div className="credential-companies-content">
+        <div className="credential-companies-content">{companiesError && <div role="alert"><strong>读取资信库失败</strong><p>{companiesError}</p><button type="button" onClick={() => void loadCompanies()}>重新读取</button></div>}{enterError && <p role="alert">{enterError}</p>}
           <div className="credential-companies-heading"><div><span className="section-kicker">企业档案</span><h2>我的企业</h2></div><span>共 {companies.length} 家</span></div>
-          {companies.length ? <div className="credential-company-grid">{companies.map((company) => <article className="credential-company-card" key={company.companyId}>
+          {companiesError ? null : companies.length ? <div className="credential-company-grid">{companies.map((company) => <article className="credential-company-card" key={company.companyId}>
             <div className="credential-company-avatar" aria-hidden="true">{company.companyName.slice(0, 1)}</div>
             <div className="credential-company-card-body"><h3>{company.companyName}</h3><span>创建于 {new Date(company.createdAt).toLocaleString('zh-CN', { hour12: false })}</span></div>
             <div className="credential-company-card-actions">
-              <button type="button" className="secondary-action" onClick={() => void enterCompany(company.companyId)}>进入资信信息</button>
-              <button type="button" className="danger-action" onClick={() => setDeleteCompanyTarget(company)}>删除</button>
+              <button type="button" className="secondary-action" data-company-id={company.companyId} onClick={() => void enterCompany(company.companyId)}>进入资信信息</button>
+              <button type="button" className="danger-action" onClick={() => openCompanyDelete(company)}>删除</button>
             </div>
-          </article>)}</div> : <div className="credential-company-empty"><strong>还没有企业档案</strong><p>创建企业后，即可进入专属资信信息填写界面。</p><button type="button" className="primary-action create-action" onClick={() => setCreateCompanyOpen(true)}>创建企业</button></div>}
+          </article>)}</div> : <div className="credential-company-empty"><strong>还没有企业档案</strong><p>创建企业后，即可进入专属资信信息填写界面。</p><button type="button" className="primary-action create-action" data-create-company onClick={() => setCreateCompanyOpen(true)}>创建企业</button></div>}
         </div>
       </section>}
       <AppDialog open={createCompanyOpen} onOpenChange={(open) => busy === null && setCreateCompanyOpen(open)} kicker="企业档案" title="创建企业" description="填写企业名称后，将直接进入该企业的资信信息填写界面。" preventClose={busy !== null}
         actions={<><button type="button" className="secondary-action" onClick={() => setCreateCompanyOpen(false)} disabled={busy !== null}>取消</button><button type="button" className="primary-action create-action" onClick={() => void createCompany()} disabled={!companyNameDraft.trim() || busy !== null}>{busy === 'create-company' ? '创建中...' : '创建并进入'}</button></>}>
-        <div className="credential-company-create-fields"><FormField label="企业名称"><input autoFocus maxLength={100} value={companyNameDraft} onChange={(event) => setCompanyNameDraft(event.target.value)} placeholder="请输入企业全称" /></FormField><FormField label="统一社会信用代码（选填）"><input maxLength={32} value={creditCodeDraft} onChange={(event) => setCreditCodeDraft(event.target.value)} placeholder="可稍后在基本信息中补充" /></FormField></div>
+        <div className="credential-company-create-fields">{companyActionError && <p className="credential-company-action-error" role="alert">{companyActionError}</p>}<FormField label="企业名称"><input autoFocus disabled={busy !== null} maxLength={100} value={companyNameDraft} onChange={(event) => setCompanyNameDraft(event.target.value)} placeholder="请输入企业全称" /></FormField><FormField label="统一社会信用代码（选填）"><input disabled={busy !== null} maxLength={32} value={creditCodeDraft} onChange={(event) => setCreditCodeDraft(event.target.value)} placeholder="可稍后在基本信息中补充" /></FormField></div>
       </AppDialog>
-      <AppDialog open={Boolean(deleteCompanyTarget)} onOpenChange={(open) => !open && busy === null && setDeleteCompanyTarget(null)} kicker="永久删除" title={`删除“${deleteCompanyTarget?.companyName || ''}”？`}
+      <AppDialog onCloseAutoFocus={event => { if (restoreListRemovalFocus(companyDeleteFocus.current, companiesRootRef.current, '[data-company-id]', ['input[aria-label="搜索企业名称"]', '.modern-credential-companies-empty [data-create-company]', '.credential-company-empty [data-create-company]', '[data-create-company]'])) event.preventDefault(); }} open={Boolean(deleteCompanyTarget)} onOpenChange={(open) => !open && busy === null && setDeleteCompanyTarget(null)} kicker="永久删除" title={`删除“${deleteCompanyTarget?.companyName || ''}”？`} children={companyActionError ? <p className="credential-company-action-error" role="alert">{companyActionError}</p> : undefined}
         description="将同时删除该企业的基本信息、资质、员工、业绩、其他资料和已上传原图。此操作无法撤销。" preventClose={busy !== null}
         actions={<><button type="button" className="secondary-action" onClick={() => setDeleteCompanyTarget(null)} disabled={busy !== null}>取消</button><button type="button" className="danger-action" onClick={() => void deleteCompany()} disabled={busy !== null}>{busy === 'delete-company' ? '删除中...' : '确认删除'}</button></>} />
     </div>;
@@ -891,18 +981,18 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
     <div className="credential-library-page">
       {modernAppearance ? <section className="modern-credential-workspace">
         <header className="modern-credential-head">
-          <div><span>KNOWLEDGE / CREDENTIALS</span><button type="button" onClick={() => void returnToCompanies()} disabled={busy !== null}>← 企业列表</button><h1>{profile.companyName || '未填写公司名称'}</h1><p>逐项维护企业资料。输入后离开字段会自动保存。</p></div>
-          <div><span aria-live="polite">{profileStatus || '资料已就绪'}</span><button type="button" onClick={() => void saveCurrentProfile()} disabled={busy !== null}>保存企业信息</button>{developerMode ? <button type="button" onClick={() => setImportConfirmOpen(true)} disabled={busy !== null}>导入测试数据</button> : null}</div>
+          <div><button type="button" onClick={() => void returnToCompanies()} disabled={busy !== null}>← 企业列表</button><h1 ref={companyHeadingRef} tabIndex={-1}>{profile.companyName || '未填写公司名称'}</h1><p>逐项维护企业资料。输入后离开字段会自动保存。</p></div>
+          <div><span className={profileError ? 'is-error' : undefined} aria-live="polite">{profileStatus || '资料已就绪'}</span><button type="button" onClick={() => void saveCurrentProfile()} disabled={busy !== null}>保存企业信息</button>{developerMode ? <button type="button" onClick={() => setImportConfirmOpen(true)} disabled={busy !== null}>导入测试数据</button> : null}</div>
         </header>
         <div className="modern-credential-layout">
           <aside className="modern-credential-side">
             <div className="modern-credential-side-heading"><span>企业档案</span><strong>资料目录</strong><small>按类别填写和查阅</small></div>
-            <nav aria-label="资信库分类">{tabs.map((tab, index) => <button type="button" key={tab.id} id={`credential-tab-${tab.id}`} role="tab" aria-selected={activeTab === tab.id} aria-controls="credential-tab-panel" tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'is-active' : ''} onClick={() => setActiveTab(tab.id)} onKeyDown={(event) => handleTabKeyDown(event, index)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{tab.label}</strong><span>›</span></button>)}</nav>
+            <nav role="tablist" aria-orientation="vertical" aria-label="资信库分类">{tabs.map((tab, index) => <button type="button" key={tab.id} id={`credential-tab-${tab.id}`} role="tab" aria-selected={activeTab === tab.id} aria-controls="credential-tab-panel" tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'is-active' : ''} onClick={() => setActiveTab(tab.id)} onKeyDown={(event) => handleTabKeyDown(event, index)}><strong>{tab.label}</strong></button>)}</nav>
             <div className="modern-credential-side-summary"><strong>当前企业</strong><span>{snapshot?.employees.length || 0} 名员工</span><span>{snapshot?.projects.length || 0} 项业绩</span><span>{snapshot?.images.length || 0} 张图片</span></div>
           </aside>
           <main className="modern-credential-main" id="credential-tab-panel" role="tabpanel" aria-labelledby={`credential-tab-${activeTab}`}>
-            <div className="modern-credential-main-head"><span>资料分类 / {tabs.find((tab) => tab.id === activeTab)?.label}</span><strong>{tabs.find((tab) => tab.id === activeTab)?.label}</strong></div>
-            <div className="modern-credential-main-content">{activeTab === 'basic' ? renderBasicPanel() : activeTab === 'intro' ? renderIntroPanel() : activeTab === 'qualification' ? renderQualificationPanel() : activeTab === 'employee' ? renderEmployeePanel() : activeTab === 'project' ? renderProjectPanel() : activeTab === 'finance' ? renderFinancePanel() : activeTab === 'other' ? renderOtherPanel() : renderWatermarkPanel()}</div>
+            <div className="modern-credential-main-head"><strong>{tabs.find((tab) => tab.id === activeTab)?.label}</strong></div>
+            <div className="modern-credential-main-content">{profileError && <div className="credential-detail-error" role="alert"><strong>企业信息保存失败</strong><p>{profileError}</p><button type="button" disabled={busy !== null} onClick={() => void saveCurrentProfile()}>重新保存企业信息</button></div>}{activeTab === 'basic' ? renderBasicPanel() : activeTab === 'intro' ? renderIntroPanel() : activeTab === 'qualification' ? renderQualificationPanel() : activeTab === 'employee' ? renderEmployeePanel() : activeTab === 'project' ? renderProjectPanel() : activeTab === 'finance' ? renderFinancePanel() : activeTab === 'other' ? renderOtherPanel() : renderWatermarkPanel()}</div>
           </main>
         </div>
       </section> :
@@ -920,7 +1010,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
               {developerMode ? <button type="button" className="secondary-action" onClick={() => setImportConfirmOpen(true)} disabled={busy !== null}>{busy === 'import-test-data' ? '导入中...' : '导入测试数据'}</button> : null}
             </div>
             <span>{profile.companyName || '未填写公司名称'}</span>
-            <small>{snapshot?.employees.length || 0} 名员工 · {snapshot?.projects.length || 0} 项业绩 · {snapshot?.images.length || 0} 张图片 · <span className="credential-header-save-status" aria-live="polite">{profileStatus || '输入后离开字段自动保存'}</span></small>
+            <small>{snapshot?.employees.length || 0} 名员工 · {snapshot?.projects.length || 0} 项业绩 · {snapshot?.images.length || 0} 张图片 · <span className={`credential-header-save-status${profileError ? ' is-error' : ''}`} aria-live="polite">{profileStatus || '输入后离开字段自动保存'}</span></small>
           </div>
         </header>
 
@@ -932,6 +1022,7 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
         </div>
 
         <div className="credential-library-panel" id="credential-tab-panel" role="tabpanel" aria-labelledby={`credential-tab-${activeTab}`}>
+          {profileError && <div className="credential-detail-error" role="alert"><strong>企业信息保存失败</strong><p>{profileError}</p><button type="button" disabled={busy !== null} onClick={() => void saveCurrentProfile()}>重新保存企业信息</button></div>}
           {activeTab === 'basic' ? renderBasicPanel()
             : activeTab === 'intro' ? renderIntroPanel()
               : activeTab === 'qualification' ? renderQualificationPanel()
@@ -959,15 +1050,18 @@ function CredentialLibraryPage({ developerMode }: { developerMode: boolean }) {
         kicker={editor?.type === 'employee' ? '员工档案' : editor?.type === 'project' ? '项目业绩' : editor?.type === 'certificate' ? '其他证书' : '其他资料'}
         title={editor ? `${(editor.record as CredentialCertificate).certificateId || (editor.record as CredentialEmployee).employeeId || (editor.record as CredentialProject).projectId || (editor.record as CredentialOtherMaterial).materialId ? '编辑' : '新增'}${editor.type === 'employee' ? '员工' : editor.type === 'project' ? '业绩' : editor.type === 'certificate' ? '证书' : '资料'}` : ''}
         description="所有字段均为选填；新增图片会在保存记录时复制到应用工作区。"
-        cardClassName="credential-editor-dialog"
+        cardClassName="credential-editor-dialog" onCloseAutoFocus={(event) => restoreRecordFocus(event, editorTrigger.current)}
         preventClose={busy !== null}
         actions={<><button type="button" className="secondary-action" onClick={closeEditor} disabled={busy !== null}>取消</button><button type="button" className="primary-action" onClick={() => void saveEditor()} disabled={busy !== null}>{busy?.startsWith('save-') ? '保存中...' : '保存'}</button></>}
       >
-        {renderEditorBody()}
+        {editorError && <p className="credential-detail-error" role="alert">{editorError}</p>}
+        <div className="credential-editor-scroll"><fieldset className="credential-editor-fields" disabled={busy !== null} aria-label="记录表单">{renderEditorBody()}</fieldset></div>
       </AppDialog>
 
       <AppDialog
         open={Boolean(pendingDelete)}
+        onCloseAutoFocus={(event) => restoreRecordFocus(event, recordDeleteTrigger.current)}
+        children={recordDeleteError ? <p className="credential-detail-error" role="alert">{recordDeleteError}</p> : undefined}
         onOpenChange={(open) => !open && busy === null && setPendingDelete(null)}
         kicker="永久删除"
         title={`删除“${pendingDelete?.label || ''}”？`}

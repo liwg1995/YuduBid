@@ -26,7 +26,7 @@ function PatentPriorArtPage({ onNavigate }: { onNavigate?: (section: SectionId) 
       ]}
       outputTitle="查新分析材料"
       outputItems={['查新分析.md', '现有技术对比表', '本案区别点摘要', '交底书 1.1 回写内容']}
-      outputDescription="国知局自动检索会作为增强版单独评估，避免第一版被 Playwright 打包和站点稳定性拖住。"
+      outputDescription="当前支持手动录入公开资料。请保留原始来源，核验公开日期及技术内容后再用于交底书。"
       enablePriorArtAnalysis
       onNavigate={onNavigate}
     />

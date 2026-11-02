@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import '../duplicateCheck.css';
 import './modernDuplicateCheck.css';
+import './duplicateDesign.css';
+import DuplicateAnalysisFeedback from '../components/DuplicateAnalysisFeedback';
+import TaskProgressSummary from '../../../shared/ui/TaskProgressSummary';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
-import { FloatingToolbar, isLibreOfficeRequiredMessage, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
+import { FloatingToolbar, isLibreOfficeRequiredMessage, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, useAppDialog, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type { DuplicateAnalysisStatus, DuplicateAnalysisTabId, DuplicateCheckStep, DuplicateCheckTaskState, DuplicateCheckWorkspaceState, DuplicateContentAnalysisState, DuplicateImageAnalysisState, DuplicateMetadataAnalysisState, DuplicateOutlineAnalysisState, LocalFileSelection } from '../../../shared/types';
 
 const guideItems = [
-  '同设备、同用户、同一个 WPS 账号、时间相近等问题，一秒锁定。',
+  '元数据中的账号、作者和编辑时间可提供复核线索，需结合文件内容判断。',
   '可选上传招标文件，多份投标文件都引用了招标文件中的内容，不算重复。',
   '图片基于哈希校验，只能识别同一张图片，截图、压缩等相似图片筛不出来。',
 ];
@@ -73,12 +76,12 @@ function ModernFileRow({ file, code, onRemove, disabled = false }: { file: Local
 function statusLabel(status: DuplicateAnalysisStatus) {
   if (status === 'running') return '分析中';
   if (status === 'success') return '已完成';
-  if (status === 'error') return '有错误';
+  if (status === 'error') return '未完成';
   return '待分析';
 }
 
 function progressText(progress?: { completed: number; total: number }) {
-  if (!progress?.total) return '0/0';
+  if (!progress?.total) return '等待处理';
   return `${progress.completed}/${progress.total}`;
 }
 
@@ -190,6 +193,7 @@ function DuplicateFileCodeBar({ files }: { files: LocalFileSelection[] }) {
 
 function PaginationControls({ page, pageSize, total, onPageChange }: { page: number; pageSize: number; total: number; onPageChange: (page: number) => void }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPages === 1) return <div className="duplicate-pagination">共 {total} 条</div>;
   return (
     <div className="duplicate-pagination">
       <span>第 {Math.min(page, totalPages)} / {totalPages} 页，共 {total} 条</span>
@@ -210,16 +214,9 @@ function DuplicateMetadataPane({ analysis, bidFiles }: { analysis?: DuplicateMet
   return (
     <div className="duplicate-metadata-panel">
       <div className="duplicate-metadata-status-grid">
-        <article>
-          <span>正文内容提取</span>
-          <strong>{progressText(analysis?.contentExtraction)}</strong>
-          <small>{statusLabel(analysis?.contentExtraction?.status || 'pending')}</small>
-        </article>
-        <article>
-          <span>元数据提取</span>
-          <strong>{progressText(analysis?.metadataExtraction)}</strong>
-          <small>{statusLabel(analysis?.metadataExtraction?.status || 'pending')}</small>
-        </article>
+        {([{ label: '正文提取', value: analysis?.contentExtraction }, { label: '元数据提取', value: analysis?.metadataExtraction }]).map(({ label, value }) => <article key={label}>
+          {value?.total ? <TaskProgressSummary label={label} detail={progressText(value)} percent={value.completed / value.total * 100} status={value.status === 'error' ? 'exception' : value.status === 'success' ? 'success' : value.status === 'running' ? 'active' : 'normal'} /> : <><span>{label}</span><small>{statusLabel(value?.status || 'pending')}</small></>}
+        </article>)}
       </div>
 
       {!analysis && (
@@ -229,13 +226,14 @@ function DuplicateMetadataPane({ analysis, bidFiles }: { analysis?: DuplicateMet
         </div>
       )}
 
-      {analysis && !rows.length && (
+      {analysis && analysis.status !== 'error' && !rows.length && (
         <div className="duplicate-analysis-empty">
-          <strong>{isRunning ? '正在提取元数据' : '暂无可对比元数据'}</strong>
+          <strong>{isRunning ? '正在提取元数据' : analysis.status === 'pending' ? '等待元数据提取' : '暂无可对比元数据'}</strong>
           <p>{analysis.message || '请稍候，文件较多时需要一定时间。'}</p>
         </div>
       )}
 
+      {rows.length > 0 && <p className="duplicate-metadata-legend">红色表示多份文件取值相同，黄色表示日期为同一天；请结合原文复核。</p>}
       {rows.length > 0 && (
         <div className="duplicate-metadata-table-wrap">
           <table className="duplicate-metadata-table">
@@ -347,10 +345,10 @@ function DuplicateOutlinePane({ analysis, bidFiles }: { analysis?: DuplicateOutl
           </div>
           <PaginationControls page={currentPage} pageSize={pageSize} total={duplicateGroups.length} onPageChange={setPage} />
         </section>
-      ) : (
+      ) : analysis.status === 'error' || analysis.status === 'running' ? null : (
         <div className="duplicate-analysis-empty">
-          <strong>{analysis.status === 'running' ? '正在分析目录' : '未发现重复目录'}</strong>
-          <p>{analysis.status === 'running' ? analysis.message : successfulFiles.length > 0 ? '未发现投标文件之间的目录重复；来自招标文件的目录项已自动排除。' : '暂无可用目录结果。'}</p>
+          <strong>{analysis.status === 'success' ? '未发现重复目录' : '等待目录分析'}</strong>
+          <p>{analysis.status !== 'success' ? analysis.message || '分析完成后显示目录比对结果。' : successfulFiles.length > 0 ? '未发现投标文件之间的目录重复；来自招标文件的目录项已自动排除。' : '暂无可用目录结果。'}</p>
         </div>
       )}
     </div>
@@ -419,10 +417,10 @@ function DuplicateContentPane({ analysis, bidFiles }: { analysis?: DuplicateCont
           </div>
           <PaginationControls page={currentPage} pageSize={pageSize} total={duplicateSentences.length} onPageChange={setPage} />
         </section>
-      ) : (
+      ) : analysis.status === 'error' || analysis.status === 'running' ? null : (
         <div className="duplicate-analysis-empty">
-          <strong>{analysis.status === 'running' ? '正在比对正文' : '未发现重复句子'}</strong>
-          <p>{analysis.status === 'running' ? analysis.message : '未发现投标文件之间的重复句子；引用招标文件的句子已自动排除。'}</p>
+          <strong>{analysis.status === 'success' ? '未发现重复句子' : '等待正文比对'}</strong>
+          <p>{analysis.status !== 'success' ? analysis.message || '分析完成后显示正文比对结果。' : '未发现投标文件之间的重复句子；引用招标文件的句子已自动排除。'}</p>
         </div>
       )}
     </div>
@@ -451,7 +449,7 @@ function DuplicateImagePane({ analysis, bidFiles }: { analysis?: DuplicateImageA
   }
 
   if (!analysis) {
-    return <div className="duplicate-analysis-empty"><strong>等待图片比对</strong><p>正文内容提取完成后会自动按图片 hash 比对。</p></div>;
+    return <div className="duplicate-analysis-empty"><strong>等待图片比对</strong><p>正文内容提取完成后会自动比对完全相同的图片。</p></div>;
   }
 
   return (
@@ -464,7 +462,7 @@ function DuplicateImagePane({ analysis, bidFiles }: { analysis?: DuplicateImageA
             <span>{analysis.message} · 共识别 {analysis.totalImageCount} 张图片</span>
           </div>
           <div className="duplicate-image-grid">
-            {pageItems.map((item) => {
+            {pageItems.map((item, index) => {
               const locationEntries = item.file_ids.flatMap((fileId) => {
                 const location = item.locations?.[fileId]?.[0];
                 return location ? [{ fileId, location }] : [];
@@ -472,9 +470,9 @@ function DuplicateImagePane({ analysis, bidFiles }: { analysis?: DuplicateImageA
               return (
                 <article key={item.id}>
                   <div className="duplicate-image-preview">
-                    <img src={item.preview_url} alt={`重复图片 ${item.hash.slice(0, 10)}`} loading="lazy" />
+                    <img src={item.preview_url} alt={`重复图片 ${(currentPage - 1) * pageSize + index + 1}`} loading="lazy" />
                   </div>
-                  <strong>Hash {item.hash.slice(0, 12)}</strong>
+                  <strong>重复图片 {(currentPage - 1) * pageSize + index + 1}</strong>
                   <div className="duplicate-file-badges">
                     {item.file_ids.map((fileId) => (
                       <span key={fileId} title={bidFiles.find((file) => file.id === fileId)?.file_name || fileId}>
@@ -499,10 +497,10 @@ function DuplicateImagePane({ analysis, bidFiles }: { analysis?: DuplicateImageA
           </div>
           <PaginationControls page={currentPage} pageSize={pageSize} total={duplicateImages.length} onPageChange={setPage} />
         </section>
-      ) : (
+      ) : analysis.status === 'error' || analysis.status === 'running' ? null : (
         <div className="duplicate-analysis-empty">
-          <strong>{analysis.status === 'running' ? '正在比对图片' : '未发现重复图片'}</strong>
-          <p>{analysis.status === 'running' ? analysis.message : '未发现投标文件之间完全相同的图片。'}</p>
+          <strong>{analysis.status === 'success' ? '未发现重复图片' : '等待图片比对'}</strong>
+          <p>{analysis.status !== 'success' ? analysis.message || '分析完成后显示图片比对结果。' : '未发现投标文件之间完全相同的图片。'}</p>
         </div>
       )}
     </div>
@@ -512,12 +510,13 @@ function DuplicateImagePane({ analysis, bidFiles }: { analysis?: DuplicateImageA
 function DuplicateAnalysisPane({ activeTab, onTabChange, metadataAnalysis, outlineAnalysis, contentAnalysis, imageAnalysis, bidFiles, startingAnalysis, onRerun }: { activeTab: DuplicateAnalysisTabId; onTabChange: (tab: DuplicateAnalysisTabId) => void; metadataAnalysis?: DuplicateMetadataAnalysisState; outlineAnalysis?: DuplicateOutlineAnalysisState; contentAnalysis?: DuplicateContentAnalysisState; imageAnalysis?: DuplicateImageAnalysisState; bidFiles: LocalFileSelection[]; startingAnalysis: boolean; onRerun: () => void }) {
   const activeItem = analysisTabs.find((item) => item.id === activeTab) || analysisTabs[0];
   const metadataStatus = metadataAnalysis?.status || 'pending';
-  const metadataProgress = metadataAnalysis?.status === 'success' || metadataAnalysis?.status === 'error'
-    ? 100
-    : metadataAnalysis?.metadataExtraction?.total
-      ? Math.round((metadataAnalysis.metadataExtraction.completed / metadataAnalysis.metadataExtraction.total) * 100)
-      : 0;
   const analysisRunning = startingAnalysis || metadataStatus === 'running' || outlineAnalysis?.status === 'running' || contentAnalysis?.status === 'running' || imageAnalysis?.status === 'running';
+
+  const activeAnalysis = activeTab === 'metadata' ? metadataAnalysis : activeTab === 'outline' ? outlineAnalysis : activeTab === 'content' ? contentAnalysis : imageAnalysis;
+  const failureFiles = activeTab === 'metadata'
+    ? [...(metadataAnalysis?.files || []), ...(metadataAnalysis?.contentFiles || [])]
+    : activeTab === 'outline' ? outlineAnalysis?.files || [] : activeTab === 'image' ? imageAnalysis?.files || [] : metadataAnalysis?.contentFiles || [];
+  const feedback = <DuplicateAnalysisFeedback label={activeItem.label} status={activeAnalysis?.status || 'pending'} progress={activeAnalysis?.progress} message={activeAnalysis?.message} failures={failureFiles.filter(file => file.status === 'error')} />;
 
   if (getStoredUiAppearance() === 'modern') {
     const result = activeItem.id === 'metadata'
@@ -528,15 +527,14 @@ function DuplicateAnalysisPane({ activeTab, onTabChange, metadataAnalysis, outli
           ? <DuplicateContentPane analysis={contentAnalysis} bidFiles={bidFiles} />
           : <DuplicateImagePane analysis={imageAnalysis} bidFiles={bidFiles} />;
     return <div className="modern-duplicate-results">
-      <header className="modern-duplicate-result-header"><div><span>ANALYSIS / 02</span><h2>查重结果</h2><p>从四个维度查看投标文件之间的重复线索。</p></div><button type="button" onClick={onRerun} disabled={!bidFiles.length || analysisRunning}>{analysisRunning ? '分析进行中…' : '重新查重'}</button></header>
+      <header className="modern-duplicate-result-header"><div><h2>查重结果</h2><p>从四个维度查看投标文件之间的重复线索。</p></div><button type="button" onClick={onRerun} disabled={!bidFiles.length || analysisRunning}>{analysisRunning ? '分析进行中…' : '重新查重'}</button></header>
       <div className="modern-duplicate-result-workspace">
-        <nav className="modern-duplicate-dimensions" role="tablist" aria-orientation="vertical" aria-label="查重维度" onKeyDown={handleTabListKeyDown}><div><span>检查维度</span><strong>04</strong></div>{analysisTabs.map((item, index) => {
+        <nav className="modern-duplicate-dimensions" role="tablist" aria-orientation="vertical" aria-label="查重维度" onKeyDown={handleTabListKeyDown}><div><span>检查维度</span></div>{analysisTabs.map((item) => {
           const analysis = item.id === 'metadata' ? metadataAnalysis : item.id === 'outline' ? outlineAnalysis : item.id === 'content' ? contentAnalysis : imageAnalysis;
           const status = analysis?.status || 'pending';
-          const progress = status === 'success' || status === 'error' ? 100 : item.id === 'metadata' ? metadataProgress : analysis && 'progress' in analysis ? Number(analysis.progress || 0) : 0;
-          return <button type="button" role="tab" key={item.id} id={`modern-duplicate-tab-${item.id}`} aria-selected={activeTab === item.id} aria-controls="modern-duplicate-panel" tabIndex={activeTab === item.id ? 0 : -1} className={`modern-duplicate-dimension${activeTab === item.id ? ' is-active' : ''}`} onClick={() => onTabChange(item.id)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{item.label}</strong><small className={`is-${status}`}>{statusLabel(status)}</small><i style={{ width: `${progress}%` }} /></button>;
+          return <button type="button" role="tab" key={item.id} id={`modern-duplicate-tab-${item.id}`} aria-selected={activeTab === item.id} aria-controls="modern-duplicate-panel" tabIndex={activeTab === item.id ? 0 : -1} className={`modern-duplicate-dimension${activeTab === item.id ? ' is-active' : ''}`} onClick={() => onTabChange(item.id)}><strong>{item.label}</strong><small className={`is-${status}`}>{statusLabel(status)}</small></button>;
         })}</nav>
-        <section className="modern-duplicate-result-detail" role="tabpanel" id="modern-duplicate-panel" aria-labelledby={`modern-duplicate-tab-${activeItem.id}`}><div className="modern-duplicate-detail-head"><span>当前维度</span><h3>{activeItem.label}查重</h3><p>{dimensions.find((dimension) => dimension.title === activeItem.label)?.text}</p></div><div className="modern-duplicate-detail-content">{result}</div></section>
+        <section className="modern-duplicate-result-detail" role="tabpanel" id="modern-duplicate-panel" aria-labelledby={`modern-duplicate-tab-${activeItem.id}`}><div className="modern-duplicate-detail-head"><h3>{activeItem.label}查重</h3><p>{dimensions.find((dimension) => dimension.title === activeItem.label)?.text}</p></div><div className="modern-duplicate-detail-content">{feedback}{result}</div></section>
       </div>
     </div>;
   }
@@ -553,7 +551,7 @@ function DuplicateAnalysisPane({ activeTab, onTabChange, metadataAnalysis, outli
         </button>
       </div>
 
-      <div className="duplicate-analysis-tabs" role="tablist" aria-label="标书查重维度">
+      <div className="duplicate-analysis-tabs" role="tablist" aria-label="标书查重维度" onKeyDown={handleTabListKeyDown}>
         {analysisTabs.map((item) => {
           const isActive = item.id === activeTab;
           const status: DuplicateAnalysisStatus = item.id === 'metadata'
@@ -565,16 +563,6 @@ function DuplicateAnalysisPane({ activeTab, onTabChange, metadataAnalysis, outli
                 : item.id === 'image'
                   ? imageAnalysis?.status || 'pending'
                   : 'pending';
-          const progress = item.id === 'metadata'
-            ? metadataProgress
-            : item.id === 'outline'
-              ? outlineAnalysis?.progress || 0
-              : item.id === 'content'
-                ? contentAnalysis?.progress || 0
-                : item.id === 'image'
-                  ? imageAnalysis?.progress || 0
-                  : 0;
-          const isRunning = status === 'running';
 
           return (
             <button
@@ -582,6 +570,7 @@ function DuplicateAnalysisPane({ activeTab, onTabChange, metadataAnalysis, outli
               className={`duplicate-analysis-tab${isActive ? ' is-active' : ''} is-${status}`}
               role="tab"
               aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
               aria-controls={`duplicate-analysis-panel-${item.id}`}
               id={`duplicate-analysis-tab-${item.id}`}
               key={item.id}
@@ -591,11 +580,7 @@ function DuplicateAnalysisPane({ activeTab, onTabChange, metadataAnalysis, outli
                 <strong>{item.label}</strong>
                 <em>{statusLabel(status)}</em>
               </span>
-              {status !== 'pending' && (
-                <span className="duplicate-analysis-progress" aria-label={`${item.label}分析进度 ${progress}%`}>
-                  <span style={{ width: `${progress}%` }} />
-                </span>
-              )}
+
             </button>
           );
         })}
@@ -607,6 +592,7 @@ function DuplicateAnalysisPane({ activeTab, onTabChange, metadataAnalysis, outli
         id={`duplicate-analysis-panel-${activeItem.id}`}
         aria-labelledby={`duplicate-analysis-tab-${activeItem.id}`}
       >
+        {feedback}
         {activeItem.id === 'metadata' ? (
           <DuplicateMetadataPane analysis={metadataAnalysis} bidFiles={bidFiles} />
         ) : activeItem.id === 'outline' ? (
@@ -638,7 +624,13 @@ function DuplicateCheckPage() {
   const [imageAnalysis, setImageAnalysis] = useState<DuplicateImageAnalysisState | undefined>();
   const [analysisTask, setAnalysisTask] = useState<DuplicateCheckTaskState | undefined>();
   const [startingAnalysis, setStartingAnalysis] = useState(false);
-  const [busy, setBusy] = useState<'tender' | 'bid' | null>(null);
+  const startingAnalysisRef = useRef(false);
+  const [busy, setBusy] = useState<'tender' | 'bid' | 'files' | 'reset' | 'export' | null>(null);
+  const operationRef = useRef(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
+  const [operationError, setOperationError] = useState('');
   const startedMetadataSignatureRef = useRef<string | null>(null);
   const currentAnalysisSignatureRef = useRef('');
   const hydratedRef = useRef(false);
@@ -646,6 +638,7 @@ function DuplicateCheckPage() {
   const documentParseNoticeIdsRef = useRef(new Set<string>());
   const { showToast } = useToast();
   const { showDocumentParseNotice } = useDocumentParseNotice();
+  const { confirm } = useAppDialog();
 
   function applyDuplicateCheckState(state: DuplicateCheckWorkspaceState) {
     setTenderFile(state.tenderFile || null);
@@ -666,7 +659,9 @@ function DuplicateCheckPage() {
     || outlineAnalysis?.status === 'running'
     || contentAnalysis?.status === 'running'
     || imageAnalysis?.status === 'running';
-  const canGoNext = bidFiles.length > 0;
+  const canGoNext = bidFiles.length > 0 && busy === null && loaded && !loadError;
+  const hasResults = [metadataAnalysis, outlineAnalysis, contentAnalysis, imageAnalysis].some(item => item && item.status !== 'pending');
+  const fileActionsDisabled = busy !== null || isAnalysisRunning;
   const activeIndex = steps.indexOf(step);
   const isNextDisabled = activeIndex >= steps.length - 1 || !canGoNext;
   const nextTooltip = activeIndex >= steps.length - 1
@@ -677,6 +672,7 @@ function DuplicateCheckPage() {
 
   useEffect(() => {
     let canceled = false;
+    setLoaded(false); setLoadError('');
 
     const loadLatestState = async () => {
       try {
@@ -686,13 +682,14 @@ function DuplicateCheckPage() {
           if (canceled) return;
           if (eventVersion !== taskEventVersionRef.current) continue;
           if (state) applyDuplicateCheckState(state);
-          hydratedRef.current = true;
+          hydratedRef.current = true; setLoaded(true);
           return;
         }
       } catch (error) {
         if (canceled) return;
-        showToast(error instanceof Error ? error.message : '读取标书查重缓存失败', 'error');
-        hydratedRef.current = true;
+        const message = error instanceof Error ? error.message : '读取标书查重缓存失败';
+        setLoadError(message); setLoaded(true);
+        showToast(message, 'error');
       }
     };
     void loadLatestState();
@@ -700,7 +697,7 @@ function DuplicateCheckPage() {
     return () => {
       canceled = true;
     };
-  }, [showToast]);
+  }, [showToast, loadRevision]);
 
   useEffect(() => {
     if (!hydratedRef.current) return;
@@ -720,7 +717,7 @@ function DuplicateCheckPage() {
         || event.duplicateCheck.contentAnalysis?.signature
         || event.duplicateCheck.imageAnalysis?.signature;
       if (eventSignature && eventSignature !== currentAnalysisSignatureRef.current) return;
-      setStartingAnalysis(false);
+      startingAnalysisRef.current = false; setStartingAnalysis(false);
       event.duplicateCheck.metadataAnalysis?.contentFiles?.forEach((file) => {
         const noticeId = `content:${file.file_id}`;
         if (file.status === 'error'
@@ -752,6 +749,7 @@ function DuplicateCheckPage() {
   }, [currentAnalysisSignature]);
 
   const startDuplicateAnalysis = (force = false) => {
+    if (startingAnalysisRef.current || isAnalysisRunning || operationRef.current || !loaded || loadError) return;
     if (!bidFiles.length) {
       showToast('请先上传至少一份投标文件', 'info');
       return;
@@ -760,15 +758,16 @@ function DuplicateCheckPage() {
       startedMetadataSignatureRef.current = null;
     }
     startedMetadataSignatureRef.current = currentAnalysisSignature;
-    setStartingAnalysis(true);
+    startingAnalysisRef.current = true; setStartingAnalysis(true); setOperationError('');
     void window.yibiao?.tasks?.startDuplicateAnalysis({ tenderFile, bidFiles, force })
       .then(() => {
         showToast(force ? '标书查重重新分析任务已在后台启动' : '标书查重分析任务已在后台启动', 'success');
       })
       .catch((error) => {
         startedMetadataSignatureRef.current = null;
-        setStartingAnalysis(false);
-        const message = error instanceof Error ? error.message : '启动元数据分析失败';
+        startingAnalysisRef.current = false; setStartingAnalysis(false);
+        const message = error instanceof Error ? error.message : '启动查重分析失败';
+        setOperationError(message);
         if (isLibreOfficeRequiredMessage(message)) {
           showDocumentParseNotice(message);
           return;
@@ -778,7 +777,8 @@ function DuplicateCheckPage() {
   };
 
   useEffect(() => {
-    if (step !== 'analysis' || !bidFiles.length) return;
+    if (!loaded || loadError || step !== 'analysis' || !bidFiles.length || (analysisTask?.status === 'running' || analysisTask?.status === 'error')) return;
+    if ([metadataAnalysis, outlineAnalysis, contentAnalysis, imageAnalysis].some(item => item?.signature === currentAnalysisSignature && item.status === 'error')) return;
     if (metadataAnalysis?.status === 'success'
       && metadataAnalysis.signature
       && outlineAnalysis?.status === 'success'
@@ -786,7 +786,7 @@ function DuplicateCheckPage() {
       && imageAnalysis?.status === 'success') return;
     if (startedMetadataSignatureRef.current === currentAnalysisSignature) return;
     startDuplicateAnalysis(false);
-  }, [bidFiles, contentAnalysis?.status, currentAnalysisSignature, imageAnalysis?.status, metadataAnalysis?.signature, metadataAnalysis?.status, outlineAnalysis?.status, showToast, step, tenderFile]);
+  }, [loaded, loadError, analysisTask?.status, bidFiles, contentAnalysis?.status, currentAnalysisSignature, imageAnalysis?.status, metadataAnalysis?.signature, metadataAnalysis?.status, outlineAnalysis?.status, showToast, step, tenderFile]);
 
   const selectFiles = async (multiple: boolean) => {
     const selector = window.yibiao?.file?.selectDuplicateCheckFiles;
@@ -809,15 +809,17 @@ function DuplicateCheckPage() {
   };
 
   const uploadTenderFile = async () => {
+    if (operationRef.current) return;
     if (isAnalysisRunning) {
       showToast('标书查重分析正在运行，请完成后再调整文件', 'info');
       return;
     }
     try {
-      setBusy('tender');
+      operationRef.current = true; setOperationError(''); setBusy('tender');
       const result = await selectFiles(false);
       if (!result?.success || !result.files?.length) {
         const message = result?.message || '未选择招标文件';
+        if (message !== '已取消选择') setOperationError(message);
         if (isLibreOfficeRequiredMessage(message)) {
           showDocumentParseNotice(message);
           return;
@@ -829,26 +831,29 @@ function DuplicateCheckPage() {
       showToast('招标文件已加入，暂不执行解析', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '选择招标文件失败';
+      setOperationError(message);
       if (isLibreOfficeRequiredMessage(message)) {
         showDocumentParseNotice(message);
         return;
       }
       showToast(message, 'error');
     } finally {
-      setBusy(null);
+      operationRef.current = false; setBusy(null);
     }
   };
 
   const uploadBidFiles = async () => {
+    if (operationRef.current) return;
     if (isAnalysisRunning) {
       showToast('标书查重分析正在运行，请完成后再调整文件', 'info');
       return;
     }
     try {
-      setBusy('bid');
+      operationRef.current = true; setOperationError(''); setBusy('bid');
       const result = await selectFiles(true);
       if (!result?.success || !result.files?.length) {
         const message = result?.message || '未选择投标文件';
+        if (message !== '已取消选择') setOperationError(message);
         if (isLibreOfficeRequiredMessage(message)) {
           showDocumentParseNotice(message);
           return;
@@ -868,31 +873,39 @@ function DuplicateCheckPage() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : '选择投标文件失败';
+      setOperationError(message);
       if (isLibreOfficeRequiredMessage(message)) {
         showDocumentParseNotice(message);
         return;
       }
       showToast(message, 'error');
     } finally {
-      setBusy(null);
+      operationRef.current = false; setBusy(null);
     }
   };
 
-  const resetFiles = () => {
-    if (isAnalysisRunning) {
-      showToast('标书查重分析正在运行，请完成后再重置文件', 'info');
-      return;
-    }
-    void window.yibiao?.duplicateCheck.clear()
-      .then((result) => {
-        if (result?.state) applyDuplicateCheckState(result.state);
-        setStartingAnalysis(false);
-        startedMetadataSignatureRef.current = null;
-        showToast('已重置上传列表', 'success');
-      })
-      .catch((error) => {
-        showToast(error instanceof Error ? error.message : '清空标书查重缓存失败', 'error');
-      });
+  const changeSelectedFiles = async (nextTenderFile: LocalFileSelection | null, nextBidFiles: LocalFileSelection[]) => {
+    if (operationRef.current || isAnalysisRunning) return;
+    operationRef.current = true; setBusy('files'); setOperationError('');
+    try { await persistSelectedFiles(nextTenderFile, nextBidFiles); }
+    catch (error) { const message = error instanceof Error ? error.message : '移除文件失败'; setOperationError(message); showToast(message, 'error'); }
+    finally { operationRef.current = false; setBusy(null); }
+  };
+
+  const resetFiles = async () => {
+    if (operationRef.current || isAnalysisRunning) return;
+    operationRef.current = true;
+    try {
+      if (!await confirm({ title: '重置查重工作区？', description: '将清空本次选择的文件和查重结果，原始文件不受影响。', confirmLabel: '重置工作区' })) return;
+      setBusy('reset'); setOperationError('');
+      const result = await window.yibiao?.duplicateCheck.clear();
+      if (result?.state) applyDuplicateCheckState(result.state);
+      setStartingAnalysis(false); startedMetadataSignatureRef.current = null;
+      showToast('已重置查重工作区', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '重置查重工作区失败';
+      setOperationError(message); showToast(message, 'error');
+    } finally { operationRef.current = false; setBusy(null); }
   };
 
   const switchStep = (nextStep: DuplicateCheckStep) => {
@@ -906,19 +919,23 @@ function DuplicateCheckPage() {
   };
 
   const exportExcel = async () => {
+    if (operationRef.current || isAnalysisRunning || !hasResults) return;
+    operationRef.current = true; setBusy('export'); setOperationError('');
     try {
       const result = await window.yibiao?.duplicateCheck.exportExcel();
       if (!result || result.canceled) return;
+      if (!result.success) setOperationError(result.message || '导出失败');
       showToast(result.message || (result.success ? 'Excel 已导出' : '导出失败'), result.success ? 'success' : 'error');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '导出标书查重结果失败', 'error');
-    }
+      const message = error instanceof Error ? error.message : '导出标书查重结果失败';
+      setOperationError(message); showToast(message, 'error');
+    } finally { operationRef.current = false; setBusy(null); }
   };
 
   const toolbarGroups: FloatingToolbarGroup[] = [
     {
       id: 'duplicate-check-export',
-      actions: [{ id: 'export-excel', label: '导出 Excel', disabled: isAnalysisRunning, tooltip: '导出当前查重结果', onClick: exportExcel }],
+      actions: [{ id: 'export-excel', label: busy === 'export' ? '导出中…' : '导出 Excel', disabled: fileActionsDisabled || !hasResults, tooltip: '导出当前查重结果', onClick: exportExcel }],
     },
     {
       id: 'duplicate-check-reset',
@@ -927,7 +944,7 @@ function DuplicateCheckPage() {
           id: 'reset',
           label: '重置',
           variant: 'danger',
-          disabled: isAnalysisRunning,
+          disabled: fileActionsDisabled || (!bidFiles.length && !tenderFile),
           tooltip: '清空当前标书查重流程',
           onClick: resetFiles,
         },
@@ -964,32 +981,39 @@ function DuplicateCheckPage() {
     },
   ];
 
+  if (!loaded || loadError) return <div className="duplicate-load-state" role={loadError ? 'alert' : 'status'}><strong>{loadError ? '查重工作区读取失败' : '正在读取查重工作区…'}</strong>{loadError && <><p>{loadError}</p><button type="button" className="secondary-action" onClick={() => setLoadRevision(value => value + 1)}>重新读取</button></>}</div>;
+  const errorMessage = operationError || (analysisTask?.status === 'error' ? analysisTask.error || '部分分析未完成，请查看各维度结果后重新查重。' : '');
+  const operationNotice = busy === 'files' || busy === 'reset' ? <div className="duplicate-operation-status" role="status">{busy === 'files' ? '正在更新文件列表…' : '正在重置查重工作区…'}</div> : null;
+  const errorNotice = errorMessage ? <div className="duplicate-operation-error" role="alert"><strong>操作未完成</strong><span>{errorMessage}</span></div> : null;
+
   if (getStoredUiAppearance() === 'modern') {
     return <div className="modern-duplicate-page">
+      {operationNotice}{errorNotice}
       <div className="modern-duplicate-stepbar" role="tablist" aria-label="标书查重步骤" onKeyDown={handleTabListKeyDown}>
         <button type="button" role="tab" id="modern-duplicate-step-upload" aria-selected={step === 'upload'} aria-controls="modern-duplicate-page-content" tabIndex={step === 'upload' ? 0 : -1} className={step === 'upload' ? 'is-active' : ''} onClick={() => switchStep('upload')}><span>01</span>选择标书</button>
         <button type="button" role="tab" id="modern-duplicate-step-analysis" aria-selected={step === 'analysis'} aria-controls="modern-duplicate-page-content" tabIndex={step === 'analysis' ? 0 : -1} className={step === 'analysis' ? 'is-active' : ''} onClick={() => canGoNext && switchStep('analysis')} disabled={!canGoNext}><span>02</span>查重结果</button>
-        <strong role="status">{isAnalysisRunning ? '后台分析中' : step === 'analysis' ? '分析工作区' : '准备分析文件'}</strong>
+        <strong role="status">{isAnalysisRunning ? '后台分析中' : step === 'analysis' ? analysisTask?.status === 'error' ? '分析未完成' : '分析工作区' : '准备分析文件'}</strong>
       </div>
       <div className="modern-duplicate-page-content" id="modern-duplicate-page-content" role="tabpanel" aria-labelledby={`modern-duplicate-step-${step}`}>
         {step === 'upload' ? <div className="modern-duplicate-upload">
-          <header className="modern-duplicate-upload-header"><div><span>DOCUMENT REVIEW / 01</span><h2>选择标书</h2><p>上传需要比较的投标文件；招标文件可辅助排除共同引用内容。</p></div><div><strong>{bidFiles.length}</strong><span>份投标文件</span><small>合计 {formatFileSize(totalSize)}</small></div></header>
+          <header className="modern-duplicate-upload-header"><div><h2>选择标书</h2><p>上传需要比较的投标文件；招标文件可辅助排除共同引用内容。</p></div><div><strong>{bidFiles.length}</strong><span>份投标文件</span><small>合计 {formatFileSize(totalSize)}</small></div></header>
           <div className="modern-duplicate-upload-workspace">
             <div className="modern-duplicate-file-stage">
-              <section className="modern-duplicate-file-section"><header><div><span>OPTIONAL / 01</span><h3>招标文件</h3><p>可选，仅保留一份。共同引用的招标内容不会计入重复。</p></div><button type="button" onClick={uploadTenderFile} disabled={busy !== null || isAnalysisRunning}>{busy === 'tender' ? '选择中…' : tenderFile ? '替换文件' : '添加文件'}</button></header><div>{tenderFile ? <ModernFileRow file={tenderFile} code="招" disabled={isAnalysisRunning} onRemove={() => { void persistSelectedFiles(null, bidFiles).catch((error) => showToast(error instanceof Error ? error.message : '移除招标文件失败', 'error')); }} /> : <p className="modern-duplicate-file-empty">尚未选择招标文件。可以直接添加投标文件。</p>}</div></section>
-              <section className="modern-duplicate-file-section is-required"><header><div><span>REQUIRED / 02</span><h3>投标文件</h3><p>至少一份，可同时选择多份进行比较。</p></div><button type="button" onClick={uploadBidFiles} disabled={busy !== null || isAnalysisRunning}>{busy === 'bid' ? '选择中…' : '添加投标文件'}</button></header><div>{bidFiles.length ? bidFiles.map((file, index) => <ModernFileRow key={file.file_path} file={file} code={fileIndexLabel(index)} disabled={isAnalysisRunning} onRemove={() => { void persistSelectedFiles(tenderFile, bidFiles.filter((item) => item.file_path !== file.file_path)).catch((error) => showToast(error instanceof Error ? error.message : '移除投标文件失败', 'error')); }} />) : <p className="modern-duplicate-file-empty">还没有投标文件。添加后即可进入查重结果。</p>}</div></section>
+              <section className="modern-duplicate-file-section"><header><div><span>可选</span><h3>招标文件</h3><p>可选，仅保留一份。共同引用的招标内容不会计入重复。</p></div><button type="button" onClick={uploadTenderFile} disabled={fileActionsDisabled}>{busy === 'tender' ? '选择中…' : tenderFile ? '替换文件' : '添加文件'}</button></header><div>{tenderFile ? <ModernFileRow file={tenderFile} code="招" disabled={fileActionsDisabled} onRemove={() => { void changeSelectedFiles(null, bidFiles); }} /> : <p className="modern-duplicate-file-empty">尚未选择招标文件。可以直接添加投标文件。</p>}</div></section>
+              <section className="modern-duplicate-file-section is-required"><header><div><span>必选</span><h3>投标文件</h3><p>至少一份，可同时选择多份进行比较。</p></div><button type="button" onClick={uploadBidFiles} disabled={fileActionsDisabled}>{busy === 'bid' ? '选择中…' : '添加投标文件'}</button></header><div>{bidFiles.length ? bidFiles.map((file, index) => <ModernFileRow key={file.file_path} file={file} code={fileIndexLabel(index)} disabled={fileActionsDisabled} onRemove={() => { void changeSelectedFiles(tenderFile, bidFiles.filter((item) => item.file_path !== file.file_path)); }} />) : <p className="modern-duplicate-file-empty">还没有投标文件。添加后即可进入查重结果。</p>}</div></section>
             </div>
-            <aside className="modern-duplicate-guide"><span>分析范围</span><h3>四个维度，一处查看</h3><div>{dimensions.map((item, index) => <section key={item.title}><b>{String(index + 1).padStart(2, '0')}</b><strong>{item.title}</strong><p>{item.text}</p></section>)}</div><details><summary>使用说明</summary><ul>{guideItems.map((item) => <li key={item}>{item}</li>)}</ul></details></aside>
+            <aside className="modern-duplicate-guide"><span>分析范围</span><h3>四个维度，一处查看</h3><div>{dimensions.map((item) => <section key={item.title}><strong>{item.title}</strong><p>{item.text}</p></section>)}</div><details><summary>使用说明</summary><ul>{guideItems.map((item) => <li key={item}>{item}</li>)}</ul></details></aside>
           </div>
         </div> : <DuplicateAnalysisPane activeTab={activeAnalysisTab} onTabChange={setActiveAnalysisTab} metadataAnalysis={metadataAnalysis} outlineAnalysis={outlineAnalysis} contentAnalysis={contentAnalysis} imageAnalysis={imageAnalysis} bidFiles={bidFiles} startingAnalysis={startingAnalysis || analysisTask?.status === 'running'} onRerun={() => startDuplicateAnalysis(true)} />}
       </div>
-      <footer className="modern-duplicate-footer"><div><button type="button" className="is-danger" onClick={resetFiles} disabled={isAnalysisRunning}>重置</button><button type="button" onClick={() => switchStep('upload')}>选择标书</button><button type="button" onClick={() => void exportExcel()} disabled={isAnalysisRunning}>导出 Excel</button></div><div><button type="button" onClick={() => goToOffset(-1)} disabled={activeIndex <= 0}>← 上一步</button><button type="button" className="is-primary" onClick={() => goToOffset(1)} disabled={isNextDisabled} title={nextTooltip}>下一步 →</button></div></footer>
+      <footer className="modern-duplicate-footer"><div><button type="button" className="is-danger" onClick={resetFiles} disabled={fileActionsDisabled || (!bidFiles.length && !tenderFile)}>重置</button><button type="button" onClick={() => switchStep('upload')}>选择标书</button><button type="button" onClick={() => void exportExcel()} disabled={fileActionsDisabled || !hasResults}>{busy === 'export' ? '导出中…' : '导出 Excel'}</button></div><div><button type="button" onClick={() => goToOffset(-1)} disabled={activeIndex <= 0}>← 上一步</button><button type="button" className="is-primary" onClick={() => goToOffset(1)} disabled={isNextDisabled} title={nextTooltip}>下一步 →</button></div></footer>
     </div>;
   }
 
   return (
     <div className="duplicate-check-page">
-      {step === 'upload' ? (
+      {operationNotice}{errorNotice}
+      <div className="duplicate-classic-body">{step === 'upload' ? (
         <>
           <section className="duplicate-upload-board">
             <div className="duplicate-page-title">
@@ -1013,15 +1037,14 @@ function DuplicateCheckPage() {
                 </div>
                 <div className="duplicate-upload-content">
                   {tenderFile ? (
-                    <FilePill file={tenderFile} disabled={isAnalysisRunning} onRemove={() => {
-                      void persistSelectedFiles(null, bidFiles)
-                        .catch((error) => showToast(error instanceof Error ? error.message : '移除招标文件失败', 'error'));
+                    <FilePill file={tenderFile} disabled={fileActionsDisabled} onRemove={() => {
+                      void changeSelectedFiles(null, bidFiles);
                     }} />
                   ) : (
                     <div className="duplicate-empty-upload" />
                   )}
                 </div>
-                <button type="button" className="primary-action duplicate-upload-button" onClick={uploadTenderFile} disabled={busy !== null || isAnalysisRunning}>
+                <button type="button" className="primary-action duplicate-upload-button" onClick={uploadTenderFile} disabled={fileActionsDisabled}>
                   {busy === 'tender' ? '选择中...' : tenderFile ? '替换' : '上传'}
                 </button>
               </article>
@@ -1036,9 +1059,8 @@ function DuplicateCheckPage() {
                   {bidFiles.length ? (
                     <div className="duplicate-file-list">
                       {bidFiles.map((file) => (
-                        <FilePill key={file.file_path} file={file} disabled={isAnalysisRunning} onRemove={() => {
-                          void persistSelectedFiles(tenderFile, bidFiles.filter((item) => item.file_path !== file.file_path))
-                            .catch((error) => showToast(error instanceof Error ? error.message : '移除投标文件失败', 'error'));
+                        <FilePill key={file.file_path} file={file} disabled={fileActionsDisabled} onRemove={() => {
+                          void changeSelectedFiles(tenderFile, bidFiles.filter((item) => item.file_path !== file.file_path));
                         }} />
                       ))}
                     </div>
@@ -1046,7 +1068,7 @@ function DuplicateCheckPage() {
                     <div className="duplicate-empty-upload" />
                   )}
                 </div>
-                <button type="button" className="primary-action duplicate-upload-button" onClick={uploadBidFiles} disabled={busy !== null || isAnalysisRunning}>
+                <button type="button" className="primary-action duplicate-upload-button" onClick={uploadBidFiles} disabled={fileActionsDisabled}>
                   {busy === 'bid' ? '选择中...' : '上传'}
                 </button>
               </article>
@@ -1078,6 +1100,7 @@ function DuplicateCheckPage() {
         <DuplicateAnalysisPane activeTab={activeAnalysisTab} onTabChange={setActiveAnalysisTab} metadataAnalysis={metadataAnalysis} outlineAnalysis={outlineAnalysis} contentAnalysis={contentAnalysis} imageAnalysis={imageAnalysis} bidFiles={bidFiles} startingAnalysis={startingAnalysis || analysisTask?.status === 'running'} onRerun={() => startDuplicateAnalysis(true)} />
       )}
 
+      </div>
       <FloatingToolbar groups={toolbarGroups} label="标书查重工具条" />
     </div>
   );

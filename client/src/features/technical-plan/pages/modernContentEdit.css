@@ -20,30 +20,11 @@
 .modern-content-overview strong.is-error { color: #f0a9b4; font-size: 13px; }
 .modern-content-overview strong.is-partial { color: #eac99d; font-size: 13px; }
 .modern-content-overview strong.is-idle { font-size: 13px; }
-.modern-content-overview-progress { gap: 7px; }
-.modern-content-overview-progress > div { height: 5px; overflow: hidden; border-radius: 5px; background: #384960; }
-.modern-content-overview-progress i { display: block; height: 100%; border-radius: inherit; background: #a59af0; transition: width .35s ease; }
-.modern-content-overview-progress small { align-self: flex-end; color: #a79cee; font-size: 10px; font-variant-numeric: tabular-nums; }
 .modern-content-workspace { display: grid; grid-template-columns: minmax(190px, 238px) minmax(0, 1fr) minmax(190px, 230px); gap: 12px; min-height: 0; flex: 1; }
-.modern-content-navigator, .modern-content-editor, .modern-content-inspector { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid #36475d; border-radius: 9px; background: #1b293c; }
+.modern-content-navigator, .modern-content-editor { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid #36475d; border-radius: 9px; background: #1b293c; }
 .modern-content-panel-heading { display: flex; align-items: center; justify-content: space-between; min-height: 45px; gap: 8px; border-bottom: 1px solid #34445a; padding: 0 14px; }
 .modern-content-panel-heading span { color: #e7eaf7; font-size: 12px; font-weight: 800; }
 .modern-content-panel-heading strong { color: #8396b0; font-size: 10px; font-weight: 500; }
-.modern-content-tree { min-height: 0; flex: 1; overflow: auto; padding: 8px; }
-.modern-content-tree-item { display: grid; grid-template-columns: auto minmax(0,1fr) 7px; align-items: center; width: 100%; min-height: 35px; gap: 8px; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px 4px calc(8px + var(--content-level) * 11px); color: #bac8dc; background: transparent; text-align: left; cursor: pointer; }
-.modern-content-tree-item:hover { color: #fff; background: #2b3b53; }
-.modern-content-tree-item.is-active { border-color: #756db0; color: #fff; background: #343955; }
-.modern-content-tree-index { color: #9b90d4; font-size: 9px; font-variant-numeric: tabular-nums; }
-.modern-content-tree-name { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.modern-content-tree-indicator { width: 6px; height: 6px; border-radius: 50%; background: #607089; }
-.modern-content-tree-item.is-running .modern-content-tree-indicator { background: #ac9ef0; box-shadow: 0 0 0 3px #ac9ef02b; }
-.modern-content-tree-item.is-success .modern-content-tree-indicator { background: #83d6b7; }
-.modern-content-tree-item.is-error .modern-content-tree-indicator { background: #ee9eaa; }
-.modern-content-tree-item.is-partial .modern-content-tree-indicator { background: #e7c692; }
-.modern-content-nav-foot { flex: 0 0 auto; border-top: 1px solid #34445a; padding: 12px 14px; background: #202e42; }
-.modern-content-nav-foot strong { color: #b5a8f5; font-size: 10px; }
-.modern-content-nav-foot p { max-height: 58px; overflow: auto; margin: 5px 0 0; color: #98a9bd; font-size: 10px; line-height: 1.55; }
-.modern-content-nav-foot small { color: #edabba; font-size: 10px; }
 .modern-content-editor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex: 0 0 auto; border-bottom: 1px solid #34445a; padding: 16px 20px; }
 .modern-content-editor-heading > div { min-width: 0; }
 .modern-content-editor-heading > div > span { color: #a79ae7; font-size: 10px; font-weight: 700; }
@@ -121,30 +102,70 @@
 .modern-content-writing-wait.is-queued .modern-content-writing-sheet-line:nth-of-type(4) { animation-delay: .5s; }
 .modern-content-writing-wait > strong { color: #f0edff; font-size: 16px; }
 .modern-content-writing-wait > p { max-width: 340px; margin: 9px 0 0; color: #a9b9cf; font-size: 11px; line-height: 1.5; }
-.modern-content-writing-wait-progress { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; width: min(100%, 290px); margin-top: 14px; color: #a99dee; font-size: 10px; text-align: left; }
 .modern-content-writing-wait.is-planning .modern-content-writing-wait-progress { margin-top: 14px; }
-.modern-content-writing-wait-progress b { color: #dcd5ff; font-variant-numeric: tabular-nums; }
-.modern-content-writing-wait-progress > div { grid-column: 1 / -1; height: 5px; overflow: hidden; border-radius: 5px; background: #36455c; }
-.modern-content-writing-wait-progress i { display: block; height: 100%; border-radius: inherit; background: #a99aee; transition: width .35s ease; }
 @keyframes modern-content-writing-sweep { from { background-position: 100% 0; } to { background-position: -130% 0; } }
 @keyframes modern-content-line-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 @keyframes modern-content-caret { 50% { opacity: 0; } }
 .modern-content-no-outline { min-height: 0; flex: 1; border: 1px solid #36475d; border-radius: 9px; background: #1b293c; }
-.modern-content-inspector-body { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: auto; padding: 17px 15px; }
-.modern-content-inspector-body h4 { margin: 10px 0 6px; color: #f0eef9; font-size: 15px; line-height: 1.4; }
-.modern-content-inspector-body > p { margin: 0; color: #93a5b9; font-size: 11px; line-height: 1.6; }
-.modern-content-section-meta { display: flex; flex-direction: column; gap: 10px; margin-top: 21px; border-top: 1px solid #34445a; padding-top: 15px; }
-.modern-content-section-meta span { display: flex; justify-content: space-between; gap: 8px; color: #8498b1; font-size: 10px; }
-.modern-content-section-meta b { color: #c8d3e3; font-weight: 600; }
-.modern-content-section-meta b.is-running, .modern-content-section-meta b.is-planning { color: #d9cdff; }
-.modern-content-section-meta b.is-success { color: #9fe9cb; }
-.modern-content-section-meta b.is-error { color: #ffc5cd; }
-.modern-content-section-meta b.is-partial { color: #ffe0a1; }
-.modern-content-section-meta b.is-queued { color: #c3dcff; }
-.modern-content-section-actions { display: flex; flex-direction: column; gap: 7px; margin-top: auto; padding-top: 20px; }
-.modern-content-section-actions button { width: 100%; text-align: center; }
-.modern-content-dev-stats { margin-top: 17px; border-top: 1px solid #34445a; padding-top: 12px; color: #94a7bc; font-size: 10px; }
-.modern-content-dev-stats summary { cursor: pointer; }
-@media (max-width: 1150px) { .modern-content-workspace { grid-template-columns: minmax(165px, 215px) minmax(0, 1fr); } .modern-content-inspector { grid-column: 1 / -1; min-height: 145px; } .modern-content-inspector-body { display: flex; } }
-@media (max-width: 760px) { .modern-content-page { overflow: auto; } .modern-content-top { align-items: flex-start; flex-direction: column; } .modern-content-overview { grid-template-columns: repeat(3, 1fr); } .modern-content-overview-progress { grid-column: 1 / -1; } .modern-content-workspace { display: flex; flex-direction: column; overflow: visible; } .modern-content-navigator { min-height: 250px; } .modern-content-tree { max-height: 245px; } .modern-content-editor { min-height: 440px; } .modern-content-inspector { min-height: 260px; } .modern-content-inspector-body { display: flex; } }
 @media (prefers-reduced-motion: reduce) { .modern-content-page button, .modern-content-overview-progress i, .modern-content-writing-wait-progress i { transition: none; } .modern-content-writing-caret, .modern-content-writing-sheet-line, .modern-content-writing-live::before, .modern-content-writing-live i, .modern-content-writing-live-lines span, .modern-content-planning-beacon, .modern-content-planning-branch, .modern-content-planning-foot span { animation: none !important; } }
+
+
+/* Ant Design 列表-阅读器模式：固定工具区，可调目录，正文优先。 */
+.modern-content-page { gap: 8px; container: content-studio / inline-size; }
+.modern-content-top { min-height: 40px; }
+.modern-content-top h2 { margin: 0; font-size: 20px; font-weight: 500; }
+.modern-content-top-actions { flex-wrap: wrap; justify-content: flex-end; }
+.modern-content-overview { display: flex; flex-wrap: wrap; gap: 16px; border: 0; border-radius: 0; padding: 0 0 8px; background: transparent; }
+.modern-content-overview > div:not(.modern-content-stage-progress) { flex-direction: row; align-items: baseline; gap: 8px; min-height: 22px; padding: 0; background: transparent; }
+.modern-content-overview span, .modern-content-overview strong small { font-size: 12px; color: var(--yb-text-soft); }
+.modern-content-overview strong { margin: 0; font-size: 14px; font-weight: 500; }
+.modern-content-page .modern-content-workspace { display: flex; flex: 1; min-height: 0; gap: 0; overflow: hidden; }
+.modern-content-workspace .ant-splitter-panel { display: flex; min-height: 0; overflow: hidden; }
+.modern-content-navigator, .modern-content-editor { width: 100%; height: 100%; border-radius: 8px; background: var(--yb-surface); }
+.modern-content-page .modern-content-navigator { min-height: 0; max-height: none; }
+.chapter-navigation-heading { display: flex; flex: 0 0 auto; min-height: 40px; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 12px; }
+.chapter-navigation-heading strong { color: var(--yb-text); font-size: 14px; font-weight: 500; }
+.chapter-navigation-heading .ant-select { width: 112px; }
+.chapter-navigation-search { flex: 0 0 auto; padding: 0 12px 8px; }
+.chapter-navigation-tree { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 8px; scrollbar-width: thin; }
+.chapter-navigation-tree .ant-tree { background: transparent; }
+.chapter-navigation-tree .ant-tree-treenode { width: 100%; padding: 0; align-items: flex-start; }
+.chapter-navigation-tree .ant-tree-node-content-wrapper { min-width: 0; flex: 1; padding: 4px 8px; }
+.chapter-navigation-tree .ant-tree-title { display: block; }
+.chapter-tree-label { display: flex; align-items: flex-start; gap: 8px; min-height: 24px; font-size: 14px; line-height: 22px; }
+.chapter-tree-number { flex: 0 0 auto; color: var(--yb-text-muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.chapter-tree-title { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.chapter-tree-status { flex: 0 0 6px; height: 6px; margin-top: 8px; border-radius: 50%; background: var(--yb-text-muted); }
+.chapter-tree-label.is-success .chapter-tree-status { background: #74d8ba; }
+.chapter-tree-label.is-error .chapter-tree-status { background: #ffacb7; }
+.chapter-tree-label.is-running .chapter-tree-status, .chapter-tree-label.is-planning .chapter-tree-status { background: var(--yb-primary); }
+.chapter-navigation-empty { padding: 24px 8px; color: var(--yb-text-soft); text-align: center; font-size: 14px; }
+.chapter-navigation-empty button { border: 0; background: transparent; color: var(--yb-primary); cursor: pointer; }
+.chapter-navigation-activity { flex: 0 0 auto; padding: 8px 12px; border-top: 1px solid var(--yb-border); color: var(--yb-text-soft); font-size: 12px; }
+.modern-content-page .modern-content-editor-heading { padding: 12px 16px; }
+.modern-content-page .modern-content-editor-heading h3 { white-space: normal; font-size: 16px; line-height: 24px; font-weight: 500; }
+.modern-content-page .modern-content-editor-heading p { display: none; }
+.modern-content-editor-actions { display: flex; flex-wrap: wrap; flex: 0 0 auto; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--yb-border); }
+.modern-content-editor-actions button { min-height: 32px; border: 1px solid var(--yb-control-border); border-radius: 6px; padding: 4px 12px; color: var(--yb-text); background: var(--yb-control-bg); font-size: 14px; cursor: pointer; }
+.modern-content-editor-actions button:last-child { margin-left: auto; border-color: transparent; background: transparent; }
+.modern-content-draft-state { flex: 0 0 auto; margin: 0; padding: 4px 16px; color: var(--yb-text-soft); font-size: 12px; }
+.chapter-inline-details { flex: 0 0 auto; max-height: 160px; overflow: auto; padding: 12px 16px; border-bottom: 1px solid var(--yb-border); color: var(--yb-text-soft); font-size: 14px; line-height: 22px; }
+.chapter-inline-details strong { margin-right: 16px; font-weight: 500; color: var(--yb-text); }
+.chapter-inline-details p { margin: 8px 0 0; }
+.modern-content-document { box-sizing: border-box; width: 100%; max-width: 920px; margin: 0 auto; }
+.modern-content-page.is-focused .modern-content-overview { display: none; }
+.modern-shell:has(.modern-content-page.is-focused) :is(.modern-navigation, .modern-compact-navigation, .modern-navigation-toggle, .modern-navigation-backdrop) { display: none; }
+@container content-studio (max-width: 720px) {
+  .modern-content-top { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .modern-content-workspace .modern-content-editor { min-height: 0; }
+}
+.chapter-navigation-heading select { box-sizing: border-box; width: 112px; height: 28px; border: 1px solid var(--yb-control-border); border-radius: 6px; padding: 2px 6px; color: var(--yb-text-soft); background: var(--yb-control-bg); font-size: 12px; }
+.chapter-navigation-search input { box-sizing: border-box; width: 100%; height: 32px; min-height: 32px; border: 1px solid var(--yb-control-border); border-radius: 6px; padding: 4px 8px; color: var(--yb-text); background: var(--yb-control-bg); font-size: 14px; }
+.modern-content-page .ant-splitter-bar { flex: 0 0 12px; }
+
+.modern-content-overview { align-items: center; }
+.modern-content-overview > .modern-content-stage-progress { display: block; flex: 0 1 320px; min-width: 220px; min-height: 0; margin-left: auto; padding: 0; background: transparent; }
+.modern-content-overview .yb-task-progress-summary { display: grid; gap: 2px; }
+@container content-studio (max-width: 720px) { .modern-content-overview > .modern-content-stage-progress { flex-basis: 100%; max-width: none; margin-left: 0; } }
+
+.modern-content-wait-summary { width: min(100%, 320px); margin-top: 16px; text-align: left; }

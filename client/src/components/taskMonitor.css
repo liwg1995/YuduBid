@@ -1,0 +1,37 @@
+/* 任务浮层通过 Portal 渲染，颜色与字号直接使用主题变量。 */
+.task-monitor-panel.task-monitor-panel { z-index: 90; box-sizing: border-box; display: flex; flex-direction: column; width: min(400px, calc(100vw - 32px)); max-height: min(560px, var(--radix-popover-content-available-height, calc(100dvh - 96px))); margin: 0; padding: 0; overflow: hidden; color: var(--yb-text); background: var(--yb-surface); border: 1px solid var(--yb-border); border-radius: 8px; box-shadow: var(--yb-shadow); }
+.task-monitor-panel .task-monitor-head { flex: 0 0 auto; align-items: flex-start; margin: 0; padding: 16px; border-bottom: 1px solid var(--yb-border); }
+.task-monitor-panel .task-monitor-head strong { font-size: 16px; line-height: 24px; font-weight: 500; }
+.task-monitor-panel .task-monitor-head span { font-size: 12px; line-height: 20px; color: var(--yb-text-soft); }
+.task-monitor-panel .task-monitor-close { display: grid; flex: 0 0 24px; width: 24px; height: 24px; padding: 0; place-items: center; border: 0; border-radius: 4px; color: var(--yb-text-soft); background: transparent; font-size: 20px; cursor: pointer; }
+.task-monitor-close:hover { background: var(--yb-control-bg); }
+.task-monitor-items { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 0 16px; }
+.task-monitor-panel .task-monitor-item { margin: 0; padding: 16px 0; border: 0; border-top: 1px solid var(--yb-border); border-radius: 0; background: transparent; }
+.task-monitor-panel .task-monitor-item:first-child { border-top: 0; }
+.task-monitor-panel .task-monitor-item-head { align-items: baseline; }
+.task-monitor-panel .task-monitor-item-head strong { min-width: 0; font-size: 14px; line-height: 22px; font-weight: 500; white-space: normal; overflow-wrap: anywhere; }
+.task-monitor-panel .task-monitor-state { flex: 0 0 auto; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; white-space: nowrap; }
+.task-monitor-panel .task-monitor-state:is(.is-running, .is-pausing, .is-stopping) { color: var(--yb-primary); }
+.task-monitor-panel .task-monitor-state.is-success { color: #3caa80; }
+.task-monitor-panel .task-monitor-state.is-error { color: #db6475; }
+.task-monitor-panel .task-monitor-state:is(.is-paused, .is-waiting) { color: #bd8b42; }
+.task-monitor-project { margin: 4px 0 0; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+.task-monitor-panel .task-monitor-progress-heading { display: flex; align-items: baseline; gap: 12px; margin-top: 12px; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.task-monitor-panel .task-monitor-progress-heading > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.task-monitor-panel .task-monitor-progress-heading > strong { flex: 0 0 auto; min-width: 4.5ch; color: var(--yb-text); font-size: 12px; line-height: 20px; font-weight: 400; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.task-monitor-panel .task-monitor-progress { margin: 4px 0 0; height: 4px; background: var(--yb-border); }
+.task-monitor-panel .task-monitor-progress i { background: var(--yb-primary); }
+.task-monitor-panel .task-monitor-progress.is-error i { background: #db6475; }
+.task-monitor-panel :is(.task-monitor-detail, .task-monitor-guidance, .task-monitor-ai-activity) { display: block; margin: 8px 0 0; font-size: 12px; line-height: 20px; overflow-wrap: anywhere; color: var(--yb-text-soft); }
+.task-monitor-panel .task-monitor-guidance.is-error { color: #db6475; }
+.task-monitor-logs { margin-top: 8px; }
+.task-monitor-logs summary { color: var(--yb-text-soft); font-size: 12px; line-height: 20px; cursor: pointer; }
+.task-monitor-panel .task-monitor-log { margin: 8px 0 0; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.task-monitor-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--yb-border); color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.task-monitor-footer button, .task-monitor-load-error button { padding: 4px 8px; border: 1px solid var(--yb-control-border); border-radius: 6px; color: var(--yb-text); background: var(--yb-control-bg); font-size: 12px; line-height: 20px; cursor: pointer; }
+.task-monitor-load-error { padding: 12px 0; }
+.task-monitor-load-error p { margin: 0 0 8px; color: var(--yb-text-soft); font-size: 14px; line-height: 22px; }
+.task-monitor-panel :is(button, summary):focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+.task-monitor .task-monitor-trigger.needs-attention .task-monitor-dot { background: #bd8b42; box-shadow: none; }
+
+.task-monitor-empty { margin: 16px 0; color: var(--yb-text-soft); font-size: 14px; line-height: 22px; }

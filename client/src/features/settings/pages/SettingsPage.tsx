@@ -1,3 +1,4 @@
+import SettingsDisclosure from '../components/SettingsDisclosure';
 import StorageSpaceDialog from '../components/StorageSpaceDialog';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState } from 'react';
@@ -15,6 +16,7 @@ import { getStoredReduceMotion, setStoredReduceMotion, REDUCE_MOTION_CHANGE_EVEN
 import PluginManagementPanel from '../plugin-management/PluginManagementPanel';
 import SettingsLayout from '../components/SettingsLayout';
 import '../settingsAppearance.css';
+import '../settingsDesignSystem.css';
 
 type SettingsTab = 'appearance' | 'general' | 'features' | 'text-model' | 'image-model' | 'file-parser' | 'skills' | 'plugins' | 'usage' | 'about';
 type ReleaseDownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'installing' | 'error';
@@ -826,6 +828,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
   const [pendingSection, setPendingSection] = useState<SectionId | null>(null);
   const pendingSectionResolveRef = useRef<((allowed: boolean) => void) | null>(null);
   const [switchingTab, setSwitchingTab] = useState(false);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configLoadError, setConfigLoadError] = useState('');
+  const [savingConfig, setSavingConfig] = useState(false);
+  const savingConfigRef = useRef(false);
+  const [configSaveError, setConfigSaveError] = useState('');
   const [savedConfig, setSavedConfig] = useState<ClientConfig | null>(null);
   const [textModels, setTextModels] = useState<string[]>([]);
   const [loadingModelInfo, setLoadingModelInfo] = useState(false);
@@ -921,11 +928,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
   }, []);
 
   const loadTextConfig = async () => {
+    setConfigLoading(true);
+    setConfigLoadError('');
     try {
       const config = await window.yibiao?.config.load();
-      if (!config) {
-        return false;
-      }
+      if (!config) throw new Error('无法读取本机配置，请重试');
 
       const textModelProfiles = normalizeTextModelProfiles(config.text_model_profiles);
       const activeTextProfile = normalizeTextModelProfile(config.text_model_provider, textModelProfiles[config.text_model_provider]);
@@ -974,8 +981,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '加载客户端配置失败';
+      setConfigLoadError(errorMessage);
       showToast(errorMessage, 'error');
       return false;
+    } finally {
+      setConfigLoading(false);
     }
   };
 
@@ -1231,8 +1241,13 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
   };
 
   const saveClientConfig = async (config: ClientConfig) => {
+    if (savingConfigRef.current || configLoading || !savedConfig) return false;
+    savingConfigRef.current = true;
+    setSavingConfig(true);
+    setConfigSaveError('');
     try {
       const result = await window.yibiao?.config.save(config);
+      if (!result?.success) setConfigSaveError(result?.message || '配置保存失败');
       showToast(result?.success ? '配置已保存' : result?.message || '配置保存失败', result?.success ? 'success' : 'error');
       if (result?.success) {
         setSavedConfig(config);
@@ -1242,8 +1257,12 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
       return Boolean(result?.success);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '配置保存失败';
+      setConfigSaveError(errorMessage);
       showToast(errorMessage, 'error');
       return false;
+    } finally {
+      savingConfigRef.current = false;
+      setSavingConfig(false);
     }
   };
 
@@ -1791,6 +1810,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
     if (uiAppearance !== 'modern' || !activeTabDirty) return undefined;
     return registerNavigationBlocker((destination) => {
       if (destination === 'settings') return Promise.resolve(true);
+      if (savingConfigRef.current) return Promise.resolve(false);
       if (pendingTab || pendingSectionResolveRef.current) return Promise.resolve(false);
       return new Promise<boolean>((resolve) => {
         pendingSectionResolveRef.current = resolve;
@@ -1804,7 +1824,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
     setActiveTab(tab);
   };
   const requestTabChange = (tab: SettingsTab) => {
-    if (tab === activeTab || pendingSection) return;
+    if (tab === activeTab || pendingSection || savingConfigRef.current || configLoading) return;
     if (getStoredUiAppearance() === 'modern' && activeTabDirty) {
       setPendingTab(tab);
       return;
@@ -1867,7 +1887,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
           actions: [
             {
               id: 'save-state',
-              label: activeTabDirty ? '未保存' : '已保存',
+              label: configLoading ? '读取中' : savingConfig ? '保存中' : configSaveError ? '保存失败' : activeTabDirty ? '未保存' : '已保存',
               variant: 'ghost',
               disabled: true,
               onClick: () => undefined,
@@ -1881,7 +1901,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
               id: 'save',
               label: '保存',
               variant: 'primary',
-              disabled: !activeTabDirty,
+              disabled: configLoading || savingConfig || !savedConfig || !activeTabDirty,
               tooltip: activeTabDirty ? '保存当前设置' : '当前设置已保存',
               onClick: () => { void saveActiveTabConfig(); },
             },
@@ -1910,21 +1930,24 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
   return (
     <div className={`settings-page${activeTab === 'appearance' ? ' is-appearance-page' : ''}`}>
       {storageOpen && <StorageSpaceDialog onClose={() => setStorageOpen(false)} />}
-      <SettingsLayout activeTab={activeTab} tabs={settingsTabs} description={settingsTabDescriptions[activeTab]}
+      <SettingsLayout navigationDisabled={configLoading || savingConfig || switchingTab} activeTab={activeTab} tabs={settingsTabs} description={settingsTabDescriptions[activeTab]}
         onTabChange={(id) => requestTabChange(id as SettingsTab)}
         headerAction={uiAppearance === 'modern' && canSaveActiveTab ? (
           <div className="modern-settings-save-control">
-            <span className={activeTabDirty ? 'is-dirty' : ''} role="status">{activeTabDirty ? '有未保存修改' : '已保存'}</span>
-            <button type="button" disabled={!activeTabDirty} onClick={() => { void saveActiveTabConfig(); }}>保存设置</button>
+            <span className={activeTabDirty ? 'is-dirty' : ''} role="status">{configLoading ? '正在读取配置' : configLoadError ? '读取失败' : savingConfig ? '正在保存' : configSaveError ? '保存失败' : activeTabDirty ? '有未保存修改' : savedConfig ? '已保存' : '尚未读取配置'}</span>
+            <button type="button" disabled={configLoading || savingConfig || !savedConfig || !activeTabDirty} onClick={() => { void saveActiveTabConfig(); }}>{savingConfig ? '保存中…' : '保存设置'}</button>
           </div>
         ) : undefined}>
 
+      {!savedConfig ? <div className="settings-config-feedback" role={configLoadError ? 'alert' : 'status'}><strong>{configLoadError ? '配置读取失败' : '正在读取配置…'}</strong><p>{configLoadError || '读取完成后即可查看和修改本机设置。'}</p>{configLoadError && <button type="button" className="secondary-action" disabled={configLoading} onClick={() => void loadTextConfig()}>{configLoading ? '正在重试…' : '重新读取'}</button>}</div> : <>
+      {configLoadError && <div className="settings-config-feedback is-error" role="alert"><p>{configLoadError} 本页修改仍保留，请重试。</p><button type="button" className="secondary-action" disabled={configLoading} onClick={() => void loadTextConfig()}>重新读取</button></div>}
+      {configSaveError && <div className="settings-config-feedback is-error" role="alert"><p>{configSaveError} 修改尚未保存，请重试“保存设置”。</p></div>}
       {activeTab === 'appearance' && (
         <section className="settings-page-section appearance-selection" aria-labelledby="appearance-selection-title">
-          <div className="settings-section-title appearance-classic-title"><span /><strong>界面与外观</strong></div>
+          <div className="settings-section-title appearance-classic-title"><span /><strong id={uiAppearance === 'modern' ? 'appearance-selection-title' : undefined}>{uiAppearance === 'modern' ? '界面模式' : '界面与外观'}</strong></div>
+          {uiAppearance === 'modern' && <p className="modern-settings-effect-note">选择界面模式后立即生效，无需额外保存。</p>}
           <div className="appearance-selection-content">
-            <h2 id="appearance-selection-title">选择界面模式</h2>
-            <p>切换后不影响已有项目、资料、后台任务和软件配置。守矩保留现有布局。</p>
+            {uiAppearance !== 'modern' && <><h2 id="appearance-selection-title">选择界面模式</h2><p>切换后不影响已有项目、资料、后台任务和软件配置。守矩保留现有布局。</p></>}
             <div className="appearance-card-grid" role="radiogroup" aria-label="界面模式">
               {(['modern', 'classic'] as const).map((appearance) => (
                 <button
@@ -1989,6 +2012,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
             <span />
             <strong>通用</strong>
           </div>
+          {uiAppearance === 'modern' && <p className="modern-settings-effect-note">减少动态效果立即生效；其他配置修改后，请点击右上角“保存设置”。</p>}
           <div className="settings-list">
             <div className="settings-row settings-action-row">
               <div className="settings-row-copy"><strong>存储空间</strong><span>查看占用，清理历史残留、页面缓存与开发日志；保留业务资料和配置</span></div>
@@ -2112,7 +2136,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
             <label className="settings-row">
               <div className="settings-row-copy">
                 <strong>Base URL</strong>
-                <span>OpenAI Like 接口地址，用于文本生成和分析任务</span>
+                <span>模型服务接口地址，用于文本生成和分析任务。</span>
               </div>
               <input
                 type="text"
@@ -2125,10 +2149,11 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
             <label className="settings-row">
               <div className="settings-row-copy">
                 <strong>API Key</strong>
-                <span>仅保存在本机配置文件中，不暴露给 Renderer 以外的原始能力</span>
+                <span>仅保存在本机配置中，调用所选服务时使用。</span>
               </div>
               <InputWithAction
                 type="password"
+                aria-label="文本模型 API Key"
                 value={state.textModel.api_key}
                 placeholder={state.textModel.provider === 'ollama' ? '本地 Ollama 无需填写' : '请输入文本模型 API Key'}
                 disabled={state.textModel.provider === 'ollama'}
@@ -2184,6 +2209,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
                 </button>
               </div>
             </label>
+            <SettingsDisclosure modern={uiAppearance === 'modern'} title="高级参数" hint="多模态、上下文、并发与请求方式">
             <div className="settings-group-title settings-group-title-with-action">
               <span>高级参数</span>
               <button type="button" className="inline-action" onClick={() => { void fillTextModelParameters(); }} disabled={loadingModelInfo}>{loadingModelInfo ? '填充中' : '自动填充高级参数'}</button>
@@ -2227,6 +2253,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
               <div className="settings-row-copy"><strong>请求方式</strong><span>流式请求在后端接收，流程仍等待完整结果。</span></div>
               <select value={state.textModel.request_mode || 'normal'} onChange={(event) => updateTextModelConfig({ request_mode: event.target.value === 'stream' ? 'stream' : 'normal' })}><option value="normal">普通请求</option><option value="stream">流式请求</option></select>
             </label>
+            </SettingsDisclosure>
           </div>
         </section>
       )}
@@ -2309,6 +2336,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
               </div>
               <InputWithAction
                 type="password"
+                aria-label="生图模型 API Key"
                 value={state.imageModel.api_key}
                 placeholder={state.imageModel.provider === 'ollama' || state.imageModel.provider === 'comfyui' ? '本地服务无需填写' : '请输入生图服务 API Key'}
                 disabled={state.imageModel.provider === 'ollama' || state.imageModel.provider === 'comfyui'}
@@ -2318,7 +2346,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
                 onAction={() => { void openImageProviderApiKeyPage(); }}
               />
             </label>
-            {state.imageModel.provider === 'comfyui' ? <div className="comfy-workflow-setting">
+            {state.imageModel.provider === 'comfyui' ? <SettingsDisclosure modern={uiAppearance === 'modern'} title="ComfyUI 工作流" hint="可选 · 展开编辑 API 格式 JSON"><div className="comfy-workflow-setting">
               <div className="comfy-workflow-card">
                 <header className="comfy-workflow-head">
                   <div>
@@ -2342,7 +2370,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
                 </div>
                 <footer className={`comfy-workflow-foot is-${comfyUiWorkflowValidation.status}`}><span>{comfyUiWorkflowValidation.label}</span><small>{(state.imageModel.comfyui_workflow || '').length.toLocaleString()} 字符</small></footer>
               </div>
-            </div> : null}
+            </div></SettingsDisclosure> : null}
             <label className="settings-row">
               <div className="settings-row-copy">
                 <strong>模型名称</strong>
@@ -2909,6 +2937,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+      </>}
       </SettingsLayout>
       <Dialog.Root open={pendingTab !== null || pendingSection !== null} onOpenChange={(open) => { if (!open && !switchingTab) cancelPendingChange(); }}>
         <Dialog.Portal>

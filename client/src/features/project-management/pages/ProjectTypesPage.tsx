@@ -1,3 +1,4 @@
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import { useEffect, useState } from 'react';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { ProjectManagementDictionaries } from '../types';
@@ -19,21 +20,24 @@ function ProjectTypesPage() {
   const [editing, setEditing] = useState<{ kind: DictionaryKind; value: string } | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
 
   useEffect(() => {
+    setLoadError(''); setLoading(true);
     let alive = true;
     window.yibiao?.projectManagement.readDictionaries()
       .then((result) => {
         if (alive && result) setDictionaries(result);
       })
-      .catch((error) => showToast(error instanceof Error ? error.message : '读取项目类型失败', 'error'))
+      .catch((error) => { setLoadError(error instanceof Error ? error.message : String(error)); showToast(error instanceof Error ? error.message : '读取项目类型失败', 'error'); })
       .finally(() => {
         if (alive) setLoading(false);
       });
     return () => {
       alive = false;
     };
-  }, [showToast]);
+  }, [showToast, loadRevision]);
 
   async function saveItems(kind: DictionaryKind, items: string[]) {
     const result = await window.yibiao?.projectManagement.saveDictionary({ kind, items });
@@ -154,6 +158,8 @@ function ProjectTypesPage() {
       </section>
     );
   }
+
+  if (loadError) return <WorkspaceLoadError message={loadError} onRetry={() => setLoadRevision(value => value + 1)} />;
 
   if (loading) {
     return <div className="project-dictionary-page"><section className="project-dictionary-hero">正在读取项目类型...</section></div>;

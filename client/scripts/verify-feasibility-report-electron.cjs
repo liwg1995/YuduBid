@@ -56,7 +56,10 @@ async function run() {
     assert.equal(restored.step, 'analysis');
     assert.equal(restored.projectInfo.location, '中文路径测试区');
     assert.match(restored.analysisMarkdown, /中文内容可正常保存/);
-    assert.deepEqual(restored.contentGenerationOptions, { useAiImages: true, maxAiImages: 4, useMermaidImages: false, useTechnicalDiagrams: true });
+    assert.deepEqual(restored.contentGenerationOptions, { useAiImages: true, maxAiImages: 4, useMermaidImages: false, useTechnicalDiagrams: true, autoReview: false });
+    secondRouter.saveContentGenerationOptions({ projectId, contentGenerationOptions: { ...restored.contentGenerationOptions, autoReview: true } });
+    const reviewOptions = createFeasibilityReportStoreRouter({ app: testApp }).loadState({ projectId }).contentGenerationOptions;
+    assert.equal(reviewOptions.autoReview, true, '自动审校配置应在重新读取工作区后保留');
 
     const renamed = secondRouter.renameProject({ projectId, name: '重命名后的项目' });
     assert.equal(renamed.projects[0].name, '重命名后的项目');

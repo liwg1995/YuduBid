@@ -82,9 +82,9 @@
 .modern-generation-field .yb-switch-thumb[data-state='checked'] { transform: translateX(23px); }
 .modern-generation-block > .modern-generation-field { margin-top: 12px; }
 .modern-generation-policy, .modern-generation-export-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 14px; }
-.modern-generation-policy button, .modern-generation-export-options label { display: flex; min-width: 0; min-height: 97px; flex-direction: column; align-items: flex-start; gap: 7px; border: 1px solid #46536a; border-radius: 7px; padding: 14px; color: #e6e9f6; background: #27364a; text-align: left; cursor: pointer; }
-.modern-generation-policy button.is-selected, .modern-generation-export-options label.is-selected { border-color: #9589e6; background: #34365b; box-shadow: inset 0 2px #a99df3; }
-.modern-generation-policy button span, .modern-generation-export-options label small { color: #9eacc2; font-size: 10px; line-height: 1.5; }
+.modern-generation-policy label, .modern-generation-export-options label { display: flex; min-width: 0; min-height: 97px; flex-direction: column; align-items: flex-start; gap: 7px; border: 1px solid #46536a; border-radius: 7px; padding: 14px; color: #e6e9f6; background: #27364a; text-align: left; cursor: pointer; }
+.modern-generation-policy label.is-selected, .modern-generation-export-options label.is-selected { border-color: #9589e6; background: #34365b; box-shadow: inset 0 2px #a99df3; }
+.modern-generation-policy label span, .modern-generation-export-options label small { color: #9eacc2; font-size: 10px; line-height: 1.5; }
 .modern-generation-export-options label:has(input:disabled) { opacity: .55; cursor: not-allowed; }
 .modern-generation-export-options label input { width: 15px; height: 15px; margin: 0 0 5px; accent-color: #a99df3; }
 .modern-generation-template { display: flex; gap: 9px; }
@@ -98,3 +98,58 @@
 @media (max-width: 1120px) { .modern-generation-page { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .modern-generation-index { padding: 6px 11px; border-right: 0; border-bottom: 1px solid #334257; } .modern-generation-index > div, .modern-generation-index > small { display: none; } .modern-generation-index nav { flex-direction: row; gap: 3px; margin: 0; overflow-x: auto; } .modern-generation-index nav button { min-width: max-content; } }
 @media (max-width: 830px) { .modern-generation-knowledge-grid, .modern-generation-length { grid-template-columns: 1fr; } .modern-generation-policy, .modern-generation-export-options, .modern-generation-length > section > div { grid-template-columns: 1fr; } .modern-generation-field { align-items: stretch; flex-direction: column; } .modern-generation-template { flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .modern-generation-content { animation: none; } .modern-generation-index nav button, .modern-generation-footer button, .modern-generation-field .yb-switch, .modern-generation-field .yb-switch-thumb { transition: none; } .modern-generation-footer button:hover:not(:disabled) { transform: none; } }
+
+/* 设置表单：校验紧邻字段，低频参数渐进展开。 */
+.modern-generation-page .modern-generation-block > p,
+.modern-generation-page .modern-generation-field small,
+.modern-generation-page .modern-generation-policy label span,
+.modern-generation-page .modern-generation-export-options label small,
+.modern-generation-page .modern-generation-length small { color: var(--yb-text-soft); font-size: 13px; line-height: 1.6; }
+.modern-generation-page .modern-generation-length label,
+.modern-generation-page .modern-generation-field strong,
+.modern-generation-page .modern-generation-footer { font-size: 14px; }
+.modern-generation-page input[aria-invalid='true'] { border-color: #f09aa9; outline-color: #f09aa9; }
+.modern-generation-page .modern-generation-field-error { margin: 8px 0 0; color: #ffb3bf; font-size: 13px; line-height: 1.6; }
+.modern-generation-advanced { border: 1px solid var(--yb-border); border-radius: var(--yb-radius-control, 8px); padding: 16px; background: var(--yb-surface); }
+.modern-generation-advanced summary { color: var(--yb-text); font-size: 14px; font-weight: 600; cursor: pointer; }
+.modern-generation-advanced summary span { display: inline-block; margin-left: 12px; color: var(--yb-text-soft); font-size: 12px; font-weight: 400; }
+.modern-generation-advanced[open] summary { margin-bottom: 16px; }
+.modern-generation-advanced .modern-generation-field + .modern-generation-field { margin-top: 12px; }
+.modern-generation-page .modern-generation-footer button { font-size: 14px; }
+
+/* 六个并列设置领域使用页内 Tab，避免形成第二层常驻侧栏。 */
+.modern-generation-page { display: flex; flex-direction: column; border: 0; background: var(--yb-surface); }
+.modern-generation-index { flex: 0 0 auto; border: 0; border-bottom: 1px solid var(--yb-border); padding: 0 16px; background: transparent; }
+.modern-generation-index nav { flex: 0 0 auto; flex-direction: row; gap: 24px; margin: 0; overflow-x: auto; }
+.modern-generation-index nav button { min-width: max-content; min-height: 44px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 0; background: transparent; }
+.modern-generation-index nav button strong { font-size: 14px; font-weight: 400; }
+.modern-generation-index nav button.is-active { border-bottom-color: var(--yb-primary); color: var(--yb-primary); background: transparent; }
+.modern-generation-index nav button:hover { background: transparent; }
+.modern-generation-main { flex: 1; min-height: 0; }
+.modern-generation-header { padding: 16px 24px; border-bottom: 0; background: transparent; }
+.modern-generation-header h2 { margin: 0 0 4px; font-size: 20px; font-weight: 500; }
+.modern-generation-header p { margin: 0; font-size: 14px; line-height: 22px; }
+.modern-generation-content { padding: 0 24px 24px; }
+.modern-generation-stack { max-width: 1120px; }
+.modern-generation-block { background: transparent; }
+.modern-generation-footer { padding: 12px 24px; background: var(--yb-surface); }
+
+/* 单选保留原生键盘行为，卡片的选中、焦点、禁用状态分别表达。 */
+.modern-generation-policy label { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-content: start; align-items: start; gap: 8px; }
+.modern-generation-policy label input { width: 16px; height: 16px; margin: 3px 0 0; accent-color: var(--yb-primary); }
+.modern-generation-policy label span { grid-column: 2; }
+.modern-generation-policy label strong { font-size: 14px; font-weight: 500; line-height: 22px; }
+.modern-generation-policy label:focus-within,
+.modern-generation-export-options label:focus-within { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+.modern-generation-policy label:hover,
+.modern-generation-export-options label:not(:has(input:disabled)):hover { border-color: var(--yb-primary); }
+.modern-generation-export-options label strong { font-size: 14px; font-weight: 500; line-height: 22px; }
+.modern-generation-page :is(.modern-generation-change, .modern-generation-alert, .modern-generation-search, .modern-generation-empty, .modern-generation-folder label, .modern-generation-selected > div span) { font-size: 14px; line-height: 22px; }
+.modern-generation-page :is(.modern-generation-unavailable, .modern-generation-summary span, .modern-generation-folder header span, .modern-generation-folder header button, .modern-generation-selected button, .modern-generation-selected > p) { font-size: 12px; line-height: 20px; }
+.modern-generation-page .modern-generation-block > button,
+.modern-generation-page .modern-generation-template button { font-size: 14px; }
+.modern-generation-header { flex-wrap: wrap; }
+.modern-generation-page .modern-generation-stack { gap: 16px; }
+.modern-generation-search .enterprise-search-input { flex: 1; min-width: 0; max-width: 480px; }
+/* 输入外壳统一负责背景与边框，内部输入保持透明。 */
+.modern-generation-search .enterprise-search-input input { border: 0; border-radius: 0; padding: 0; background: transparent; }

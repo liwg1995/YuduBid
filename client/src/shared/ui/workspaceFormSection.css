@@ -1,0 +1,15 @@
+.yb-workspace-form-section { min-width: 0; margin: 0; padding: 0; border: 0; }
+.yb-workspace-form-section + .yb-workspace-form-section { margin-top: 24px; }
+.yb-workspace-form-section > legend { float: none; width: 100%; margin: 0 0 8px; padding: 0; color: var(--yb-text); font-size: 14px; font-weight: 600; line-height: 22px; }
+.yb-workspace-form-description { margin: 0 0 16px; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.yb-workspace-form-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0; }
+.yb-workspace-form-fields > label { display: flex; flex-direction: column; gap: 8px; min-width: 0; color: var(--yb-text); font-size: 14px; line-height: 22px; }
+.yb-workspace-form-fields > label:is(.is-wide,.is-full) { grid-column: 1 / -1; }
+.yb-workspace-form-fields > label > :is(input,select,textarea) { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid var(--yb-control-border); border-radius: var(--yb-radius-control, 8px); padding: 4px 11px; color: var(--yb-text); background: var(--yb-control-bg); font: inherit; min-height: 32px; }
+.yb-workspace-form-fields > label > textarea { min-height: 112px; padding-block: 8px; resize: vertical; }
+.yb-workspace-form-fields > label > :is(input,select,textarea):focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+@container (max-width: 650px) { .yb-workspace-form-fields { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 650px) { .yb-workspace-form-fields { grid-template-columns: minmax(0, 1fr); } }
+:root[data-ui-appearance='modern'] .modern-shell .yb-workspace-form-fields > label > :is(input,select,textarea) { border-color: var(--yb-control-border); color: var(--yb-text); background: var(--yb-control-bg); border-radius: var(--yb-radius-control, 8px); }
+:root[data-ui-appearance='modern'] .modern-shell .yb-workspace-form-fields > label > textarea { min-height: 112px; }
+:root[data-ui-appearance='modern'] .modern-shell .yb-workspace-form-fields > label > :is(input,textarea)::placeholder { color: var(--yb-text-muted, var(--yb-text-soft)); opacity: 1; }

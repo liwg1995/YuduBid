@@ -1,5 +1,6 @@
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SectionId } from '../../../shared/types/navigation';
 import { MarkdownRenderer } from '../../../shared/ui';
 import { useToast } from '../../../shared/ui/ToastProvider';
@@ -62,10 +63,23 @@ function ProjectHistoryPage({ onNavigate }: ProjectHistoryPageProps) {
   const { showToast } = useToast();
   const [projects, setProjects] = useState<ProjectManagementProjectRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
   const [expandedProjectId, setExpandedProjectId] = useState<string>('');
   const [preview, setPreview] = useState<{ project: ProjectManagementProjectRecord; stage: StageMeta } | null>(null);
+  const previewTriggerRef = useRef<HTMLElement | null>(null);
+  const openPreview = (project: ProjectManagementProjectRecord, stage: StageMeta) => {
+    previewTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPreview({ project, stage });
+  };
+  const restorePreviewFocus = (event: Event) => {
+    const trigger = previewTriggerRef.current;
+    if (trigger?.isConnected && trigger.getClientRects().length && !trigger.matches(':disabled')) { event.preventDefault(); trigger.focus({ preventScroll: true }); }
+  };
+
 
   useEffect(() => {
+    setLoadError(''); setLoading(true);
     let alive = true;
     window.yibiao?.projectManagement.listProjects()
       .then((result) => {
@@ -74,7 +88,7 @@ function ProjectHistoryPage({ onNavigate }: ProjectHistoryPageProps) {
         setProjects(nextProjects);
         setExpandedProjectId(nextProjects[0]?.id || '');
       })
-      .catch((error) => showToast(error instanceof Error ? error.message : '读取项目历史失败', 'error'))
+      .catch((error) => { setLoadError(error instanceof Error ? error.message : String(error)); showToast(error instanceof Error ? error.message : '读取项目历史失败', 'error'); })
       .finally(() => {
         if (alive) setLoading(false);
       });
@@ -82,7 +96,7 @@ function ProjectHistoryPage({ onNavigate }: ProjectHistoryPageProps) {
     return () => {
       alive = false;
     };
-  }, [showToast]);
+  }, [showToast, loadRevision]);
 
   const visibleProjects = useMemo(
     () => projects.filter((project) => project.name !== '未命名项目' || project.completedCount > 0 || project.clientName || project.vendorName),
@@ -104,7 +118,7 @@ function ProjectHistoryPage({ onNavigate }: ProjectHistoryPageProps) {
       <Dialog.Root open={Boolean(preview)} onOpenChange={(open) => !open && setPreview(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="project-history-preview-card">
+          <Dialog.Content onCloseAutoFocus={restorePreviewFocus} className="project-history-preview-card">
             <div className="project-management-help-head">
               <div>
                 <Dialog.Title>{preview?.stage.title || '阶段产出预览'}</Dialog.Title>
@@ -120,6 +134,8 @@ function ProjectHistoryPage({ onNavigate }: ProjectHistoryPageProps) {
       </Dialog.Root>
   );
 
+  if (loadError) return <WorkspaceLoadError message={loadError} onRetry={() => setLoadRevision(value => value + 1)} />;
+
   if (loading) {
     return getStoredUiAppearance() === 'modern'
       ? <div className="modern-history-page"><div className="modern-history-empty">正在读取项目历史…</div></div>
@@ -131,12 +147,12 @@ function ProjectHistoryPage({ onNavigate }: ProjectHistoryPageProps) {
     return <div className="modern-history-page">
       <header className="modern-history-header"><div><span>PROJECT ARCHIVE</span><h2>项目历史</h2><p>按项目查看已保存的阶段成果，随时返回工作台继续推进。</p></div><button type="button" onClick={() => onNavigate('project-management')}>进入项目管理</button></header>
       {visibleProjects.length ? <div className="modern-history-workspace">
-        <aside className="modern-history-projects"><div className="modern-history-panel-head"><span>本地项目</span><strong>{visibleProjects.length}</strong></div><div className="modern-history-project-list">{visibleProjects.map((project) => <button type="button" key={project.id} className={`modern-history-project${activeProject?.id === project.id ? ' is-active' : ''}`} onClick={() => setExpandedProjectId(project.id)}><span>{project.isActive ? '当前项目' : '已保存项目'}</span><strong>{project.name}</strong><small>{project.clientName || '客户待确认'} · {project.projectType || '类型待确认'}</small><div><i><b style={{ width: `${Math.round((project.completedCount / stageMetas.length) * 100)}%` }} /></i><em>{project.completedCount}/{stageMetas.length}</em></div></button>)}</div><div className="modern-history-project-foot">项目数据保存在本地工作区</div></aside>
+        <aside className="modern-history-projects"><div className="modern-history-panel-head"><span>本地项目</span><strong>{visibleProjects.length}</strong></div><div className="modern-history-project-list">{visibleProjects.map((project) => <button type="button" key={project.id} aria-pressed={activeProject?.id === project.id} title={project.name} className={`modern-history-project${activeProject?.id === project.id ? ' is-active' : ''}`} onClick={() => setExpandedProjectId(project.id)}><span>{project.isActive ? '当前项目' : '已保存项目'}</span><strong>{project.name}</strong><small>{project.clientName || '客户待确认'} · {project.projectType || '类型待确认'}</small><div><i><b style={{ width: `${Math.round((project.completedCount / stageMetas.length) * 100)}%` }} /></i><em>{project.completedCount}/{stageMetas.length}</em></div></button>)}</div><div className="modern-history-project-foot">项目数据保存在本地工作区</div></aside>
         {activeProject && <main className="modern-history-detail">
           <div className="modern-history-detail-heading"><div><span>{activeProject.isActive ? '当前项目' : '项目档案'}</span><h3>{activeProject.name}</h3><p>{activeProject.clientName || '客户待确认'} · {activeProject.projectType || '项目类型待确认'}</p></div><button type="button" onClick={() => void enterProject(activeProject.id)}>继续此项目 →</button></div>
           <div className="modern-history-facts"><div><span>已完成阶段</span><strong>{activeProject.completedCount}<small> / {stageMetas.length}</small></strong></div><div><span>当前阶段</span><strong>{activeProject.currentStage || '待确认'}</strong></div><div><span>交付方</span><strong>{activeProject.vendorName || '待确认'}</strong></div><div><span>最近更新</span><strong>{formatTime(activeProject.updated_at)}</strong></div></div>
           <div className="modern-history-stages-head"><div><span>STAGE OUTPUTS</span><h4>阶段产出</h4></div><small>选择已生成阶段可预览保存内容</small></div>
-          <div className="modern-history-stages">{stageMetas.map((stage, index) => { const content = String(activeProject.state[stage.resultKey] || '').trim(); const done = Boolean(content); return <article key={stage.id} className={done ? 'is-done' : ''}><div><span>{String(index + 1).padStart(2, '0')}</span><strong>{stage.label}</strong><small>{done ? '已生成' : '待生成'}</small></div><p>{done ? compactText(content, 95) : '此阶段尚无保存的成果。'}</p><button type="button" onClick={() => setPreview({ project: activeProject, stage })} disabled={!done}>{done ? '预览产出 →' : '暂无预览'}</button></article>; })}</div>
+          <div className="modern-history-stages">{stageMetas.map((stage, index) => { const content = String(activeProject.state[stage.resultKey] || '').trim(); const done = Boolean(content); return <article key={stage.id} className={done ? 'is-done' : ''}><div><span>{String(index + 1).padStart(2, '0')}</span><strong>{stage.label}</strong><small>{done ? '已生成' : '待生成'}</small></div><p>{done ? compactText(content, 95) : '此阶段尚无保存的成果。'}</p><button type="button" onClick={() => openPreview(activeProject, stage)} disabled={!done}>{done ? '预览产出 →' : '暂无预览'}</button></article>; })}</div>
         </main>}
       </div> : <div className="modern-history-empty"><span>◇</span><strong>暂无项目历史</strong><p>进入项目管理创建项目并生成阶段产出，这里会自动汇总展示。</p><button type="button" onClick={() => onNavigate('project-management')}>去项目管理</button></div>}
       {previewDialog}
@@ -197,7 +213,7 @@ function ProjectHistoryPage({ onNavigate }: ProjectHistoryPageProps) {
                             <strong>{done ? '已生成' : '待生成'}</strong>
                           </div>
                           <p>{done ? compactText(content) : '该阶段暂无产出，可回到项目管理继续生成。'}</p>
-                          <button type="button" className="secondary-action" onClick={() => setPreview({ project, stage })} disabled={!done}>预览</button>
+                          <button type="button" className="secondary-action" onClick={() => openPreview(project, stage)} disabled={!done}>预览</button>
                         </article>
                       );
                     })}

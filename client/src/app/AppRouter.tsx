@@ -1,3 +1,4 @@
+import WorkspaceLoading from '../shared/ui/WorkspaceLoading';
 import { lazy, Suspense } from 'react';
 import type { SectionId } from '../shared/types/navigation';
 import type { FeatureModuleSettings } from '../shared/types';
@@ -141,13 +142,7 @@ function AppRouteContent({ activeSection, developerMode, featureModuleSettings, 
 
 function AppRouter(props: AppRouterProps) {
   return (
-    <Suspense fallback={(
-      <div className="section-loading-state" role="status" aria-live="polite">
-        <span className="section-loading-indicator" aria-hidden="true" />
-        <strong>正在加载功能模块</strong>
-        <small>正在恢复当前模块的本地工作区…</small>
-      </div>
-    )}>
+    <Suspense fallback={<WorkspaceLoading title="正在加载功能模块" />}>
       <AppRouteContent {...props} />
     </Suspense>
   );

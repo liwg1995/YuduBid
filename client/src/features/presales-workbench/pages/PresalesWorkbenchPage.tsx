@@ -1,3 +1,11 @@
+import PresalesPackagePreviewDialog from '../components/PresalesPackagePreviewDialog';
+import { AsyncDialogRoot, AsyncDialogContent, AsyncDialogClose } from '../../../shared/ui/AsyncDialog';
+import WorkspaceLoading from '../../../shared/ui/WorkspaceLoading';
+import PresalesArchitectureForm from '../components/PresalesArchitectureForm';
+import PresalesResearchForm from '../components/PresalesResearchForm';
+import PresalesAnalysisForm from '../components/PresalesAnalysisForm';
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MarkdownRenderer from '../../../shared/ui/MarkdownRenderer';
@@ -438,10 +446,17 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   const [manualMaterialDraft, setManualMaterialDraft] = useState<PresalesManualMaterialInput>(emptyManualMaterialInput);
   const [manualMaterialOpen, setManualMaterialOpen] = useState(false);
   const [activeMaterialId, setActiveMaterialId] = useState('');
-  const [activeMaterialMarkdown, setActiveMaterialMarkdown] = useState('');
+  const [materialPreview, setMaterialPreview] = useState({ requestKey: '', markdown: '', error: '', loading: false });
+  const [materialPreviewRevision, setMaterialPreviewRevision] = useState(0);
+  const materialRequestKey = `${state?.projectId || ''}:${activeMaterialId}`;
+  const currentMaterialPreview = materialPreview.requestKey === materialRequestKey
+    ? materialPreview
+    : { markdown: '', error: '', loading: Boolean(activeMaterialId) };
   const [localTaskProgress, setLocalTaskProgress] = useState<Partial<Record<PresalesGenerationStepId, LocalTaskProgress>>>({});
   const [pptExportProgress, setPptExportProgress] = useState<LocalTaskProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isSavingManualMaterial, setIsSavingManualMaterial] = useState(false);
@@ -479,6 +494,10 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   const [agentContinuousCycle, setAgentContinuousCycle] = useState(0);
   const agentContinuousLaunchingRef = useRef(false);
   const agentContinuousPersistenceReadyRef = useRef(false);
+  const generationLockRef = useRef(false);
+  const workspaceBusy = isLoading || isSaving || isImporting || isSavingManualMaterial
+    || isGeneratingAnalysis || isGeneratingResearch || isGeneratingArchitecture
+    || isGeneratingDiagrams || isGeneratingPresentation || state?.task?.status === 'running';
 
   const activeProjectName = useMemo(() => {
     return state?.profile.projectName?.trim() || state?.profile.customerName?.trim() || '未命名售前项目';
@@ -550,12 +569,18 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
     setState(nextState);
     setAgentRun(null);
     setAgentConfirmOpen(false);
-    setProfileDraft(nextState.profile);
-    setAnalysisDraft(nextState.analysisInput);
-    setResearchDraft(nextState.researchInput);
-    setArchitectureDraft(nextState.architectureInput);
-    setDiagramDraft(nextState.diagramInput);
-    setPresentationDraft(nextState.presentationInput);
+    setProfileDraft((current) => state?.projectId === nextState.projectId
+      && JSON.stringify(current) !== JSON.stringify(state.profile) ? current : nextState.profile);
+    setAnalysisDraft((current) => state?.projectId === nextState.projectId
+      && JSON.stringify(current) !== JSON.stringify(state.analysisInput) ? current : nextState.analysisInput);
+    setResearchDraft((current) => state?.projectId === nextState.projectId
+      && JSON.stringify(current) !== JSON.stringify(state.researchInput) ? current : nextState.researchInput);
+    setArchitectureDraft((current) => state?.projectId === nextState.projectId
+      && JSON.stringify(current) !== JSON.stringify(state.architectureInput) ? current : nextState.architectureInput);
+    setDiagramDraft((current) => state?.projectId === nextState.projectId
+      && JSON.stringify(current) !== JSON.stringify(state.diagramInput) ? current : nextState.diagramInput);
+    setPresentationDraft((current) => state?.projectId === nextState.projectId
+      && JSON.stringify(current) !== JSON.stringify(state.presentationInput) ? current : nextState.presentationInput);
     setActiveMaterialId((current) => {
       if (current && nextState.materials.some((material) => material.id === current)) return current;
       return nextState.materials[0]?.id || '';
@@ -563,12 +588,16 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   useEffect(() => {
+    setLoadError(''); setIsLoading(true);
     let mounted = true;
-    const bridge = getPresalesBridge();
-    Promise.all([
-      bridge.loadState(),
-      bridge.getImageModelAvailability().catch((error) => ({ available: false, message: error?.message || '生图模型状态读取失败' })),
-    ])
+    Promise.resolve().then(() => {
+      const bridge = getPresalesBridge();
+      return Promise.all([
+        bridge.loadState(),
+        Promise.resolve().then(() => bridge.getImageModelAvailability())
+          .catch((error) => ({ available: false, message: error?.message || '生图模型状态读取失败' })),
+      ]);
+    })
       .then(([nextState, availability]) => {
         if (!mounted) return;
         applyState(nextState);
@@ -577,7 +606,8 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
         setUseAiVisuals(Boolean(availability.available));
       })
       .catch((error) => {
-        showToast(error?.message || '请稍后重试', 'error', { title: '售前工作台加载失败' });
+        if (!mounted) return;
+        setLoadError(error instanceof Error ? error.message : String(error)); showToast(error?.message || '请稍后重试', 'error', { title: '售前工作台加载失败' });
       })
       .finally(() => {
         if (mounted) setIsLoading(false);
@@ -585,7 +615,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
     return () => {
       mounted = false;
     };
-  }, [showToast]);
+  }, [showToast, loadRevision]);
 
   useEffect(() => {
     let mounted = true;
@@ -638,26 +668,27 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }, [state?.presentationResult.markdown]);
 
   useEffect(() => {
-    if (!activeMaterialId) {
-      setActiveMaterialMarkdown('');
-      return;
-    }
-
     let mounted = true;
-    getPresalesBridge().readMaterialMarkdown(activeMaterialId)
+    setMaterialPreview({ requestKey: materialRequestKey, markdown: '', error: '', loading: Boolean(activeMaterialId) });
+    if (!activeMaterialId) return;
+
+    Promise.resolve().then(() => getPresalesBridge().readMaterialMarkdown(activeMaterialId))
       .then((markdown) => {
-        if (mounted) setActiveMaterialMarkdown(markdown);
+        if (mounted) setMaterialPreview({ requestKey: materialRequestKey, markdown, error: '', loading: false });
       })
       .catch((error) => {
-        showToast(error instanceof Error ? error.message : String(error), 'error', { title: '材料预览失败' });
+        if (!mounted) return;
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn('[presales:material-preview] 读取失败', { projectId: state?.projectId, materialId: activeMaterialId, message });
+        setMaterialPreview({ requestKey: materialRequestKey, markdown: '', error: message, loading: false });
+        showToast(message, 'error', { title: '材料预览失败' });
       });
 
-    return () => {
-      mounted = false;
-    };
-  }, [activeMaterialId, showToast]);
+    return () => { mounted = false; };
+  }, [materialRequestKey, activeMaterialId, materialPreviewRevision, showToast]);
 
   async function saveProfile() {
+    if (workspaceBusy || generationLockRef.current) return;
     setIsSaving(true);
     try {
       const nextState = await getPresalesBridge().saveProfile(profileDraft);
@@ -671,6 +702,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   async function saveAnalysisInput() {
+    if (workspaceBusy || generationLockRef.current) return;
     setIsSaving(true);
     try {
       const nextState = await getPresalesBridge().saveAnalysisInput(analysisDraft);
@@ -684,6 +716,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   async function saveResearchInput() {
+    if (workspaceBusy || generationLockRef.current) return;
     setIsSaving(true);
     try {
       const nextState = await getPresalesBridge().saveResearchInput(researchDraft);
@@ -697,6 +730,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   async function saveArchitectureInput() {
+    if (workspaceBusy || generationLockRef.current) return;
     setIsSaving(true);
     try {
       const nextState = await getPresalesBridge().saveArchitectureInput(architectureDraft);
@@ -710,6 +744,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   async function saveDiagramInput() {
+    if (workspaceBusy || generationLockRef.current) return;
     setIsSaving(true);
     try {
       const nextState = await getPresalesBridge().saveDiagramInput(diagramDraft);
@@ -723,6 +758,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   async function savePresentationInput() {
+    if (workspaceBusy || generationLockRef.current) return;
     setIsSaving(true);
     try {
       const nextState = await getPresalesBridge().savePresentationInput(presentationDraft);
@@ -736,6 +772,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   async function savePresentationOutlineDraft() {
+    if (workspaceBusy || generationLockRef.current) return;
     if (!outlineDraftPages.length) {
       showToast('当前还没有可编辑的汇报页纲', 'info');
       return;
@@ -754,6 +791,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   async function importMaterial() {
+    if (workspaceBusy || generationLockRef.current) return;
     setIsImporting(true);
     try {
       const result = await getPresalesBridge().importMaterial();
@@ -772,6 +810,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   async function saveManualMaterial() {
+    if (workspaceBusy || generationLockRef.current) return;
     setIsSavingManualMaterial(true);
     try {
       const result = await getPresalesBridge().saveManualMaterial(manualMaterialDraft);
@@ -797,31 +836,17 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
     setRunning: (value: boolean) => void,
     successMessage: string,
   ): Promise<boolean> {
+    if (generationLockRef.current || workspaceBusy) return false;
+    generationLockRef.current = true;
     setRunning(true);
     setLocalTaskProgress((current) => ({
       ...current,
       [type]: {
-        progress: 6,
-        message: getGenerationProgressMessage(type, 6),
+        progress: 0,
+        message: `正在生成${workflowSteps.find((step) => step.id === type)?.title || '售前成果'}`,
         status: 'running',
       },
     }));
-    const timer = window.setInterval(() => {
-      setLocalTaskProgress((current) => {
-        const task = current[type];
-        if (!task || task.status !== 'running') return current;
-        const step = task.progress < 28 ? 7 : task.progress < 58 ? 5 : task.progress < 82 ? 3 : 1;
-        const nextProgress = Math.min(92, task.progress + step);
-        return {
-          ...current,
-          [type]: {
-            ...task,
-            progress: nextProgress,
-            message: getGenerationProgressMessage(type, nextProgress),
-          },
-        };
-      });
-    }, 900);
     try {
       const nextState = await runner();
       applyState(nextState);
@@ -836,10 +861,11 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
       showToast(successMessage, 'success');
       return true;
     } catch (error) {
+      console.warn('[presales:generation] 生成失败', { projectId: state?.projectId, stage: type, message: error instanceof Error ? error.message : String(error) });
       setLocalTaskProgress((current) => ({
         ...current,
         [type]: {
-          progress: 100,
+          progress: current[type]?.progress ?? 0,
           message: error instanceof Error ? error.message : '生成失败',
           status: 'error',
         },
@@ -852,15 +878,8 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
       }
       return false;
     } finally {
-      window.clearInterval(timer);
       setRunning(false);
-      window.setTimeout(() => {
-        setLocalTaskProgress((current) => {
-          const next = { ...current };
-          delete next[type];
-          return next;
-        });
-      }, 1200);
+      generationLockRef.current = false;
     }
   }
 
@@ -913,7 +932,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   };
 
   async function planNextWithAgent() {
-    if (!state?.projectId || !window.yibiao?.agent) return;
+    if (workspaceBusy || generationLockRef.current || !state?.projectId || !window.yibiao?.agent) return;
     setIsAgentPlanning(true);
     setAgentRun(null);
     try {
@@ -931,6 +950,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   }
 
   function requestAgentExecution() {
+    if (workspaceBusy || generationLockRef.current) return;
     const action = agentRun?.shadowEvaluation?.agentAction;
     if (!action) return;
     if (action === 'add-materials') {
@@ -1311,17 +1331,13 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
     const localTask = ['analysis', 'research', 'architecture', 'diagrams', 'presentation'].includes(type)
       ? localTaskProgress[type as PresalesGenerationStepId]
       : undefined;
-    const remoteTask = state?.task && state.task.type === type && state.task.status === 'running' ? state.task : null;
+    const remoteTask = state?.task && state.task.type === type ? state.task : null;
     const task = localTask || remoteTask;
     if (!task) return null;
-    const progress = Math.max(0, Math.min(100, task.progress || 6));
+    const progress = Math.max(0, Math.min(100, task.progress ?? 0));
     return (
-      <div className={`presales-task-card ${task.status === 'error' ? 'is-error' : task.status === 'success' ? 'is-success' : ''}`}>
-        <div>
-          <strong>{task.message || getGenerationProgressMessage(type as PresalesGenerationStepId, progress)}</strong>
-          <span>{progress}%</span>
-        </div>
-        <i><b style={{ width: `${progress}%` }} /></i>
+      <div role="status" aria-live="polite" className={`presales-task-card ${task.status === 'error' ? 'is-error' : task.status === 'success' ? 'is-success' : ''}`}>
+        <BusinessTaskProgress label={task.message || getGenerationProgressMessage(type as PresalesGenerationStepId, progress)} percent={task.status === 'error' || (localTask && task.status === 'running') ? undefined : progress} status={task.status === 'error' ? 'exception' : task.status === 'success' ? 'success' : 'active'} />
         <p>{task.status === 'success' ? '生成完成，结果已写入当前售前项目。' : task.status === 'error' ? '生成未完成，请根据错误信息调整后重试。' : '正在按阶段生成内容，完成后会自动写入当前售前项目。'}</p>
       </div>
     );
@@ -1345,11 +1361,11 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
             </div>
             <div className="presales-export-option-panel">
               <label className="presales-ai-visual-toggle is-inline">
-                <input type="checkbox" checked={presentationExportFormats.pptx} onChange={(event) => setPresentationExportFormats((current) => ({ ...current, pptx: event.target.checked }))} />
+                <input disabled={workspaceBusy} type="checkbox" checked={presentationExportFormats.pptx} onChange={(event) => setPresentationExportFormats((current) => ({ ...current, pptx: event.target.checked }))} />
                 <span>PPTX</span>
               </label>
               <label className="presales-ai-visual-toggle is-inline">
-                <input type="checkbox" checked={presentationExportFormats.html} onChange={(event) => setPresentationExportFormats((current) => ({ ...current, html: event.target.checked }))} />
+                <input disabled={workspaceBusy} type="checkbox" checked={presentationExportFormats.html} onChange={(event) => setPresentationExportFormats((current) => ({ ...current, html: event.target.checked }))} />
                 <span>HTML 演示</span>
               </label>
             </div>
@@ -1371,7 +1387,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
   function renderPptExportProgressDialog() {
     const progress = Math.max(0, Math.min(100, pptExportProgress?.progress || 0));
     return (
-      <Dialog.Root
+      <AsyncDialogRoot busy={isExportingPptx}
         open={Boolean(pptExportProgress)}
         onOpenChange={(open) => {
           if (!open && !isExportingPptx) setPptExportProgress(null);
@@ -1379,7 +1395,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
       >
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="presales-ppt-export-dialog">
+          <AsyncDialogContent className="presales-ppt-export-dialog">
             <div className="presales-ppt-export-head">
               <div>
                 <Dialog.Title>正在导出售前汇报材料</Dialog.Title>
@@ -1388,15 +1404,11 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 </Dialog.Description>
               </div>
               {!isExportingPptx ? (
-                <Dialog.Close className="detail-help-close" type="button" aria-label="关闭导出进度">×</Dialog.Close>
+                <AsyncDialogClose className="detail-help-close" type="button" aria-label="关闭导出进度">×</AsyncDialogClose>
               ) : null}
             </div>
             <div className={`presales-ppt-export-progress ${pptExportProgress?.status === 'error' ? 'is-error' : pptExportProgress?.status === 'success' ? 'is-success' : ''}`}>
-              <div>
-                <strong>{pptExportProgress?.message || '正在准备导出'}</strong>
-                <span>{progress}%</span>
-              </div>
-              <i><b style={{ width: `${progress}%` }} /></i>
+              <BusinessTaskProgress label={pptExportProgress?.message || '正在准备导出'} percent={progress} status={pptExportProgress?.status === 'error' ? 'exception' : pptExportProgress?.status === 'success' ? 'success' : 'active'} />
               <p>
                 {pptExportProgress?.status === 'success'
                   ? '汇报材料已生成并记录到当前项目的导出记录中。'
@@ -1417,12 +1429,12 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
             ) : null}
             {!isExportingPptx ? (
               <div className="presales-package-preview-actions">
-                <Dialog.Close className="primary-action" type="button">知道了</Dialog.Close>
+                <AsyncDialogClose className="primary-action" type="button">知道了</AsyncDialogClose>
               </div>
             ) : null}
-          </Dialog.Content>
+          </AsyncDialogContent>
         </Dialog.Portal>
-      </Dialog.Root>
+      </AsyncDialogRoot>
     );
   }
 
@@ -1431,7 +1443,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
     if (!open) return null;
     const progress = Math.max(0, Math.min(100, wordExportProgress.progress || 0));
     return (
-      <Dialog.Root
+      <AsyncDialogRoot busy={wordExportProgress.running}
         open={open}
         onOpenChange={(nextOpen) => {
           if (!nextOpen && !wordExportProgress.running) {
@@ -1441,22 +1453,18 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
       >
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="presales-ppt-export-dialog">
+          <AsyncDialogContent className="presales-ppt-export-dialog">
             <div className="presales-ppt-export-head">
               <div>
                 <Dialog.Title>正在导出售前方案 Word</Dialog.Title>
                 <Dialog.Description>系统正在按 Word 优化规则整理正文、标题、编号和版式。</Dialog.Description>
               </div>
               {!wordExportProgress.running ? (
-                <Dialog.Close className="detail-help-close" type="button" aria-label="关闭 Word 导出进度">×</Dialog.Close>
+                <AsyncDialogClose className="detail-help-close" type="button" aria-label="关闭 Word 导出进度">×</AsyncDialogClose>
               ) : null}
             </div>
             <div className={`presales-ppt-export-progress ${wordExportProgress.error ? 'is-error' : progress >= 100 ? 'is-success' : ''}`}>
-              <div>
-                <strong>{wordExportProgress.message || '正在准备 Word 导出'}</strong>
-                <span>{progress}%</span>
-              </div>
-              <i><b style={{ width: `${progress}%` }} /></i>
+              <BusinessTaskProgress label={wordExportProgress.message || '正在准备 Word 导出'} percent={progress} status={wordExportProgress.error ? 'exception' : wordExportProgress.running ? 'active' : 'success'} />
               <p>{wordExportProgress.error ? '导出未完成，请根据提示调整后重试。' : '导出完成后可在 Word/WPS 中继续微调目录和页码。'}</p>
             </div>
             {!wordExportProgress.running && !wordExportProgress.error && wordExportProgress.filePath ? (
@@ -1469,12 +1477,12 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
             ) : null}
             {!wordExportProgress.running ? (
               <div className="presales-package-preview-actions">
-                <Dialog.Close className="primary-action" type="button">知道了</Dialog.Close>
+                <AsyncDialogClose className="primary-action" type="button">知道了</AsyncDialogClose>
               </div>
             ) : null}
-          </Dialog.Content>
+          </AsyncDialogContent>
         </Dialog.Portal>
-      </Dialog.Root>
+      </AsyncDialogRoot>
     );
   }
 
@@ -1622,11 +1630,11 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 <b>{String(index + 1).padStart(2, '0')}</b>
                 <label>
                   <span>页面标题</span>
-                  <input value={page.title} onChange={(event) => updateOutlineDraftPage(index, { title: event.target.value })} />
+                  <input disabled={workspaceBusy} value={page.title} onChange={(event) => updateOutlineDraftPage(index, { title: event.target.value })} />
                 </label>
                 <label>
                   <span>版式类型</span>
-                  <select value={page.layoutType} onChange={(event) => updateOutlineDraftPage(index, { layoutType: event.target.value })}>
+                  <select disabled={workspaceBusy} value={page.layoutType} onChange={(event) => updateOutlineDraftPage(index, { layoutType: event.target.value })}>
                     {pptLayoutTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
@@ -1749,6 +1757,9 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
     );
   }
 
+  if (loadError) return <WorkspaceLoadError message={loadError} onRetry={() => setLoadRevision(value => value + 1)} />;
+  if (isLoading) return <WorkspaceLoading title="正在读取售前工作台" />;
+
   return (
     <div className={`presales-workbench-page is-workbench-mode${getStoredUiAppearance() === 'modern' ? ' modern-presales-workbench' : ''}`}>
       <main className={getStoredUiAppearance() === 'modern' ? 'modern-presales-workspace' : 'presales-workspace'}>
@@ -1801,11 +1812,11 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                   {agentContinuousStatus === 'paused' || agentContinuousStatus === 'blocked' ? '继续连续执行' : agentContinuousStatus === 'completed' ? '检查未完成项' : '连续执行'}
                 </button>
               )}
-              <button type="button" className="secondary-action" onClick={planNextWithAgent} disabled={isLoading || isAgentPlanning || Boolean(state?.task?.status === 'running')}>
+              <button type="button" className="secondary-action" onClick={planNextWithAgent} disabled={workspaceBusy || isAgentPlanning}>
                 {isAgentPlanning ? '规划中...' : agentRun ? '重新规划' : '规划下一步'}
               </button>
               {agentRun?.shadowEvaluation?.agentAction ? (
-                <button type="button" className="primary-action" onClick={requestAgentExecution} disabled={Boolean(state?.task?.status === 'running')}>
+                <button type="button" className="primary-action" onClick={requestAgentExecution} disabled={workspaceBusy}>
                   执行建议
                 </button>
               ) : null}
@@ -1855,7 +1866,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
               </Dialog.Description>
               <div className="presales-section-actions">
                 <Dialog.Close asChild><button type="button" className="secondary-action">取消</button></Dialog.Close>
-                <button type="button" className="primary-action" onClick={() => void executeAgentRecommendation()}>确认执行</button>
+                <button type="button" className="primary-action" onClick={() => void executeAgentRecommendation()} disabled={workspaceBusy}>确认执行</button>
               </div>
             </Dialog.Content>
           </Dialog.Portal>
@@ -1868,46 +1879,46 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 <span className="section-kicker">项目资料</span>
                 <h3>先把售前机会放进一个项目</h3>
               </div>
-              <button type="button" className="primary-action" onClick={saveProfile} disabled={isLoading || isSaving}>
+              <button type="button" className="primary-action" onClick={saveProfile} disabled={workspaceBusy}>
                 {isSaving ? '保存中...' : '保存项目资料'}
               </button>
             </div>
             <div className="presales-form-grid">
               <label>
                 <span>项目名称</span>
-                <input value={profileDraft.projectName} onChange={(event) => setProfileDraft({ ...profileDraft, projectName: event.target.value })} placeholder="例如：智慧园区一体化平台售前项目" />
+                <input disabled={workspaceBusy} value={profileDraft.projectName} onChange={(event) => setProfileDraft({ ...profileDraft, projectName: event.target.value })} placeholder="例如：智慧园区一体化平台售前项目" />
               </label>
               <label>
                 <span>客户名称</span>
-                <input value={profileDraft.customerName} onChange={(event) => setProfileDraft({ ...profileDraft, customerName: event.target.value })} placeholder="客户单位或集团名称" />
+                <input disabled={workspaceBusy} value={profileDraft.customerName} onChange={(event) => setProfileDraft({ ...profileDraft, customerName: event.target.value })} placeholder="客户单位或集团名称" />
               </label>
               <label>
                 <span>行业领域</span>
-                <input value={profileDraft.industry} onChange={(event) => setProfileDraft({ ...profileDraft, industry: event.target.value })} placeholder="政企、制造、医疗、教育等" />
+                <input disabled={workspaceBusy} value={profileDraft.industry} onChange={(event) => setProfileDraft({ ...profileDraft, industry: event.target.value })} placeholder="政企、制造、医疗、教育等" />
               </label>
               <label>
                 <span>当前阶段</span>
-                <input value={profileDraft.currentStage} onChange={(event) => setProfileDraft({ ...profileDraft, currentStage: event.target.value })} placeholder="线索识别 / 需求调研 / 方案汇报" />
+                <input disabled={workspaceBusy} value={profileDraft.currentStage} onChange={(event) => setProfileDraft({ ...profileDraft, currentStage: event.target.value })} placeholder="线索识别 / 需求调研 / 方案汇报" />
               </label>
               <label>
                 <span>机会来源</span>
-                <input value={profileDraft.opportunitySource} onChange={(event) => setProfileDraft({ ...profileDraft, opportunitySource: event.target.value })} placeholder="客户拜访、伙伴推荐、市场线索等" />
+                <input disabled={workspaceBusy} value={profileDraft.opportunitySource} onChange={(event) => setProfileDraft({ ...profileDraft, opportunitySource: event.target.value })} placeholder="客户拜访、伙伴推荐、市场线索等" />
               </label>
               <label>
                 <span>负责人</span>
-                <input value={profileDraft.owner} onChange={(event) => setProfileDraft({ ...profileDraft, owner: event.target.value })} placeholder="售前负责人或跟进人" />
+                <input disabled={workspaceBusy} value={profileDraft.owner} onChange={(event) => setProfileDraft({ ...profileDraft, owner: event.target.value })} placeholder="售前负责人或跟进人" />
               </label>
               <label>
                 <span>预估价值</span>
-                <input value={profileDraft.expectedValue} onChange={(event) => setProfileDraft({ ...profileDraft, expectedValue: event.target.value })} placeholder="预算规模、战略价值或合作价值" />
+                <input disabled={workspaceBusy} value={profileDraft.expectedValue} onChange={(event) => setProfileDraft({ ...profileDraft, expectedValue: event.target.value })} placeholder="预算规模、战略价值或合作价值" />
               </label>
               <label>
                 <span>决策时间</span>
-                <input type="date" value={profileDraft.decisionDate} onChange={(event) => setProfileDraft({ ...profileDraft, decisionDate: event.target.value })} />
+                <input disabled={workspaceBusy} type="date" value={profileDraft.decisionDate} onChange={(event) => setProfileDraft({ ...profileDraft, decisionDate: event.target.value })} />
               </label>
               <label className="is-wide">
                 <span>背景摘要</span>
-                <textarea value={profileDraft.keyBackground} onChange={(event) => setProfileDraft({ ...profileDraft, keyBackground: event.target.value })} placeholder="记录客户背景、机会背景、已有沟通结论和关键上下文。" />
+                <textarea disabled={workspaceBusy} value={profileDraft.keyBackground} onChange={(event) => setProfileDraft({ ...profileDraft, keyBackground: event.target.value })} placeholder="记录客户背景、机会背景、已有沟通结论和关键上下文。" />
               </label>
             </div>
             {renderStepFooter('project')}
@@ -1926,7 +1937,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 <button type="button" className="secondary-action" onClick={() => setManualMaterialOpen((value) => !value)}>
                   {manualMaterialOpen ? '收起录入' : '手动录入'}
                 </button>
-                <button type="button" className="primary-action" onClick={importMaterial} disabled={isLoading || isImporting}>{isImporting ? '解析中...' : '导入材料'}</button>
+                <button type="button" className="primary-action" onClick={importMaterial} disabled={workspaceBusy}>{isImporting ? '解析中...' : '导入材料'}</button>
               </div>
             </div>
             {manualMaterialOpen ? (
@@ -1934,7 +1945,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 <div className="presales-form-grid">
                   <label>
                     <span>记录标题</span>
-                    <input
+                    <input disabled={workspaceBusy}
                       value={manualMaterialDraft.title}
                       onChange={(event) => setManualMaterialDraft({ ...manualMaterialDraft, title: event.target.value })}
                       placeholder="例如：客户初次沟通纪要"
@@ -1944,7 +1955,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 <div className="presales-form-grid is-analysis">
                   <label>
                     <span>客户背景补充</span>
-                    <textarea
+                    <textarea disabled={workspaceBusy}
                       value={manualMaterialDraft.customerBackground}
                       onChange={(event) => setManualMaterialDraft({ ...manualMaterialDraft, customerBackground: event.target.value })}
                       placeholder="只记录项目资料里没有覆盖的背景事实。"
@@ -1952,7 +1963,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                   </label>
                   <label>
                     <span>沟通纪要 / 原始线索</span>
-                    <textarea
+                    <textarea disabled={workspaceBusy}
                       value={manualMaterialDraft.meetingNotes}
                       onChange={(event) => setManualMaterialDraft({ ...manualMaterialDraft, meetingNotes: event.target.value })}
                       placeholder="拜访、电话、微信沟通中听到的原话、事实和线索。"
@@ -1960,7 +1971,7 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                   </label>
                   <label>
                     <span>现有系统 / 现状描述</span>
-                    <textarea
+                    <textarea disabled={workspaceBusy}
                       value={manualMaterialDraft.currentSituation}
                       onChange={(event) => setManualMaterialDraft({ ...manualMaterialDraft, currentSituation: event.target.value })}
                       placeholder="已有系统、数据、流程、运维或组织现状。"
@@ -1969,15 +1980,15 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 </div>
                 <label className="presales-wide-field">
                   <span>待确认问题</span>
-                  <textarea
+                  <textarea disabled={workspaceBusy}
                     value={manualMaterialDraft.openQuestions}
                     onChange={(event) => setManualMaterialDraft({ ...manualMaterialDraft, openQuestions: event.target.value })}
                     placeholder="后续调研必须问清楚的问题。"
                   />
                 </label>
                 <div className="presales-section-actions">
-                  <button type="button" className="secondary-action" onClick={() => setManualMaterialDraft(emptyManualMaterialInput)} disabled={isSavingManualMaterial}>清空</button>
-                  <button type="button" className="primary-action" onClick={saveManualMaterial} disabled={isSavingManualMaterial}>{isSavingManualMaterial ? '保存中...' : '保存为客户材料'}</button>
+                  <button type="button" className="secondary-action" onClick={() => setManualMaterialDraft(emptyManualMaterialInput)} disabled={workspaceBusy}>清空</button>
+                  <button type="button" className="primary-action" onClick={saveManualMaterial} disabled={workspaceBusy}>{isSavingManualMaterial ? '保存中...' : '保存为客户材料'}</button>
                 </div>
               </div>
             ) : null}
@@ -2001,8 +2012,19 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 )}
               </div>
               <div className="presales-material-preview">
-                {activeMaterialMarkdown.trim() ? (
-                  <MarkdownRenderer allowRawHtml={false}>{activeMaterialMarkdown}</MarkdownRenderer>
+                {currentMaterialPreview.loading ? (
+                  <div className="presales-empty-material" role="status">
+                    <strong>正在读取材料</strong>
+                    <span>读取完成后显示当前材料内容。</span>
+                  </div>
+                ) : currentMaterialPreview.error ? (
+                  <div className="presales-empty-material" role="alert">
+                    <strong>材料预览读取失败</strong>
+                    <span>{currentMaterialPreview.error}</span>
+                    <button type="button" className="secondary-action" onClick={() => setMaterialPreviewRevision((value) => value + 1)}>重试读取材料</button>
+                  </div>
+                ) : currentMaterialPreview.markdown.trim() ? (
+                  <MarkdownRenderer allowRawHtml={false}>{currentMaterialPreview.markdown}</MarkdownRenderer>
                 ) : (
                   <div className="presales-empty-material">
                     <strong>暂无预览</strong>
@@ -2024,32 +2046,11 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 <p>系统会自动引用项目资料和客户材料；这里仅补充分析重点或材料里没有覆盖的信息。</p>
               </div>
               <div className="presales-section-actions">
-                <button type="button" className="secondary-action" onClick={saveAnalysisInput} disabled={isLoading || isSaving}>保存输入</button>
-                <button type="button" className="primary-action" onClick={generateAnalysis} disabled={isLoading || isGeneratingAnalysis}>{isGeneratingAnalysis ? '分析中...' : '生成分析报告'}</button>
+                <button type="button" className="secondary-action" onClick={saveAnalysisInput} disabled={workspaceBusy}>保存输入</button>
+                <button type="button" className="primary-action" onClick={generateAnalysis} disabled={workspaceBusy}>{isGeneratingAnalysis ? '分析中...' : '生成分析报告'}</button>
               </div>
             </div>
-            <div className="presales-form-grid is-analysis">
-              <label className="is-wide">
-                <span>分析重点 / 关注口径</span>
-                <textarea value={analysisDraft.rawNotes} onChange={(event) => setAnalysisDraft({ ...analysisDraft, rawNotes: event.target.value })} placeholder="例如：重点判断决策链、国产化要求、预算风险、客户真实痛点优先级。无需重复粘贴客户材料。" />
-              </label>
-              <label>
-                <span>现有系统补充</span>
-                <textarea value={analysisDraft.knownSystems} onChange={(event) => setAnalysisDraft({ ...analysisDraft, knownSystems: event.target.value })} placeholder="只填写客户材料未覆盖的系统、数据、接口或部署补充信息。" />
-              </label>
-              <label>
-                <span>痛点判断补充</span>
-                <textarea value={analysisDraft.businessPainPoints} onChange={(event) => setAnalysisDraft({ ...analysisDraft, businessPainPoints: event.target.value })} placeholder="对痛点优先级、根因、影响范围的补充判断；不确定可留空。" />
-              </label>
-              <label>
-                <span>干系人判断补充</span>
-                <textarea value={analysisDraft.stakeholders} onChange={(event) => setAnalysisDraft({ ...analysisDraft, stakeholders: event.target.value })} placeholder="补充谁可能拍板、谁影响方案、谁负责技术确认、谁可能提出异议。" />
-              </label>
-              <label>
-                <span>约束判断补充</span>
-                <textarea value={analysisDraft.constraints} onChange={(event) => setAnalysisDraft({ ...analysisDraft, constraints: event.target.value })} placeholder="补充预算、周期、合规、安全、国产化、审批等约束的判断或假设。" />
-              </label>
-            </div>
+            <PresalesAnalysisForm disabled={workspaceBusy} value={analysisDraft} onChange={setAnalysisDraft} />
             {renderTaskCard('analysis')}
             {renderMarkdownResult(state?.analysisResult.markdown, '还没有分析报告', '保存项目资料和客户材料后，点击“生成分析报告”。')}
             {renderStepFooter('analysis')}
@@ -2064,28 +2065,11 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 <h3>生成会议议程、SPIN 问题和 Q&A 预案</h3>
               </div>
               <div className="presales-section-actions">
-                <button type="button" className="secondary-action" onClick={saveResearchInput} disabled={isLoading || isSaving}>保存设置</button>
-                <button type="button" className="primary-action" onClick={generateResearch} disabled={isLoading || isGeneratingResearch}>{isGeneratingResearch ? '生成中...' : '生成调研准备'}</button>
+                <button type="button" className="secondary-action" onClick={saveResearchInput} disabled={workspaceBusy}>保存设置</button>
+                <button type="button" className="primary-action" onClick={generateResearch} disabled={workspaceBusy}>{isGeneratingResearch ? '生成中...' : '生成调研准备'}</button>
               </div>
             </div>
-            <div className="presales-form-grid is-analysis">
-              <label>
-                <span>会议目标</span>
-                <textarea value={researchDraft.meetingGoal} onChange={(event) => setResearchDraft({ ...researchDraft, meetingGoal: event.target.value })} placeholder="例如：确认业务痛点、补齐现有系统清单、对齐方案方向和下一步资料清单。" />
-              </label>
-              <label>
-                <span>参会信息</span>
-                <textarea value={researchDraft.attendeeInfo} onChange={(event) => setResearchDraft({ ...researchDraft, attendeeInfo: event.target.value })} placeholder="记录预计参会部门、角色、决策者、技术负责人、业务代表等。" />
-              </label>
-              <label>
-                <span>已知客户问题</span>
-                <textarea value={researchDraft.knownQuestions} onChange={(event) => setResearchDraft({ ...researchDraft, knownQuestions: event.target.value })} placeholder="客户已提出的疑问、顾虑、比较对象、预算或周期压力。" />
-              </label>
-              <label>
-                <span>会议时长</span>
-                <textarea value={researchDraft.timeBox} onChange={(event) => setResearchDraft({ ...researchDraft, timeBox: event.target.value })} placeholder="例如：60 分钟、90 分钟、半天调研。" />
-              </label>
-            </div>
+            <PresalesResearchForm disabled={workspaceBusy} value={researchDraft} onChange={setResearchDraft} />
             {renderTaskCard('research')}
             {renderMarkdownResult(state?.researchResult.markdown, '还没有调研准备包', '可先生成客户分析，再点击“生成调研准备”。')}
             {renderStepFooter('research')}
@@ -2100,32 +2084,11 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 <h3>生成 HLD 骨架、风险清单和图表清单</h3>
               </div>
               <div className="presales-section-actions">
-                <button type="button" className="secondary-action" onClick={saveArchitectureInput} disabled={isLoading || isSaving}>保存输入</button>
-                <button type="button" className="primary-action" onClick={generateArchitecture} disabled={isLoading || isGeneratingArchitecture}>{isGeneratingArchitecture ? '生成中...' : '生成方案架构'}</button>
+                <button type="button" className="secondary-action" onClick={saveArchitectureInput} disabled={workspaceBusy}>保存输入</button>
+                <button type="button" className="primary-action" onClick={generateArchitecture} disabled={workspaceBusy}>{isGeneratingArchitecture ? '生成中...' : '生成方案架构'}</button>
               </div>
             </div>
-            <div className="presales-form-grid is-analysis">
-              <label className="is-wide">
-                <span>方案范围</span>
-                <textarea value={architectureDraft.solutionScope} onChange={(event) => setArchitectureDraft({ ...architectureDraft, solutionScope: event.target.value })} placeholder="描述本次方案覆盖的业务范围、系统范围、数据范围、组织范围和明确不包含的边界。" />
-              </label>
-              <label>
-                <span>架构偏好 / 技术路线</span>
-                <textarea value={architectureDraft.architecturePreferences} onChange={(event) => setArchitectureDraft({ ...architectureDraft, architecturePreferences: event.target.value })} placeholder="例如：云原生、微服务、国产化、低代码、AI/RAG、数据中台、私有化部署等。" />
-              </label>
-              <label>
-                <span>集成与周边系统</span>
-                <textarea value={architectureDraft.integrationNotes} onChange={(event) => setArchitectureDraft({ ...architectureDraft, integrationNotes: event.target.value })} placeholder="记录需要对接的现有系统、接口方式、数据流向、同步频率和外部依赖。" />
-              </label>
-              <label>
-                <span>非功能需求</span>
-                <textarea value={architectureDraft.nonFunctionalRequirements} onChange={(event) => setArchitectureDraft({ ...architectureDraft, nonFunctionalRequirements: event.target.value })} placeholder="性能、可用性、安全、扩展性、审计、容灾、等保、国产化等要求。" />
-              </label>
-              <label>
-                <span>交付约束</span>
-                <textarea value={architectureDraft.deliveryConstraints} onChange={(event) => setArchitectureDraft({ ...architectureDraft, deliveryConstraints: event.target.value })} placeholder="预算、周期、资源、环境、上线窗口、客户配合、数据迁移等约束。" />
-              </label>
-            </div>
+            <PresalesArchitectureForm disabled={workspaceBusy} value={architectureDraft} onChange={setArchitectureDraft} />
             {renderTaskCard('architecture')}
             {renderMarkdownResult(state?.architectureResult.markdown, '还没有方案架构草案', '可先生成客户分析和调研准备，再点击“生成方案架构”。')}
             {renderStepFooter('architecture')}
@@ -2140,14 +2103,14 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 <h3>生成可预览的 Mermaid 图表草稿</h3>
               </div>
               <div className="presales-section-actions">
-                <button type="button" className="secondary-action" onClick={saveDiagramInput} disabled={isLoading || isSaving}>保存设置</button>
-                <button type="button" className="primary-action" onClick={generateDiagrams} disabled={isLoading || isGeneratingDiagrams}>{isGeneratingDiagrams ? '生成中...' : '生成图表草稿'}</button>
+                <button type="button" className="secondary-action" onClick={saveDiagramInput} disabled={workspaceBusy}>保存设置</button>
+                <button type="button" className="primary-action" onClick={generateDiagrams} disabled={workspaceBusy}>{isGeneratingDiagrams ? '生成中...' : '生成图表草稿'}</button>
               </div>
             </div>
             <div className="presales-diagram-picker">
               {diagramTypeOptions.map((diagramType) => (
                 <label key={diagramType}>
-                  <input
+                  <input disabled={workspaceBusy}
                     type="checkbox"
                     checked={diagramDraft.selectedDiagramTypes.includes(diagramType)}
                     onChange={() => toggleDiagramType(diagramType)}
@@ -2159,11 +2122,11 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
             <div className="presales-form-grid is-analysis">
               <label>
                 <span>图表关注点</span>
-                <textarea value={diagramDraft.diagramFocus} onChange={(event) => setDiagramDraft({ ...diagramDraft, diagramFocus: event.target.value })} placeholder="例如：突出客户现有系统与目标系统边界、核心业务流程、数据流转和部署安全边界。" />
+                <textarea disabled={workspaceBusy} value={diagramDraft.diagramFocus} onChange={(event) => setDiagramDraft({ ...diagramDraft, diagramFocus: event.target.value })} placeholder="例如：突出客户现有系统与目标系统边界、核心业务流程、数据流转和部署安全边界。" />
               </label>
               <label>
                 <span>风格要求</span>
-                <textarea value={diagramDraft.styleRequirements} onChange={(event) => setDiagramDraft({ ...diagramDraft, styleRequirements: event.target.value })} placeholder="例如：优先横向布局，节点不超过 12 个，复杂内容放到图后说明。" />
+                <textarea disabled={workspaceBusy} value={diagramDraft.styleRequirements} onChange={(event) => setDiagramDraft({ ...diagramDraft, styleRequirements: event.target.value })} placeholder="例如：优先横向布局，节点不超过 12 个，复杂内容放到图后说明。" />
               </label>
             </div>
             {renderTaskCard('diagrams')}
@@ -2180,8 +2143,8 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 <h3>生成面向客户沟通的汇报页纲</h3>
               </div>
               <div className="presales-section-actions">
-                <button type="button" className="secondary-action" onClick={savePresentationInput} disabled={isLoading || isSaving}>保存设置</button>
-                <button type="button" className="primary-action" onClick={generatePresentation} disabled={isLoading || isGeneratingPresentation}>{isGeneratingPresentation ? '生成中...' : '生成汇报页纲'}</button>
+                <button type="button" className="secondary-action" onClick={savePresentationInput} disabled={workspaceBusy}>保存设置</button>
+                <button type="button" className="primary-action" onClick={generatePresentation} disabled={workspaceBusy}>{isGeneratingPresentation ? '生成中...' : '生成汇报页纲'}</button>
                 <button type="button" className="secondary-action" onClick={exportPresentationOutline} disabled={isLoading || isExportingOutline || !state?.presentationResult.markdown?.trim()}>{isExportingOutline ? '导出中...' : '导出页纲'}</button>
                 <button type="button" className="secondary-action" onClick={exportPresalesProposalWord} disabled={isLoading || wordExportProgress.running}>{wordExportProgress.running ? '导出中...' : '导出售前方案'}</button>
               </div>
@@ -2194,26 +2157,26 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
                 </div>
                 <label>
                   <span>汇报类型</span>
-                  <select value={presentationDraft.presentationType} onChange={(event) => setPresentationDraft({ ...presentationDraft, presentationType: event.target.value })}>
+                  <select disabled={workspaceBusy} value={presentationDraft.presentationType} onChange={(event) => setPresentationDraft({ ...presentationDraft, presentationType: event.target.value })}>
                     {presentationTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
                 </label>
                 <label>
                   <span>页数范围</span>
-                  <input value={presentationDraft.pageCount} onChange={(event) => setPresentationDraft({ ...presentationDraft, pageCount: event.target.value })} placeholder="例如：10-12 页、20 页左右" />
+                  <input disabled={workspaceBusy} value={presentationDraft.pageCount} onChange={(event) => setPresentationDraft({ ...presentationDraft, pageCount: event.target.value })} placeholder="例如：10-12 页、20 页左右" />
                 </label>
               </div>
               <label>
                 <span>目标听众</span>
-                <textarea value={presentationDraft.audience} onChange={(event) => setPresentationDraft({ ...presentationDraft, audience: event.target.value })} placeholder="例如：客户分管领导、信息中心、业务部门、采购负责人。" />
+                <textarea disabled={workspaceBusy} value={presentationDraft.audience} onChange={(event) => setPresentationDraft({ ...presentationDraft, audience: event.target.value })} placeholder="例如：客户分管领导、信息中心、业务部门、采购负责人。" />
               </label>
               <label>
                 <span>汇报目标</span>
-                <textarea value={presentationDraft.presentationGoal} onChange={(event) => setPresentationDraft({ ...presentationDraft, presentationGoal: event.target.value })} placeholder="说明这次汇报想推动客户确认什么、接受什么、下一步做什么。" />
+                <textarea disabled={workspaceBusy} value={presentationDraft.presentationGoal} onChange={(event) => setPresentationDraft({ ...presentationDraft, presentationGoal: event.target.value })} placeholder="说明这次汇报想推动客户确认什么、接受什么、下一步做什么。" />
               </label>
               <label className="is-wide">
                 <span>重点强调</span>
-                <textarea value={presentationDraft.emphasis} onChange={(event) => setPresentationDraft({ ...presentationDraft, emphasis: event.target.value })} placeholder="例如：业务价值、建设路径、架构可行性、风险控制、投入产出、PoC 计划等。" />
+                <textarea disabled={workspaceBusy} value={presentationDraft.emphasis} onChange={(event) => setPresentationDraft({ ...presentationDraft, emphasis: event.target.value })} placeholder="例如：业务价值、建设路径、架构可行性、风险控制、投入产出、PoC 计划等。" />
               </label>
             </div>
             {renderTaskCard('presentation')}
@@ -2238,29 +2201,8 @@ function PresalesWorkbenchPage({ onNavigate }: PresalesWorkbenchPageProps) {
       {renderPptExportProgressDialog()}
       {renderWordExportProgressDialog()}
       {renderOutlineExportDialog()}
-      <Dialog.Root open={packagePreviewOpen} onOpenChange={setPackagePreviewOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="presales-package-preview-dialog">
-            <div className="presales-package-preview-head">
-              <div>
-                <Dialog.Title>售前项目包预览</Dialog.Title>
-                <Dialog.Description>导出前查看当前项目会汇总成哪些内容。</Dialog.Description>
-              </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭预览">×</Dialog.Close>
-            </div>
-            <div className="presales-package-preview-body">
-              <MarkdownRenderer allowRawHtml={false}>{packagePreviewMarkdown || '暂无可预览内容。'}</MarkdownRenderer>
-            </div>
-            <div className="presales-package-preview-actions">
-              <Dialog.Close className="secondary-action" type="button">关闭</Dialog.Close>
-              <button type="button" className="primary-action" onClick={exportProjectPackage} disabled={isExportingPackage}>
-                {isExportingPackage ? '导出中...' : '导出项目包'}
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <PresalesPackagePreviewDialog open={packagePreviewOpen} onOpenChange={setPackagePreviewOpen} markdown={packagePreviewMarkdown}
+        exporting={isExportingPackage} onExport={exportProjectPackage} />
       {renderPptStructurePreviewDialog()}
     </div>
   );

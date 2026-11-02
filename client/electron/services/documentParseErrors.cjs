@@ -36,6 +36,9 @@ function normalizeDocumentParseError(error, filePath) {
 
 function formatDocumentParseError(error, filePath) {
   const normalized = normalizeDocumentParseError(error, filePath);
+  if (normalized?.code === 'pdf_text_layer_missing') {
+    return 'PDF 未检测到可选中文字层，请替换为带文字层的 PDF，或在设置中选择支持 OCR 的解析方式后重试';
+  }
   return normalized instanceof Error ? normalized.message : String(normalized || '未知错误');
 }
 

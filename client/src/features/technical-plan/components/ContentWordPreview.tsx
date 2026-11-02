@@ -20,10 +20,14 @@ export default function ContentWordPreview({ sectionId, title, content, projectN
     setHtml('');
     setLoading(true);
     setError('');
-    window.yibiao?.export.previewWord({
+    Promise.resolve().then(() => {
+      const exportBridge = window.yibiao?.export;
+      if (!exportBridge?.previewWord) throw new Error('Word 预览服务尚未就绪，请重启客户端后重试');
+      return exportBridge.previewWord({
       project_name: projectName,
       documentProfile,
       outline: [{ id: sectionId, title, description: '', content }],
+      });
     }).then((previewHtml) => {
       if (active) setHtml(previewHtml);
     }).catch((reason: unknown) => {
