@@ -1,3 +1,5 @@
+import WorkspaceLoading from '../../../shared/ui/WorkspaceLoading';
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState, type WheelEvent } from 'react';
 import type { AgentHostStatus, AgentRunResult } from '../../../shared/types/ipc';
@@ -130,7 +132,7 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
     showToast,
   });
   const {
-    loading,
+    loading, loadError, retryLoad,
     missingTextModelFields,
     exportProgress,
     setExportProgress,
@@ -665,8 +667,10 @@ function ThesisTutorPage({ initialPanel = 'diagnosis', onNavigate }: ThesisTutor
     showToast(`已填入 ${selectedTemplates.length} 个图形模板，可直接编辑 Mermaid 或点击生成优化`, 'success');
   }
 
+  if (loadError) return <WorkspaceLoadError message={loadError} onRetry={retryLoad} />;
+
   if (loading) {
-    return <div className="thesis-tutor-page"><div className="thesis-tutor-panel">正在加载论文导师...</div></div>;
+    return <WorkspaceLoading title="正在读取论文导师工作区" />;
   }
 
   return (

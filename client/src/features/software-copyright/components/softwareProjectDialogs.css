@@ -1,0 +1,9 @@
+:root body .software-copyright-project-editor[role="dialog"][data-state] { box-sizing:border-box; max-height:calc(100dvh - 32px); overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; color:var(--yb-text); background:var(--yb-surface); border-color:var(--yb-border); }
+:root body .software-copyright-project-editor > p { color:var(--yb-text-soft); font-size:14px; line-height:22px; overflow-wrap:anywhere; }
+:root[data-ui-appearance="modern"] body .software-copyright-project-editor > :is(p,.software-copyright-project-editor-fields,.software-copyright-delete-warning,.yb-operation-error) { margin:16px 24px 0; }
+:root[data-ui-appearance="modern"] body .software-copyright-project-editor .software-copyright-dialog-actions { margin:0; padding:16px 24px 24px; }
+:root body .software-copyright-project-editor .software-copyright-dialog-actions { flex-wrap:wrap; gap:8px; }
+:root body .software-copyright-project-editor .software-copyright-project-editor-fields { min-width:0; }
+:root body .software-copyright-project-editor .software-copyright-project-editor-fields input { box-sizing:border-box; min-width:0; color:var(--yb-text); background:var(--yb-control-bg); border-color:var(--yb-control-border); }
+:root body .software-copyright-project-editor .software-copyright-project-editor-fields :is(label,span) { color:var(--yb-text-soft); font-size:14px; line-height:22px; }
+:root body .software-copyright-project-editor .software-copyright-delete-warning { color:var(--yb-text-soft); background:var(--yb-control-bg); border-color:var(--yb-border); overflow-wrap:anywhere; }

@@ -1,4 +1,6 @@
+import useDialogReturnFocus from '../../../shared/ui/useDialogReturnFocus';
 import * as Dialog from '@radix-ui/react-dialog';
+import './draftVersionHistory.css';
 import { useEffect, useState } from 'react';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { SoftwareCopyrightDraftSaveResult, SoftwareCopyrightDraftVersion, SoftwareCopyrightDraftVersionComparison } from '../types';
@@ -15,45 +17,62 @@ export function DraftVersionHistory({ draftKey, revision, disabled, onRestored }
   const [versions, setVersions] = useState<SoftwareCopyrightDraftVersion[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [comparison, setComparison] = useState<SoftwareCopyrightDraftVersionComparison | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingVersions, setLoadingVersions] = useState(true);
+  const [loadingComparison, setLoadingComparison] = useState(false);
+  const [listError, setListError] = useState('');
+  const [compareError, setCompareError] = useState('');
+  const [listRevision, setListRevision] = useState(0);
+  const [compareRevision, setCompareRevision] = useState(0);
+  const loading = loadingVersions || loadingComparison;
+  const dialogFocus = useDialogReturnFocus();
   const [restoring, setRestoring] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    setLoadingVersions(true); setListError('');
     setComparison(null);
-    window.yibiao?.softwareCopyright.listDraftVersions(draftKey)
+    Promise.resolve().then(() => {
+      const api = window.yibiao?.softwareCopyright;
+      if (!api) throw new Error('版本历史服务尚未就绪，请重启客户端后重试');
+      return api.listDraftVersions(draftKey);
+    })
       .then((items) => {
         if (!active) return;
         setVersions(items || []);
         setSelectedId((current) => items?.some((item) => item.id === current) ? current : (items?.[0]?.id || ''));
       })
-      .catch((error) => active && showToast(error.message || '读取草稿版本失败', 'error'))
-      .finally(() => active && setLoading(false));
+      .catch((error) => { if (active) { const message = error instanceof Error ? error.message : '读取草稿版本失败'; setListError(message); showToast(message, 'error'); } })
+      .finally(() => active && setLoadingVersions(false));
     return () => { active = false; };
-  }, [draftKey, revision, showToast]);
+  }, [draftKey, revision, showToast, listRevision]);
 
   useEffect(() => {
-    if (!selectedId) {
-      setComparison(null);
+    if (!selectedId || loadingVersions || listError) {
+      setComparison(null); setLoadingComparison(false);
       return;
     }
     let active = true;
-    setLoading(true);
-    window.yibiao?.softwareCopyright.compareDraftVersion({ key: draftKey, versionId: selectedId })
+    setLoadingComparison(true); setCompareError('');
+    setComparison(null);
+    Promise.resolve().then(() => {
+      const api = window.yibiao?.softwareCopyright;
+      if (!api) throw new Error('版本比较服务尚未就绪，请重启客户端后重试');
+      return api.compareDraftVersion({ key: draftKey, versionId: selectedId });
+    })
       .then((result) => active && setComparison(result || null))
-      .catch((error) => active && showToast(error.message || '比较草稿版本失败', 'error'))
-      .finally(() => active && setLoading(false));
+      .catch((error) => { if (active) { const message = error instanceof Error ? error.message : '比较草稿版本失败'; setCompareError(message); showToast(message, 'error'); } })
+      .finally(() => active && setLoadingComparison(false));
     return () => { active = false; };
-  }, [draftKey, selectedId, revision, showToast]);
+  }, [draftKey, selectedId, revision, showToast, compareRevision, loadingVersions, listError]);
 
   async function handleRestore() {
-    if (!selectedId) return;
+    if (!selectedId || disabled || loading || restoring || !comparison?.changed) return;
     setRestoring(true);
     try {
       const result = await window.yibiao?.softwareCopyright.restoreDraftVersion({ key: draftKey, versionId: selectedId });
-      if (result) onRestored(result);
+      if (!result) throw new Error('版本恢复服务尚未就绪，请重启客户端后重试');
+      onRestored(result);
       setConfirmOpen(false);
       showToast('历史版本已恢复，恢复前内容已自动备份', 'success');
     } catch (error) {
@@ -63,6 +82,7 @@ export function DraftVersionHistory({ draftKey, revision, disabled, onRestored }
     }
   }
 
+  if (listError) return <div className="software-copyright-version-empty" role="alert"><strong>版本历史读取失败</strong><span>{listError}</span><button type="button" className="secondary-action" onClick={() => setListRevision(value => value + 1)}>重试读取</button></div>;
   if (loading && !versions.length) return <div className="software-copyright-empty">正在读取版本历史...</div>;
   if (!versions.length) {
     return (
@@ -80,6 +100,8 @@ export function DraftVersionHistory({ draftKey, revision, disabled, onRestored }
           <button
             type="button"
             className={selectedId === version.id ? 'is-active' : ''}
+            aria-pressed={selectedId === version.id}
+            disabled={restoring}
             onClick={() => setSelectedId(version.id)}
             key={version.id}
           >
@@ -89,7 +111,7 @@ export function DraftVersionHistory({ draftKey, revision, disabled, onRestored }
           </button>
         ))}
       </aside>
-      <div className="software-copyright-version-detail">
+      <div className="software-copyright-version-detail" aria-busy={loading}>
         {comparison ? (
           <>
             <header>
@@ -100,8 +122,8 @@ export function DraftVersionHistory({ draftKey, revision, disabled, onRestored }
               <button
                 type="button"
                 className="secondary-action"
-                disabled={disabled || restoring || !comparison.changed}
-                onClick={() => setConfirmOpen(true)}
+                disabled={disabled || loading || restoring || !comparison.changed}
+                onClick={() => { dialogFocus.rememberTrigger(); setConfirmOpen(true); }}
               >
                 恢复此版本
               </button>
@@ -117,26 +139,31 @@ export function DraftVersionHistory({ draftKey, revision, disabled, onRestored }
             </div>
             {comparison.truncated && <p className="software-copyright-version-note">差异较多，当前仅展示前 120 行新增和前 120 行删除内容。</p>}
           </>
-        ) : <div className="software-copyright-empty">请选择需要比较的版本。</div>}
+        ) : compareError ? <div className="software-copyright-version-empty" role="alert"><strong>版本比较失败</strong><span>{compareError}</span><button type="button" className="secondary-action" onClick={() => setCompareRevision(value => value + 1)}>重试比较</button></div> : <div className="software-copyright-empty">{loading ? '正在比较版本…' : '请选择需要比较的版本。'}</div>}
       </div>
 
-      <Dialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <Dialog.Root open={confirmOpen} onOpenChange={(open) => { if (!restoring) setConfirmOpen(open); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="detail-help-modal" />
-          <Dialog.Content className="detail-help-card software-copyright-version-dialog">
+          <Dialog.Content {...dialogFocus.focusProps}
+            className="detail-help-card software-copyright-version-dialog"
+            aria-busy={restoring}
+            onEscapeKeyDown={(event) => { if (restoring) event.preventDefault(); }}
+            onPointerDownOutside={(event) => { if (restoring) event.preventDefault(); }}
+          >
             <div className="detail-help-head">
               <div>
                 <span className="section-kicker">版本恢复</span>
                 <Dialog.Title>恢复选中的草稿版本</Dialog.Title>
               </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭版本恢复确认">×</Dialog.Close>
+              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭版本恢复确认" disabled={restoring}>×</Dialog.Close>
             </div>
             <Dialog.Description>
               当前草稿会被选中版本替换，同时自动保存为“恢复前自动备份”。恢复后需要重新检查并确认草稿。
             </Dialog.Description>
             <div className="software-copyright-dialog-actions">
               <Dialog.Close className="secondary-action" type="button" disabled={restoring}>取消</Dialog.Close>
-              <button className="primary-action" type="button" disabled={restoring} onClick={() => void handleRestore()}>
+              <button className="primary-action" type="button" disabled={disabled || loading || restoring || !comparison?.changed} onClick={() => void handleRestore()}>
                 {restoring ? '恢复中...' : '确认恢复'}
               </button>
             </div>

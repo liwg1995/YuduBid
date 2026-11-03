@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import { useToast } from '../../../shared/ui/ToastProvider';
 import type { SoftwareCopyrightManualReviewChecks, SoftwareCopyrightSubmissionFieldMapping, SoftwareCopyrightSubmissionReview, SoftwareCopyrightSubmissionStatus } from '../types';
 
@@ -50,6 +51,8 @@ export function SubmissionAssistant({ revision, onReviewSaved, onReviewChanged }
   const { showToast } = useToast();
   const [review, setReview] = useState<SoftwareCopyrightSubmissionReview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [opening, setOpening] = useState(false);
   const [copyingKey, setCopyingKey] = useState('');
@@ -61,12 +64,13 @@ export function SubmissionAssistant({ revision, onReviewSaved, onReviewChanged }
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setLoadError('');
     window.yibiao?.softwareCopyright.getSubmissionReview()
       .then((result) => active && setReview(result || null))
-      .catch((error) => active && showToast(error.message || '读取申报检查结果失败', 'error'))
+      .catch((error) => { if (active) { const message = error instanceof Error ? error.message : '读取申报检查结果失败'; setLoadError(message); showToast(message, 'error'); } })
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [revision, showToast]);
+  }, [revision, loadRevision, showToast]);
 
   useEffect(() => {
     if (!review?.manualReview) return;
@@ -139,8 +143,8 @@ export function SubmissionAssistant({ revision, onReviewSaved, onReviewChanged }
     }
   }
 
-  if (loading && !review) return <div className="software-copyright-empty">正在生成申报映射与风险清单...</div>;
-  if (!review) return <div className="software-copyright-empty">暂时无法读取申报辅助信息，请重新进入页面。</div>;
+  if (loading) return <div className="software-copyright-empty">正在读取申报映射与风险清单...</div>;
+  if (loadError || !review) return <WorkspaceLoadError title="申报辅助信息读取失败" message={loadError || '未能取得申报检查结果，请重试。'} onRetry={() => setLoadRevision((value) => value + 1)} />;
 
   return (
     <div className="software-copyright-submission" aria-label="申报辅助与提交前检查">

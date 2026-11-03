@@ -1,13 +1,13 @@
 .modern-bid-analysis { display: grid; grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); gap: 15px; width: 100%; height: 100%; min-height: 0; }
 .modern-bid-analysis-controls { min-width: 0; min-height: 0; overflow: auto; padding-right: 3px; }
 .modern-bid-analysis-start, .modern-bid-analysis-progress { border: 1px solid #39485f; border-radius: 8px; padding: 17px; background: #1e2b3e; }
-.modern-bid-analysis-start > span, .modern-bid-analysis-progress > div:first-child > span, .modern-bid-analysis-result > header > div:first-child > span { color: #ad9ff6; font-size: 10px; font-weight: 800; }
+.modern-bid-analysis-start > span, .modern-bid-analysis-result > header > div:first-child > span { color: #ad9ff6; font-size: 10px; font-weight: 800; }
 .modern-bid-analysis-start h2 { margin: 7px 0 5px; color: #f0effb; font-size: 17px; }
 .modern-bid-analysis-start p, .modern-bid-analysis-progress p { margin: 0; color: #92a3ba; font-size: 11px; line-height: 1.6; }
 .modern-bid-analysis-modes { display: grid; gap: 8px; margin: 17px 0 14px; }
-.modern-bid-analysis-modes button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 10px; border: 1px solid #46536a; border-radius: 7px; padding: 11px; color: #dce4f3; background: #28374c; text-align: left; cursor: pointer; transition: border-color .16s ease, background-color .16s ease; }
-.modern-bid-analysis-modes button:hover:not(:disabled) { border-color: #9186dc; }
-.modern-bid-analysis-modes button.is-active { border-color: #968ae3; background: #343856; }
+.modern-bid-analysis-modes label { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 10px; border: 1px solid #46536a; border-radius: 7px; padding: 11px; color: #dce4f3; background: #28374c; text-align: left; cursor: pointer; transition: border-color .16s ease, background-color .16s ease; }
+.modern-bid-analysis-modes label:hover:not(:has(input:disabled)) { border-color: #9186dc; }
+.modern-bid-analysis-modes label.is-active { border-color: #968ae3; background: #343856; }
 .modern-bid-analysis-modes strong { font-size: 12px; }
 .modern-bid-analysis-modes small { grid-column: 1 / -1; color: #9eafc4; font-size: 10px; line-height: 1.5; }
 .modern-bid-analysis-modes em { color: #b9adff; font-size: 10px; font-style: normal; }
@@ -53,4 +53,55 @@
 @keyframes modern-bid-result-in { from { opacity: .45; } to { opacity: 1; } }
 @media (max-width: 1020px) { .modern-bid-analysis { grid-template-columns: minmax(220px, 270px) minmax(0, 1fr); } }
 @media (max-width: 780px) { .modern-bid-analysis { height: auto; grid-template-columns: 1fr; } .modern-bid-analysis-controls { overflow: visible; } .modern-bid-analysis-result { min-height: 360px; } .modern-bid-analysis-result > header { align-items: flex-start; flex-direction: column; } }
-@media (prefers-reduced-motion: reduce) { .modern-bid-analysis-result-body { animation: none; } .modern-bid-analysis-track span, .modern-bid-analysis-modes button, .modern-bid-analysis-tasks button { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .modern-bid-analysis-result-body { animation: none; } .modern-bid-analysis-track span, .modern-bid-analysis-modes label, .modern-bid-analysis-tasks button { transition: none; } }
+
+/* 策略放在工作区顶部，左侧只保留摘要与任务导航。 */
+.modern-bid-analysis { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 16px; overflow: hidden; }
+.modern-bid-analysis > .modern-bid-analysis-start { grid-column: 1 / -1; padding: 0 0 16px; border: 0; border-bottom: 1px solid var(--yb-border); border-radius: 0; background: transparent; }
+.modern-bid-analysis-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.modern-bid-analysis-heading h2 { margin: 0 0 4px; font-size: 20px; font-weight: 500; line-height: 28px; }
+.modern-bid-analysis-heading p { font-size: 14px; line-height: 22px; color: var(--yb-text-soft); }
+.modern-bid-analysis-run { width: auto; min-height: 32px; padding: 4px 16px; font-size: 14px; line-height: 22px; font-weight: 400; }
+.modern-bid-analysis-modes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0 0; }
+.modern-bid-analysis-modes label { grid-template-columns: 16px minmax(0, 1fr) auto; align-items: baseline; gap: 4px 8px; padding: 12px 16px; background: var(--yb-surface); border-color: var(--yb-border); }
+.modern-bid-analysis-modes label input { width: 16px; height: 16px; margin: 0; accent-color: var(--yb-primary); }
+.modern-bid-analysis-modes label strong { font-size: 14px; line-height: 22px; font-weight: 500; }
+.modern-bid-analysis-modes label small { grid-column: 2 / -1; font-size: 12px; line-height: 20px; color: var(--yb-text-soft); }
+.modern-bid-analysis-modes label em { font-size: 12px; line-height: 20px; }
+.modern-bid-analysis-modes label:has(input:disabled) { opacity: .6; cursor: not-allowed; }
+.modern-bid-analysis-modes label:focus-within { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+.modern-bid-analysis .modern-bid-analysis-notice { margin: 8px 0 0; color: var(--yb-text-soft); font-size: 14px; }
+.modern-bid-analysis-controls { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.modern-bid-analysis-progress { margin: 0; padding: 12px 16px; border-color: var(--yb-border); background: var(--yb-surface); }
+.modern-bid-analysis-progress .modern-bid-analysis-counts { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 8px; }
+.modern-bid-analysis-counts span { color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.modern-bid-analysis-counts b { color: var(--yb-text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.modern-bid-analysis-counts .has-errors b { color: #ffb3bf; }
+.modern-bid-analysis-progress > p { margin: 8px 0 0; font-size: 12px; line-height: 20px; }
+.modern-bid-analysis-tasks { padding: 16px 0 0; }
+.modern-bid-analysis-tasks h3 { font-size: 12px; line-height: 20px; font-weight: 400; color: var(--yb-text-soft); }
+.modern-bid-analysis-tasks button { margin-top: 4px; min-height: 56px; padding: 8px 12px; background: transparent; }
+.modern-bid-analysis-tasks button strong { font-size: 14px; line-height: 22px; font-weight: 400; }
+.modern-bid-analysis-tasks button :is(small, em) { font-size: 12px; line-height: 20px; }
+.modern-bid-analysis-result { background: var(--yb-surface); }
+.modern-bid-analysis-result > header { padding: 16px 24px; align-items: flex-start; flex-wrap: wrap; }
+.modern-bid-analysis-result > header > div:first-child { min-width: 0; flex: 1 1 200px; }
+.modern-bid-analysis-result > header > div:last-child { flex-wrap: wrap; }
+.modern-bid-analysis-result > header > div:first-child > span { display: none; }
+.modern-bid-analysis-result h2 { margin: 0 0 4px; font-size: 16px; font-weight: 500; line-height: 24px; }
+.modern-bid-analysis-result p { font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+.modern-bid-analysis-result > header button { font-size: 14px; line-height: 22px; padding: 4px 12px; }
+.modern-bid-analysis-status { font-size: 12px; line-height: 20px; }
+.modern-bid-analysis-result-body { padding: 24px; overscroll-behavior: contain; scrollbar-width: thin; }
+.modern-bid-analysis-result-body .modern-bid-analysis-error { margin: 0 0 16px; padding: 12px 16px; border: 1px solid #8a5364; border-radius: 8px; color: #ffb3bf; background: #402b38; }
+.modern-bid-analysis-json-table { width: 100%; }
+.modern-bid-analysis-result-body .bid-analysis-json-table { font-size: 14px; line-height: 22px; }
+.modern-bid-analysis-result-body .bid-analysis-json-table th { font-weight: 500; }
+.modern-bid-analysis-result-body .bid-analysis-json-table td { white-space: pre-wrap; overflow-wrap: anywhere; }
+.modern-bid-analysis :is(button, input):focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+@media (max-width: 880px) {
+  .modern-bid-analysis { height: 100%; overflow: auto; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(360px, 1fr); }
+  .modern-bid-analysis-controls { overflow: visible; }
+  .modern-bid-analysis-modes { grid-template-columns: 1fr; }
+  .modern-bid-analysis-result { min-height: 360px; }
+}

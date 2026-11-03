@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import KnowledgeImageThumbnail from '../components/KnowledgeImageThumbnail';
+import KnowledgeImagePreview from '../components/KnowledgeImagePreview';
+import { useKnowledgeImages } from '../hooks/useKnowledgeImages';
 import * as Popover from '@radix-ui/react-popover';
 import type { KnowledgeImage, KnowledgeImageFolder } from '../../../shared/types/contracts/knowledgeBase';
 import { useAppDialog, useToast } from '../../../shared/ui';
 import '../imageKnowledgeBase.css';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import './modernImageKnowledgeBase.css';
+import './imageLibraryDesign.css';
 
 function formatSize(bytes: number) {
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -20,8 +25,14 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
   const { confirm, prompt } = useAppDialog();
   const [folders, setFolders] = useState<KnowledgeImageFolder[]>([]);
   const [activeFolderId, setActiveFolderId] = useState('');
-  const [images, setImages] = useState<KnowledgeImage[]>([]);
-  const [dataUrls, setDataUrls] = useState<Record<string, string>>({});
+  const [foldersLoading, setFoldersLoading] = useState(true);
+  const [foldersError, setFoldersError] = useState('');
+  const [previewImage, setPreviewImage] = useState<KnowledgeImage | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const savingRef = useRef(false);
+  const editButtons = useRef<Record<string, HTMLButtonElement | null>>({});
+  const editReturnId = useRef('');
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -30,22 +41,19 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
   const createRequestRef = useRef(createRequestKey);
 
   const loadFolders = useCallback(async () => {
-    const next = await window.yibiao!.knowledgeImage.listFolders();
-    setFolders(next);
-    setActiveFolderId((current) => current && next.some((item) => item.id === current) ? current : next[0]?.id || '');
+    setFoldersLoading(true);
+    setFoldersError('');
+    try {
+      const next = await window.yibiao!.knowledgeImage.listFolders();
+      setFolders(next);
+      setActiveFolderId((current) => current && next.some((item) => item.id === current) ? current : next[0]?.id || '');
+    } catch (error) {
+      setFoldersError(error instanceof Error ? error.message : '读取文件夹失败');
+    } finally { setFoldersLoading(false); }
   }, []);
-
-  const loadImages = useCallback(async () => {
-    if (!activeFolderId) { setImages([]); return; }
-    const next = await window.yibiao!.knowledgeImage.list(activeFolderId, query);
-    setImages(next);
-    const entries = await Promise.all(next.map(async (item) => [item.id, await window.yibiao!.knowledgeImage.getThumbnailDataUrl(item.id)] as const));
-    setDataUrls(Object.fromEntries(entries));
-    setSelectedIds((current) => current.filter((id) => next.some((item) => item.id === id)));
-  }, [activeFolderId, query]);
-
-  useEffect(() => { void loadFolders().catch((error) => showToast(error instanceof Error ? error.message : '加载图片库失败', 'error')); }, [loadFolders, showToast]);
-  useEffect(() => { void loadImages().catch((error) => showToast(error instanceof Error ? error.message : '加载图片失败', 'error')); }, [loadImages, showToast]);
+  const { images, thumbnails: dataUrls, loading: imagesLoading, error: imagesError, reload: loadImages } = useKnowledgeImages(activeFolderId, query, !foldersLoading && !foldersError);
+  useEffect(() => { void loadFolders(); }, [loadFolders]);
+  useEffect(() => { setSelectedIds([]); }, [activeFolderId, query]);
 
   const activeFolder = useMemo(() => folders.find((item) => item.id === activeFolderId), [folders, activeFolderId]);
 
@@ -92,13 +100,21 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
     finally { setBusy(false); }
   };
 
-  const openEdit = (image: KnowledgeImage) => { setEditing(image); setDraft({ name: image.name, description: image.description, tags: image.tags.join('，') }); };
+  useEffect(() => {
+    if (!editing && !imagesLoading && editReturnId.current) {
+      editButtons.current[editReturnId.current]?.focus({ preventScroll: true });
+      editReturnId.current = '';
+    }
+  }, [editing, imagesLoading]);
+  const openEdit = (image: KnowledgeImage) => { editReturnId.current = image.id; setSaveError(''); setEditing(image); setDraft({ name: image.name, description: image.description, tags: image.tags.join('，') }); };
   const saveEdit = async () => {
-    if (!editing || !draft.name.trim()) return;
+    if (!editing || !draft.name.trim() || savingRef.current) return;
+    savingRef.current = true; setSaving(true); setSaveError('');
     try {
       await window.yibiao!.knowledgeImage.update(editing.id, { name: draft.name, description: draft.description, tags: draft.tags.split(/[,，]/).map((item) => item.trim()).filter(Boolean) });
       setEditing(null); await loadImages(); showToast('图片信息已保存', 'success');
-    } catch (error) { showToast(error instanceof Error ? error.message : '保存失败', 'error'); }
+    } catch (error) { const message = error instanceof Error ? error.message : '保存失败'; setSaveError(message); showToast(message, 'error'); }
+    finally { savingRef.current = false; setSaving(false); }
   };
   const removeImage = async (image: KnowledgeImage) => {
     const accepted = await confirm({ title: '删除图片', description: `确定删除“${image.name}”吗？`, confirmLabel: '删除', danger: true });
@@ -128,13 +144,20 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
   };
   const deleteSelected = async () => {
     if (!selectedIds.length) return;
-    const references = await Promise.all(selectedIds.map((id) => window.yibiao!.knowledgeImage.findReferences(id)));
-    const referenceCount = references.reduce((sum, item) => sum + item.reference_count, 0);
-    const accepted = await confirm({ title: '批量删除图片', description: referenceCount ? `选中的图片共有 ${referenceCount} 处技术方案引用。强制删除后引用将失效，确定继续吗？` : `确定删除选中的 ${selectedIds.length} 张图片吗？`, confirmLabel: '删除', danger: true });
-    if (!accepted) return;
-    try { for (const id of selectedIds) await window.yibiao!.knowledgeImage.remove(id, { force: referenceCount > 0 }); setSelectedIds([]); await loadImages(); showToast('批量删除完成', 'success'); }
-    catch (error) { showToast(error instanceof Error ? error.message : '批量删除失败', 'error'); }
+    try {
+      const references = await Promise.all(selectedIds.map((id) => window.yibiao!.knowledgeImage.findReferences(id)));
+      const referenceCount = references.reduce((sum, item) => sum + item.reference_count, 0);
+      const accepted = await confirm({ title: '批量删除图片', description: referenceCount ? `选中的图片共有 ${referenceCount} 处技术方案引用。强制删除后引用将失效，确定继续吗？` : `确定删除选中的 ${selectedIds.length} 张图片吗？`, confirmLabel: '删除', danger: true });
+      if (!accepted) return;
+      for (const id of selectedIds) await window.yibiao!.knowledgeImage.remove(id, { force: referenceCount > 0 });
+      setSelectedIds([]);
+      await loadImages();
+      showToast('批量删除完成', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '批量删除失败', 'error');
+    }
   };
+
   const tagSelected = async () => {
     const value = await prompt({ title: '批量添加标签', description: `为选中的 ${selectedIds.length} 张图片追加标签，不会清除原有标签。`, placeholder: '例如：架构图，网络安全', confirmLabel: '添加' });
     const tags = String(value || '').split(/[,，]/).map((item) => item.trim()).filter(Boolean);
@@ -143,21 +166,19 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
     catch (error) { showToast(error instanceof Error ? error.message : '添加标签失败', 'error'); }
   };
 
-  const editDialog = (
-    <>{editing && <div className="image-edit-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}><section className="image-edit-dialog" role="dialog" aria-modal="true" aria-label="编辑图片信息"><h2>编辑图片信息</h2><img src={dataUrls[editing.id]} alt={editing.name}/><label>名称<input value={draft.name} onChange={(event) => setDraft((value) => ({ ...value, name: event.target.value }))}/></label><label>说明<textarea rows={3} value={draft.description} onChange={(event) => setDraft((value) => ({ ...value, description: event.target.value }))}/></label><label>标签<input value={draft.tags} onChange={(event) => setDraft((value) => ({ ...value, tags: event.target.value }))} placeholder="用逗号分隔"/></label><div className="image-edit-actions"><button className="button secondary" onClick={() => setEditing(null)}>取消</button><button className="button primary" onClick={() => void saveEdit()}>保存</button></div></section></div>}</>
-  );
+  const editDialog = <Dialog.Root open={Boolean(editing)} onOpenChange={(open) => { if (!open && !savingRef.current) setEditing(null); }}><Dialog.Portal><Dialog.Overlay className="image-edit-backdrop" /><Dialog.Content className="image-edit-dialog" onCloseAutoFocus={(event) => event.preventDefault()} onEscapeKeyDown={(event) => { if (savingRef.current) event.preventDefault(); }} onPointerDownOutside={(event) => event.preventDefault()}><Dialog.Title>编辑图片信息</Dialog.Title><Dialog.Description>修改名称、说明和标签，图片文件保持不变。</Dialog.Description>{saveError && <p className="image-library-error" role="alert">{saveError}</p>}<div className="image-edit-body">{editing && dataUrls[editing.id] && <img src={dataUrls[editing.id]} alt={editing.name}/>}<label>名称<input value={draft.name} disabled={saving} onChange={(event) => setDraft((value) => ({ ...value, name: event.target.value }))}/></label><label>说明<textarea rows={3} disabled={saving} value={draft.description} onChange={(event) => setDraft((value) => ({ ...value, description: event.target.value }))}/></label><label>标签<input disabled={saving} value={draft.tags} onChange={(event) => setDraft((value) => ({ ...value, tags: event.target.value }))} placeholder="用逗号分隔"/></label></div><div className="image-edit-actions"><Dialog.Close type="button" className="button secondary" disabled={saving}>取消</Dialog.Close><button type="button" className="button primary" disabled={saving || !draft.name.trim()} onClick={() => void saveEdit()}>{saving ? '正在保存…' : '保存'}</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>;
 
   if (getStoredUiAppearance() === 'modern') {
     return <div className="modern-image-page">
       <header className="modern-image-header">
-        <div><span>ASSET LIBRARY / 图片素材</span><h2>{activeFolder?.name || '图片素材库'}</h2><p>集中管理可用于技术方案的本地图片，并复制正文引用。</p></div>
-        <button type="button" onClick={() => void upload()} disabled={busy || !activeFolderId}>{busy ? '正在导入…' : '导入图片'}</button>
+        <div><h2>图片素材</h2><p>集中管理可用于技术方案的本地图片，并复制正文引用。</p></div>
+        <button type="button" onClick={() => void upload()} disabled={busy || foldersLoading || Boolean(foldersError) || !activeFolderId}>{busy ? '正在导入…' : '导入图片'}</button>
       </header>
       <div className="modern-image-workspace">
         <aside className="modern-image-folders">
-          <div className="modern-image-folders-head"><div><span>COLLECTIONS</span><strong>文件夹</strong></div><button type="button" onClick={() => void createFolder()} aria-label="新建图片文件夹">＋ 新建</button></div>
-          <div className="modern-image-folder-list">{folders.length ? folders.map((folder) => <div key={folder.id} className={`modern-image-folder${folder.id === activeFolderId ? ' is-active' : ''}`}>
-            <button type="button" className="modern-image-folder-select" onClick={() => setActiveFolderId(folder.id)}><span aria-hidden="true">▧</span><strong>{folder.name}</strong>{folder.id === activeFolderId && <small>{images.length}</small>}</button>
+          <div className="modern-image-folders-head"><div><strong>文件夹</strong></div><button type="button" onClick={() => void createFolder()} aria-label="新建图片文件夹">＋ 新建</button></div>
+          <div className="modern-image-folder-list">{foldersLoading ? <p role="status">正在读取文件夹…</p> : foldersError ? <p>文件夹读取失败</p> : folders.length ? folders.map((folder) => <div key={folder.id} className={`modern-image-folder${folder.id === activeFolderId ? ' is-active' : ''}`}>
+            <button type="button" className="modern-image-folder-select" onClick={() => { setQuery(''); setActiveFolderId(folder.id); }} aria-current={folder.id === activeFolderId ? 'true' : undefined} disabled={busy}><span aria-hidden="true">▧</span><strong>{folder.name}</strong>{folder.id === activeFolderId && <small>{images.length}</small>}</button>
             <div><button type="button" onClick={() => void renameFolder(folder)} aria-label={`重命名 ${folder.name}`} title="重命名">✎</button><button type="button" onClick={() => void deleteFolder(folder)} aria-label={`删除 ${folder.name}`} title="删除">×</button></div>
           </div>) : <div className="modern-image-folder-empty">还没有文件夹。创建一个文件夹以开始整理图片。</div>}</div>
           <div className="modern-image-folder-foot">{folders.length} 个文件夹 · {images.length} 张当前图片</div>
@@ -166,17 +187,18 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
           <div className="modern-image-toolbar"><div><span>当前素材</span><strong>{activeFolder?.name || '请选择文件夹'}</strong><small>{images.length} 张</small></div><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索名称、说明或标签" aria-label="搜索图片素材" /></div>
           {selectedIds.length > 0 && <div className="modern-image-selection">
             <strong>已选 {selectedIds.length} 张图片</strong>
-            <Popover.Root><Popover.Trigger asChild><button type="button" disabled={!folders.some((folder) => folder.id !== activeFolderId)}>移动到文件夹</button></Popover.Trigger><Popover.Portal><Popover.Content className="image-move-popover" side="bottom" align="end" sideOffset={8}><div className="image-move-popover-head"><strong>选择目标文件夹</strong><small>图片将从当前文件夹移出</small></div><div className="image-move-folder-list">{folders.filter((folder) => folder.id !== activeFolderId).map((folder) => <Popover.Close asChild key={folder.id}><button type="button" onClick={() => void moveSelected(folder.id)}><span aria-hidden="true">F</span><strong>{folder.name}</strong><small>移动到此处</small></button></Popover.Close>)}</div><Popover.Arrow className="image-move-popover-arrow" /></Popover.Content></Popover.Portal></Popover.Root>
+            <Popover.Root><Popover.Trigger asChild><button type="button" disabled={busy || imagesLoading || !folders.some((folder) => folder.id !== activeFolderId)}>移动到文件夹</button></Popover.Trigger><Popover.Portal><Popover.Content className="image-move-popover" side="bottom" align="end" sideOffset={8}><div className="image-move-popover-head"><strong>选择目标文件夹</strong><small>图片将从当前文件夹移出</small></div><div className="image-move-folder-list">{folders.filter((folder) => folder.id !== activeFolderId).map((folder) => <Popover.Close asChild key={folder.id}><button type="button" onClick={() => void moveSelected(folder.id)}><span aria-hidden="true">F</span><strong>{folder.name}</strong><small>移动到此处</small></button></Popover.Close>)}</div><Popover.Arrow className="image-move-popover-arrow" /></Popover.Content></Popover.Portal></Popover.Root>
             <button type="button" onClick={() => void tagSelected()}>添加标签</button><button type="button" className="is-danger" onClick={() => void deleteSelected()}>删除所选</button><button type="button" onClick={() => setSelectedIds([])}>取消</button>
           </div>}
-          {!activeFolderId ? <div className="modern-image-empty"><span>▧</span><strong>先创建文件夹</strong><p>按项目或图片用途分类，之后即可导入素材。</p><button type="button" onClick={() => void createFolder()}>新建文件夹</button></div> : images.length === 0 ? <div className="modern-image-empty"><span>◇</span><strong>{query ? '没有匹配的图片' : '文件夹还没有图片'}</strong><p>{query ? '尝试更换关键词。' : '导入图片后，可在这里查看、编辑并复制引用。'}</p>{!query && <button type="button" onClick={() => void upload()} disabled={busy}>导入图片</button>}</div> : <div className="modern-image-gallery">{images.map((item) => <article key={item.id} className={`modern-image-card${selectedIds.includes(item.id) ? ' is-selected' : ''}`}>
-            <div className="modern-image-thumb"><button type="button" onClick={() => openEdit(item)} aria-label={`编辑 ${item.name}`}><img src={dataUrls[item.id]} alt={item.name} /></button><label><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelection(item.id)} aria-label={`选择 ${item.name}`} /><span aria-hidden="true">✓</span></label></div>
+          {foldersError || imagesError ? <div className="modern-image-empty" role="alert"><strong>读取图片库失败</strong><p>{foldersError || imagesError}</p><button type="button" onClick={() => void (foldersError ? loadFolders() : loadImages())}>重新读取</button></div> : foldersLoading || imagesLoading ? <div className="modern-image-empty" role="status"><strong>正在读取图片…</strong></div> : !activeFolderId ? <div className="modern-image-empty"><span>▧</span><strong>先创建文件夹</strong><p>按项目或图片用途分类，之后即可导入素材。</p><button type="button" onClick={() => void createFolder()}>新建文件夹</button></div> : images.length === 0 ? <div className="modern-image-empty"><span>◇</span><strong>{query ? '没有匹配的图片' : '文件夹还没有图片'}</strong><p>{query ? '尝试更换关键词。' : '导入图片后，可在这里查看、编辑并复制引用。'}</p>{query && <button type="button" onClick={() => setQuery('')}>清除搜索</button>}{!query && <button type="button" onClick={() => void upload()} disabled={busy}>导入图片</button>}</div> : <div className="modern-image-gallery">{images.map((item) => <article key={item.id} className={`modern-image-card${selectedIds.includes(item.id) ? ' is-selected' : ''}`}>
+            <div className="modern-image-thumb"><button type="button" onClick={() => setPreviewImage(item)} aria-label={`预览 ${item.name}`}><KnowledgeImageThumbnail name={item.name} src={dataUrls[item.id]} loading={!(item.id in dataUrls)} /></button><label><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelection(item.id)} aria-label={`选择 ${item.name}`} /><span aria-hidden="true">✓</span></label></div>
             <div className="modern-image-card-info"><strong title={item.name}>{item.name}</strong><small>{formatSize(item.size)} · {item.mime_type.replace('image/', '').toUpperCase()}</small>{item.description && <p>{item.description}</p>}{item.tags.length > 0 && <div>{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}</div>
-            <div className="modern-image-card-actions"><button type="button" onClick={() => void copyMarkdown(item)}>复制引用</button><button type="button" onClick={() => openEdit(item)}>编辑</button><button type="button" className="is-danger" onClick={() => void removeImage(item)}>删除</button></div>
+            <div className="modern-image-card-actions"><button type="button" onClick={() => void copyMarkdown(item)}>复制引用</button><button ref={(element) => { editButtons.current[item.id] = element; }} type="button" onClick={() => openEdit(item)}>编辑</button><button type="button" className="is-danger" onClick={() => void removeImage(item)}>删除</button></div>
           </article>)}</div>}
         </main>
       </div>
       {editDialog}
+      <KnowledgeImagePreview image={previewImage} onClose={() => setPreviewImage(null)} />
     </div>;
   }
 
@@ -186,13 +208,13 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
         <strong>{activeFolder?.name || '未选择文件夹'}</strong>
         <small>{folders.length} 个文件夹 / {images.length} 张图片</small>
       </div>
-      <button className="primary-action" disabled={busy || !activeFolderId} onClick={() => void upload()}>{busy ? '正在导入...' : '导入图片'}</button>
+      <button className="primary-action" disabled={busy || foldersLoading || Boolean(foldersError) || !activeFolderId} onClick={() => void upload()}>{busy ? '正在导入...' : '导入图片'}</button>
     </section>
     <section className="image-library-layout">
       <aside className="image-library-sidebar">
         <div className="image-library-heading"><strong>文件夹</strong><span>{folders.length} 个</span>{!embedded && <button className="secondary-action create-action" onClick={() => void createFolder()}>新建</button>}</div>
         <div className="image-folder-list">{folders.map((folder) => <article className={`image-folder-row ${folder.id === activeFolderId ? 'active' : ''}`} key={folder.id}>
-          <button className="image-folder-name" onClick={() => setActiveFolderId(folder.id)}>
+          <button className="image-folder-name" onClick={() => { setQuery(''); setActiveFolderId(folder.id); }} aria-current={folder.id === activeFolderId ? 'true' : undefined} disabled={busy}>
             <span aria-hidden="true">F</span><strong>{folder.name}</strong><small>{folder.id === activeFolderId ? `${images.length} 张图片` : '图片文件夹'}</small>
           </button>
           <div className="image-folder-actions"><button className="icon-text-button" onClick={() => void renameFolder(folder)}>重命名</button><button className="icon-text-button danger" onClick={() => void deleteFolder(folder)}>删除</button></div>
@@ -200,13 +222,14 @@ export default function ImageKnowledgeBasePage({ embedded = false, createRequest
       </aside>
       <main className="image-library-main">
         <header className="image-library-toolbar"><div><strong>{activeFolder?.name || '图片素材'}</strong><small>支持 PNG、JPG、WebP、GIF、BMP，单张不超过 20MB</small></div><div className="image-library-actions"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索名称、说明或标签"/></div></header>
-      {selectedIds.length > 0 && <div className="image-batch-toolbar"><strong>已选择 {selectedIds.length} 张</strong><Popover.Root><Popover.Trigger asChild><button className="button secondary" disabled={!folders.some((folder) => folder.id !== activeFolderId)}>移动到文件夹</button></Popover.Trigger><Popover.Portal><Popover.Content className="image-move-popover" side="bottom" align="end" sideOffset={8}><div className="image-move-popover-head"><strong>选择目标文件夹</strong><small>图片将从当前文件夹移出</small></div><div className="image-move-folder-list">{folders.filter((folder) => folder.id !== activeFolderId).map((folder) => <Popover.Close asChild key={folder.id}><button type="button" onClick={() => void moveSelected(folder.id)}><span aria-hidden="true">F</span><strong>{folder.name}</strong><small>移动到此处</small></button></Popover.Close>)}</div><Popover.Arrow className="image-move-popover-arrow" /></Popover.Content></Popover.Portal></Popover.Root><button className="button secondary" onClick={() => void tagSelected()}>添加标签</button><button className="button secondary danger" onClick={() => void deleteSelected()}>批量删除</button><button className="button secondary" onClick={() => setSelectedIds([])}>取消选择</button></div>}
-      {!activeFolderId ? <div className="image-library-empty">先新建一个文件夹，再导入图片素材。</div> : images.length === 0 ? <div className="image-library-empty">当前文件夹暂无匹配图片。</div> : <div className="image-card-grid">{images.map((item) => <article className="image-card" key={item.id}>
-        <label className="image-card-select"><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelection(item.id)}/>选择</label><button className="image-card-preview" onClick={() => openEdit(item)}><img src={dataUrls[item.id]} alt={item.name}/></button>
-        <div className="image-card-body"><strong title={item.name}>{item.name}</strong><small>{formatSize(item.size)} · {item.mime_type.replace('image/', '').toUpperCase()}</small><p>{item.description || '暂无说明'}</p><div className="image-tag-row">{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div><div className="image-card-actions"><button onClick={() => void copyMarkdown(item)}>复制引用</button><button onClick={() => openEdit(item)}>编辑</button><button className="danger" onClick={() => void removeImage(item)}>删除</button></div></div>
+      {selectedIds.length > 0 && <div className="image-batch-toolbar"><strong>已选择 {selectedIds.length} 张</strong><Popover.Root><Popover.Trigger asChild><button className="button secondary" disabled={busy || imagesLoading || !folders.some((folder) => folder.id !== activeFolderId)}>移动到文件夹</button></Popover.Trigger><Popover.Portal><Popover.Content className="image-move-popover" side="bottom" align="end" sideOffset={8}><div className="image-move-popover-head"><strong>选择目标文件夹</strong><small>图片将从当前文件夹移出</small></div><div className="image-move-folder-list">{folders.filter((folder) => folder.id !== activeFolderId).map((folder) => <Popover.Close asChild key={folder.id}><button type="button" onClick={() => void moveSelected(folder.id)}><span aria-hidden="true">F</span><strong>{folder.name}</strong><small>移动到此处</small></button></Popover.Close>)}</div><Popover.Arrow className="image-move-popover-arrow" /></Popover.Content></Popover.Portal></Popover.Root><button className="button secondary" onClick={() => void tagSelected()}>添加标签</button><button className="button secondary danger" onClick={() => void deleteSelected()}>批量删除</button><button className="button secondary" onClick={() => setSelectedIds([])}>取消选择</button></div>}
+      {foldersError || imagesError ? <div className="image-library-empty" role="alert"><strong>读取图片库失败</strong><p>{foldersError || imagesError}</p><button type="button" onClick={() => void (foldersError ? loadFolders() : loadImages())}>重新读取</button></div> : foldersLoading || imagesLoading ? <div className="image-library-empty" role="status">正在读取图片…</div> : !activeFolderId ? <div className="image-library-empty">先新建一个文件夹，再导入图片素材。</div> : images.length === 0 ? <div className="image-library-empty">当前文件夹暂无匹配图片。</div> : <div className="image-card-grid">{images.map((item) => <article className="image-card" key={item.id}>
+        <label className="image-card-select"><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelection(item.id)}/>选择</label><button className="image-card-preview" onClick={() => setPreviewImage(item)}><KnowledgeImageThumbnail name={item.name} src={dataUrls[item.id]} loading={!(item.id in dataUrls)} /></button>
+        <div className="image-card-body"><strong title={item.name}>{item.name}</strong><small>{formatSize(item.size)} · {item.mime_type.replace('image/', '').toUpperCase()}</small><p>{item.description || '暂无说明'}</p><div className="image-tag-row">{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div><div className="image-card-actions"><button onClick={() => void copyMarkdown(item)}>复制引用</button><button ref={(element) => { editButtons.current[item.id] = element; }} onClick={() => openEdit(item)}>编辑</button><button className="danger" onClick={() => void removeImage(item)}>删除</button></div></div>
       </article>)}</div>}
       </main>
     </section>
     {editDialog}
+    <KnowledgeImagePreview image={previewImage} onClose={() => setPreviewImage(null)} />
   </div>;
 }

@@ -1,3 +1,4 @@
+import '../../../shared/ui/readingDialog.css';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Popover from '@radix-ui/react-popover';
 import { useState } from 'react';
@@ -39,7 +40,7 @@ export function ThesisTutorHeader({
             </Dialog.Trigger>
             <Dialog.Portal>
               <Dialog.Overlay className="content-regenerate-modal" />
-              <Dialog.Content className="thesis-tutor-help-card thesis-tutor-notice-card">
+              <Dialog.Content className="thesis-tutor-help-card thesis-tutor-notice-card yb-reading-dialog">
                 <div className="thesis-tutor-help-head">
                   <div>
                     <Dialog.Title>论文导师注意事项</Dialog.Title>

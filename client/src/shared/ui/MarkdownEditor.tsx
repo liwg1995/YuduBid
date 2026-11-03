@@ -1,9 +1,11 @@
 import { useRef } from 'react';
+import './markdownEditor.css';
 
 export interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  ariaLabel?: string;
   className?: string;
   disabled?: boolean;
   onRequestImage?: (insert: (markdown: string) => void) => void;
@@ -18,8 +20,10 @@ const toolbarActions = [
   { id: 'ordered-list', label: '有序列表', title: '有序列表', prefix: '1. ', suffix: '', content: '1.' },
 ];
 
-function MarkdownEditor({ value, onChange, placeholder = '输入 Markdown 内容...', className, disabled = false, onRequestImage }: MarkdownEditorProps) {
+function MarkdownEditor({ value, onChange, placeholder = '输入 Markdown 内容...', ariaLabel = 'Markdown 内容', className, disabled = false, onRequestImage }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const latestRef = useRef({ value, disabled, onChange });
+  latestRef.current = { value, disabled, onChange };
 
   function insertMarkdown(prefix: string, suffix = '') {
     const textarea = textareaRef.current;
@@ -44,27 +48,32 @@ function MarkdownEditor({ value, onChange, placeholder = '输入 Markdown 内容
 
   function insertRawMarkdown(markdown: string) {
     const textarea = textareaRef.current;
-    if (!textarea || disabled) return;
+    const current = latestRef.current;
+    if (!textarea || current.disabled) return;
+    const value = current.value;
+    const scrollTop = textarea.scrollTop;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const prefix = start > 0 && value[start - 1] !== '\n' ? '\n\n' : '';
     const suffix = end < value.length && value[end] !== '\n' ? '\n\n' : '\n';
     const insertion = `${prefix}${markdown}${suffix}`;
-    onChange(value.slice(0, start) + insertion + value.slice(end));
+    current.onChange(value.slice(0, start) + insertion + value.slice(end));
     requestAnimationFrame(() => {
       textarea.focus();
+      textarea.scrollTop = scrollTop;
       textarea.selectionStart = textarea.selectionEnd = start + insertion.length;
     });
   }
 
   return (
     <div className={`markdown-editor${className ? ` ${className}` : ''}`}>
-      <div className="markdown-editor-toolbar" aria-label="Markdown 编辑工具栏">
+      <div className="markdown-editor-toolbar" role="group" aria-label="Markdown 编辑工具栏">
         {toolbarActions.map((action) => (
           <button
             type="button"
             title={action.title}
             aria-label={action.label}
+            aria-keyshortcuts={action.id === 'bold' ? 'Control+B Meta+B' : action.id === 'italic' ? 'Control+I Meta+I' : undefined}
             disabled={disabled}
             onClick={() => insertMarkdown(action.prefix, action.suffix)}
             key={action.id}
@@ -87,9 +96,15 @@ function MarkdownEditor({ value, onChange, placeholder = '输入 Markdown 内容
       </div>
       <textarea
         ref={textareaRef}
+        aria-label={ariaLabel}
         className="markdown-editor-textarea"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={event => {
+          if (event.nativeEvent.isComposing || event.altKey || event.shiftKey || !(event.ctrlKey || event.metaKey)) return;
+          const action = event.key.toLowerCase() === 'b' ? toolbarActions[0] : event.key.toLowerCase() === 'i' ? toolbarActions[1] : undefined;
+          if (action) { event.preventDefault(); insertMarkdown(action.prefix, action.suffix); }
+        }}
         placeholder={placeholder}
         disabled={disabled}
       />

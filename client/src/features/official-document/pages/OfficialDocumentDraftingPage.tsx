@@ -1,3 +1,10 @@
+import OfficialDocumentExportFeedback from '../components/OfficialDocumentExportFeedback';
+import { isCurrentWordExportEvent, requireWordExportSuccess, lastWordExportPercent } from '../../../shared/utils/wordExportFeedback';
+import '../../../shared/ui/readingDialog.css';
+import WorkspaceLoading from '../../../shared/ui/WorkspaceLoading';
+import WorkspaceViewControl from '../../../shared/ui/WorkspaceViewControl';
+import OfficialDocumentInputForm from '../components/OfficialDocumentInputForm';
+import WorkspaceLoadError from '../../../shared/ui/WorkspaceLoadError';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AgentFloatingPanel from '../../../shared/ui/AgentFloatingPanel';
@@ -9,7 +16,6 @@ import {
   buildOfficialDocumentDraftPrompt,
   officialDocumentTemplates,
   officialDocumentTypeNotes,
-  officialDocumentTypes,
   type OfficialDocumentTemplate,
   type OfficialDocumentPromptInput,
   type OfficialDocumentType,
@@ -73,23 +79,23 @@ interface OfficialDocumentDraftingPageProps {
 const panelHeroCopy: Record<OfficialDocumentInitialPanel, { kicker: string; title: string; description: string }> = {
   drafting: {
     kicker: '公文写作 · 智能起草',
-    title: '把文种规则、事实要素和降 AI 味检查收拢到一张起草台',
-    description: '面向通知、请示、报告、函等常见材料场景，辅助完成要素梳理、规范起草、草稿留存和 Word 导出。',
+    title: '智能起草',
+    description: '填写行文信息和事实材料，生成可编辑的公文草稿。',
   },
   check: {
     kicker: '公文写作 · 格式检查',
-    title: '围绕文种、结构、事实密度和表达痕迹做实务检查',
-    description: '可对导入、生成或手工粘贴的草稿进行格式与内容审核，输出可执行的修改建议。',
+    title: '格式检查',
+    description: '核对文种、结构与事实依据，整理修改建议。',
   },
   polish: {
     kicker: '公文写作 · 润色改写',
-    title: '在不新增事实的前提下降低 AI 味并优化公文表达',
-    description: '支持降 AI 味润色、定向改写和历史版本留存，便于在同一份草稿上反复修订。',
+    title: '润色改写',
+    description: '调整表达、保存版本并导出定稿。',
   },
   templates: {
     kicker: '公文写作 · 模板库',
-    title: '用常见公文场景快速填充起草要素',
-    description: '内置通知、请示、报告、函和工作方案等模板，套用后仍可继续编辑事实材料。',
+    title: '公文模板',
+    description: '选择模板，套用后补充本次行文的事实材料。',
   },
 };
 
@@ -101,13 +107,23 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   const [draft, setDraft] = useState('');
   const [review, setReview] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
   const [saving, setSaving] = useState(false);
+  const exportLock = useRef(false);
+  const restoreLock = useRef(false);
   const [exportProgress, setExportProgress] = useState(initialExportProgress);
   const [rewriteInstruction, setRewriteInstruction] = useState('');
   const [missingTextModelFields, setMissingTextModelFields] = useState<string[]>([]);
   const [reminderOpen, setReminderOpen] = useState(false);
   const [polishViewMode, setPolishViewMode] = useState<'edit' | 'preview'>('edit');
   const [previewTemplate, setPreviewTemplate] = useState<OfficialDocumentTemplate | null>(null);
+  const contextDialogTriggerRef = useRef<HTMLElement | null>(null);
+  const rememberContextDialogTrigger = () => { contextDialogTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
+  const restoreContextDialogFocus = (event: Event) => {
+    const trigger = contextDialogTriggerRef.current;
+    if (trigger?.isConnected && trigger.getClientRects().length && !trigger.matches(':disabled')) { event.preventDefault(); trigger.focus({ preventScroll: true }); }
+  };
   const [agentStatus, setAgentStatus] = useState<AgentHostStatus | null>(null);
   const [agentRun, setAgentRun] = useState<AgentRunResult | null>(null);
   const [agentPlanning, setAgentPlanning] = useState(false);
@@ -143,10 +159,11 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   const heroCopy = panelHeroCopy[initialPanel];
 
   useEffect(() => {
+    setLoadError(''); setLoading(true);
     let mounted = true;
     const bridge = window.yibiao?.officialDocument;
     if (!bridge) {
-      setLoading(false);
+      setLoadError('公文写作本地服务尚未就绪'); setLoading(false);
       return () => {
         mounted = false;
       };
@@ -162,7 +179,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
         setDraft(persistedDraftRef.current);
         setReview(nextState.review || '');
       })
-      .catch((error) => showToast(error instanceof Error ? error.message : '读取公文写作状态失败', 'error'))
+      .catch((error) => { setLoadError(error instanceof Error ? error.message : String(error)); showToast(error instanceof Error ? error.message : '读取公文写作状态失败', 'error'); })
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -189,7 +206,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       mounted = false;
       unsubscribe?.();
     };
-  }, [showToast]);
+  }, [showToast, loadRevision]);
 
   useEffect(() => {
     let mounted = true;
@@ -261,6 +278,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   async function applyTemplate(template: OfficialDocumentTemplate, navigateToDrafting = false) {
+    if (saving || restoreLock.current) return;
     const nextInput: OfficialDocumentPromptInput = {
       ...input,
       ...template.input,
@@ -312,6 +330,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   async function saveInput() {
+    if (saving || restoreLock.current) return;
     if (!window.yibiao?.officialDocument) {
       showToast('当前浏览器预览环境未连接客户端桥接层，请在 Electron 客户端中保存。', 'info');
       return;
@@ -333,6 +352,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   async function saveDraft() {
+    if (saving || isRunning || restoreLock.current) return;
     if (!window.yibiao?.officialDocument) {
       showToast('当前浏览器预览环境未连接客户端桥接层，请在 Electron 客户端中保存。', 'info');
       return;
@@ -351,6 +371,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   async function saveRevision() {
+    if (saving || restoreLock.current) return;
     if (!draft.trim()) {
       showToast('请先填写公文草稿。', 'info');
       return;
@@ -374,6 +395,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   async function importDraft() {
+    if (saving || restoreLock.current) return;
     if (!window.yibiao?.officialDocument) {
       showToast('当前浏览器预览环境未连接客户端桥接层，请在 Electron 客户端中导入。', 'info');
       return;
@@ -395,6 +417,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   async function extractInputFromDraft() {
+    if (saving || restoreLock.current) return;
     if (!draft.trim()) {
       showToast('请先导入、生成或填写公文草稿。', 'info');
       return;
@@ -416,22 +439,31 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   async function restoreRevision(content: string) {
-    setDraft(content);
+    if (saving || isRunning || restoreLock.current) return;
     if (!window.yibiao?.officialDocument) {
+      setDraft(content);
       showToast('已恢复到编辑区', 'success');
       return;
     }
+    restoreLock.current = true;
+    setSaving(true);
     try {
       const nextState = await window.yibiao.officialDocument.saveDraft(content);
+      persistedDraftRef.current = nextState.draft || content;
       setState(nextState);
-      setDraft(nextState.draft || content);
+      setDraft(persistedDraftRef.current);
+      setReview(nextState.review || '');
       showToast('已恢复该历史版本', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '恢复版本失败', 'error');
+    } finally {
+      restoreLock.current = false;
+      setSaving(false);
     }
   }
 
   async function generateDraft() {
+    if (saving || restoreLock.current) return false;
     if (!window.yibiao?.officialDocument) {
       showToast('当前浏览器预览环境未连接客户端桥接层，请在 Electron 客户端中生成。', 'info');
       return false;
@@ -582,6 +614,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }, [agentContinuousCycle, agentContinuousStatus, draft, isRunning, loading, review, revisions, state, task?.type]);
 
   async function resetForm() {
+    if (saving || restoreLock.current) return;
     if (getStoredUiAppearance() === 'modern' && !await confirm({
       title: '清空公文写作工作区？',
       description: '起草要素、公文草稿和当前工作结果会被清空。',
@@ -609,6 +642,8 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   async function exportWord() {
+    if (saving || restoreLock.current) return;
+    if (exportLock.current) return;
     if (!draft.trim()) {
       showToast('请先生成或填写公文草稿。', 'info');
       return;
@@ -622,6 +657,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
     let unsubscribe: (() => void) | undefined;
     const title = getOfficialDocumentTitle(draft, input);
 
+    exportLock.current = true;
     try {
       setExportProgress({
         running: true,
@@ -631,7 +667,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       });
 
       unsubscribe = window.yibiao.export.onWordExportProgress((event: WordExportProgressEvent) => {
-        if (event.requestId && event.requestId !== requestId) return;
+        if (!isCurrentWordExportEvent(event, requestId)) return;
         setExportProgress({
           running: event.phase === 'running',
           progress: event.progress,
@@ -659,6 +695,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
         return;
       }
 
+      requireWordExportSuccess(result);
       setExportProgress({
         running: false,
         progress: 100,
@@ -668,19 +705,21 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       showToast(result.message || 'Word 已导出', result.warnings?.length ? 'info' : 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出 Word 失败';
-      setExportProgress({
+      setExportProgress(previous => ({
         running: false,
-        progress: 100,
+        progress: lastWordExportPercent(previous.progress),
         message,
         error: message,
-      });
+      }));
       showToast(message, 'error');
     } finally {
+      exportLock.current = false;
       unsubscribe?.();
     }
   }
 
   async function checkDraft() {
+    if (saving || restoreLock.current) return false;
     if (!draft.trim()) {
       showToast('请先生成或填写公文草稿。', 'info');
       return false;
@@ -704,6 +743,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   async function polishDraft() {
+    if (saving || restoreLock.current) return false;
     if (!draft.trim()) {
       showToast('请先生成或填写公文草稿。', 'info');
       return false;
@@ -713,6 +753,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       return false;
     }
 
+    setExportProgress(initialExportProgress);
     try {
       const nextState = await window.yibiao.officialDocument.polishDraft({ input, draft });
       setState(nextState);
@@ -727,6 +768,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
   }
 
   async function rewriteDraft() {
+    if (saving || restoreLock.current) return;
     if (!draft.trim()) {
       showToast('请先生成或填写公文草稿。', 'info');
       return;
@@ -740,6 +782,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       return;
     }
 
+    setExportProgress(initialExportProgress);
     try {
       const nextState = await window.yibiao.officialDocument.rewriteDraft({
         input,
@@ -963,8 +1006,10 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
     return '查看写作参考';
   }
 
+  if (loadError) return <WorkspaceLoadError message={loadError} onRetry={() => setLoadRevision(value => value + 1)} />;
+
   if (loading) {
-    return <div className="official-document-page"><div className="official-document-empty">正在读取公文写作状态...</div></div>;
+    return <WorkspaceLoading title="正在读取公文写作状态" />;
   }
 
   return (
@@ -974,7 +1019,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
           <div className="official-document-header-eyebrow">
             <span className="section-kicker">{heroCopy.kicker}</span>
             {initialPanel !== 'templates' && (
-              <button type="button" className="official-document-reminder-link context-help-trigger has-inline-decor" onClick={() => setReminderOpen(true)}>
+              <button type="button" className="official-document-reminder-link context-help-trigger has-inline-decor" onClick={() => { rememberContextDialogTrigger(); setReminderOpen(true); }}>
                 <span className="official-document-reminder-link-icon" aria-hidden="true">?</span>
                 <span>{getReminderLinkText()}</span>
                 <span className="official-document-reminder-link-arrow" aria-hidden="true">›</span>
@@ -998,10 +1043,10 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
             </>
           )}
           {initialPanel === 'check' && (
-            <button type="button" className="primary-action" onClick={() => void checkDraft()} disabled={!draft || isRunning}>开始检查</button>
+            <button type="button" className="primary-action" onClick={() => void checkDraft()} disabled={!draft || saving || isRunning}>开始检查</button>
           )}
           {initialPanel === 'polish' && (
-            <button type="button" className="primary-action" onClick={() => void polishDraft()} disabled={!draft || isRunning}>降 AI 味润色</button>
+            <button type="button" className="primary-action" onClick={() => void polishDraft()} disabled={!draft || saving || isRunning}>降 AI 味润色</button>
           )}
           {initialPanel !== 'templates' && (
             <button type="button" className="secondary-action" onClick={() => void resetForm()} disabled={isRunning}>清空</button>
@@ -1115,51 +1160,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
                   <span className="official-document-pill">已配起草规则</span>
                 </div>
 
-                <div className="official-document-form-grid">
-                  <label className="official-document-field">
-                    <span>文种</span>
-                    <select value={input.documentType} onChange={(event) => updateInput('documentType', event.target.value as OfficialDocumentType)}>
-                      {officialDocumentTypes.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  </label>
-                  <label className="official-document-field">
-                    <span>行文关系</span>
-                    <select value={input.audienceRelation} onChange={(event) => updateInput('audienceRelation', event.target.value)}>
-                      <option value="上行">上行</option>
-                      <option value="下行">下行</option>
-                      <option value="平行">平行</option>
-                      <option value="面向公众">面向公众</option>
-                    </select>
-                  </label>
-                  <label className="official-document-field">
-                    <span>发文/讲话主体</span>
-                    <input value={input.issuer} placeholder="例如：XX市住房和城乡建设局" onChange={(event) => updateInput('issuer', event.target.value)} />
-                  </label>
-                  <label className="official-document-field">
-                    <span>面向对象/主送机关</span>
-                    <input value={input.recipient} placeholder="例如：各县区住建局、局属各单位" onChange={(event) => updateInput('recipient', event.target.value)} />
-                  </label>
-                  <label className="official-document-field">
-                    <span>使用场景</span>
-                    <input value={input.scenario} placeholder="例如：部署安全生产专项排查" onChange={(event) => updateInput('scenario', event.target.value)} />
-                  </label>
-                  <label className="official-document-field">
-                    <span>篇幅要求</span>
-                    <input value={input.length} placeholder="例如：约 800 字 / 1500 字以内" onChange={(event) => updateInput('length', event.target.value)} />
-                  </label>
-                  <label className="official-document-field is-wide">
-                    <span>材料要点</span>
-                    <textarea value={input.facts} placeholder="粘贴背景、问题、数据、任务、责任单位、截止时间、政策依据等事实材料。" onChange={(event) => updateInput('facts', event.target.value)} />
-                  </label>
-                  <label className="official-document-field">
-                    <span>希望语气</span>
-                    <input value={input.tone} placeholder="例如：庄重、平实、克制" onChange={(event) => updateInput('tone', event.target.value)} />
-                  </label>
-                  <label className="official-document-field">
-                    <span>特殊要求</span>
-                    <input value={input.specialRequirements} placeholder="例如：降低 AI 味、保留小标题、附检查意见" onChange={(event) => updateInput('specialRequirements', event.target.value)} />
-                  </label>
-                </div>
+                <OfficialDocumentInputForm input={input} updateInput={updateInput} />
 
                 <OfficialDocumentTaskStatus task={task} />
 
@@ -1175,10 +1176,10 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
                 </div>
 
                 <div className="official-document-generate-row">
-                  <button type="button" className="primary-action" onClick={() => void generateDraft()} disabled={isRunning}>
+                  <button type="button" className="primary-action" onClick={() => void generateDraft()} disabled={saving || isRunning}>
                     {isRunning && task?.type === 'draft' ? '生成中...' : '生成公文草稿'}
                   </button>
-                  <button type="button" className="secondary-action" onClick={() => void extractInputFromDraft()} disabled={!draft || isRunning}>
+                  <button type="button" className="secondary-action" onClick={() => void extractInputFromDraft()} disabled={!draft || saving || isRunning}>
                     从草稿提取要素
                   </button>
                   <span>生成会调用当前文本模型配置，结果保存在本机工作区。</span>
@@ -1215,7 +1216,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
                   </div>
                   <div className="official-document-draft-actions">
                     <button type="button" className="secondary-action" onClick={() => void copyDraft()} disabled={!draft}>复制正文</button>
-                    <button type="button" className="primary-action" onClick={() => void checkDraft()} disabled={!draft || isRunning}>格式检查</button>
+                    <button type="button" className="primary-action" onClick={() => void checkDraft()} disabled={!draft || saving || isRunning}>格式检查</button>
                   </div>
                 </div>
                 <OfficialDocumentTaskStatus task={task} />
@@ -1260,40 +1261,31 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
                     <button type="button" className="secondary-action" onClick={() => void copyDraft()} disabled={!draft}>复制正文</button>
                     <button type="button" className="secondary-action" onClick={() => void saveDraft()} disabled={saving || isRunning}>保存草稿</button>
                     <button type="button" className="secondary-action" onClick={() => void saveRevision()} disabled={!draft || saving || isRunning}>保存版本</button>
-                    <button type="button" className="secondary-action" onClick={() => void polishDraft()} disabled={!draft || isRunning}>降 AI 味润色</button>
-                    <button type="button" className="primary-action" onClick={() => void exportWord()} disabled={!draft || isRunning || exportProgress.running}>导出 Word</button>
+                    <button type="button" className="secondary-action" onClick={() => void polishDraft()} disabled={!draft || saving || isRunning}>降 AI 味润色</button>
+                    <button type="button" className="primary-action" onClick={() => void exportWord()} disabled={!draft || saving || isRunning || exportProgress.running}>导出 Word</button>
                   </div>
                 </div>
-                <OfficialDocumentTaskStatus task={task} />
-                {exportProgress.message && (
-                  <div className={`official-document-export-status ${exportProgress.error ? 'is-error' : exportProgress.running ? 'is-running' : 'is-success'}`}>
-                    <div>
-                      <strong>{exportProgress.error ? '导出失败' : exportProgress.running ? '导出中' : '导出完成'}</strong>
-                      <span>{exportProgress.message}</span>
-                    </div>
-                    <em>{exportProgress.progress}%</em>
-                  </div>
-                )}
+                {(!exportProgress.message || task?.status !== 'success') && <OfficialDocumentTaskStatus task={task} />}
+                <OfficialDocumentExportFeedback {...exportProgress} />
                 <div className="official-document-rewrite-box">
                   <textarea
+                    aria-label="定向改写要求"
                     value={rewriteInstruction}
                     placeholder="输入临时改写要求，例如：压缩到800字；改成请示口吻；补充报送时限和联系人；把语气写得更稳妥。"
                     onChange={(event) => setRewriteInstruction(event.target.value)}
                   />
-                  <button type="button" className="secondary-action" onClick={() => void rewriteDraft()} disabled={!draft || !rewriteInstruction.trim() || isRunning}>
+                  <button type="button" className="secondary-action" onClick={() => void rewriteDraft()} disabled={!draft || !rewriteInstruction.trim() || saving || isRunning}>
                     按要求改写
                   </button>
                 </div>
-                <div className="official-document-draft-mode" aria-label="草稿查看方式">
-                  <button type="button" className={polishViewMode === 'edit' ? 'is-active' : ''} onClick={() => setPolishViewMode('edit')}>编辑</button>
-                  <button type="button" className={polishViewMode === 'preview' ? 'is-active' : ''} onClick={() => setPolishViewMode('preview')}>预览</button>
-                </div>
+                <WorkspaceViewControl label="草稿查看方式" value={polishViewMode} onChange={setPolishViewMode} options={[{ value: 'edit', label: '编辑' }, { value: 'preview', label: '预览' }]} />
                 {polishViewMode === 'edit' ? (
                   <MarkdownEditor
                     className="official-document-markdown-editor"
+                    ariaLabel="公文草稿"
                     value={draft}
                     placeholder="在这里编辑需要润色、改写或导出的公文草稿。"
-                    disabled={isRunning}
+                    disabled={isRunning || saving}
                     onChange={setDraft}
                   />
                 ) : (
@@ -1310,7 +1302,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
                     <h3>最近 10 个草稿版本</h3>
                   </div>
                 </div>
-                <OfficialDocumentRevisionList revisions={revisions} onRestore={restoreRevision} />
+                <OfficialDocumentRevisionList revisions={revisions} disabled={saving || isRunning} onRestore={restoreRevision} />
               </section>
             </>
           )}
@@ -1328,7 +1320,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
                 templates={officialDocumentTemplates}
                 actionLabel="套用并起草"
                 disabled={saving || isRunning}
-                onPreview={setPreviewTemplate}
+                onPreview={(template) => { rememberContextDialogTrigger(); setPreviewTemplate(template); }}
                 onApply={(template) => applyTemplate(template, true)}
               />
             </section>
@@ -1345,7 +1337,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       <Dialog.Root open={reminderOpen} onOpenChange={setReminderOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className={`official-document-reminder-card is-${initialPanel}`}>
+          <Dialog.Content onCloseAutoFocus={restoreContextDialogFocus} className={`official-document-reminder-card yb-reading-dialog is-${initialPanel}`}>
             <div className="official-document-reminder-head">
               <div>
                 <span className="section-kicker">写作参考</span>
@@ -1366,7 +1358,7 @@ function OfficialDocumentDraftingPage({ initialPanel = 'drafting', onNavigate }:
       <Dialog.Root open={Boolean(previewTemplate)} onOpenChange={(open) => !open && setPreviewTemplate(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="official-document-template-preview-card">
+          <Dialog.Content onCloseAutoFocus={restoreContextDialogFocus} className="official-document-template-preview-card">
             <div className="official-document-reminder-head">
               <div>
                 <span className="section-kicker">模板预览</span>

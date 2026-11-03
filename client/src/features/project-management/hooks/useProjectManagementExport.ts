@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { isCurrentWordExportEvent, requireWordExportSuccess, lastWordExportPercent } from '../../../shared/utils/wordExportFeedback';
+import { useRef, useState } from 'react';
 import type { ToastType } from '../../../shared/ui/ToastProvider';
 import type { ProjectManagementProfile } from '../types';
 import {
@@ -29,8 +30,10 @@ export function useProjectManagementExport({
   moduleResults,
   showToast,
 }: UseProjectManagementExportParams) {
+  const exportLock = useRef(false);
+  const [pending, setPending] = useState(false);
   const [exportProgress, setExportProgress] = useState<ProjectManagementExportProgress | null>(null);
-  const exporting = exportProgress?.phase === 'running';
+  const exporting = pending || exportProgress?.phase === 'running';
 
   async function exportProjectManagementWord(params: {
     title: string;
@@ -39,6 +42,7 @@ export function useProjectManagementExport({
     outline: ProjectManagementWordOutlineItem[];
     emptyMessage?: string;
   }) {
+    if (exportLock.current) return;
     const exportableOutline = params.outline.filter((item) => item.content.trim());
     if (!exportableOutline.length) {
       showToast(params.emptyMessage || '请先生成或填写可导出的内容', 'info');
@@ -49,8 +53,10 @@ export function useProjectManagementExport({
       return;
     }
 
-    const requestId = `project-management-${Date.now()}`;
+    const requestId = `project-management-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     let unsubscribe: (() => void) | undefined;
+    exportLock.current = true;
+    setPending(true);
     try {
       setExportProgress({
         requestId,
@@ -60,7 +66,7 @@ export function useProjectManagementExport({
         message: '正在准备导出 Word',
       });
       unsubscribe = window.yibiao.export.onWordExportProgress((event) => {
-        if (event.requestId && event.requestId !== requestId) return;
+        if (!isCurrentWordExportEvent(event, requestId)) return;
         setExportProgress({ ...event, moduleId: params.moduleId });
       });
       const result = await window.yibiao.export.exportWord({
@@ -82,6 +88,7 @@ export function useProjectManagementExport({
         showToast('已取消导出', 'info');
         return;
       }
+      requireWordExportSuccess(result);
       if (result.success) {
         setExportProgress({
           requestId,
@@ -94,15 +101,17 @@ export function useProjectManagementExport({
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : '导出 Word 失败';
-      setExportProgress({
+      setExportProgress(previous => ({
         requestId,
         moduleId: params.moduleId,
         phase: 'error',
-        progress: 100,
+        progress: lastWordExportPercent(previous?.requestId === requestId ? previous.progress : 0),
         message,
-      });
+      }));
       showToast(message, 'error');
     } finally {
+      exportLock.current = false;
+      setPending(false);
       unsubscribe?.();
     }
   }

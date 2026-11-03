@@ -32,7 +32,7 @@
   gap: 10px;
   padding: 10px 12px;
   color: var(--yb-text-soft);
-  background: #f6f9ff;
+  background: var(--yb-card-bg);
   border: 1px solid var(--yb-border-soft);
   border-radius: var(--yb-radius-pill);
 }
@@ -73,7 +73,7 @@
 }
 
 .blind-check-page .duplicate-document-tab.is-active {
-  background: #eef4ff;
+  background: var(--yb-card-bg);
   border-color: rgba(33, 116, 253, 0.38);
   box-shadow: 0 0 0 3px rgba(33, 116, 253, 0.08);
 }
@@ -116,7 +116,7 @@
 
 .blind-check-page .duplicate-guide-head > span {
   padding: 8px 12px;
-  background: #f6f9ff;
+  background: var(--yb-card-bg);
   border: 1px solid var(--yb-border-soft);
   border-radius: var(--yb-radius-pill);
 }

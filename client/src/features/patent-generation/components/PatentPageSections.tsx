@@ -1,3 +1,6 @@
+import WorkspaceFormSection from '../../../shared/ui/WorkspaceFormSection';
+import WorkspaceViewControl from '../../../shared/ui/WorkspaceViewControl';
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
 import * as Dialog from '@radix-ui/react-dialog';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
@@ -319,14 +322,10 @@ export function PatentHero({
   const heroTaskError = task?.status === 'error' && isHeroTask;
   const optimisticMining = enableMiningActions && projectSelected && mining && !heroTaskRunning;
   const showHeroProgress = heroTaskRunning || heroTaskPausing || heroTaskPaused || heroTaskStopping || heroTaskStopped || heroTaskError || optimisticMining;
-  const heroProgress = isHeroTask
-    ? Math.min(100, Math.max(0, Number(task?.progress || 0)))
-    : 8;
   const heroProgressMessage = isHeroTask
     ? heroTaskError ? toChineseErrorMessage(task?.error || task?.message) : task?.message || '正在处理...'
     : '正在启动专利挖掘...';
   const heroLatestLog = isHeroTask ? task?.logs?.filter(Boolean).at(-1) : '';
-  const heroProgressLabel = heroTaskRunning && heroProgress >= 88 ? '处理中' : `${heroProgress}%`;
   return (
     <section className="demo-hero-card">
       <div className={`demo-hero-copy${showHeroProgress ? ' has-task-progress' : ''}`}>
@@ -344,14 +343,8 @@ export function PatentHero({
         </div>
         {showHeroProgress && (
           <div className={`patent-task-progress patent-hero-progress${task?.status === 'error' ? ' is-error' : task?.status === 'success' ? ' is-success' : ''}`} role="status" aria-live="polite">
-            <div className="patent-task-progress-head">
-              <strong>{heroProgressMessage}</strong>
-              <span>{heroProgressLabel}</span>
-            </div>
-            <div className="patent-task-progress-track" aria-label={`${enableMiningActions ? '专利挖掘' : '交底书生成'}进度`}>
-              <span style={{ width: `${heroProgress}%` }} />
-            </div>
-            {heroLatestLog && <p>{heroLatestLog}</p>}
+            <BusinessTaskProgress label={heroProgressMessage} percent={isHeroTask ? task?.progress : undefined} status={heroTaskError ? 'exception' : heroTaskPaused ? 'paused' : heroTaskStopped ? 'stopped' : 'active'} />
+            {heroLatestLog && heroLatestLog !== heroProgressMessage && <p>{heroLatestLog}</p>}
             {enableMiningActions && isHeroTask && (
               <div className="patent-task-controls">
                 {heroTaskRunning && <button type="button" onClick={onPauseMining}>暂停</button>}
@@ -423,6 +416,7 @@ export function PatentCasePanel({
         <span className="demo-soft-pill">{patentTypeLabels[caseInfo.applicationType]}</span>
       </div>
       <div className="patent-case-form">
+        <WorkspaceFormSection title="技术信息" description="明确案件名称与技术主题。">
         <label className="patent-case-name-field">
           <PatentFieldLabel label="专利名称" hint="用于交底书标题和导出文件名。可以直接采用主专利点名称，也可以人工调整。" />
           <span className="patent-case-name-control">
@@ -447,6 +441,8 @@ export function PatentCasePanel({
             </button>
           </span>
         </label>
+        </WorkspaceFormSection>
+        <WorkspaceFormSection title="申请与保护形式" description="申请类型与权利要求形态分别选择。">
         <label>
           <PatentFieldLabel label="申请类型" hint="发明、实用新型和外观设计是申请类型；方法、系统、装置属于权利要求保护形态。" />
           <select
@@ -481,6 +477,8 @@ export function PatentCasePanel({
             })}
           </div>
         </fieldset>
+        </WorkspaceFormSection>
+        <WorkspaceFormSection title="联系信息" description="用于交底材料联系信息，保存在本机案件中。">
         <label>
           <PatentFieldLabel label="联系人" hint="填写技术联系人姓名，便于导出的交底书保留案件联系信息。" />
           <input
@@ -502,6 +500,7 @@ export function PatentCasePanel({
             onChange={(event) => onCaseInfoChange({ contact: { email: event.target.value } })}
           />
         </label>
+        </WorkspaceFormSection>
         <div className="patent-case-actions">
           <div className="patent-case-actions-left">
             <button type="button" className="secondary-action" onClick={onSaveCaseInfo} disabled={saving || loading}>
@@ -906,12 +905,7 @@ export function PatentDraftPanel({
           <h3>{draftFile?.title || '技术交底书草稿'}</h3>
         </div>
         <div className="patent-draft-actions">
-          <button type="button" className={draftViewMode === 'edit' ? 'primary-action' : 'secondary-action'} onClick={() => onDraftViewModeChange('edit')}>
-            编辑
-          </button>
-          <button type="button" className={draftViewMode === 'preview' ? 'primary-action' : 'secondary-action'} onClick={() => onDraftViewModeChange('preview')}>
-            预览
-          </button>
+          <WorkspaceViewControl label="交底书查看方式" value={draftViewMode} onChange={onDraftViewModeChange} options={[{ value: 'edit', label: '编辑' }, { value: 'preview', label: '预览' }]} />
           <button type="button" className="secondary-action" onClick={onSaveDraft} disabled={!draftFile || savingDraft}>
             {savingDraft ? '保存中...' : '保存草稿'}
           </button>
@@ -993,7 +987,7 @@ export function PatentDraftPanel({
       )}
       {draftFile ? (
         draftViewMode === 'edit' ? (
-          <MarkdownEditor value={draftContent} onChange={onDraftContentChange} placeholder="生成后可在这里编辑技术交底书 Markdown 草稿..." />
+          <MarkdownEditor ariaLabel="技术交底书草稿" value={draftContent} onChange={onDraftContentChange} placeholder="生成后可在这里编辑技术交底书 Markdown 草稿..." />
         ) : (
           <div className="patent-draft-preview">
             <MarkdownRenderer allowRawHtml={false} enableMermaid>{draftContent}</MarkdownRenderer>
@@ -1041,12 +1035,14 @@ export function PatentPriorArtPanels({
             <span className="section-kicker">查新资料</span>
             <h3>手动资料整理</h3>
           </div>
-          <button type="button" className="primary-action" onClick={onGenerate} disabled={generating || isRunning}>
+          <button type="button" className="primary-action" onClick={onGenerate} disabled={generating || saving || isRunning}>
             {generating || isRunning ? '整理中...' : '生成查新分析'}
           </button>
         </div>
         <textarea
           className="patent-prior-art-source"
+          aria-label="查新原始资料"
+          disabled={generating || saving || isRunning}
           value={sourceText}
           onChange={(event) => onSourceTextChange(event.target.value)}
           placeholder="粘贴公开专利、论文摘要、网页资料、代理人检索结果等。请保留标题、公开来源 URL、摘要或关键段落，便于生成可核验的现有技术分析。"
@@ -1060,20 +1056,15 @@ export function PatentPriorArtPanels({
             <h3>现有技术与区别点</h3>
           </div>
           <div className="patent-draft-actions">
-            <button type="button" className={viewMode === 'edit' ? 'primary-action' : 'secondary-action'} onClick={() => onViewModeChange('edit')} disabled={!markdown}>
-              编辑
-            </button>
-            <button type="button" className={viewMode === 'preview' ? 'primary-action' : 'secondary-action'} onClick={() => onViewModeChange('preview')} disabled={!markdown}>
-              预览
-            </button>
-            <button type="button" className="secondary-action" onClick={onSave} disabled={saving || !markdown}>
+            <WorkspaceViewControl label="查新分析查看方式" value={viewMode} onChange={onViewModeChange} options={[{ value: 'edit', label: '编辑', disabled: !markdown }, { value: 'preview', label: '预览', disabled: !markdown }]} />
+            <button type="button" className="secondary-action" onClick={onSave} disabled={generating || saving || isRunning || !markdown}>
               {saving ? '保存中...' : '保存分析'}
             </button>
           </div>
         </div>
         {markdown ? (
           viewMode === 'edit' ? (
-            <MarkdownEditor value={markdown} onChange={onMarkdownChange} placeholder="生成后可在这里编辑查新分析 Markdown..." />
+            <MarkdownEditor disabled={generating || saving || isRunning} ariaLabel="查新分析工作稿" value={markdown} onChange={onMarkdownChange} placeholder="生成后可在这里编辑查新分析 Markdown..." />
           ) : (
             <div className="patent-draft-preview">
               <MarkdownRenderer allowRawHtml={false}>{markdown}</MarkdownRenderer>
@@ -1133,7 +1124,7 @@ export function PatentRevisionPanels({
         <div className="patent-revision-controls">
           <label>
             <span>修订类型</span>
-            <select value={revisionKind} onChange={(event) => onRevisionKindChange(event.target.value as 'merge' | 'correct')}>
+            <select disabled={generatingRevision || isRunning} value={revisionKind} onChange={(event) => onRevisionKindChange(event.target.value as 'merge' | 'correct')}>
               <option value="merge">补充合并</option>
               <option value="correct">纠错修正</option>
             </select>
@@ -1150,13 +1141,15 @@ export function PatentRevisionPanels({
             ['纠正技术事实', '请依据以下材料纠正现有草稿中的技术事实，保留可核验的依据：'],
             ['强化保护点', '请梳理核心技术手段及其作用，突出与现有方案的区别，并避免引入未经证实的效果。'],
           ].map(([label, content]) => (
-            <button key={label} type="button" onClick={() => onRevisionInstructionChange(revisionInstruction.trim() ? `${revisionInstruction.trim()}\n\n${content}` : content)}>
+            <button key={label} type="button" disabled={generatingRevision || isRunning} onClick={() => onRevisionInstructionChange(revisionInstruction.trim() ? `${revisionInstruction.trim()}\n\n${content}` : content)}>
               ＋ {label}
             </button>
           ))}
         </div>}
         <textarea
           className="patent-prior-art-source"
+          aria-label="交底书修订要求"
+          disabled={generatingRevision || isRunning}
           value={revisionInstruction}
           onChange={(event) => onRevisionInstructionChange(event.target.value)}
           placeholder="请输入补充材料、纠错说明、参数修正、实施例扩展或保护点调整要求。生成后会另存新 Markdown 草稿，不覆盖旧稿。"
@@ -1222,7 +1215,7 @@ export function PatentResetDialog({ open, resetting, onOpenChange, onConfirm }: 
             <Dialog.Close asChild>
               <button type="button" className="secondary-action" disabled={resetting}>取消</button>
             </Dialog.Close>
-            <button type="button" className="primary-action" onClick={onConfirm} disabled={resetting}>
+            <button type="button" className="danger-action" onClick={onConfirm} disabled={resetting}>
               {resetting ? '重置中...' : '确认重置'}
             </button>
           </div>

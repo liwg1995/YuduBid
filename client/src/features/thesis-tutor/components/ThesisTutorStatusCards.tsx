@@ -1,3 +1,4 @@
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
 interface ThesisTutorPreflightItem {
   label: string;
   status: 'ready' | 'warning' | 'missing';
@@ -67,13 +68,7 @@ interface ThesisTutorProgressCardProps {
 export function ThesisTutorProgressCard({ phase, message, progress, runningHint }: ThesisTutorProgressCardProps) {
   return (
     <div className={`thesis-tutor-task is-${phase}`}>
-      <div className="thesis-tutor-task-head">
-        <span>{message}</span>
-        <strong>{progress}%</strong>
-      </div>
-      <div className="thesis-tutor-task-track" aria-hidden="true">
-        <i style={{ width: `${progress}%` }} />
-      </div>
+      <BusinessTaskProgress label={message} percent={progress} status={phase === 'error' ? 'exception' : phase === 'success' ? 'success' : 'active'} />
       {phase === 'running' ? <p>{runningHint}</p> : null}
     </div>
   );

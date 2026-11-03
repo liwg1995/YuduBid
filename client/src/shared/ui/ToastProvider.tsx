@@ -1,5 +1,7 @@
 import * as Toast from '@radix-ui/react-toast';
+import { CheckCircledIcon, CrossCircledIcon, InfoCircledIcon } from '@radix-ui/react-icons';
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from 'react';
+import './toast.css';
 import { toChineseErrorMessage } from '../utils/userFacingError';
 
 export type ToastType = 'success' | 'error' | 'info';
@@ -48,7 +50,7 @@ let toastId = 0;
 
 const toastTitleMap: Record<ToastType, string> = {
   success: '完成',
-  error: '出错了',
+  error: '操作失败',
   info: '提示',
 };
 
@@ -145,6 +147,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <Toast.Root
             className={`app-toast is-${item.type}${item.actions?.length ? ' has-actions' : ''}`}
             duration={item.duration}
+            type={item.type === 'error' ? 'foreground' : 'background'}
             key={item.id}
             onOpenChange={(open) => {
               if (!open) {
@@ -152,6 +155,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               }
             }}
           >
+            <span className="app-toast-status-icon" aria-hidden="true">{item.type === 'success' ? <CheckCircledIcon /> : item.type === 'error' ? <CrossCircledIcon /> : <InfoCircledIcon />}</span>
             <Toast.Title className="app-toast-title">{item.title || toastTitleMap[item.type]}</Toast.Title>
             <Toast.Description className="app-toast-description">{item.message}</Toast.Description>
             {item.actions?.length ? (

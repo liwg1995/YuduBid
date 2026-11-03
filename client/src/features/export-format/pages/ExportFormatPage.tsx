@@ -1,10 +1,11 @@
 import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { AppSwitch, FloatingToolbar, ProgressBar, useAppDialog, useToast } from '../../../shared/ui';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { AppSwitch, FloatingToolbar, useAppDialog, useToast } from '../../../shared/ui';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import { registerNavigationBlocker } from '../../../shared/navigationBlocker';
 import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
+import TaskProgressSummary from '../../../shared/ui/TaskProgressSummary';
 import DockedActionBar from '../../../shared/ui/DockedActionBar';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type {
@@ -52,6 +53,9 @@ import {
   applyExportThemePreset,
 } from '../exportFormatPresets';
 import './modernExportTemplate.css';
+import './templateEditorDesign.css';
+
+const templateNameRequiredMessage = '请填写模板名称后再保存。';
 
 type TemplateTab = 'quick' | 'layout' | 'cover' | 'heading' | 'body' | 'table' | 'image';
 type TableCellStyleKey = 'header_row' | 'first_column' | 'body_cell';
@@ -444,6 +448,15 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
   const [expandedHeadings, setExpandedHeadings] = useState<Set<number>>(new Set([0, 1]));
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [saveError, setSaveError] = useState('');
+  const [smallView, setSmallView] = useState<'settings' | 'preview'>('settings');
+  const [focusName, setFocusName] = useState(false);
+  const templateNameRef = useRef<HTMLInputElement | null>(null);
+  const fullscreenTrigger = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => { if (focusName) { templateNameRef.current?.focus(); setFocusName(false); } }, [focusName, activeTab]);
   const [exportProgress, setExportProgress] = useState<ExportProgressState>(initialExportProgress);
   const [previewFullscreenOpen, setPreviewFullscreenOpen] = useState(false);
   const [systemFonts, setSystemFonts] = useState<string[]>([]);
@@ -499,39 +512,27 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
       }
     })();
     return () => { cancelled = true; };
-  }, [mode, showToast, templateId]);
+  }, [mode, showToast, templateId, loadRevision]);
 
   const isDirty = useMemo(() => !savedConfig || JSON.stringify(config) !== JSON.stringify(savedConfig), [config, savedConfig]);
+  useEffect(() => { if (!isDirty && !saving) setSaveError(''); }, [isDirty, saving]);
   const hasUnsavedChanges = Boolean(loaded && baselineConfig && JSON.stringify(config) !== JSON.stringify(baselineConfig));
-  const confirmLeave = useCallback(async () => getStoredUiAppearance() !== 'modern' || !hasUnsavedChanges || await confirm({
-    title: '模板修改尚未保存',
-    description: '离开后，当前模板尚未保存的排版修改会丢失。',
-    confirmLabel: '放弃修改并继续',
-  }), [hasUnsavedChanges, confirm]);
+  const confirmLeave = useCallback(async () => {
+    if (savingRef.current) { showToast('正在保存模板，请稍候再离开', 'info'); return false; }
+    return !hasUnsavedChanges || await confirm({ title: '模板修改尚未保存', description: '离开后，当前模板尚未保存的排版修改会丢失。', confirmLabel: '放弃修改并继续' });
+  }, [hasUnsavedChanges, confirm, showToast]);
   useEffect(() => {
-    if (getStoredUiAppearance() !== 'modern' || !hasUnsavedChanges) return undefined;
-    return registerNavigationBlocker((destination) => destination === 'bid-template-management' ? Promise.resolve(true) : confirmLeave());
-  }, [hasUnsavedChanges, confirmLeave]);
+    if (!hasUnsavedChanges && !saving) return undefined;
+    return registerNavigationBlocker((destination) => destination === 'bid-template-management' && !savingRef.current ? Promise.resolve(true) : confirmLeave());
+  }, [hasUnsavedChanges, saving, confirmLeave]);
   const returnToTemplates = () => { void confirmLeave().then((allowed) => { if (allowed) onBack?.(); }); };
   const previewStyle = useMemo<CSSProperties>(() => buildExportFormatCssVars(config), [config]);
   const fontOptions = useMemo(() => mergeFontOptions(FONT_OPTIONS, collectConfigFonts(config), systemFonts), [config, systemFonts]);
 
   const updateTemplate = useCallback((updates: Partial<ExportFormatConfig>) => {
+    if (updates.template_name?.trim()) setSaveError((current) => current === templateNameRequiredMessage ? '' : current);
     setConfig((prev) => ({ ...prev, ...updates }));
   }, []);
-
-  const handleConfirmTemplateName = useCallback(() => {
-    const templateName = config.template_name.trim();
-    if (!templateName) {
-      showToast('请输入模板名称', 'info');
-      return;
-    }
-
-    if (templateName !== config.template_name) {
-      updateTemplate({ template_name: templateName });
-    }
-    showToast('模板名称已确认，保存配置后生效', 'success');
-  }, [config.template_name, showToast, updateTemplate]);
 
   const updatePage = useCallback((updates: Partial<PageSetupConfig>) => {
     setConfig((prev) => ({ ...prev, page: { ...prev.page, ...updates } }));
@@ -607,12 +608,16 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
   }, []);
 
   const handleSave = useCallback(async () => {
+    if (savingRef.current || !loaded || loadError) return;
     const templateName = config.template_name.trim();
     if (!templateName) {
+      setSaveError(templateNameRequiredMessage);
+      setSmallView('settings'); setActiveTab('layout'); setFocusName(true);
       showToast('请先填写模板名称', 'info');
       return;
     }
 
+    savingRef.current = true; setSaving(true); setSaveError('');
     try {
       const nextConfig = templateName === config.template_name ? config : { ...config, template_name: templateName };
       const template = currentTemplateId
@@ -627,9 +632,11 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
       setBaselineConfig(template.config);
       showToast(currentTemplateId ? '模板已保存' : '模板已创建', 'success');
     } catch (error) {
-      showToast(`保存失败：${error instanceof Error ? error.message : '未知错误'}`, 'error');
-    }
-  }, [config, currentTemplateId, showToast]);
+      const message = error instanceof Error ? error.message : '未知错误';
+      setSaveError(message);
+      showToast(`保存失败：${message}`, 'error');
+    } finally { savingRef.current = false; setSaving(false); }
+  }, [config, currentTemplateId, showToast, loaded, loadError]);
 
   const handleResetDefault = useCallback(() => {
     if (selectedLayoutPresetId || selectedThemePresetId) {
@@ -775,19 +782,19 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
   const resetToolbarGroup: FloatingToolbarGroup = {
     id: 'template-reset',
     actions: [
-      { id: 'reset-default', label: '重置默认', variant: 'danger', tooltip: selectedLayoutPresetId || selectedThemePresetId ? '恢复当前预设样式，保存后生效' : '恢复默认模版设置，保存后生效', onClick: handleResetDefault },
+      { id: 'reset-default', label: '重置默认', variant: 'danger', disabled: saving, tooltip: selectedLayoutPresetId || selectedThemePresetId ? '恢复当前预设样式，保存后生效' : '恢复默认模版设置，保存后生效', onClick: handleResetDefault },
     ],
   };
   const exportTestToolbarGroup: FloatingToolbarGroup = {
     id: 'template-export-test',
     actions: [
-      { id: 'export-test', label: '导出测试', variant: 'secondary', disabled: exportProgress.running, onClick: () => { void handleExportTest(); } },
+      { id: 'export-test', label: '导出测试', variant: 'secondary', disabled: exportProgress.running || saving, onClick: () => { void handleExportTest(); } },
     ],
   };
   const previewToolbarGroup: FloatingToolbarGroup = {
     id: 'template-preview',
     actions: [
-      { id: 'fullscreen-preview', label: '全屏预览', variant: 'secondary', tooltip: '放大右侧模板预览', onClick: () => setPreviewFullscreenOpen(true) },
+      { id: 'fullscreen-preview', label: '全屏预览', variant: 'secondary', tooltip: '放大右侧模板预览', onClick: () => { fullscreenTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setPreviewFullscreenOpen(true); } },
     ],
   };
   const saveToolbarGroups: FloatingToolbarGroup[] = isDirty
@@ -801,7 +808,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
         {
           id: 'template-save',
           actions: [
-            { id: 'save', label: '保存配置', variant: 'primary', onClick: handleSave },
+            { id: 'save', label: saving ? '正在保存…' : '保存配置', variant: 'primary', disabled: saving || exportProgress.running, onClick: handleSave },
           ],
         },
       ]
@@ -817,7 +824,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
     ? {
         id: 'template-navigation',
         actions: [
-          { id: 'back', label: '返回我的模板', variant: 'secondary', onClick: returnToTemplates },
+          { id: 'back', label: '返回我的模板', variant: 'secondary', disabled: saving, onClick: returnToTemplates },
         ],
       }
     : null;
@@ -853,29 +860,10 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
           </select>
         </label>
         {mode === 'create' ? (
-          <form
-            className="settings-row export-template-name-row"
-            onSubmit={(event) => {
-              event.preventDefault();
-              handleConfirmTemplateName();
-            }}
-          >
-            <div className="settings-row-copy">
-              <strong>设置模板名称</strong>
-              <span>默认按 yudubid-YYYY-MM-DD-HHmmss 格式生成，保存后显示在“我的模板”中。</span>
-            </div>
-            <div className="input-with-action export-template-name-control">
-              <input
-                type="text"
-                value={config.template_name}
-                onChange={(event) => updateTemplate({ template_name: event.target.value })}
-                placeholder="请输入模板名称"
-                aria-label="模板名称"
-                spellCheck={false}
-              />
-              <button type="submit" className="input-with-action-button">确定</button>
-            </div>
-          </form>
+          <label className="settings-row export-template-name-row">
+            <div className="settings-row-copy"><strong>模板名称</strong><span>保存后显示在模板目录中，可按项目或用途命名。</span></div>
+            <input ref={templateNameRef} type="text" value={config.template_name} onChange={(event) => updateTemplate({ template_name: event.target.value })} placeholder="请输入模板名称" aria-label="模板名称" aria-invalid={Boolean(saveError && !config.template_name.trim())} spellCheck={false} />
+          </label>
         ) : null}
       </div>
       <div className="export-format-preset-panel">
@@ -903,7 +891,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
       <div className="settings-list">
         <label className="settings-row">
           <div className="settings-row-copy"><strong>模板名称</strong></div>
-          <input type="text" value={config.template_name} onChange={(event) => updateTemplate({ template_name: event.target.value })} />
+          <input ref={templateNameRef} aria-label="模板名称" aria-invalid={Boolean(saveError && !config.template_name.trim())} type="text" value={config.template_name} onChange={(event) => updateTemplate({ template_name: event.target.value })} />
         </label>
         <label className="settings-row">
           <div className="settings-row-copy"><strong>纸张</strong></div>
@@ -925,10 +913,10 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
         <div className="settings-row">
           <div className="settings-row-copy"><strong>页边距</strong><span>上 / 右 / 下 / 左（厘米）</span></div>
           <div className="export-format-margin-grid">
-            <BufferedNumberInput type="number" min={0} max={10} step={0.1} value={config.page.margin_top_cm} onChange={(event) => updatePage({ margin_top_cm: Number(event.target.value) })} placeholder="上" />
-            <BufferedNumberInput type="number" min={0} max={10} step={0.1} value={config.page.margin_right_cm} onChange={(event) => updatePage({ margin_right_cm: Number(event.target.value) })} placeholder="右" />
-            <BufferedNumberInput type="number" min={0} max={10} step={0.1} value={config.page.margin_bottom_cm} onChange={(event) => updatePage({ margin_bottom_cm: Number(event.target.value) })} placeholder="下" />
-            <BufferedNumberInput type="number" min={0} max={10} step={0.1} value={config.page.margin_left_cm} onChange={(event) => updatePage({ margin_left_cm: Number(event.target.value) })} placeholder="左" />
+            <BufferedNumberInput type="number" min={0} max={10} step={0.1} aria-label="上页边距（厘米）" value={config.page.margin_top_cm} onChange={(event) => updatePage({ margin_top_cm: Number(event.target.value) })} placeholder="上" />
+            <BufferedNumberInput type="number" min={0} max={10} step={0.1} aria-label="右页边距（厘米）" value={config.page.margin_right_cm} onChange={(event) => updatePage({ margin_right_cm: Number(event.target.value) })} placeholder="右" />
+            <BufferedNumberInput type="number" min={0} max={10} step={0.1} aria-label="下页边距（厘米）" value={config.page.margin_bottom_cm} onChange={(event) => updatePage({ margin_bottom_cm: Number(event.target.value) })} placeholder="下" />
+            <BufferedNumberInput type="number" min={0} max={10} step={0.1} aria-label="左页边距（厘米）" value={config.page.margin_left_cm} onChange={(event) => updatePage({ margin_left_cm: Number(event.target.value) })} placeholder="左" />
           </div>
         </div>
         <label className="settings-row">
@@ -1510,16 +1498,17 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
   };
 
   if (!loaded) {
-    return <div className="settings-page export-template-page"><div className="settings-page-scroll"><div className="export-format-loading">加载中...</div></div></div>;
+    return <div className="settings-page export-template-page"><div className="settings-page-scroll"><div className="export-format-loading" role="status">加载中...</div></div></div>;
   }
 
   if (loadError) {
     return (
       <div className="settings-page export-template-page">
         <div className="settings-page-scroll">
-          <div className="export-template-error-state">
+          <div className="export-template-error-state" role="alert">
             <strong>模板加载失败</strong>
             <span>{loadError}</span>
+            <button type="button" className="primary-action" onClick={() => setLoadRevision((value) => value + 1)}>重新读取模板</button>
             {onBack ? <button type="button" className="secondary-action" onClick={returnToTemplates}>返回我的模板</button> : null}
           </div>
         </div>
@@ -1529,17 +1518,17 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
 
   return (
     <div className={`settings-page export-template-page${getStoredUiAppearance() === 'modern' ? ' modern-export-template-page' : ''}`}>
+      {saveError && <div className="template-editor-error" role="alert"><strong>模板未保存</strong><span>{saveError}</span></div>}
       <div className="settings-page-scroll export-template-scroll">
         {getStoredUiAppearance() === 'modern' ? (
           <div className="modern-template-shell">
             <aside className="modern-template-navigation">
               <div className="modern-template-navigation-head">
-                <span>WORD / TEMPLATE</span>
                 <strong>模板设计</strong>
                 <small>调整样式并同步查看页面预览</small>
               </div>
               <nav role="tablist" aria-label="模板设置分类" onKeyDown={handleTabListKeyDown}>
-                {templateTabs.map((tab, index) => (
+                {templateTabs.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
@@ -1549,23 +1538,23 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
                     aria-selected={activeTab === tab.id}
                     tabIndex={activeTab === tab.id ? 0 : -1}
                     className={activeTab === tab.id ? 'is-active' : ''}
-                    onClick={() => setActiveTab(tab.id)}
+                    disabled={saving}
+                    onClick={() => { setActiveTab(tab.id); setSmallView('settings'); }}
                   >
-                    <b>{String(index + 1).padStart(2, '0')}</b>
                     <span><strong>{tab.label}</strong><small>{modernTabDescriptions[tab.id]}</small></span>
-                    <em>›</em>
                   </button>
                 ))}
               </nav>
             </aside>
             <div className="modern-template-main">
               <header className="modern-template-stage-head">
-                <div><span>当前设置 / {String(templateTabs.findIndex((tab) => tab.id === activeTab) + 1).padStart(2, '0')}</span><h2>{templateTabs.find((tab) => tab.id === activeTab)?.label}</h2><p>{modernTabDescriptions[activeTab]}</p></div>
+                <div><h2>{templateTabs.find((tab) => tab.id === activeTab)?.label}</h2><p>{modernTabDescriptions[activeTab]}</p></div>
                 <small>{config.template_name.trim() || (mode === 'create' ? '新模板' : '当前模板')}</small>
               </header>
-              <div className="export-template-workspace modern-template-workspace" role="tabpanel" id="modern-template-panel" aria-labelledby={`modern-template-tab-${activeTab}`}>
-                <section className="settings-page-section export-template-editor">{renderActiveSettings()}</section>
-                <TemplatePreview config={config} previewStyle={previewStyle} />
+              <div className="template-editor-view-switch" role="group" aria-label="编辑器视图"><button type="button" aria-pressed={smallView === 'settings'} onClick={() => setSmallView('settings')}>参数设置</button><button type="button" aria-pressed={smallView === 'preview'} onClick={() => setSmallView('preview')}>排版预览</button></div>
+              <div data-small-view={smallView} className="export-template-workspace modern-template-workspace" role="tabpanel" id="modern-template-panel" aria-labelledby={`modern-template-tab-${activeTab}`}>
+                <section className="settings-page-section export-template-editor"><fieldset className="export-template-fields" disabled={saving} aria-label="模板参数">{renderActiveSettings()}</fieldset></section>
+                <TemplatePreview config={config} previewStyle={previewStyle} showGuide />
               </div>
             </div>
           </div>
@@ -1585,9 +1574,9 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
         </div>
         <div className="export-template-workspace">
           <section className="settings-page-section export-template-editor">
-            {renderActiveSettings()}
+            <fieldset className="export-template-fields" disabled={saving} aria-label="模板参数">{renderActiveSettings()}</fieldset>
           </section>
-          <TemplatePreview config={config} previewStyle={previewStyle} />
+          <TemplatePreview config={config} previewStyle={previewStyle} showGuide />
         </div></>}
       </div>
       <Dialog.Root
@@ -1611,7 +1600,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
               </Dialog.Description>
             </div>
             <div className="export-progress-body">
-              <ProgressBar value={exportProgress.progress} label={`导出测试进度 ${exportProgress.progress}%`} />
+              <TaskProgressSummary label="导出测试" percent={exportProgress.progress} status={exportProgress.error ? 'exception' : exportProgress.running ? 'active' : 'success'} />
               <p>{exportProgress.message || '正在处理导出任务，请稍候。'}</p>
               {exportProgress.warnings.length > 0 && (
                 <div className="export-warning-list">
@@ -1632,22 +1621,22 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
       <Dialog.Root open={previewFullscreenOpen} onOpenChange={setPreviewFullscreenOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="export-template-fullscreen-overlay" />
-          <Dialog.Content className="export-template-fullscreen-dialog">
+          <Dialog.Content className="export-template-fullscreen-dialog" onCloseAutoFocus={(event) => { if (fullscreenTrigger.current?.isConnected) { event.preventDefault(); fullscreenTrigger.current.focus(); } }}>
             <Dialog.Title className="export-template-fullscreen-title">全屏预览</Dialog.Title>
             <Dialog.Description className="export-template-fullscreen-description">当前模板的全屏排版预览。</Dialog.Description>
             <Dialog.Close className="export-template-fullscreen-close" type="button" onClick={() => setPreviewFullscreenOpen(false)}>退出全屏</Dialog.Close>
-            <TemplatePreview config={config} previewStyle={previewStyle} />
+            <TemplatePreview config={config} previewStyle={previewStyle} showGuide />
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
       {getStoredUiAppearance() === 'modern'
-        ? <DockedActionBar label="模板编辑操作" leading={[...(navigationToolbarGroup?.actions || []), ...previewToolbarGroup.actions, ...resetToolbarGroup.actions, ...exportTestToolbarGroup.actions]} trailing={isDirty ? saveToolbarGroups[1].actions : []} status={isDirty ? hasUnsavedChanges ? '修改尚未保存' : '新模板尚未创建' : '已保存'} />
+        ? <DockedActionBar label="模板编辑操作" leading={[...(navigationToolbarGroup?.actions || []), ...previewToolbarGroup.actions, ...resetToolbarGroup.actions, ...exportTestToolbarGroup.actions]} trailing={isDirty ? saveToolbarGroups[1].actions : []} status={saving ? '正在保存…' : saveError ? '保存失败' : isDirty ? hasUnsavedChanges ? '修改尚未保存' : '新模板尚未创建' : '已保存'} />
         : <FloatingToolbar groups={toolbarGroups} label="模版设置保存工具条" />}
     </div>
   );
 }
 
-export function TemplatePreview({ config, previewStyle }: { config: ExportFormatConfig; previewStyle: CSSProperties }) {
+export function TemplatePreview({ config, previewStyle, showGuide = false }: { config: ExportFormatConfig; previewStyle: CSSProperties; showGuide?: boolean }) {
   const previewStageRef = useRef<HTMLDivElement | null>(null);
   const measureRef = useRef<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState<PreviewViewportSize>({ width: 0, height: 0 });
@@ -1959,6 +1948,7 @@ export function TemplatePreview({ config, previewStyle }: { config: ExportFormat
 
   return (
     <aside className="settings-page-section export-template-preview-panel" aria-label="模板预览">
+      {showGuide && <div className="template-preview-guide"><strong>排版预览</strong><span>使用示例内容展示样式，最终效果请以导出的 Word 为准。</span></div>}
       <div className="export-template-preview-scroll" ref={previewStageRef}>
         <div className="export-template-preview-scale-box" style={scaleBoxStyle}>
           <div className="export-template-preview-page-stack">

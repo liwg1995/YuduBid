@@ -1,0 +1,9 @@
+.yb-business-progress { grid-column:1 / -1; width:100%; min-width:0; font-size:12px; line-height:20px; color:var(--yb-text-soft); }
+.yb-business-progress-native { display:grid; grid-template-columns:minmax(0,1fr) 4.5ch; align-items:center; gap:4px 8px; }
+.yb-business-progress-caption { grid-column:1 / -1; display:flex; justify-content:space-between; align-items:baseline; gap:12px; min-width:0; }
+.yb-business-progress-caption > span:first-child { min-width:0; overflow-wrap:anywhere; }
+.yb-progress-status { flex:0 0 auto; font-size:12px; line-height:20px; white-space:nowrap; }
+.yb-business-progress-native progress { width:100%; height:6px; min-width:0; accent-color:var(--yb-primary); }
+.yb-business-progress-value { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.yb-business-progress.is-exception progress { accent-color:var(--yb-progress-error); }
+.yb-business-progress.is-success progress { accent-color:var(--yb-progress-success); }

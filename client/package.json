@@ -1,6 +1,6 @@
 {
   "name": "yudubid-client",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "private": true,
   "description": "禹都AI解决方案助手客户端",
   "author": "禹都一只猫",
@@ -30,6 +30,10 @@
     "verify:document-security": "node scripts/verify-document-security.cjs",
     "verify:mermaid-export": "electron scripts/verify-mermaid-export.cjs",
     "verify:bid-template-export": "electron scripts/verify-bid-template-export.cjs",
+    "verify:presales-export": "electron scripts/verify-presales-export-electron.cjs",
+    "verify:software-presales:persistence": "node scripts/verify-software-presales-persistence.cjs",
+    "verify:office-grant:electron": "node scripts/verify-office-grant-electron.cjs",
+    "verify:document-roundtrip": "electron scripts/verify-document-roundtrip-electron.cjs",
     "verify:mermaid-packaging": "node scripts/verify-mermaid-packaging.cjs",
     "verify:renderer-packaging": "node scripts/verify-renderer-packaging.cjs",
     "verify:asset-packaging": "node scripts/verify-asset-packaging.cjs",
@@ -56,7 +60,11 @@
     "verify:patent-generation:live": "node scripts/verify-patent-generation-live.cjs",
     "verify:plugin-host": "electron scripts/verify-plugin-host.cjs",
     "start": "electron .",
-    "build:blind-helper": "node scripts/build-blind-helper.cjs"
+    "build:blind-helper": "node scripts/build-blind-helper.cjs",
+    "verify:credential-library": "electron scripts/verify-credential-library.cjs",
+    "verify:knowledge-library": "electron scripts/verify-knowledge-library-lifecycle.cjs",
+    "verify:library-lifecycle": "npm run verify:credential-library && npm run verify:knowledge-library",
+    "verify:library-ipc": "electron scripts/verify-library-ipc-electron.cjs"
   },
   "build": {
     "appId": "me.olei.bidkit",
@@ -147,6 +155,7 @@
     "@xmldom/xmldom": "^0.8.15",
     "adm-zip": "^0.6.1",
     "ajv": "^8.20.0",
+    "antd": "^6.6.7",
     "better-sqlite3": "^12.10.0",
     "cfb": "^1.2.2",
     "chardet": "^2.1.1",

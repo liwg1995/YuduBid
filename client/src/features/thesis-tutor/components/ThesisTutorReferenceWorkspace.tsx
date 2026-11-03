@@ -1,3 +1,4 @@
+import { AsyncDialogRoot, AsyncDialogContent, AsyncDialogClose } from '../../../shared/ui/AsyncDialog';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useState } from 'react';
 import type { ThesisTutorBibliographyPreview, ThesisTutorState } from '../../../shared/types/contracts/thesisTutor';
@@ -273,6 +274,7 @@ export function ThesisTutorReferenceWorkspace({
                             type="button"
                             key={chapter.id}
                             className={activeReference.relatedChapterIds.includes(chapter.id) ? 'is-active' : ''}
+                            aria-pressed={activeReference.relatedChapterIds.includes(chapter.id)}
                             onClick={() => toggleReferenceChapter(chapter.id)}
                             disabled={isRunning}
                           >
@@ -291,10 +293,10 @@ export function ThesisTutorReferenceWorkspace({
                   <p>还没有文献或证据条目。可用上方“新增证据”，或在材料区填写内容后拆成证据条目。</p>
                 </div>
               )}
-              <Dialog.Root open={Boolean(importPreview)} onOpenChange={(open) => { if (!open && !importing) setImportPreview(null); }}>
+              <AsyncDialogRoot busy={importing} open={Boolean(importPreview)} onOpenChange={(open) => { if (!open && !importing) setImportPreview(null); }}>
                 <Dialog.Portal>
                   <Dialog.Overlay className="content-regenerate-modal" />
-                  <Dialog.Content className="thesis-tutor-help-card thesis-tutor-bibliography-dialog">
+                  <AsyncDialogContent className="thesis-tutor-help-card thesis-tutor-bibliography-dialog">
                     <Dialog.Title>确认导入题录</Dialog.Title>
                     <Dialog.Description>{importPreview?.fileName} · {importPreview?.format}，识别 {importPreview?.total || 0} 条；可新增 {importPreview?.candidates?.length || 0} 条，重复 {importPreview?.duplicateCount || 0} 条{importPreview?.overflowCount ? `，超出工作区容量 ${importPreview.overflowCount} 条` : ''}。</Dialog.Description>
                     <p>仅导入题录信息，原文、引用格式和观点仍需人工核验。</p>
@@ -303,9 +305,9 @@ export function ThesisTutorReferenceWorkspace({
                       <button type="button" className="secondary-action" onClick={() => setImportPreview(null)} disabled={importing}>取消</button>
                       <button type="button" className="primary-action" onClick={() => void confirmBibliography()} disabled={importing || !importPreview?.candidates?.length}>{importing ? '保存中…' : '确认导入'}</button>
                     </div>
-                  </Dialog.Content>
+                  </AsyncDialogContent>
                 </Dialog.Portal>
-              </Dialog.Root>
+              </AsyncDialogRoot>
             </div>
   );
 }

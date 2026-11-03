@@ -1,3 +1,4 @@
+import '../../../shared/ui/readingDialog.css';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   panelCopy,
@@ -52,7 +53,7 @@ export function ThesisTutorGuidance({
           </Dialog.Trigger>
           <Dialog.Portal>
             <Dialog.Overlay className="content-regenerate-modal" />
-            <Dialog.Content className="thesis-tutor-help-card">
+            <Dialog.Content className="thesis-tutor-help-card yb-reading-dialog">
               <div className="thesis-tutor-help-head">
                 <div>
                   <Dialog.Title>论文导师使用方法</Dialog.Title>

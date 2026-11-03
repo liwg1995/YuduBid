@@ -95,12 +95,12 @@ function CredentialImageField({
               ) : (
                 <span title={image.name}>{image.name}</span>
               )}
-              <button type="button" className="text-button" onClick={() => onRemove(image)} disabled={disabled}>移除</button>
+              <button type="button" className="text-button" aria-label={`移除 ${image.name}`} onClick={() => onRemove(image)} disabled={disabled}>移除</button>
             </div>
           </article>
         ))}
 
-        <button type="button" className="credential-image-add" onClick={() => inputRef.current?.click()} disabled={disabled}>
+        <button type="button" className="credential-image-add" aria-label={`为${title}添加图片`} onClick={() => inputRef.current?.click()} disabled={disabled}>
           <span aria-hidden="true">+</span>
           <strong>添加图片</strong>
           <small>支持多选或拖入</small>

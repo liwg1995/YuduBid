@@ -1,0 +1,146 @@
+/* 启象基础规格：业务模块复用语义变量，保留现有品牌色。 */
+:root[data-ui-appearance='modern'] {
+  --yb-font-body: 14px;
+  --yb-font-caption: 12px;
+  --yb-space-1: 4px;
+  --yb-space-2: 8px;
+  --yb-space-3: 12px;
+  --yb-space-4: 16px;
+  --yb-space-6: 24px;
+  --yb-radius-control: 8px;
+  --yb-button-primary-bg: #7165ce;
+  --yb-button-primary-hover-bg: #665ac0;
+  --yb-button-danger-text: #ffa39e;
+  --yb-button-danger-bg: #3b252e;
+  --yb-button-danger-border: #a85d66;
+  --yb-button-danger-hover-text: #ffccc7;
+  --yb-button-danger-hover-bg: #4c2a34;
+  --yb-button-danger-hover-border: #ff7875;
+  --yb-text-muted: #a1aec3;
+}
+.modern-shell { font-size: var(--yb-font-body); }
+.modern-shell .modern-rail button span { font-size: 12px; }
+.modern-shell .modern-rail button { width: 68px; }
+.modern-shell .modern-navigation-label,
+.modern-shell .modern-navigation-bottom,
+.modern-shell .modern-navigation-brand small,
+.modern-shell .task-monitor-log,
+.modern-shell .task-monitor-state,
+.modern-shell .task-monitor-ai-activity { font-size: var(--yb-font-caption); }
+.modern-shell .modern-navigation nav button { min-height: 40px; font-size: 14px; }
+.modern-shell :where(input, select, textarea) { font-size: var(--yb-font-body); }
+.modern-shell :where(button):disabled { cursor: not-allowed; }
+.modern-shell .modern-hero { min-height: 148px; padding: 20px 24px; }
+.modern-shell .modern-hero p { font-size: 13px; }
+.modern-shell .modern-hero h1 { font-size: clamp(22px, 2vw, 28px); }
+
+.modern-shell .modern-rail button span { white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
+.modern-navigation-search { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 4px 16px; font-size: 12px; color: var(--yb-text-soft); }
+.modern-navigation-search > span { width: 100%; }
+.modern-navigation-search input { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--yb-control-border); border-radius: var(--yb-radius-control); background: var(--yb-control-bg); color: var(--yb-text); font-size: 13px; }
+.modern-navigation-search button { border: 0; padding: 2px; background: transparent; color: var(--yb-primary); cursor: pointer; }
+.modern-navigation-empty { padding: 8px; font-size: 13px; color: var(--yb-text-soft); line-height: 1.6; }
+.modern-breadcrumb button { flex: 0 0 auto; border: 0; padding: 3px; background: transparent; color: var(--yb-text-soft); cursor: pointer; font: inherit; }
+.modern-breadcrumb button:hover { color: var(--yb-primary); }
+.modern-shell .task-monitor-detail, .modern-shell .task-monitor-guidance { margin: 8px 0; color: var(--yb-text-soft); font-size: 12px; line-height: 1.6; }
+.modern-shell .task-monitor-guidance { padding: 8px; border: 1px solid var(--yb-border); border-radius: 6px; background: var(--yb-control-bg); }
+.task-monitor-progress.is-indeterminate { overflow: hidden; }
+.task-monitor-progress.is-indeterminate i { animation: yb-task-indeterminate 1.5s ease-in-out infinite alternate; }
+@keyframes yb-task-indeterminate { from { transform: translateX(-100%); } to { transform: translateX(285%); } }
+@media (prefers-reduced-motion: reduce) { .task-monitor-progress.is-indeterminate i { animation: none; opacity: .6; } }
+
+.modern-shell .task-monitor-progress-heading { align-items: center; gap: 12px; }
+.modern-shell .task-monitor-progress-heading strong { flex: 0 0 auto; min-width: 4.5ch; font-size: 12px; line-height: 20px; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+/* 窄窗口功能导航：遵循抽屉的焦点约束与原位返回行为。 */
+.modern-navigation-heading { position: relative; }
+.modern-navigation-overlay { position: fixed; z-index: 91; inset: 0; background: #02071199; }
+.modern-navigation.modern-navigation-dialog {
+  position: fixed; z-index: 92; inset: 0 auto 0 74px;
+  width: min(280px, calc(100vw - 90px)); box-sizing: border-box;
+  padding: 24px 16px 16px; color: var(--yb-text); background: var(--yb-surface);
+  border-right: 1px solid var(--yb-border); box-shadow: 16px 0 32px #0005;
+}
+.modern-navigation-dialog .modern-navigation-brand { padding-right: 32px; }
+.modern-navigation-close {
+  position: absolute; top: -8px; right: -4px; width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; border-radius: var(--yb-radius-control);
+  color: var(--yb-text-soft); background: transparent; font: inherit; font-size: 22px; cursor: pointer;
+}
+.modern-navigation-close:hover { background: var(--yb-control-bg); color: var(--yb-text); }
+.modern-navigation-dialog nav button { min-height: 40px; color: var(--yb-text-soft); font-size: 14px; line-height: 22px; }
+.modern-navigation-dialog nav button:is(:hover, .is-active) { color: var(--yb-text); background: var(--yb-control-bg); }
+.modern-navigation-dialog :is(.modern-navigation-label, .modern-navigation-bottom, .modern-navigation-brand small) { color: var(--yb-text-muted); font-size: 12px; line-height: 20px; }
+.modern-navigation-dialog .modern-navigation-search input { font: inherit; font-size: 14px; line-height: 22px; }
+.modern-navigation-dialog :is(button, input):focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+
+:is(.credential-company-table-scroll, .feasibility-project-table-scroll, .knowledge-list-table-scroll):focus-visible {
+  outline: 2px solid var(--yb-primary);
+  outline-offset: -2px;
+}
+/* 操作语义同时覆盖页面和挂在 body 下的 Radix 弹窗，不覆盖 Ant 控件或导航按钮。 */
+:root[data-ui-appearance='modern'] body :is(.primary-action, .secondary-action, .danger-action, .text-button) {
+  box-sizing: border-box;
+  min-height: 32px;
+  border-radius: var(--yb-radius-control, 8px);
+  padding: 4px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: 0;
+  box-shadow: none;
+  cursor: pointer;
+  transform: none;
+}
+:root[data-ui-appearance='modern'] body .primary-action {
+  border: 1px solid var(--yb-button-primary-bg);
+  color: #fff;
+  background: var(--yb-button-primary-bg);
+}
+:root[data-ui-appearance='modern'] body .primary-action:hover:not(:disabled) {
+  border-color: var(--yb-primary-hover);
+  color: #fff;
+  background: var(--yb-button-primary-hover-bg);
+  box-shadow: none;
+  transform: none;
+}
+:root[data-ui-appearance='modern'] body .secondary-action {
+  border: 1px solid var(--yb-control-border);
+  color: var(--yb-text);
+  background: var(--yb-control-bg);
+}
+:root[data-ui-appearance='modern'] body .secondary-action:hover:not(:disabled) {
+  border-color: var(--yb-primary);
+  color: var(--yb-primary-hover);
+  background: var(--yb-surface);
+  transform: none;
+}
+:root[data-ui-appearance='modern'] body :is(.danger-action, .secondary-action.is-danger) {
+  border: 1px solid var(--yb-button-danger-border);
+  color: var(--yb-button-danger-text);
+  background: var(--yb-button-danger-bg);
+}
+:root[data-ui-appearance='modern'] body :is(.danger-action, .secondary-action.is-danger):hover:not(:disabled) {
+  border-color: var(--yb-button-danger-hover-border);
+  color: var(--yb-button-danger-hover-text);
+  background: var(--yb-button-danger-hover-bg);
+  transform: none;
+}
+:root[data-ui-appearance='modern'] body .text-button {
+  border: 1px solid transparent;
+  color: var(--yb-primary);
+  background: transparent;
+}
+:root[data-ui-appearance='modern'] body .text-button:hover:not(:disabled) {
+  color: var(--yb-primary-hover);
+  background: var(--yb-control-bg);
+}
+:root[data-ui-appearance='modern'] body :is(.primary-action, .secondary-action, .danger-action, .text-button):focus-visible {
+  outline: 2px solid var(--yb-primary);
+  outline-offset: 2px;
+}
+:root[data-ui-appearance='modern'] body :is(.primary-action, .secondary-action, .danger-action, .text-button):disabled {
+  cursor: not-allowed;
+  opacity: .52;
+}

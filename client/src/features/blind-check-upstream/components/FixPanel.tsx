@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MagicWandIcon } from '@radix-ui/react-icons';
-import { AppSwitch, ProgressBar } from '../../../shared/ui';
+import { AppSwitch } from '../../../shared/ui';
+import TaskProgressSummary from '../../../shared/ui/TaskProgressSummary';
 import { fixGroups } from '../fixItems';
 import type { BlindCheckFixResultState, BlindCheckTaskState } from '../types';
 import { severityLabels } from './FindingGroupList';
@@ -87,7 +88,7 @@ export default function FixPanel({ fixRules, currentCounts, fixResult, fixTask, 
                       <small>{item.hint}</small>
                     </span>
                     <div className="blind-check-fix-control">
-                      <em className={count ? 'has-issues' : ''}>{count ? `当前 ${count} 处` : '未发现'}</em>
+                      <em className={count ? 'has-issues' : ''}>{!checkReady ? '待检查' : count ? `当前 ${count} 处` : '未发现'}</em>
                       <AppSwitch checked={selected.has(item.ruleId)} disabled={running || busy} onCheckedChange={(checked) => onToggle(item.ruleId, checked)} aria-label={item.label} />
                     </div>
                   </div>
@@ -120,7 +121,7 @@ export default function FixPanel({ fixRules, currentCounts, fixResult, fixTask, 
           <span className="section-kicker">暗标自动修复</span>
           <h3>正在修复文档</h3>
           <p>{fixTask?.logs?.at(-1) || '正在准备修复。'}</p>
-          <ProgressBar value={progress} label={`暗标自动修复进度 ${progress}%`} />
+          <TaskProgressSummary label="自动修复" percent={progress} status="active" />
         </div>
       );
     }

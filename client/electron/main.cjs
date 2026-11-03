@@ -6,6 +6,7 @@ const { registerIpcHandlers } = require('./ipc/index.cjs');
 const { downloadReleaseInstaller, cancelReleaseInstallerDownload, installDownloadedRelease, getDownloadedReleasePath } = require('./services/updateService.cjs');
 const { getCredentialLibraryDir, getGeneratedImagesDir, getImportedImagesDir, getKnowledgeImageLibraryDir, getSoftwareCopyrightDir } = require('./utils/paths.cjs');
 const { createAppLogger } = require('./utils/appLogger.cjs');
+const { findFeasibilityImportedImage } = require('./utils/importedImages.cjs');
 
 const rendererUrl = process.env.ELECTRON_RENDERER_URL;
 const userDataDir = process.env.YIBIAO_USER_DATA_DIR;
@@ -84,11 +85,14 @@ function registerAssetProtocol() {
       }
 
       const baseDir = path.resolve(rootDir);
-      const filePath = path.resolve(baseDir, relativePath);
+      let filePath = path.resolve(baseDir, relativePath);
       if (filePath !== baseDir && !filePath.startsWith(`${baseDir}${path.sep}`)) {
         return new Response('Forbidden', { status: 403 });
       }
 
+      if (url.hostname === 'imported-images' && !fs.existsSync(filePath)) {
+        filePath = findFeasibilityImportedImage(app, relativePath) || filePath;
+      }
       if (!fs.existsSync(filePath)) {
         return new Response('Not found', { status: 404 });
       }

@@ -1,0 +1,30 @@
+/* 只用于说明/流程弹窗；业务编辑器、文档纸张和全屏预览保留各自布局。 */
+:root body .yb-reading-dialog[role="dialog"][data-state] {
+  box-sizing:border-box; display:flex; flex-direction:column; gap:16px;
+  max-width:calc(100vw - 32px); max-height:calc(100dvh - 32px); padding:24px;
+  overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin;
+  scroll-padding-block:16px 72px; color:var(--yb-text); background:var(--yb-surface);
+  border:1px solid var(--yb-border); border-radius:12px;
+}
+:root body .yb-reading-dialog > * { flex:0 0 auto; min-width:0; }
+:root body .yb-reading-dialog :is(h2,h3,h4,strong) { color:var(--yb-text); }
+:root body .yb-reading-dialog h2 { margin:0 0 8px; font-size:16px; line-height:24px; }
+:root body .yb-reading-dialog :is(p,li) { color:var(--yb-text-soft); font-size:14px; line-height:22px; overflow-wrap:anywhere; }
+:root body .yb-reading-dialog > :is(.thesis-tutor-help-head,.project-management-help-head,.detail-help-head,.official-document-reminder-head,.content-regenerate-card-head) { position:sticky; top:-24px; z-index:2; padding:16px 0; background:var(--yb-surface); border-bottom:1px solid var(--yb-border-soft); }
+:root body .yb-reading-dialog > :is(.thesis-tutor-help-actions,.project-management-help-actions,.detail-help-actions,.grant-application-dialog-actions) { position:sticky; bottom:-24px; z-index:2; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; margin:0; padding:16px 0; background:var(--yb-surface); border-top:1px solid var(--yb-border-soft); }
+:root body .yb-reading-dialog :is(.thesis-tutor-help-flow,.thesis-tutor-help-modules,.thesis-tutor-help-lock,.thesis-tutor-help-steps article,.project-management-help-body section) { padding:16px; border-color:var(--yb-border-soft); border-radius:8px; background:transparent; }
+:root body .yb-reading-dialog :is(.thesis-tutor-help-flow span,.thesis-tutor-help-modules span,.project-management-help-modules span) { color:var(--yb-text); background:var(--yb-control-bg); border-color:var(--yb-control-border); font-weight:400; overflow-wrap:anywhere; }
+:root body .yb-reading-dialog :is(.thesis-tutor-help-tip,.grant-application-help-note) { color:var(--yb-text-soft); background:var(--yb-control-bg); border-color:var(--yb-border); line-height:22px; }
+:root body .yb-reading-dialog .detail-help-close { flex:0 0 auto; }
+:root body .yb-reading-dialog button:focus-visible { outline:2px solid var(--yb-primary); outline-offset:2px; }
+@media (max-width:600px) {
+  :root body .yb-reading-dialog[role="dialog"][data-state] { padding:16px; gap:12px; }
+  :root body .yb-reading-dialog > :is(.thesis-tutor-help-head,.project-management-help-head,.detail-help-head,.official-document-reminder-head,.content-regenerate-card-head) { top:-16px; }
+  :root body .yb-reading-dialog > :is(.thesis-tutor-help-actions,.project-management-help-actions,.detail-help-actions,.grant-application-dialog-actions) { bottom:-16px; }
+  :root body .yb-reading-dialog .thesis-tutor-help-modules div { grid-template-columns:minmax(0,1fr); }
+}
+:root body .yb-reading-dialog .official-document-reminder-body { min-height:auto; overflow:visible; padding:0; }
+:root body .yb-reading-dialog :is(.official-document-panel,.grant-application-help-content section) { background:transparent; border-color:var(--yb-border-soft); }
+@media (max-width:600px) {
+  :root body .yb-reading-dialog .official-document-reminder-body { grid-template-columns:minmax(0,1fr); }
+}

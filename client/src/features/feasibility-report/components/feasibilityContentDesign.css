@@ -1,0 +1,41 @@
+.feasibility-content-actions { display:flex; flex:0 0 auto; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; }
+.feasibility-content-actions > span { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-content-actions > div { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.feasibility-content-more { position:relative; color:var(--yb-text); font-size:14px; line-height:22px; }
+.feasibility-content-more summary { padding:4px 8px; min-height:32px; box-sizing:border-box; cursor:pointer; }
+.feasibility-content-more > div { position:absolute; right:0; top:36px; z-index:5; display:flex; min-width:180px; flex-direction:column; padding:8px; border:1px solid var(--yb-control-border); border-radius:6px; background:var(--yb-card-bg); box-shadow:0 4px 16px #0002; }
+.feasibility-content-more button { border:0; color:var(--yb-text); background:transparent; text-align:left; }
+.feasibility-content-columns { flex:1; display:grid; grid-template-columns:minmax(240px,30%) minmax(0,1fr); gap:16px; min-height:0; min-width:0; overflow:hidden; }
+.feasibility-content-nav { display:flex; flex-direction:column; gap:8px; min-height:0; min-width:0; border:1px solid var(--yb-border-soft); border-radius:8px; padding:12px; overflow:hidden; }
+.feasibility-content-nav > strong { color:var(--yb-text); font-size:16px; line-height:24px; }
+.feasibility-content-nav > input { width:100%; box-sizing:border-box; color:var(--yb-text); background:var(--yb-control-bg); border:1px solid var(--yb-control-border); border-radius:6px; padding:4px 8px; }
+.feasibility-content-nav > div { flex:1; min-height:0; overflow:auto; }
+.feasibility-content-nav .ant-tree { background:transparent; }
+.feasibility-content-nav .ant-tree-node-content-wrapper { min-width:0; padding:4px; }
+.feasibility-outline-node-title > small { flex:0 0 auto; margin-left:auto; color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-content-reading { display:flex; flex-direction:column; gap:8px; min-height:0; min-width:0; }
+.feasibility-content-context { display:flex; flex:0 0 auto; flex-wrap:wrap; align-items:baseline; gap:8px 16px; max-height:96px; overflow:auto; }
+.feasibility-content-context strong { color:var(--yb-text); font-size:16px; line-height:24px; overflow-wrap:anywhere; }
+.feasibility-content-context span,.feasibility-content-context details { color:var(--yb-text-soft); font-size:12px; line-height:20px; }
+.feasibility-content-context details[open] { flex-basis:100%; }
+.feasibility-content-context summary { cursor:pointer; }
+.feasibility-content-completed { flex:0 0 auto; max-height:100px; overflow:auto; font-size:12px; line-height:20px; color:var(--yb-text-soft); }
+.feasibility-content-completed summary { cursor:pointer; }
+.feasibility-content-pane-toggle { display:none; }
+:root .feasibility-content-config { max-height:calc(100vh - 48px); overflow:hidden; display:flex; flex-direction:column; }
+:root .feasibility-content-config .content-generation-config-list { min-width:0; margin:0; padding:16px 0; border:0; overflow:auto; }
+@container (max-width:720px) {
+  .feasibility-content-columns { grid-template-columns:minmax(0,1fr); }
+  .feasibility-content-columns.show-nav .feasibility-content-reading,.feasibility-content-columns:not(.show-nav) .feasibility-content-nav { display:none; }
+  .feasibility-content-pane-toggle { display:flex; flex:0 0 auto; align-items:center; gap:16px; }
+  .feasibility-content-pane-toggle span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; line-height:20px; color:var(--yb-text-soft); }
+}
+@container (max-width:850px) {
+  :root .modern-feasibility-stage:has(.feasibility-content-design) .feasibility-step-command-bar p { display:none; }
+  :root .modern-feasibility-workbench:has(.feasibility-content-design) .modern-feasibility-context { padding-bottom:8px; }
+  :root .modern-feasibility-workbench:has(.feasibility-content-design) .modern-feasibility-context .section-kicker { display:none; }
+  :root .modern-feasibility-stage:has(.feasibility-content-design) .feasibility-step-command-bar { padding:12px 16px; }
+}
+
+.feasibility-content-context [data-content-heading] { display:flex; min-width:0; align-items:baseline; gap:8px; }
+.feasibility-content-context .feasibility-content-section-number { flex:0 0 auto; font-size:14px; line-height:22px; font-variant-numeric:tabular-nums; color:var(--yb-text-soft); }

@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { app } = require('electron');
 const AdmZip = require('adm-zip');
 const { buildDocxResult } = require('../electron/services/exportService.cjs');
 const { cloneDefaultBidExportTemplate } = require('../electron/services/bidTemplateFormat.cjs');
@@ -34,4 +35,10 @@ async function main() {
   console.log('招投标模板正文和标题字符缩进、段间距验证通过');
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+main().then(() => {
+  app?.exit(0);
+}).catch((error) => {
+  console.error(error);
+  if (app) app.exit(1);
+  else process.exitCode = 1;
+});

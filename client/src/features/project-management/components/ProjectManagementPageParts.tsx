@@ -1,3 +1,9 @@
+import '../../../shared/ui/readingDialog.css';
+import * as Popover from '@radix-ui/react-popover';
+import './projectDictionarySelect.css';
+import WorkspaceFormSection from '../../../shared/ui/WorkspaceFormSection';
+import WorkspaceViewControl from '../../../shared/ui/WorkspaceViewControl';
+import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MarkdownEditor, MarkdownRenderer } from '../../../shared/ui';
@@ -59,7 +65,6 @@ export function ProjectManagementModuleWorkspace<TInput extends object>({
       <section className="project-management-form-panel">
         <div className="project-management-panel-head">
           <div>
-            <span className="section-kicker">{inputKicker}</span>
             <h4>{inputTitle}</h4>
           </div>
           <div className="project-management-actions">
@@ -69,7 +74,7 @@ export function ProjectManagementModuleWorkspace<TInput extends object>({
             </button>
           </div>
         </div>
-        <div className="project-management-input-grid">
+        <WorkspaceFormSection title={inputKicker} className="project-management-input-section">
           {fields.map((field) => (
             <label key={String(field.key)}>
               <span>{field.label}</span>
@@ -81,7 +86,7 @@ export function ProjectManagementModuleWorkspace<TInput extends object>({
               />
             </label>
           ))}
-        </div>
+        </WorkspaceFormSection>
       </section>
 
       <ProjectManagementTaskStatus task={task} />
@@ -93,9 +98,7 @@ export function ProjectManagementModuleWorkspace<TInput extends object>({
             <h4>生成后可继续编辑保存</h4>
           </div>
           <div className="project-management-actions">
-            <button type="button" className="secondary-action" onClick={onToggleResultMode}>
-              {resultMode === 'edit' ? '预览' : '编辑'}
-            </button>
+            <WorkspaceViewControl label="项目阶段结果查看方式" value={resultMode} onChange={mode => { if (mode !== resultMode) onToggleResultMode(); }} options={[{ value: 'edit', label: '编辑' }, { value: 'preview', label: '预览' }]} />
             <button type="button" className="secondary-action" onClick={() => void onSaveResult()} disabled={isRunning}>{saveResultLabel}</button>
             <button type="button" className="primary-action" onClick={() => void onExportWord()} disabled={isRunning || exporting || !result.trim()}>
               {exporting ? '导出中...' : '导出 Word'}
@@ -105,11 +108,11 @@ export function ProjectManagementModuleWorkspace<TInput extends object>({
         {exportProgress && (
           <div className={`project-management-export is-${exportProgress.phase}`}>
             <span>{exportProgress.message}</span>
-            <strong>{exportProgress.progress}%</strong>
+            <BusinessTaskProgress label="Word 导出" percent={exportProgress.progress} status={exportProgress.phase === 'error' ? 'exception' : exportProgress.phase === 'success' ? 'success' : 'active'} />
           </div>
         )}
         {resultMode === 'edit' ? (
-          <MarkdownEditor value={result} onChange={onResultChange} placeholder={resultPlaceholder} disabled={isRunning} />
+          <MarkdownEditor ariaLabel={`${resultKicker}工作稿`} value={result} onChange={onResultChange} placeholder={resultPlaceholder} disabled={isRunning} />
         ) : (
           <div className="project-management-preview">
             {result.trim() ? <MarkdownRenderer allowRawHtml={false}>{result}</MarkdownRenderer> : <p>暂无可预览内容。</p>}
@@ -130,11 +133,19 @@ interface ProjectDictionarySelectProps {
 }
 
 export function ProjectDictionarySelect({ value, options, placeholder, addLabel, onChange, disabled }: ProjectDictionarySelectProps) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const [customMode, setCustomMode] = useState(false);
   const [draft, setDraft] = useState('');
   const [keyword, setKeyword] = useState('');
+  useEffect(() => {
+    if (disabled) {
+      setOpen(false);
+      setCustomMode(false);
+      setDraft('');
+      setKeyword('');
+    }
+  }, [disabled]);
   const normalizedOptions = useMemo(() => Array.from(new Set([...options, value].map((item) => item.trim()).filter(Boolean))), [options, value]);
   const visibleOptions = useMemo(() => {
     const query = keyword.trim().toLowerCase();
@@ -143,32 +154,9 @@ export function ProjectDictionarySelect({ value, options, placeholder, addLabel,
   }, [keyword, normalizedOptions]);
   const needsSearch = normalizedOptions.length > 8;
 
-  useEffect(() => {
-    if (!open) return undefined;
-    function closeSelect() {
-      setOpen(false);
-      setCustomMode(false);
-      setKeyword('');
-    }
-    function handlePointerDown(event: PointerEvent) {
-      const target = event.target;
-      if (target instanceof Node && rootRef.current?.contains(target)) return;
-      closeSelect();
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') closeSelect();
-    }
-    document.addEventListener('pointerdown', handlePointerDown, true);
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown, true);
-      document.removeEventListener('keydown', handleKeyDown, true);
-    };
-  }, [open]);
-
   function commitCustom() {
     const nextValue = draft.trim();
-    if (!nextValue) return;
+    if (disabled || !nextValue) return;
     onChange(nextValue);
     setDraft('');
     setKeyword('');
@@ -177,25 +165,26 @@ export function ProjectDictionarySelect({ value, options, placeholder, addLabel,
   }
 
   return (
-    <div className="project-management-select" ref={rootRef}>
+    <Popover.Root open={open && !disabled} onOpenChange={nextOpen => { if (disabled) return; setOpen(nextOpen); setCustomMode(false); if (!nextOpen) setKeyword(''); }}>
+    <div className="project-management-select">
+      <Popover.Trigger asChild>
       <button
         type="button"
         className={`project-management-select-trigger${value ? '' : ' is-placeholder'}`}
-        onClick={() => {
-          if (disabled) return;
-          setOpen((current) => !current);
-          setCustomMode(false);
-        }}
+        aria-label={placeholder}
+        onKeyDown={event => { if (event.key === 'ArrowDown' && !disabled) { event.preventDefault(); setOpen(true); } }}
         disabled={disabled}
       >
         <span>{value || placeholder}</span>
-        <b>⌄</b>
+        <b aria-hidden="true">⌄</b>
       </button>
-      {open ? (
-        <div className="project-management-select-menu">
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content className="project-management-select-menu" aria-label={placeholder} align="start" sideOffset={6} collisionPadding={12}>
           {needsSearch ? (
             <input
               className="project-management-select-search"
+              aria-label="搜索选项"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               placeholder="搜索选项"
@@ -209,6 +198,7 @@ export function ProjectDictionarySelect({ value, options, placeholder, addLabel,
                 className={item === value ? 'is-active' : ''}
                 key={item}
                 onClick={() => {
+                  if (disabled) return;
                   onChange(item);
                   setKeyword('');
                   setOpen(false);
@@ -220,15 +210,16 @@ export function ProjectDictionarySelect({ value, options, placeholder, addLabel,
           </div>
           {customMode ? (
             <div className="project-management-select-custom">
-              <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={addLabel.replace('新增', '输入新')} autoFocus />
+              <input aria-label={addLabel} value={draft} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing && draft.trim()) { event.preventDefault(); commitCustom(); } }} onChange={(event) => setDraft(event.target.value)} placeholder={addLabel.replace('新增', '输入新')} autoFocus />
               <div className="project-management-select-custom-actions">
-                <button type="button" onClick={() => { setCustomMode(false); setDraft(''); }}>取消</button>
-                <button type="button" onClick={commitCustom}>确定</button>
+                <button type="button" onClick={() => { setCustomMode(false); setDraft(''); requestAnimationFrame(() => addButtonRef.current?.focus()); }}>取消</button>
+                <button type="button" onClick={commitCustom} disabled={!draft.trim()}>确定</button>
               </div>
             </div>
           ) : (
             <button
               type="button"
+              ref={addButtonRef}
               className="project-management-select-add"
               onClick={() => {
                 setDraft(keyword.trim());
@@ -238,9 +229,10 @@ export function ProjectDictionarySelect({ value, options, placeholder, addLabel,
               + {addLabel}
             </button>
           )}
-        </div>
-      ) : null}
+        </Popover.Content>
+      </Popover.Portal>
     </div>
+    </Popover.Root>
   );
 }
 
@@ -271,17 +263,11 @@ export function ProjectManagementTaskStatus({ task }: { task?: ProjectManagement
   if (!task) return null;
 
   const running = task.status === 'running';
-  const progress = running
-    ? Math.max(12, Math.min(92, task.progress || 12))
-    : Math.max(0, Math.min(100, task.progress || 0));
+
 
   return (
     <section className={`project-management-task is-${task.status}${running ? ' is-running' : ''}`}>
-      <div>
-        <strong>{task.message}</strong>
-        <span>{running ? '持续生成中' : `${progress}%`}</span>
-      </div>
-      <i><b style={{ width: `${progress}%` }} /></i>
+      <BusinessTaskProgress label={task.message || '任务阶段'} percent={task.progress} status={task.status === 'error' ? 'exception' : task.status === 'success' ? 'success' : 'active'} />
       {running && <p>模型正在处理完整文档，期间进度条会持续活动；完成后会一次性写入结果。</p>}
     </section>
   );
@@ -300,7 +286,7 @@ export function ProjectManagementHelpDialog({ modules, triggerMode = 'button' }:
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="content-regenerate-modal" />
-        <Dialog.Content className="project-management-help-card">
+        <Dialog.Content className="project-management-help-card yb-reading-dialog">
           <div className="project-management-help-head">
             <div>
               <Dialog.Title>项目管理使用方法</Dialog.Title>

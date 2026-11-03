@@ -1,0 +1,2 @@
+:root body .thesis-tutor-result-panel .thesis-tutor-preview { color:var(--yb-text); background:var(--yb-surface); border-color:var(--yb-border-soft); overflow-wrap:anywhere; }
+:root body .thesis-tutor-result-panel .thesis-tutor-result-hint { color:var(--yb-text-soft); background:transparent; border-color:var(--yb-border-soft); }

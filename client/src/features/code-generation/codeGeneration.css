@@ -6,7 +6,7 @@
   padding: 22px;
   border: 1px solid rgba(33, 116, 253, 0.14);
   border-radius: 18px;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
 }
 
 .code-generation-preview-card span,
@@ -41,7 +41,7 @@
   padding: 16px 18px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--yb-card-bg);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
 
@@ -100,7 +100,7 @@
   padding: 7px 11px;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 999px;
-  background: #f0f7ff;
+  background: var(--yb-card-bg);
   color: #1d4ed8;
   font-size: 13px;
   font-weight: 800;
@@ -108,7 +108,7 @@
 
 .code-generation-notice-link:hover {
   border-color: rgba(37, 99, 235, 0.28);
-  background: #eaf2ff;
+  background: var(--yb-control-bg);
   transform: translateY(-1px);
 }
 
@@ -170,7 +170,7 @@
   border-radius: 999px;
   padding: 6px 10px;
   color: #047857;
-  background: #ecfdf5;
+  background: var(--yb-card-bg);
   font-size: 12px;
   font-weight: 800;
 }
@@ -195,7 +195,7 @@
   border-radius: 999px;
   padding: 8px 12px;
   color: #64748b;
-  background: #f8fafc;
+  background: var(--yb-control-bg);
   font-size: 13px;
   font-weight: 800;
 }
@@ -224,7 +224,7 @@
   padding: 12px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--yb-card-bg);
 }
 
 .code-generation-file-row input {
@@ -684,7 +684,7 @@
   padding: 12px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--yb-card-bg);
   color: #314059;
   font-size: 13px;
   font-weight: 800;
@@ -714,7 +714,7 @@
   overflow: hidden;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 18px;
-  background: #fff;
+  background: var(--yb-card-bg);
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.22);
   transform: translate(-50%, -50%);
 }
@@ -726,7 +726,7 @@
   gap: 18px;
   padding: 22px 24px 16px;
   border-bottom: 1px solid rgba(27, 50, 92, 0.08);
-  background: #f8fbff;
+  background: var(--yb-card-bg);
 }
 
 .code-generation-ai-notice-head h2 {
@@ -758,7 +758,7 @@
   padding: 16px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 14px;
-  background: #fff;
+  background: var(--yb-card-bg);
 }
 
 .code-generation-ai-notice-body h3 {
@@ -805,7 +805,7 @@
   justify-content: flex-end;
   padding: 14px 24px 20px;
   border-top: 1px solid rgba(27, 50, 92, 0.08);
-  background: #fff;
+  background: var(--yb-card-bg);
 }
 
 @media (max-width: 1180px) {

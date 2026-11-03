@@ -1774,7 +1774,7 @@
 }
 
 .template-library-card-actions button.is-danger {
-  color: var(--yb-danger);
+  color: var(--yb-danger, #c83220);
   background: rgba(200, 50, 32, 0.08);
   border-color: rgba(200, 50, 32, 0.12);
 }

@@ -1,7 +1,12 @@
+import TaskProgressSummary from '../../../shared/ui/TaskProgressSummary';
+import { Tree } from 'antd';
+import type { DataNode } from 'antd/es/tree';
+import EnterpriseUiProvider from '../../../shared/ui/EnterpriseUiProvider';
 import * as Dialog from '@radix-ui/react-dialog';
+import * as Popover from '@radix-ui/react-popover';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CSSProperties } from 'react';
-import { useToast } from '../../../shared/ui';
+import { useAppDialog, useToast } from '../../../shared/ui';
 import { ActivityWaiting } from '../../../shared/ui/ActivityWaiting';
 import type { BackgroundTaskState, TechnicalPlanWorkflowKind } from '../types';
 import type { KnowledgeBaseIndex, KnowledgeDocument } from '../../knowledge-base/types';
@@ -26,6 +31,7 @@ interface OutlineEditPageProps {
   onOutlineConfigChange: (mode: OutlineMode, documentIds: string[]) => Promise<void>;
   onOutlineGenerated: (outlineData: OutlineData) => Promise<void>;
   openGenerationConfigRequestId?: number;
+  onDraftDirtyChange?: (dirty: boolean) => void;
 }
 
 const emptyKnowledgeIndex: KnowledgeBaseIndex = { folders: [], documents: [] };
@@ -136,11 +142,14 @@ function OutlineEditPage({
   onOutlineConfigChange,
   onOutlineGenerated,
   openGenerationConfigRequestId,
+  onDraftDirtyChange,
 }: OutlineEditPageProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [outlineSearch, setOutlineSearch] = useState('');
+  const selectionPending = useRef(false);
   const [editDescription, setEditDescription] = useState('');
   const [startingOutline, setStartingOutline] = useState(false);
   const [taskActionPending, setTaskActionPending] = useState(false);
@@ -161,13 +170,26 @@ function OutlineEditPage({
   const [knowledgeIndex, setKnowledgeIndex] = useState<KnowledgeBaseIndex>(emptyKnowledgeIndex);
   const [loadingKnowledge, setLoadingKnowledge] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [savingOutline, setSavingOutline] = useState(false);
   const savingOutlineRef = useRef(false);
   const [localStartAt, setLocalStartAt] = useState<number | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const logListRef = useRef<HTMLDivElement | null>(null);
   const { showToast } = useToast();
+  const { confirm } = useAppDialog();
   const selectedItem = outlineData && selectedItemId ? findOutlineItem(outlineData.outline, selectedItemId) : null;
+  const editingOriginal = outlineData && editingItemId ? findOutlineItem(outlineData.outline, editingItemId) : null;
+  const outlineDirty = Boolean(editingOriginal && (editTitle !== editingOriginal.title || editDescription !== editingOriginal.description));
+  useEffect(() => { onDraftDirtyChange?.(getStoredUiAppearance() === 'modern' && outlineDirty); }, [outlineDirty, onDraftDirtyChange]);
+  useEffect(() => () => onDraftDirtyChange?.(false), [onDraftDirtyChange]);
+  const confirmDiscardOutline = async () => !outlineDirty || await confirm({ title: '目录修改尚未保存', description: '继续后，本次标题和描述修改会丢失。', confirmLabel: '放弃修改并继续' });
+  const selectOutlineItem = async (id: string) => {
+    if (id === selectedItemId || selectionPending.current || savingOutlineRef.current) return;
+    selectionPending.current = true;
+    try { if (await confirmDiscardOutline()) { setEditingItemId(null); setSelectedItemId(id); } }
+    finally { selectionPending.current = false; }
+  };
   const taskRunning = ['running', 'pausing', 'stopping'].includes(task?.status || '');
   const taskPaused = task?.status === 'paused';
   const taskFailed = task?.status === 'error';
@@ -288,6 +310,7 @@ function OutlineEditPage({
   };
 
   const generateOutline = async () => {
+    if (getStoredUiAppearance() === 'modern' && !await confirmDiscardOutline()) return;
     if (!projectOverview || !techRequirements) {
       showToast('请先完成招标文件解析', 'info');
       return;
@@ -311,6 +334,7 @@ function OutlineEditPage({
         responseFileRequirements,
         reference_knowledge_document_ids: draftKnowledgeDocumentIds,
       });
+      setEditingItemId(null);
       showToast('目录生成任务已在后台启动', 'success');
     } catch (error) {
       setStartingOutline(false);
@@ -433,6 +457,8 @@ function OutlineEditPage({
   };
 
   const addRootItem = async () => {
+    if (getStoredUiAppearance() === 'modern' && !await confirmDiscardOutline()) return;
+    setEditingItemId(null);
     if (!outlineData || mutationBlocked) {
       return;
     }
@@ -448,6 +474,8 @@ function OutlineEditPage({
   };
 
   const addChildItem = async (parentId: string) => {
+    if (getStoredUiAppearance() === 'modern' && !await confirmDiscardOutline()) return;
+    setEditingItemId(null);
     if (!outlineData || mutationBlocked) {
       return;
     }
@@ -471,6 +499,7 @@ function OutlineEditPage({
   };
 
   const removeItem = async (itemId: string) => {
+    if (getStoredUiAppearance() === 'modern' && !await confirm({ title: '删除此目录项？', description: '此目录项及其子目录会删除，旧正文和生成缓存也会清空。', confirmLabel: '删除目录项', danger: true })) return;
     if (!outlineData || mutationBlocked) {
       return;
     }
@@ -727,31 +756,31 @@ function OutlineEditPage({
     />
   );
 
-  const renderModernItem = (item: OutlineItem): ReactNode => {
-    const hasChildren = Boolean(item.children?.length);
-    const expanded = expandedItems.has(item.id);
-    return <div className="modern-outline-node" key={item.id}>
-      <div className={`modern-outline-item${selectedItemId === item.id ? ' is-active' : ''}`}>
-        <button type="button" className="modern-outline-expand" onClick={() => toggleExpanded(item.id)} disabled={!hasChildren} aria-label={hasChildren ? `${expanded ? '折叠' : '展开'} ${item.title}` : `${item.title} 无子目录`}>{hasChildren ? expanded ? '▾' : '▸' : '·'}</button>
-        <button type="button" className="modern-outline-select" onClick={() => setSelectedItemId(item.id)} onDoubleClick={() => hasChildren && toggleExpanded(item.id)}><span>{item.id}</span><strong>{item.title}</strong><small>{item.description || '无描述'}</small></button>
-      </div>
-      {hasChildren && expanded && item.children?.map((child) => renderModernItem(child))}
-    </div>;
-  };
+  const searchExpanded: string[] = [];
+  const buildModernTree = (items: OutlineItem[], parentMatches = false): DataNode[] => items.flatMap((item): DataNode[] => {
+    const matches = parentMatches || !outlineSearch.trim() || `${item.id} ${item.title} ${item.description}`.toLocaleLowerCase().includes(outlineSearch.trim().toLocaleLowerCase());
+    const children = item.children?.length ? buildModernTree(item.children, matches) : undefined;
+    if (!matches && !children?.length) return [];
+    if (children?.length) searchExpanded.push(item.id);
+    return [{ key: item.id, children, title: <span className="outline-structure-label" title={item.description || item.title}><span>{item.id}</span><strong>{item.title}</strong></span> }];
+  });
+  const modernTree = buildModernTree(outlineData?.outline || []);
 
   if (getStoredUiAppearance() === 'modern') {
-    return <div className="modern-outline-page">
-      <header className="modern-outline-header"><div><span>目录结构工作台</span><h2>组织技术方案章节</h2><p>当前参考知识库：{referenceKnowledgeDocumentIds.length ? `已选 ${referenceKnowledgeDocumentIds.length} 个文档` : '未选择文档'}。</p></div><button type="button" onClick={openGenerationDialog} disabled={mutationBlocked || !projectOverview || !techRequirements}>{generating ? 'AI 正在生成目录' : outlineData ? '重新生成目录' : '生成目录'}</button></header>
-      <section className="modern-outline-progress"><div><span className={`modern-outline-status is-${taskFailed ? 'error' : generating ? 'running' : outlineData ? 'success' : 'idle'}`}>{statusText}</span><strong>{progress}%</strong><div role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="目录生成进度"><span style={{ width: `${progress}%` }} /></div><button type="button" onClick={() => setProgressCollapsed((value) => !value)} aria-expanded={!progressCollapsed}>{progressCollapsed ? '查看过程' : '收起过程'}</button></div>{!progressCollapsed && <div className="modern-outline-progress-detail"><p>{statusMessage}</p>{(elapsedText || staleText) && <small>{[elapsedText, staleText].filter(Boolean).join(' · ')}</small>}{taskFailed && <small>{task?.error || latestLog || '目录生成失败'}</small>}<div ref={logListRef}>{progressLogs.length ? progressLogs.map((item, index) => <p key={`${item}-${index}`} className={index === progressLogs.length - 1 ? 'is-latest' : ''}>{item}</p>) : <p>等待生成任务启动。</p>}</div></div>}</section>
+    return <EnterpriseUiProvider><div className="modern-outline-page">
+      <header className="modern-outline-header"><div><h2>目录结构</h2><p>当前参考知识库：{referenceKnowledgeDocumentIds.length ? `已选 ${referenceKnowledgeDocumentIds.length} 个文档` : '未选择文档'}。</p></div><button type="button" onClick={openGenerationDialog} disabled={mutationBlocked || !projectOverview || !techRequirements}>{generating ? 'AI 正在生成目录' : outlineData ? '重新生成目录' : '生成目录'}</button></header>
+      <section className="modern-outline-progress"><div><span className={`modern-outline-status is-${taskFailed ? 'error' : generating ? 'running' : outlineData ? 'success' : 'idle'}`}>{statusText}</span>{(generating || taskFailed || task?.status === 'stopped') && <div className="outline-task-progress-summary"><TaskProgressSummary label="目录生成" percent={progress} status={taskFailed ? 'exception' : taskRunning ? 'active' : 'normal'} /></div>}<button type="button" onClick={() => setProgressCollapsed((value) => !value)} aria-expanded={!progressCollapsed}>{progressCollapsed ? '查看过程' : '收起过程'}</button></div>{!progressCollapsed && <div className="modern-outline-progress-detail"><p>{statusMessage}</p>{(elapsedText || staleText) && <small>{[elapsedText, staleText].filter(Boolean).join(' · ')}</small>}{taskFailed && <small>{task?.error || latestLog || '目录生成失败'}</small>}<div ref={logListRef}>{progressLogs.length ? progressLogs.map((item, index) => <p key={`${item}-${index}`} className={index === progressLogs.length - 1 ? 'is-latest' : ''}>{item}</p>) : <p>等待生成任务启动。</p>}</div></div>}</section>
       {taskControls}
-      <div className="modern-outline-workspace"><section className="modern-outline-tree"><header><div><span>CHAPTER STRUCTURE</span><h3>目录结构 <small>{outlineData?.outline?.length || 0} 个一级目录</small></h3></div><div><button type="button" onClick={addRootItem} disabled={!outlineData || mutationBlocked}>新增一级目录</button><button type="button" disabled={mutationBlocked || !outlineData?.outline?.length} onClick={() => setSortOpen(true)}>目录排序</button><button type="button" onClick={expandAllItems} disabled={!outlineData?.outline?.length}>全部展开</button><button type="button" onClick={collapseAllItems} disabled={!outlineData?.outline?.length}>全部折叠</button></div></header><div className="modern-outline-tree-body">{outlineData?.outline?.length ? outlineData.outline.map((item) => renderModernItem(item)) : generating ? <ActivityWaiting title="正在生成目录" description={statusMessage || "正在组织技术方案章节，生成后将在这里显示目录结构。"} progress={progress} /> : <div className="modern-outline-empty"><strong>尚未生成目录</strong><p>完成招标文件解析后，点击“生成目录”。</p></div>}</div></section>
-        <aside className="modern-outline-detail"><header><span>CHAPTER DETAIL</span><h3>目录项详情</h3><small>{selectedItem?.id || '未选择'}</small></header>{selectedItem ? <div className="modern-outline-detail-body">{generating && <p className="modern-outline-lock">目录生成中，暂不可编辑，以免覆盖后台结果。</p>}{editingItemId === selectedItem.id ? <><label>标题<input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} disabled={mutationBlocked} /></label><label>描述<textarea value={editDescription} onChange={(event) => setEditDescription(event.target.value)} disabled={mutationBlocked} /></label><div><button type="button" className="is-primary" onClick={saveEditing} disabled={mutationBlocked}>保存</button><button type="button" onClick={() => setEditingItemId(null)}>取消</button></div></> : <><h4>{selectedItem.title}</h4><p>{selectedItem.description || '无描述'}</p>{selectedItem.source_requirement_title && <small>来源评分项：{selectedItem.source_requirement_title}</small>}<div><button type="button" className="is-primary" onClick={() => startEditing(selectedItem)} disabled={mutationBlocked}>编辑</button><button type="button" onClick={() => addChildItem(selectedItem.id)} disabled={mutationBlocked}>添加子目录</button><button type="button" className="is-danger" onClick={() => removeItem(selectedItem.id)} disabled={mutationBlocked}>删除</button></div></>}</div> : <div className="modern-outline-empty"><strong>选择目录项</strong><p>选择左侧章节后，可以查看和编辑标题与描述。</p></div>}</aside>
+      <div className="modern-outline-workspace"><section className="modern-outline-tree"><header><div><h3>目录结构 <small>{outlineData?.outline?.length || 0} 个一级目录</small></h3></div><div><button type="button" onClick={addRootItem} disabled={!outlineData || mutationBlocked}>新增一级目录</button><Popover.Root open={toolsOpen} onOpenChange={setToolsOpen}><Popover.Trigger asChild><button type="button" disabled={!outlineData?.outline?.length}>更多操作 ▾</button></Popover.Trigger><Popover.Portal><Popover.Content className="outline-structure-tools" align="end" sideOffset={8} aria-label="目录操作">
+<button type="button" disabled={mutationBlocked} onClick={() => { setToolsOpen(false); void confirmDiscardOutline().then((accepted) => { if (accepted) { setEditingItemId(null); setSortOpen(true); } }); }}>调整目录顺序</button><button type="button" onClick={() => { expandAllItems(); setToolsOpen(false); }}>展开全部目录</button><button type="button" onClick={() => { collapseAllItems(); setToolsOpen(false); }}>收起全部目录</button>
+</Popover.Content></Popover.Portal></Popover.Root></div></header><div className="outline-structure-search"><input type="search" aria-label="搜索目录标题和描述" placeholder="搜索标题、编号或描述" value={outlineSearch} onChange={(event) => setOutlineSearch(event.target.value)} /></div><div className="modern-outline-tree-body">{outlineData?.outline?.length ? modernTree.length ? <Tree blockNode virtual={false} treeData={modernTree} selectedKeys={selectedItemId ? [selectedItemId] : []} expandedKeys={outlineSearch.trim() ? searchExpanded : [...expandedItems]} autoExpandParent={false} onExpand={(keys) => { if (!outlineSearch.trim()) setExpandedItems(new Set(keys.map(String))); }} onSelect={(keys) => { if (keys.length) void selectOutlineItem(String(keys[0])); }} /> : <div className="modern-outline-empty"><strong>没有匹配的目录项</strong><button type="button" onClick={() => setOutlineSearch('')}>清除搜索</button></div> : generating ? <ActivityWaiting title="正在生成目录" description={statusMessage || "正在组织技术方案章节，生成后将在这里显示目录结构。"} progress={progress} /> : <div className="modern-outline-empty"><strong>尚未生成目录</strong><p>完成招标文件解析后，点击“生成目录”。</p></div>}</div></section>
+        <aside className="modern-outline-detail"><header><h3>目录项详情</h3><small>{selectedItem?.id || '未选择'}</small></header>{selectedItem ? <div className="modern-outline-detail-body"><p className="outline-change-notice">修改目录会清空旧正文和生成缓存。</p>{generating && <p className="modern-outline-lock">目录生成中，暂不可编辑，以免覆盖后台结果。</p>}{editingItemId === selectedItem.id ? <><label>标题<input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} disabled={mutationBlocked} /></label><label>描述<textarea value={editDescription} onChange={(event) => setEditDescription(event.target.value)} disabled={mutationBlocked} /></label><div><button type="button" className="is-primary" onClick={saveEditing} disabled={mutationBlocked}>保存</button><button type="button" disabled={savingOutline} onClick={() => void confirmDiscardOutline().then((accepted) => { if (accepted) setEditingItemId(null); })}>取消编辑</button></div></> : <><h4>{selectedItem.title}</h4><p>{selectedItem.description || '无描述'}</p>{selectedItem.source_requirement_title && <small>来源评分项：{selectedItem.source_requirement_title}</small>}<div><button type="button" className="is-primary" onClick={() => startEditing(selectedItem)} disabled={mutationBlocked}>编辑</button><button type="button" onClick={() => addChildItem(selectedItem.id)} disabled={mutationBlocked}>添加子目录</button><button type="button" className="is-danger" onClick={() => removeItem(selectedItem.id)} disabled={mutationBlocked}>删除</button></div></>}</div> : <div className="modern-outline-empty"><strong>选择目录项</strong><p>选择左侧章节后，可以查看和编辑标题与描述。</p></div>}</aside>
       </div>
       {mutationLocked && <p role="status">全局事实或正文任务尚未结束，请先结束任务再修改目录。</p>}
       {generationDialog}
       {sortDialog}
       <OutlineQuestionDialog task={task} />
-    </div>;
+    </div></EnterpriseUiProvider>;
   }
 
   return (

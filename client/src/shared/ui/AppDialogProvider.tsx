@@ -40,6 +40,9 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
   const [inputValue, setInputValue] = useState('');
   const requestRef = useRef<DialogRequest | null>(null);
   const queueRef = useRef<DialogRequest[]>([]);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const promptInputRef = useRef<HTMLInputElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   const activateRequest = useCallback((nextRequest: DialogRequest | null) => {
     requestRef.current = nextRequest;
@@ -52,6 +55,7 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
       queueRef.current.push(nextRequest);
       return;
     }
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     activateRequest(nextRequest);
   }, [activateRequest]);
 
@@ -86,16 +90,35 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
       <Dialog.Root open={Boolean(request)} onOpenChange={(open) => !open && finishRequest()}>
         <Dialog.Portal>
           <Dialog.Overlay className="app-action-dialog-overlay" />
-          <Dialog.Content className={`app-action-dialog-card${request?.cardClassName ? ` ${request.cardClassName}` : ''}`}>
+          <Dialog.Content
+            className={`app-action-dialog-card${request?.cardClassName ? ` ${request.cardClassName}` : ''}`}
+            onCloseAutoFocus={(event) => {
+              if (!requestRef.current && returnFocusRef.current?.isConnected) {
+                event.preventDefault();
+                returnFocusRef.current.focus();
+              }
+            }}
+            onOpenAutoFocus={(event) => {
+              // 危险操作先落在取消；输入弹窗选中原值，便于直接重命名。
+              event.preventDefault();
+              if (request?.kind === 'prompt') {
+                promptInputRef.current?.focus();
+                promptInputRef.current?.select();
+              } else {
+                cancelButtonRef.current?.focus();
+              }
+            }}
+          >
             <div className="app-action-dialog-head">
               <Dialog.Title>{request?.title || '请确认'}</Dialog.Title>
-              <Dialog.Description>{request?.description || ''}</Dialog.Description>
+              <Dialog.Description className="app-action-dialog-description" tabIndex={0}>{request?.description || ''}</Dialog.Description>
             </div>
             {isPrompt ? (
               <label className="app-action-dialog-field">
                 <span>{request.inputLabel || '名称'}</span>
                 <input
-                  autoFocus
+                  ref={promptInputRef}
+                  aria-required="true"
                   value={inputValue}
                   placeholder={request.placeholder}
                   onChange={(event) => setInputValue(event.target.value)}
@@ -109,7 +132,7 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
               </label>
             ) : null}
             <div className="app-action-dialog-actions">
-              <button type="button" className="secondary-action" onClick={() => finishRequest()}>
+              <button ref={cancelButtonRef} type="button" className="secondary-action" onClick={() => finishRequest()}>
                 {request?.cancelLabel || '取消'}
               </button>
               <button

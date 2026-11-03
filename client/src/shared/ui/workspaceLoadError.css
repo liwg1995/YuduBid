@@ -1,0 +1,7 @@
+.yb-workspace-load-error { display: grid; height: 100%; min-height: 0; min-width: 0; box-sizing: border-box; align-content: center; justify-items: center; padding: 24px; overflow: auto; color: var(--yb-text); background: transparent; font-size: 14px; line-height: 22px; }
+.yb-workspace-load-error-content { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: start; gap: 8px 16px; width: min(100%, 560px); }
+.yb-workspace-load-error-icon { grid-column: 1; grid-row: 1 / 3; color: var(--yb-text-soft); font-size: 24px; line-height: 24px; }
+.yb-workspace-load-error strong { grid-column: 2; font-size: 16px; line-height: 24px; }
+.yb-workspace-load-error p { grid-column: 2; margin: 0; color: var(--yb-text-soft); overflow-wrap: anywhere; }
+.yb-workspace-load-error button { grid-column: 2; justify-self: start; min-height: 32px; margin-top: 8px; padding: 4px 12px; font-size: 14px; line-height: 22px; }
+.yb-workspace-load-error button:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }

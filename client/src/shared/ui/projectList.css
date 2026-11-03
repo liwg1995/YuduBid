@@ -1,0 +1,58 @@
+/* 项目索引共用页头、检索栏、表格与行操作；保留各业务自己的列。 */
+:root[data-ui-appearance='modern'] .modern-shell .yb-project-list-header {
+  display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 16px; margin: 0; padding: 0 0 16px; border-bottom: 1px solid var(--yb-border-soft); background: transparent;
+}
+:root[data-ui-appearance='modern'] .modern-shell .yb-project-list-header h1 { margin: 0 0 8px; color: var(--yb-text); font-size: 20px; line-height: 28px; font-weight: 600; }
+:root[data-ui-appearance='modern'] .modern-shell .yb-project-list-header p { margin: 0; color: var(--yb-text-soft); font-size: 14px; line-height: 22px; }
+.yb-project-list-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.yb-project-list-toolbar { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0; min-width: 0; }
+.yb-project-list-toolbar .enterprise-search-input { width: min(360px, 100%); }
+.yb-project-list-toolbar .ant-select { min-width: 140px; }
+.yb-project-list-toolbar .yb-project-list-count { margin-left: auto; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.yb-project-list-table { min-width: 0; }
+:root[data-ui-appearance='modern'] .modern-shell .yb-project-list-table .ant-table-cell { vertical-align: middle; font-size: 14px; line-height: 22px; }
+.yb-project-list-name { display: flex; min-width: 160px; flex-direction: column; align-items: flex-start; gap: 4px; }
+:root[data-ui-appearance='modern'] .modern-shell .yb-project-list-name > :is(button, strong) { border: 0; padding: 0; background: transparent; color: var(--yb-text); font: inherit; font-size: 14px; line-height: 22px; font-weight: 500; text-align: left; overflow-wrap: anywhere; }
+:root[data-ui-appearance='modern'] .modern-shell .yb-project-list-name > button:hover { color: var(--yb-primary); }
+.yb-project-list-name small { color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+.yb-project-list-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+:root[data-ui-appearance='modern'] .modern-shell .yb-project-list-actions button {
+  min-height: 32px; border: 1px solid var(--yb-control-border); border-radius: 8px; padding: 4px 10px;
+  color: var(--yb-text); background: var(--yb-control-bg); font: inherit; font-size: 14px; line-height: 22px; cursor: pointer;
+}
+:root[data-ui-appearance='modern'] .modern-shell .yb-project-list-actions button.is-danger { color: #ffa39e; }
+:root[data-ui-appearance='modern'] .modern-shell .yb-project-list-actions button:disabled { opacity: .5; cursor: not-allowed; }
+:root[data-ui-appearance='modern'] .modern-shell .yb-project-list-table :is(button,input):focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+.yb-project-index-body { flex: 1; min-height: 0; overflow: auto; }
+.yb-project-list-summary { display: flex; flex-wrap: wrap; gap: 16px; color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-projects .modern-presales-projects-layout { grid-template-columns: minmax(520px, 1.2fr) minmax(320px, 1fr); gap: 16px; }
+:root[data-ui-appearance='modern'] .modern-shell .modern-presales-projects .modern-presales-project-list-body { padding: 0; }
+:root[data-ui-appearance='modern'] .modern-shell .software-copyright-projects-overview { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 24px; padding: 0; border: 0; background: transparent; }
+:root[data-ui-appearance='modern'] .modern-shell .software-copyright-projects-overview article { display: flex; gap: 8px; align-items: baseline; padding: 0; border: 0; background: transparent; }
+:root[data-ui-appearance='modern'] .modern-shell .software-copyright-projects-overview strong { color: var(--yb-text); font-size: 14px; line-height: 22px; }
+:root[data-ui-appearance='modern'] .modern-shell .software-copyright-projects-overview span { color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }
+:root[data-ui-appearance='modern'] .modern-shell .software-copyright-project-grid { display: block; }
+@container (max-width: 1100px) {
+  :root[data-ui-appearance='modern'] .modern-shell .modern-presales-projects .modern-presales-projects-layout { display: flex; flex-direction: column; overflow: auto; }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-presales-projects .modern-presales-project-list { flex: 0 0 auto; min-height: 220px; max-height: 360px; }
+  :root[data-ui-appearance='modern'] .modern-shell .modern-presales-projects .modern-presales-project-editor { flex: 0 0 auto; min-height: 430px; }
+}
+:root[data-ui-appearance='modern'] .modern-shell :is(.modern-technical-projects, .modern-feasibility-projects, .modern-grant-projects, .modern-pm-list, .modern-presales-projects, .modern-patent-projects, .modern-software-projects) {
+  gap: 16px; padding: 0; min-height: 0; overflow: hidden;
+}
+:root[data-ui-appearance='modern'] .modern-shell :is(.modern-technical-list, .modern-grant-list, .modern-patent-table, .software-copyright-projects-panel) { flex: 1; min-height: 0; overflow: auto; }
+:root[data-ui-appearance='modern'] .modern-shell .software-copyright-projects-panel { display: flex; flex-direction: column; gap: 16px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+:root[data-ui-appearance='modern'] .modern-shell .software-copyright-project-grid { flex: 1; min-height: 0; overflow: auto; padding: 0; }
+
+:root[data-ui-appearance='modern'] .modern-shell .modern-project-workspace.modern-technical-projects { padding: 0; gap: 16px; }
+
+.yb-project-list-table .yb-project-list-empty { min-height:160px; padding:24px; border:0; background:transparent; }
+.yb-project-list-empty > button { margin-top:8px; }
+@media (max-width:600px) { .yb-project-list-toolbar .enterprise-search-input { width:100%; } .yb-project-list-toolbar .yb-project-list-count { margin-left:0; } }
+
+/* 名称及次级说明只能占用本列，长版本号/路径不得覆盖邻列。 */
+.yb-project-list-name { max-width: 100%; }
+.yb-project-list-name > :is(button,strong,small) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.yb-project-list-header > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.yb-project-list-actions button { white-space: nowrap; }

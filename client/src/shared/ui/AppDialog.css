@@ -17,7 +17,10 @@
   max-height: min(720px, calc(100vh - 40px));
   gap: 16px;
   padding: 24px;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scroll-padding-block: 16px 72px;
   color: var(--yb-text);
   background: var(--yb-surface);
   border: 1px solid var(--yb-border-soft);
@@ -51,4 +54,9 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding-top: 12px;
+  background: var(--yb-surface);
 }

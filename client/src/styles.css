@@ -4122,7 +4122,7 @@ button {
   grid-column: 1 / -1;
 }
 
-.developer-agent-form :where(input, select, textarea) {
+.developer-agent-form :where(input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)) {
   width: 100%;
   padding: 10px 12px;
   color: var(--yb-text);
@@ -4136,7 +4136,7 @@ button {
   resize: vertical;
 }
 
-.developer-agent-form :where(input, select, textarea):focus {
+.developer-agent-form :where(input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):focus {
   border-color: var(--yb-primary);
   outline: 2px solid color-mix(in srgb, var(--yb-primary) 18%, transparent);
 }
@@ -10247,13 +10247,13 @@ button {
   .settings-row input,
   .settings-row select,
   .settings-row textarea
-) {
+):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)) {
   color: var(--yb-text);
   background-color: var(--yb-control-bg);
   border-color: var(--yb-control-border);
 }
 
-:root[data-ui-theme="dark"] .app-shell :where(input, select, textarea)::placeholder {
+:root[data-ui-theme="dark"] .app-shell :where(input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input))::placeholder {
   color: var(--yb-text-muted);
 }
 
@@ -11434,6 +11434,11 @@ button {
 }
 
 .app-action-dialog-card {
+  box-sizing: border-box;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   position: fixed;
   top: 50%;
   left: 50%;
@@ -11442,7 +11447,7 @@ button {
   width: min(440px, calc(100vw - 40px));
   gap: 18px;
   padding: 22px;
-  background: #fff;
+  background: var(--yb-surface);
   border: 1px solid var(--yb-border-soft);
   border-radius: 18px;
   box-shadow: 0 28px 72px rgba(23, 32, 51, 0.24);
@@ -11487,11 +11492,12 @@ button {
 }
 
 .app-action-dialog-field input {
+  box-sizing: border-box;
   width: 100%;
   padding: 10px 12px;
   color: var(--yb-text);
   font: inherit;
-  background: #fff;
+  background: var(--yb-control-bg);
   border: 1px solid var(--yb-border);
   border-radius: 9px;
   outline: none;
@@ -11933,7 +11939,7 @@ button {
   input,
   select,
   textarea
-) {
+):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)) {
   color: var(--yb-text);
   background-color: #0d1728;
   border-color: var(--yb-control-border);
@@ -11944,7 +11950,7 @@ button {
   color: var(--yb-text-muted);
 }
 
-:root[data-ui-theme="dark"] body :where([role="dialog"]) :where(input, select, textarea):focus {
+:root[data-ui-theme="dark"] body :where([role="dialog"]) :where(input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):focus {
   border-color: rgba(139, 182, 255, 0.64);
   box-shadow: 0 0 0 3px rgba(94, 141, 255, 0.16);
 }
@@ -12959,13 +12965,14 @@ button {
   color-scheme: dark;
 }
 
-/* Keep native form controls dark during focus/open/repaint transitions.
+/* Ant Design 的复合控件自行管理内层背景，原生控件规则不得覆盖其输入层。
+   Keep native form controls dark during focus/open/repaint transitions.
    This final override prevents component-level light focus styles from
    flashing after a select is populated dynamically. */
-:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea),
-:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea):focus,
-:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea):focus-visible,
-:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea):active {
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)),
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):focus,
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):focus-visible,
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, select, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):active {
   color: var(--yb-text);
   color-scheme: dark;
   background-color: var(--yb-control-bg) !important;
@@ -12978,9 +12985,9 @@ button {
   background-color: var(--yb-surface);
 }
 
-:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, textarea):-webkit-autofill,
-:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, textarea):-webkit-autofill:hover,
-:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, textarea):-webkit-autofill:focus {
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):-webkit-autofill,
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):-webkit-autofill:hover,
+:root[data-ui-theme="dark"] :where(.app-shell, body [role="dialog"]) :where(input, textarea):not(:where(.ant-input, .ant-select input, .ant-input-number input, .ant-picker input)):-webkit-autofill:focus {
   -webkit-text-fill-color: var(--yb-text);
   -webkit-box-shadow: 0 0 0 1000px var(--yb-control-bg) inset;
   caret-color: var(--yb-text);
@@ -14463,3 +14470,8 @@ button {
   border-color: #9a8fea;
   background: #343958;
 }
+
+/* 长确认说明独立滚动，避免聚焦底部按钮时跳过标题和说明。 */
+.app-action-dialog-description { max-height: min(360px, 40dvh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; overflow-wrap: anywhere; }
+.app-action-dialog-description:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+.app-action-dialog-actions { position: sticky; bottom: 0; z-index: 1; flex-wrap: wrap; padding-top: 12px; background: var(--yb-surface); }

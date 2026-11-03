@@ -16,7 +16,7 @@
 .presales-link-panel {
   flex: 0 0 auto;
   border: 1px solid rgba(220, 223, 230, 0.78);
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--yb-card-bg);
   box-shadow: 0 22px 56px rgba(33, 116, 253, 0.08);
   backdrop-filter: blur(18px);
 }
@@ -92,7 +92,7 @@
   background:
     radial-gradient(circle at 84% 10%, rgba(139, 92, 246, 0.14), transparent 32%),
     radial-gradient(circle at 8% 90%, rgba(20, 184, 166, 0.1), transparent 30%),
-    rgba(255, 255, 255, 0.9);
+    var(--yb-card-bg);
 }
 
 .presales-hero-copy h2 {
@@ -134,7 +134,7 @@
   padding: 18px;
   border: 1px solid rgba(139, 92, 246, 0.16);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--yb-card-bg);
   box-shadow: 0 18px 38px rgba(91, 84, 211, 0.1);
 }
 
@@ -156,7 +156,7 @@
   padding: 13px;
   border: 1px solid rgba(220, 223, 230, 0.78);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--yb-card-bg);
 }
 
 .presales-mvp-card strong {
@@ -216,7 +216,7 @@
   padding: 3px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--yb-card-bg);
 }
 
 .presales-export-option-panel {
@@ -226,7 +226,7 @@
   padding: 14px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 18px;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
 }
 
 .presales-export-option-note {
@@ -270,7 +270,7 @@
   border-radius: 18px;
   background:
     linear-gradient(135deg, rgba(33, 116, 253, 0.07), transparent 46%),
-    rgba(255, 255, 255, 0.82);
+    var(--yb-card-bg);
   box-shadow: 0 14px 34px rgba(23, 32, 51, 0.05);
 }
 
@@ -314,7 +314,7 @@
   padding: 6px 9px;
   border: 1px solid rgba(220, 223, 230, 0.72);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--yb-card-bg);
 }
 
 .presales-bottom-grid {
@@ -338,7 +338,7 @@
   padding: 13px 14px;
   border: 1px solid rgba(220, 223, 230, 0.78);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.84);
+  background: var(--yb-card-bg);
 }
 
 .presales-delivery-list span {
@@ -355,7 +355,7 @@
   gap: 14px;
   background:
     radial-gradient(circle at 88% 8%, rgba(33, 116, 253, 0.12), transparent 36%),
-    #ffffff;
+    color-mix(in srgb, #ffffff 6%, var(--yb-card-bg));
 }
 
 .presales-scope-tags {
@@ -373,7 +373,7 @@
   line-height: 1;
   border: 1px solid rgba(33, 116, 253, 0.14);
   border-radius: 999px;
-  background: #f2f7ff;
+  background: var(--yb-card-bg);
 }
 
 .presales-data-section {
@@ -412,7 +412,7 @@
   width: 100%;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: var(--yb-text);
   font: inherit;
   font-size: 13px;
@@ -456,7 +456,7 @@
   padding: 7px 10px;
   border: 1px solid rgba(33, 116, 253, 0.14);
   border-radius: 999px;
-  background: #f8fbff;
+  background: var(--yb-card-bg);
   color: #315174;
   font-size: 12px;
   font-weight: 900;
@@ -477,7 +477,7 @@
   padding: 14px;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 16px;
-  background: #f6f9ff;
+  background: var(--yb-card-bg);
 }
 
 .presales-wide-field {
@@ -497,7 +497,7 @@
   width: 100%;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: var(--yb-text);
   font: inherit;
   font-size: 13px;
@@ -537,7 +537,7 @@
   padding: 13px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: inherit;
   text-align: left;
 }
@@ -545,7 +545,7 @@
 .presales-material-list button:hover,
 .presales-material-list button.is-active {
   border-color: rgba(37, 99, 235, 0.28);
-  background: #f2f7ff;
+  background: var(--yb-control-bg);
 }
 
 .presales-material-list strong,
@@ -568,7 +568,7 @@
   min-width: 0;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 16px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .presales-material-preview {
@@ -595,51 +595,17 @@
   padding: 14px;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 14px;
-  background: #f4f8ff;
+  background: var(--yb-card-bg);
 }
 
 .presales-task-card.is-success {
   border-color: rgba(16, 185, 129, 0.18);
-  background: #f0fdf4;
+  background: var(--yb-card-bg);
 }
 
 .presales-task-card.is-error {
   border-color: rgba(239, 68, 68, 0.18);
-  background: #fff1f2;
-}
-
-.presales-task-card div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: #31527f;
-  font-size: 13px;
-}
-
-.presales-task-card i {
-  display: block;
-  height: 8px;
-  overflow: hidden;
-  margin-top: 10px;
-  border-radius: 999px;
-  background: rgba(37, 99, 235, 0.12);
-}
-
-.presales-task-card b {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--yb-active-gradient);
-  transition: width 0.25s ease;
-}
-
-.presales-task-card.is-success b {
-  background: linear-gradient(135deg, #10b981, #059669);
-}
-
-.presales-task-card.is-error b {
-  background: linear-gradient(135deg, #f87171, #dc2626);
+  background: var(--yb-card-bg);
 }
 
 .presales-task-card p {
@@ -657,7 +623,7 @@
   padding: 18px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 16px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .presales-workbench-page.is-project-mode {
@@ -687,7 +653,7 @@
 .presales-workspace {
   min-height: 0;
   border: 1px solid rgba(220, 223, 230, 0.78);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--yb-card-bg);
   box-shadow: 0 18px 42px rgba(33, 116, 253, 0.07);
 }
 
@@ -704,7 +670,7 @@
   gap: 12px;
   padding: 18px;
   border-bottom: 1px solid rgba(220, 223, 230, 0.75);
-  background: #ffffff;
+  background: var(--yb-card-bg);
 }
 
 .presales-project-create h3 {
@@ -725,7 +691,7 @@
   min-width: 0;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: var(--yb-text);
   font: inherit;
   font-size: 13px;
@@ -749,7 +715,7 @@
   padding: 13px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -758,7 +724,7 @@
 .presales-project-list button:hover,
 .presales-project-list button.is-active {
   border-color: rgba(37, 99, 235, 0.28);
-  background: #f2f7ff;
+  background: var(--yb-control-bg);
 }
 
 .presales-project-list strong {
@@ -798,7 +764,7 @@
   border-bottom: 1px solid rgba(220, 223, 230, 0.72);
   background:
     linear-gradient(135deg, rgba(33, 116, 253, 0.08), transparent 52%),
-    #ffffff;
+    color-mix(in srgb, #ffffff 6%, var(--yb-card-bg));
 }
 
 .presales-workspace-head h2 {
@@ -825,7 +791,7 @@
   gap: 8px;
   padding: 12px;
   border-bottom: 1px solid rgba(220, 223, 230, 0.72);
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .presales-workflow-tabs button {
@@ -837,7 +803,7 @@
   padding: 10px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -846,7 +812,7 @@
 .presales-workflow-tabs button:hover,
 .presales-workflow-tabs button.is-active {
   border-color: rgba(37, 99, 235, 0.32);
-  background: #f2f7ff;
+  background: var(--yb-control-bg);
 }
 
 .presales-workflow-tabs b {
@@ -886,18 +852,18 @@
   padding: 5px 7px;
   border: 1px solid rgba(100, 116, 139, 0.16);
   border-radius: 999px;
-  background: #f8fafc;
+  background: var(--yb-card-bg);
 }
 
 .presales-workflow-tabs button.is-done em {
   color: #047857;
   border-color: rgba(16, 185, 129, 0.22);
-  background: #ecfdf5;
+  background: var(--yb-control-bg);
 }
 
 .presales-workflow-tabs button.is-done:not(.is-active) {
   border-color: rgba(16, 185, 129, 0.2);
-  background: #fbfffd;
+  background: var(--yb-control-bg);
 }
 
 .presales-workspace-head-actions {
@@ -932,13 +898,13 @@
   font-weight: 900;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 999px;
-  background: #f2f7ff;
+  background: var(--yb-card-bg);
   cursor: pointer;
 }
 
 .presales-ai-visual-toggle.is-inline {
   min-height: 36px;
-  background: #ffffff;
+  background: var(--yb-card-bg);
 }
 
 .presales-ai-visual-toggle input {
@@ -949,7 +915,7 @@
 
 .presales-ai-visual-toggle:has(input:disabled) {
   color: #94a3b8;
-  background: #f8fafc;
+  background: var(--yb-control-bg);
   cursor: not-allowed;
 }
 
@@ -964,24 +930,23 @@
   gap: 4px;
   width: 100%;
   padding: 14px 16px;
-  color: #1d4ed8;
+  color: var(--yb-text);
   text-align: left;
-  border: 1px solid rgba(37, 99, 235, 0.28);
+  border: 1px solid var(--yb-border-soft);
   border-radius: 16px;
   background:
-    linear-gradient(135deg, rgba(33, 116, 253, 0.12), rgba(255, 255, 255, 0.82)),
-    #f8fbff;
-  box-shadow: 0 14px 34px rgba(33, 116, 253, 0.12);
+    var(--yb-control-bg);
+  box-shadow: none;
   cursor: pointer;
 }
 
 .presales-export-path-list button:hover {
-  border-color: rgba(37, 99, 235, 0.36);
-  background: #eef5ff;
+  border-color: var(--yb-primary);
+  background: var(--yb-surface);
 }
 
 .presales-export-path-list span {
-  color: #1d4ed8;
+  color: var(--yb-primary);
   font-size: 12px;
   font-weight: 900;
 }
@@ -989,11 +954,12 @@
 .presales-export-path-list strong {
   min-width: 0;
   overflow: hidden;
-  color: #0f172a;
+  color: var(--yb-text);
   font-size: 13px;
   font-weight: 800;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .presales-current-project-strip {
@@ -1003,7 +969,7 @@
   gap: 8px;
   padding: 12px 24px;
   border-bottom: 1px solid rgba(220, 223, 230, 0.72);
-  background: #ffffff;
+  background: var(--yb-card-bg);
 }
 
 .presales-current-project-strip span {
@@ -1018,7 +984,7 @@
   white-space: nowrap;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 999px;
-  background: #f2f7ff;
+  background: var(--yb-card-bg);
 }
 
 .presales-step-footer {
@@ -1030,7 +996,7 @@
   padding: 14px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 16px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .presales-step-footer > span {
@@ -1060,23 +1026,23 @@
   max-height: min(820px, calc(100vh - 64px));
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(220, 223, 230, 0.86);
+  border: 1px solid var(--yb-border-soft);
   border-radius: 22px;
-  background: #ffffff;
+  background: var(--yb-surface);
   box-shadow: 0 30px 80px rgba(23, 32, 51, 0.22);
   transform: translate(-50%, -50%);
 }
 
 .presales-package-preview-head {
   display: flex;
+  flex: 0 0 auto;
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
   padding: 20px 22px;
-  border-bottom: 1px solid rgba(220, 223, 230, 0.78);
+  border-bottom: 1px solid var(--yb-border-soft);
   background:
-    linear-gradient(135deg, rgba(33, 116, 253, 0.08), transparent 54%),
-    #ffffff;
+    var(--yb-control-bg);
 }
 
 .presales-package-preview-head h2,
@@ -1097,20 +1063,22 @@
 }
 
 .presales-package-preview-body {
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   padding: 22px;
-  background: #fbfdff;
+  background: var(--yb-surface);
 }
 
 .presales-package-preview-actions {
   display: flex;
   flex: 0 0 auto;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 16px 22px;
-  border-top: 1px solid rgba(220, 223, 230, 0.78);
-  background: #ffffff;
+  border-top: 1px solid var(--yb-border-soft);
+  background: var(--yb-control-bg);
 }
 
 .presales-step-panel {
@@ -1126,7 +1094,7 @@
   height: 40px;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: var(--yb-text);
   font: inherit;
   font-size: 13px;
@@ -1150,7 +1118,7 @@
   border-radius: 18px;
   background:
     linear-gradient(135deg, rgba(33, 116, 253, 0.06), transparent 42%),
-    #fbfdff;
+    color-mix(in srgb, #fbfdff 6%, var(--yb-card-bg));
 }
 
 .presales-presentation-form label,
@@ -1165,7 +1133,7 @@
   padding: 14px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--yb-card-bg);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
   grid-row: span 2;
 }
@@ -1208,7 +1176,7 @@
   width: 100%;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: var(--yb-text);
   font: inherit;
   font-size: 13px;
@@ -1268,7 +1236,7 @@
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 18px;
   background:
-    linear-gradient(180deg, #ffffff, #f8fbff);
+    linear-gradient(180deg, color-mix(in srgb, #ffffff 6%, var(--yb-card-bg)), color-mix(in srgb, #f8fbff 6%, var(--yb-card-bg)));
   box-shadow: 0 16px 36px rgba(33, 116, 253, 0.06);
 }
 
@@ -1299,7 +1267,7 @@
   min-height: 320px;
   max-height: 430px;
   padding: 22px 24px;
-  background: #ffffff;
+  background: var(--yb-card-bg);
   border-color: rgba(37, 99, 235, 0.1);
   border-radius: 16px;
 }
@@ -1310,7 +1278,7 @@
   padding: 14px;
   border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 16px;
-  background: linear-gradient(180deg, #f8fbff, #ffffff);
+  background: linear-gradient(180deg, color-mix(in srgb, #f8fbff 6%, var(--yb-card-bg)), color-mix(in srgb, #ffffff 6%, var(--yb-card-bg)));
 }
 
 .presales-ppt-check-head {
@@ -1371,7 +1339,7 @@
   padding: 6px 10px;
   border-radius: 999px;
   color: #42526b;
-  background: #ffffff;
+  background: var(--yb-card-bg);
   border: 1px solid rgba(27, 50, 92, 0.08);
   font-size: 12px;
   font-weight: 800;
@@ -1383,7 +1351,7 @@
 
 .presales-ppt-page-preview span {
   border-radius: 10px;
-  background: #f8fafc;
+  background: var(--yb-card-bg);
 }
 
 .presales-ppt-page-preview b {
@@ -1394,13 +1362,13 @@
 
 .presales-ppt-check-warnings span {
   color: #7c2d12;
-  background: #fff7ed;
+  background: var(--yb-card-bg);
   border-color: rgba(251, 146, 60, 0.22);
 }
 
 .presales-ppt-check-warnings.is-ok span {
   color: #047857;
-  background: #ecfdf5;
+  background: var(--yb-card-bg);
   border-color: rgba(16, 185, 129, 0.18);
 }
 
@@ -1416,10 +1384,11 @@
   z-index: 135;
   display: grid;
   width: min(560px, calc(100vw - 48px));
-  overflow: hidden;
-  border: 1px solid rgba(220, 223, 230, 0.86);
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--yb-border-soft);
   border-radius: 22px;
-  background: #ffffff;
+  background: var(--yb-surface);
   box-shadow: 0 30px 80px rgba(23, 32, 51, 0.22);
   transform: translate(-50%, -50%);
 }
@@ -1430,10 +1399,9 @@
   justify-content: space-between;
   gap: 16px;
   padding: 20px 22px;
-  border-bottom: 1px solid rgba(220, 223, 230, 0.78);
+  border-bottom: 1px solid var(--yb-border-soft);
   background:
-    linear-gradient(135deg, rgba(33, 116, 253, 0.08), transparent 54%),
-    #ffffff;
+    var(--yb-control-bg);
 }
 
 .presales-ppt-export-head h2,
@@ -1516,7 +1484,7 @@
   padding: 14px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--yb-card-bg);
 }
 
 .presales-outline-editor-head {
@@ -1546,7 +1514,7 @@
   padding: 11px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 14px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .presales-outline-page-list article > b {
@@ -1558,7 +1526,7 @@
   font-family: Aptos, Inter, sans-serif;
   font-size: 12px;
   border-radius: 10px;
-  background: #eef5ff;
+  background: var(--yb-card-bg);
 }
 
 .presales-outline-page-list label {
@@ -1579,7 +1547,7 @@
   height: 36px;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: var(--yb-text);
   font: inherit;
   font-size: 12px;
@@ -1606,7 +1574,7 @@
   padding: 14px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--yb-card-bg);
 }
 
 .presales-export-records-head {
@@ -1668,7 +1636,7 @@
   padding: 10px 12px;
   border: 1px solid rgba(27, 50, 92, 0.08);
   border-radius: 14px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .presales-export-record-list article > div {
@@ -1720,7 +1688,7 @@
   min-height: 0;
   overflow: auto;
   padding: 20px 22px;
-  background: #fbfdff;
+  background: var(--yb-card-bg);
 }
 
 .presales-ppt-style-preview {
@@ -1766,7 +1734,7 @@
   border-radius: 16px;
   background:
     linear-gradient(135deg, rgba(37, 99, 235, 0.06), transparent 56%),
-    #ffffff;
+    color-mix(in srgb, #ffffff 6%, var(--yb-card-bg));
 }
 
 .presales-ppt-structure-grid b {
@@ -1780,7 +1748,7 @@
   font-size: 12px;
   line-height: 1;
   border-radius: 10px;
-  background: #eef5ff;
+  background: var(--yb-card-bg);
 }
 
 .presales-ppt-structure-grid div {
@@ -1911,7 +1879,7 @@
 .presales-projects-list-panel,
 .presales-project-detail-panel {
   border: 1px solid rgba(220, 223, 230, 0.78);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--yb-card-bg);
   box-shadow: 0 18px 42px rgba(33, 116, 253, 0.07);
 }
 
@@ -1925,7 +1893,7 @@
   border-radius: 16px;
   background:
     linear-gradient(135deg, rgba(33, 116, 253, 0.08), transparent 54%),
-    #ffffff;
+    color-mix(in srgb, #ffffff 6%, var(--yb-card-bg));
 }
 
 .presales-projects-hero h2 {
@@ -1988,7 +1956,7 @@
   height: 40px;
   border: 1px solid rgba(27, 50, 92, 0.12);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--yb-control-bg);
   color: var(--yb-text);
   font: inherit;
   font-size: 13px;
@@ -2012,12 +1980,12 @@
   padding: 15px;
   border: 1px solid rgba(27, 50, 92, 0.1);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--yb-card-bg);
 }
 
 .presales-project-card.is-active {
   border-color: rgba(37, 99, 235, 0.35);
-  background: #f5f9ff;
+  background: var(--yb-card-bg);
 }
 
 .presales-project-card-main {
@@ -2069,7 +2037,7 @@
   padding: 7px 9px;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 999px;
-  background: #eef5ff;
+  background: var(--yb-card-bg);
 }
 
 .presales-project-meta-grid {
@@ -2114,7 +2082,7 @@
   line-height: 1;
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 999px;
-  background: #f2f7ff;
+  background: var(--yb-card-bg);
 }
 
 .presales-form-grid.is-project-detail {
@@ -2575,3 +2543,7 @@
   color: #9fc1ff;
   background: rgba(139, 182, 255, 0.14);
 }
+
+/* 任务内部布局由共享进度组件负责，终态保持紧凑。 */
+.presales-task-card:is(.is-success, .is-error) { padding: 10px 12px; }
+.presales-task-card:is(.is-success, .is-error) p { margin-top: 4px; font-weight: 400; }

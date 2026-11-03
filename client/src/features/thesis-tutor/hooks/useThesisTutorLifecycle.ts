@@ -1,3 +1,4 @@
+import { isCurrentWordExportEvent } from '../../../shared/utils/wordExportFeedback';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { WordExportProgressEvent } from '../../../shared/types/ipc';
 import type { ToastType } from '../../../shared/ui/ToastProvider';
@@ -34,6 +35,8 @@ export function useThesisTutorLifecycle({
   const operationProgressTimerRef = useRef<number | null>(null);
   const operationProgressClearTimerRef = useRef<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadRevision, setLoadRevision] = useState(0);
   const [missingTextModelFields, setMissingTextModelFields] = useState<string[]>([]);
   const [exportProgress, setExportProgress] = useState<WordExportProgressEvent | null>(null);
   const [operationProgress, setOperationProgress] = useState<ThesisTutorOperationProgress | null>(null);
@@ -91,10 +94,11 @@ export function useThesisTutorLifecycle({
   }, [initialPanel, setActivePanel]);
 
   useEffect(() => {
+    setLoadError(''); setLoading(true);
     let mounted = true;
     const bridge = window.yibiao?.thesisTutor;
     if (!bridge) {
-      setLoading(false);
+      setLoadError('论文导师本地服务尚未就绪'); setLoading(false);
       return () => {
         mounted = false;
       };
@@ -109,7 +113,7 @@ export function useThesisTutorLifecycle({
         setDraft(nextState.draft || nextState.latestResult || '');
         syncWorkspaces(nextState);
       })
-      .catch((error) => showToast(error instanceof Error ? error.message : '读取论文导师状态失败', 'error'))
+      .catch((error) => { setLoadError(error instanceof Error ? error.message : String(error)); showToast(error instanceof Error ? error.message : '读取论文导师状态失败', 'error'); })
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -122,12 +126,7 @@ export function useThesisTutorLifecycle({
       syncWorkspaces(nextState);
     });
     const unsubscribeExport = window.yibiao?.export.onWordExportProgress((event) => {
-      setExportProgress(event);
-      if (event.phase === 'success') {
-        showToast(event.message || '论文导师结果已导出 Word', 'success');
-      } else if (event.phase === 'error') {
-        showToast(event.message || '导出 Word 失败', 'error');
-      }
+      setExportProgress(current => current?.requestId && isCurrentWordExportEvent(event, current.requestId) ? event : current);
     });
 
     return () => {
@@ -136,7 +135,7 @@ export function useThesisTutorLifecycle({
       unsubscribeExport?.();
       clearOperationProgressTimers();
     };
-  }, [showToast]);
+  }, [showToast, loadRevision]);
 
   useEffect(() => {
     let mounted = true;
@@ -177,6 +176,7 @@ export function useThesisTutorLifecycle({
   }
 
   return {
+    loadError, retryLoad: () => setLoadRevision(value => value + 1),
     loading,
     missingTextModelFields,
     exportProgress,

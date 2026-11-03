@@ -4,7 +4,7 @@
   overflow: auto;
   border: 1px solid var(--yb-border);
   border-radius: var(--yb-radius-md);
-  background: #e9edf3 !important;
+  background: var(--yb-card-bg) !important;
   scrollbar-width: thin;
 }
 
@@ -18,7 +18,7 @@
   border: 1px solid #dfe4eb;
   border-radius: 3px;
   color: #273245 !important;
-  background: #fffefa !important;
+  background: var(--yb-card-bg) !important;
   box-shadow: 0 12px 36px #2636501f, 0 2px 5px #26365016;
   font-family: 'Songti SC', 'Noto Serif CJK SC', 'SimSun', serif;
   font-size: 14px;
@@ -57,17 +57,17 @@
   border-radius: 5px;
   padding: 12px 14px;
   color: #25334b;
-  background: #f4f7fb;
+  background: var(--yb-card-bg);
   font: 12px/1.55 Consolas, 'Courier New', monospace;
   white-space: pre;
   tab-size: 2;
 }
 .content-word-dialog .content-word-page pre + :not(pre) { margin-top: 12px; }
-.content-word-dialog .content-word-page code { color: #25334b; background: #f4f7fb; font-family: Consolas, 'Courier New', monospace; }
+.content-word-dialog .content-word-page code { color: #25334b; background: var(--yb-card-bg); font-family: Consolas, 'Courier New', monospace; }
 .content-word-dialog .content-word-page img { display: block; max-width: 100%; height: auto; margin: 16px auto; }
 .content-word-dialog .content-word-page table { width: 100%; margin: 1em 0; border-collapse: collapse; color: #354158; font-size: 13px; }
 .content-word-dialog .content-word-page :is(th, td) { border: 1px solid #cbd4e2; padding: 7px 9px; vertical-align: top; }
-.content-word-dialog .content-word-page th { background: #f1f4f9; font-weight: 700; }
+.content-word-dialog .content-word-page th { background: var(--yb-card-bg); font-weight: 700; }
 .content-word-status { padding: 20px; color: var(--yb-text-soft); }
 .content-word-status p { white-space: pre-wrap; }
 .content-word-overlay { position: fixed; inset: 0; z-index: 120; background: rgba(12, 18, 32, .65); }
@@ -97,3 +97,17 @@
   .content-word-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); padding: 12px; }
   .content-word-dialog .content-word-page { width: calc(100% - 16px); min-height: 680px; margin: 8px auto; padding: 28px 24px 40px; }
 }
+
+/* Word 阅读纸张保留浅色文档色板，不随启象深色工作区变色。 */
+:root[data-ui-appearance='modern'] .content-word-dialog .content-word-page {
+  color-scheme: light;
+  color: #273245 !important;
+  background: #fff !important;
+  border-color: #dfe4eb;
+}
+:root[data-ui-appearance='modern'] .content-word-dialog .content-word-page :is(pre, code, th) {
+  color: #25334b !important;
+  background: #f1f4f8 !important;
+}
+:root[data-ui-appearance='modern'] .content-word-dialog,
+:root[data-ui-appearance='modern'] .content-word-dialog * { -webkit-app-region: no-drag; }

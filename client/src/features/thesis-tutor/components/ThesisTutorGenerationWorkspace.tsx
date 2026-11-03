@@ -125,6 +125,7 @@ export function ThesisTutorGenerationWorkspace({
         )}
         <textarea
           className="thesis-tutor-textarea"
+          aria-label={panel.inputTitle}
           value={userInput}
           onChange={(event) => setUserInput(event.target.value)}
           placeholder={panel.placeholder}
@@ -159,6 +160,7 @@ export function ThesisTutorGenerationWorkspace({
         )}
         <textarea
           className="thesis-tutor-source"
+          aria-label={panel.materialTitle}
           value={sourceText}
           onChange={(event) => setSourceText(event.target.value)}
           placeholder={panel.sourcePlaceholder}
