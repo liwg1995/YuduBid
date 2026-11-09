@@ -59,7 +59,7 @@ function runGit(args) {
   });
 }
 
-async function uploadAsset(file) {
+async function uploadAssetOnce(file) {
   const name = basename(file);
   const upload = await request(`/releases/${encodeURIComponent(tag)}/upload_url?file_name=${encodeURIComponent(name)}`);
   if (!upload?.url) throw new Error(`GitCode did not provide an upload URL for ${name}`);
@@ -72,6 +72,19 @@ async function uploadAsset(file) {
     child.on('error', reject);
     child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`GitCode asset upload failed for ${name}: curl exited ${code}`)));
   });
+}
+
+async function uploadAsset(file) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await uploadAssetOnce(file);
+      return;
+    } catch (error) {
+      if (attempt === 3) throw error;
+      console.warn(`GitCode upload interrupted for ${basename(file)}; requesting a new upload URL (${attempt}/3): ${error.message}`);
+      await delay(attempt * 5000);
+    }
+  }
 }
 
 function knownAssetSize(asset) {
