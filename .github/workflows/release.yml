@@ -61,16 +61,50 @@ jobs:
           cache: npm
           cache-dependency-path: client/package-lock.json
 
-      - name: Cache Electron build downloads
-        if: runner.os == 'macOS'
+      - name: Cache Electron runtimes
         uses: actions/cache@v4
         with:
-          path: |
-            ~/Library/Caches/electron
-            ~/Library/Caches/electron-builder
-          key: ${{ runner.os }}-electron-${{ hashFiles('client/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-electron-
+          path: ${{ runner.temp }}/electron-runtimes
+          key: electron-runtime-api-${{ runner.os }}-${{ hashFiles('client/package-lock.json') }}
+
+      - name: Download verified Electron runtimes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(node -p "require('./package-lock.json').packages['node_modules/electron'].version")"
+          dist_dir="$RUNNER_TEMP/electron-runtimes"
+          cache_key="$(node -e 'console.log(require("node:crypto").createHash("sha256").update("https://github.com/electron/electron/releases/download/v" + process.argv[1]).digest("hex"))' "$version")"
+          cache_dir="$dist_dir/$cache_key"
+          mkdir -p "$cache_dir"
+          assets="$(gh api "repos/electron/electron/releases/tags/v$version")"
+
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            platform=win32
+            arches=(x64)
+          else
+            platform=darwin
+            arches=(arm64 x64)
+          fi
+          if command -v sha256sum >/dev/null 2>&1; then
+            checksum=(sha256sum)
+          else
+            checksum=(shasum -a 256)
+          fi
+          for arch in "${arches[@]}"; do
+            name="electron-v$version-$platform-$arch.zip"
+            asset="$(printf '%s' "$assets" | node -e 'const a=JSON.parse(require("node:fs").readFileSync(0,"utf8")).assets.find(x=>x.name===process.argv[1]); if(!a || !/^sha256:[0-9a-f]{64}$/.test(a.digest)) process.exit(1); console.log(a.id+" "+a.digest.slice(7))' "$name")"
+            read -r asset_id digest <<< "$asset"
+            file="$cache_dir/$name"
+            if ! printf '%s  %s\n' "$digest" "$file" | "${checksum[@]}" -c - >/dev/null 2>&1; then
+              gh api -H 'Accept: application/octet-stream' "repos/electron/electron/releases/assets/$asset_id" > "$file.tmp"
+              printf '%s  %s\n' "$digest" "$file.tmp" | "${checksum[@]}" -c -
+              mv "$file.tmp" "$file"
+            fi
+          done
+          {
+            echo "electron_config_cache=$(node -p 'require("node:path").resolve(process.argv[1])' "$dist_dir")"
+            echo "ELECTRON_DIST_DIR=$(node -p 'require("node:path").resolve(process.argv[1])' "$cache_dir")"
+          } >> "$GITHUB_ENV"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -114,33 +148,9 @@ jobs:
       - name: Build renderer
         run: npm run build
 
-      - name: Preload Electron macOS runtimes
-        if: runner.os == 'macOS'
-        run: |
-          export ELECTRON_CACHE="$HOME/Library/Caches/electron"
-          ELECTRON_VERSION="$(node -p "require('./node_modules/electron/package.json').version")"
-          cache_dir="$ELECTRON_CACHE"
-          mkdir -p "$cache_dir"
-
-          for arch in x64 arm64; do
-            file="$cache_dir/electron-v${ELECTRON_VERSION}-darwin-${arch}.zip"
-            if [ -f "$file" ] && unzip -tq "$file" >/dev/null 2>&1; then
-              echo "Electron ${ELECTRON_VERSION} darwin-${arch} already cached."
-              continue
-            fi
-
-            tmp="${file}.tmp"
-            rm -f "$file" "$tmp"
-            curl --fail --location --retry 5 --retry-all-errors --retry-delay 10 \
-              "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-darwin-${arch}.zip" \
-              --output "$tmp"
-            unzip -tq "$tmp" >/dev/null
-            mv "$tmp" "$file"
-          done
-
       - name: Build Windows NSIS and ZIP artifacts
         if: runner.os == 'Windows'
-        run: npx electron-builder --win nsis zip --publish never
+        run: npx electron-builder --win nsis zip --publish never -c.electronDist="$ELECTRON_DIST_DIR"
 
       - name: Verify Windows installer
         if: runner.os == 'Windows'
@@ -163,7 +173,7 @@ jobs:
             npm run build:blind-helper -- "osx-${arch}"
             for attempt in 1 2 3; do
               echo "Build macOS ${arch} artifacts, attempt ${attempt}/3."
-              if npx electron-builder --mac dmg --"${arch}" --publish never; then
+              if npx electron-builder --mac dmg --"${arch}" --publish never -c.electronDist="$ELECTRON_DIST_DIR"; then
                 break
               fi
               if [ "$attempt" -eq 3 ]; then
