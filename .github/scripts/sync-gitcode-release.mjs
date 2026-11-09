@@ -1,7 +1,9 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const apiBase = 'https://api.gitcode.com/api/v5';
@@ -14,6 +16,7 @@ const githubRepository = process.env.GITHUB_REPOSITORY;
 const githubToken = process.env.GITHUB_TOKEN;
 const notesOnly = directory === '--notes-only';
 const checksumsOnly = process.env.GITCODE_CHECKSUMS_ONLY === 'true';
+const repairName = process.env.GITCODE_REPAIR_ASSET || '';
 const replaceExisting = process.env.REPLACE_EXISTING_RELEASE === 'true';
 
 if (![token, owner, repo, tag, githubRepository, githubToken].every(Boolean) || (!notesOnly && !directory)) {
@@ -116,15 +119,21 @@ async function main() {
     return asset;
   });
   const localNames = new Set(await readdir(directory));
-  const syncAssets = checksumsOnly ? checksums : assets.values();
+  const repairAsset = repairName ? assets.get(repairName) : null;
+  if (repairName && (!checksumsOnly || !repairAsset || checksums.includes(repairAsset) || !/^sha256:[a-f0-9]{64}$/i.test(repairAsset.digest || ''))) {
+    throw new Error(`Invalid GitHub attachment selected for repair: ${repairName}`);
+  }
+  const syncAssets = checksumsOnly ? [...checksums, ...(repairAsset ? [repairAsset] : [])] : [...assets.values()];
   const files = [];
   for (const asset of syncAssets) {
     const { name } = asset;
     const file = join(directory, name);
     if (!localNames.has(name)) throw new Error(`GitCode sync input is missing GitHub attachment: ${name}`);
     if ((await stat(file)).size !== asset.size) throw new Error(`GitCode sync input has the wrong size: ${name}`);
-    if (checksums.includes(asset)) {
-      const digest = `sha256:${createHash('sha256').update(await readFile(file)).digest('hex')}`;
+    if (checksums.includes(asset) || asset === repairAsset) {
+      const hash = createHash('sha256');
+      await pipeline(createReadStream(file), hash);
+      const digest = `sha256:${hash.digest('hex')}`;
       if (digest !== asset.digest.toLowerCase()) throw new Error(`GitCode sync input has the wrong checksum: ${name}`);
     }
     files.push(file);
@@ -141,7 +150,7 @@ async function main() {
   const existing = new Map((release.assets || []).filter((asset) => asset.type !== 'source').map((asset) => [asset.name, asset]));
   if (checksumsOnly) {
     for (const [name, asset] of assets) {
-      if (checksums.includes(asset)) continue;
+      if (syncAssets.includes(asset)) continue;
       const mirror = existing.get(name);
       if (!mirror || (knownAssetSize(mirror) !== null && knownAssetSize(mirror) !== asset.size)) {
         throw new Error(`Cannot repair checksums while a GitCode attachment is missing or has the wrong size: ${name}`);
@@ -155,7 +164,7 @@ async function main() {
     const size = (await stat(file)).size;
     const asset = existing.get(basename(file));
     if (asset && !replaceExisting && (knownAssetSize(asset) === null || knownAssetSize(asset) === size)) continue;
-    if (asset && !replaceExisting) throw new Error(`Existing GitCode asset differs in size: ${basename(file)} (local=${size}, remote=${knownAssetSize(asset)})`);
+    if (asset && !replaceExisting && basename(file) !== repairName) throw new Error(`Existing GitCode asset differs in size: ${basename(file)} (local=${size}, remote=${knownAssetSize(asset)})`);
     if (asset) {
       if (!asset.id) throw new Error(`GitCode asset ID is missing: ${basename(file)}`);
       await request(`${releasePath}/attach_files/${encodeURIComponent(asset.id)}`, { method: 'DELETE' });
