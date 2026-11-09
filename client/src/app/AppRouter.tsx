@@ -1,7 +1,7 @@
 import WorkspaceLoading from '../shared/ui/WorkspaceLoading';
 import { lazy, Suspense } from 'react';
 import type { SectionId } from '../shared/types/navigation';
-import type { FeatureModuleSettings } from '../shared/types';
+import type { FeatureModuleId, FeatureModuleSettings } from '../shared/types';
 import type { LatestReleaseInfo } from '../shared/types';
 import type { PluginNavigationTarget } from '../shared/types/plugin';
 import type { GrantApplicationInitialPanel } from '../features/grant-application/pages/GrantApplicationPage';
@@ -44,18 +44,19 @@ interface AppRouterProps {
   featureModuleSettings?: FeatureModuleSettings | null;
   pluginNavigationTarget?: PluginNavigationTarget | null;
   onSectionChange: (section: SectionId) => void;
+  onRevealModule: (moduleId: FeatureModuleId, opener?: HTMLButtonElement) => void;
   onDeveloperModeChange: (developerMode: boolean) => void;
   onFeatureModuleSettingsChange: (settings: FeatureModuleSettings) => void;
   updateDialogRequest?: { id: number; release: LatestReleaseInfo } | null;
   onUpdateDialogRequestConsumed?: () => void;
 }
 
-function AppRouteContent({ activeSection, developerMode, featureModuleSettings, pluginNavigationTarget, onSectionChange, onDeveloperModeChange, onFeatureModuleSettingsChange, updateDialogRequest, onUpdateDialogRequestConsumed }: AppRouterProps) {
+function AppRouteContent({ activeSection, developerMode, featureModuleSettings, pluginNavigationTarget, onSectionChange, onRevealModule, onDeveloperModeChange, onFeatureModuleSettingsChange, updateDialogRequest, onUpdateDialogRequestConsumed }: AppRouterProps) {
   switch (activeSection) {
     case 'home':
       return getStoredUiAppearance() === 'modern'
-        ? <ModernHomePage featureModuleSettings={featureModuleSettings} onNavigate={onSectionChange} />
-        : <HomePage featureModuleSettings={featureModuleSettings} onNavigate={onSectionChange} />;
+        ? <ModernHomePage featureModuleSettings={featureModuleSettings} onRevealModule={onRevealModule} />
+        : <HomePage featureModuleSettings={featureModuleSettings} onRevealModule={onRevealModule} />;
     case 'presales-projects':
       return <PresalesProjectsPage onNavigate={onSectionChange} />;
     case 'presales-workbench':

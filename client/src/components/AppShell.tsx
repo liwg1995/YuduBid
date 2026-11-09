@@ -1,6 +1,6 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useMemo, type ReactNode } from 'react';
-import type { FeatureModuleSettings } from '../shared/types';
+import type { FeatureModuleId, FeatureModuleSettings } from '../shared/types';
 import type { SectionId } from '../shared/types/navigation';
 import Sidebar from './Sidebar';
 import ThemeSwitcher from './ThemeSwitcher';
@@ -17,10 +17,12 @@ interface AppShellProps {
   developerMode: boolean;
   featureModuleSettings?: FeatureModuleSettings | null;
   assistantPluginEnabled?: boolean;
+  moduleReveal: { moduleId: FeatureModuleId; opener?: HTMLButtonElement } | null;
+  onModuleRevealHandled: () => void;
   onSectionChange: (section: SectionId) => void;
 }
 
-function AppShell({ appearance, activeSection, children, developerMode, featureModuleSettings, assistantPluginEnabled = false, onSectionChange }: AppShellProps) {
+function AppShell({ appearance, activeSection, children, developerMode, featureModuleSettings, assistantPluginEnabled = false, moduleReveal, onModuleRevealHandled, onSectionChange }: AppShellProps) {
   const isMac = window.yibiao?.platform === 'darwin'
     || window.yibiaoClient?.platform === 'darwin'
     || /Mac/i.test(navigator.platform || navigator.userAgent);
@@ -40,7 +42,7 @@ function AppShell({ appearance, activeSection, children, developerMode, featureM
   if (appearance === 'modern') {
     return (
       <Tooltip.Provider delayDuration={120} skipDelayDuration={80}>
-        <ModernShell activeSection={activeSection} developerMode={developerMode} featureModuleSettings={featureModuleSettings} assistantPluginEnabled={assistantPluginEnabled} onSectionChange={onSectionChange}>
+        <ModernShell moduleReveal={moduleReveal} onModuleRevealHandled={onModuleRevealHandled} activeSection={activeSection} developerMode={developerMode} featureModuleSettings={featureModuleSettings} assistantPluginEnabled={assistantPluginEnabled} onSectionChange={onSectionChange}>
           {children}
         </ModernShell>
       </Tooltip.Provider>
@@ -51,7 +53,7 @@ function AppShell({ appearance, activeSection, children, developerMode, featureM
     <Tooltip.Provider delayDuration={120} skipDelayDuration={80}>
       <div className={`app-shell${isMac ? ' is-mac' : ''}`}>
         {isMac && <div className="window-drag-region" aria-hidden="true" />}
-        <Sidebar activeSection={activeSection} developerMode={developerMode} featureModuleSettings={featureModuleSettings} onSectionChange={onSectionChange} />
+        <Sidebar moduleReveal={moduleReveal} onModuleRevealHandled={onModuleRevealHandled} activeSection={activeSection} developerMode={developerMode} featureModuleSettings={featureModuleSettings} onSectionChange={onSectionChange} />
 
         <main className="main-area">
           <div className="main-topbar">

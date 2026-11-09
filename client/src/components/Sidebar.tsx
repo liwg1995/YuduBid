@@ -1,14 +1,17 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { useEffect, useRef, useState, type ComponentType, type ReactElement, type SVGProps } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactElement, type SVGProps } from 'react';
 import { getAppMenuGroups } from '../app/menuConfig';
-import type { FeatureModuleSettings } from '../shared/types';
+import type { FeatureModuleId, FeatureModuleSettings } from '../shared/types';
 import type { SectionId } from '../shared/types/navigation';
+import { shouldReduceMotion } from '../shared/motionPreference';
 import logoUrl from '../../assets/icon_256.png';
 
 interface SidebarProps {
   activeSection: SectionId;
   developerMode: boolean;
   featureModuleSettings?: FeatureModuleSettings | null;
+  moduleReveal: { moduleId: FeatureModuleId } | null;
+  onModuleRevealHandled: () => void;
   onSectionChange: (section: SectionId) => void;
 }
 
@@ -77,11 +80,14 @@ function loadInitialCollapsedGroups() {
   }
 }
 
-function Sidebar({ activeSection, developerMode, featureModuleSettings, onSectionChange }: SidebarProps) {
+function Sidebar({ activeSection, developerMode, featureModuleSettings, moduleReveal, onModuleRevealHandled, onSectionChange }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(loadInitialCollapsed);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(loadInitialCollapsedGroups);
   const navRef = useRef<HTMLElement | null>(null);
-  const menuGroups = getAppMenuGroups(developerMode, featureModuleSettings);
+  const menuGroups = useMemo(
+    () => getAppMenuGroups(developerMode, featureModuleSettings),
+    [developerMode, featureModuleSettings],
+  );
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
@@ -104,6 +110,28 @@ function Sidebar({ activeSection, developerMode, featureModuleSettings, onSectio
     });
     return () => window.cancelAnimationFrame(frameId);
   }, [activeSection, collapsedGroups]);
+
+  useEffect(() => {
+    if (!moduleReveal) return;
+    setCollapsed(false);
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      ...Object.fromEntries(menuGroups
+        .filter((group) => group.id !== 'workspace')
+        .map((group) => [group.id, group.id !== moduleReveal.moduleId])),
+    }));
+  }, [moduleReveal, menuGroups]);
+
+  useEffect(() => {
+    if (!moduleReveal || collapsed || collapsedGroups[moduleReveal.moduleId]) return;
+    const heading = navRef.current?.querySelector<HTMLButtonElement>(`[data-module-id="${moduleReveal.moduleId}"]`);
+    const frameId = window.requestAnimationFrame(() => {
+      heading?.focus({ preventScroll: true });
+      heading?.scrollIntoView({ block: 'start', behavior: shouldReduceMotion() ? 'instant' : 'smooth' });
+      onModuleRevealHandled();
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [moduleReveal, collapsed, collapsedGroups, onModuleRevealHandled]);
 
   function toggleGroup(groupId: string) {
     setCollapsedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
@@ -145,6 +173,7 @@ function Sidebar({ activeSection, developerMode, featureModuleSettings, onSectio
                 <button
                   type="button"
                   className="nav-group-trigger"
+                  data-module-id={group.id}
                   onClick={() => toggleGroup(group.id)}
                   aria-expanded={!isGroupCollapsed}
                   aria-controls={`nav-group-${group.id}`}

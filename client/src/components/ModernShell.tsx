@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { getAppMenuGroups, getSectionDescriptor } from '../app/menuConfig';
-import type { FeatureModuleSettings } from '../shared/types';
+import type { FeatureModuleId, FeatureModuleSettings } from '../shared/types';
 import type { SectionId } from '../shared/types/navigation';
 import TaskMonitor from './TaskMonitor';
 import AssistantWidget from '../features/plugin-host/components/AssistantWidget';
@@ -14,10 +14,12 @@ interface Props {
   developerMode: boolean;
   featureModuleSettings?: FeatureModuleSettings | null;
   assistantPluginEnabled?: boolean;
+  moduleReveal: { moduleId: FeatureModuleId; opener?: HTMLButtonElement } | null;
+  onModuleRevealHandled: () => void;
   onSectionChange: (section: SectionId) => void;
 }
 
-export default function ModernShell({ activeSection, children, developerMode, featureModuleSettings, assistantPluginEnabled = false, onSectionChange }: Props) {
+export default function ModernShell({ activeSection, children, developerMode, featureModuleSettings, assistantPluginEnabled = false, moduleReveal, onModuleRevealHandled, onSectionChange }: Props) {
   const groups = getAppMenuGroups(developerMode, featureModuleSettings);
   const activeGroup = groups.find((group) => group.items.some((item) => item.id === activeSection));
   const [selectedGroupId, setSelectedGroupId] = useState(activeGroup?.id || 'workspace');
@@ -45,6 +47,15 @@ export default function ModernShell({ activeSection, children, developerMode, fe
     if (compactNavigation && previousSectionRef.current !== activeSection) setNavigationOpen(false);
     previousSectionRef.current = activeSection;
   }, [activeSection, compactNavigation]);
+  useEffect(() => {
+    if (!moduleReveal) return;
+    navigationOpenerRef.current = moduleReveal.opener ?? null;
+    setSelectedGroupId(moduleReveal.moduleId);
+    setNavigationSearch('');
+    setNavigationOpen(true);
+    onModuleRevealHandled();
+  }, [moduleReveal, onModuleRevealHandled]);
+
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) || groups[0];
   const searchTerm = navigationSearch.trim().toLowerCase();
   const navigationItems = searchTerm ? groups.flatMap((group) => group.items).filter((item) => `${item.label} ${item.description}`.toLowerCase().includes(searchTerm)) : selectedGroup.items;
@@ -82,7 +93,7 @@ export default function ModernShell({ activeSection, children, developerMode, fe
           })}
           {searchTerm && !navigationItems.length && <p role="status" className="modern-navigation-empty">未找到功能，请换个关键词。</p>}
         </nav>
-        <div className="modern-navigation-bottom"><span><i />本地工作区已就绪</span><small>禹都 · 智能工作空间</small></div>
+        <div className="modern-navigation-bottom"><small>禹都 · 智能工作空间</small></div>
   </>);
 
   return (

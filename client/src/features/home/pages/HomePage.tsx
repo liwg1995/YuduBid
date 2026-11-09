@@ -1,10 +1,10 @@
 import { getSectionModuleId } from '../../../app/menuConfig';
-import type { FeatureModuleSettings } from '../../../shared/types';
+import type { FeatureModuleId, FeatureModuleSettings } from '../../../shared/types';
 import type { SectionId } from '../../../shared/types/navigation';
 
 interface HomePageProps {
   featureModuleSettings?: FeatureModuleSettings | null;
-  onNavigate: (section: SectionId) => void;
+  onRevealModule: (moduleId: FeatureModuleId) => void;
 }
 
 type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' | 'book' | 'document' | 'check' | 'thesis' | 'project' | 'grant';
@@ -12,15 +12,14 @@ type HomeIconName = 'spark' | 'flow' | 'shield' | 'archive' | 'code' | 'patent' 
 const overviewStats: Array<{ label: string; value: string; detail: string; tone: string; icon: HomeIconName }> = [
   { label: '核心工作区', value: '8组', detail: '售前、招投标、公文、课题、项目、论文、软著、专利', tone: 'blue', icon: 'flow' },
   { label: 'AI生成链路', value: '16+类', detail: '方案、公文、课题申报、论文辅导、代码、交底书等', tone: 'violet', icon: 'spark' },
-  { label: '本地能力', value: '多项', detail: '文件解析、Word导出、SQLite工作区', tone: 'cyan', icon: 'archive' },
+  { label: '本地能力', value: '多项', detail: '文件解析、Word 导出、本地保存', tone: 'cyan', icon: 'archive' },
   { label: '流程覆盖', value: '全周期', detail: '解析、生成、检查、修订、沉淀、导出', tone: 'green', icon: 'check' },
 ];
 
-export const featureCards: Array<{ title: string; text: string; action: string; section: SectionId; tone: string; icon: HomeIconName; tags: string[] }> = [
+export const featureCards: Array<{ title: string; text: string; section: SectionId; tone: string; icon: HomeIconName; tags: string[] }> = [
   {
     title: '售前工作台',
     text: '独立承载客户材料分析、调研准备、方案架构、图表工场和汇报材料规划，形成完整售前交付链路。',
-    action: '进入售前项目',
     section: 'presales-projects',
     tone: 'violet',
     icon: 'spark',
@@ -29,7 +28,6 @@ export const featureCards: Array<{ title: string; text: string; action: string; 
   {
     title: '招投标工作流',
     text: '围绕招标文件解析、目录生成、正文编排、查重和废标项检查形成完整投标辅助链路。',
-    action: '进入方案生成',
     section: 'technical-plan',
     tone: 'blue',
     icon: 'flow',
@@ -37,8 +35,7 @@ export const featureCards: Array<{ title: string; text: string; action: string; 
   },
   {
     title: '论文导师',
-    text: '从启动诊断、选题开题、文献综述、研究设计、数据实证、图表模型到自动成稿、逐章修改、答辩检查和格式查重，辅助论文全过程推进。',
-    action: '进入启动诊断',
+    text: '支持论文选题、文献综述、研究设计、图表制作、写作与答辩准备。',
     section: 'thesis-diagnosis',
     tone: 'amber',
     icon: 'thesis',
@@ -47,7 +44,6 @@ export const featureCards: Array<{ title: string; text: string; action: string; 
   {
     title: '公文写作',
     text: '支持公文草稿导入、要素提取、智能起草、格式检查、降 AI 味润色和 Word 导出。',
-    action: '进入智能起草',
     section: 'official-document-drafting',
     tone: 'green',
     icon: 'document',
@@ -55,8 +51,7 @@ export const featureCards: Array<{ title: string; text: string; action: string; 
   },
   {
     title: '课题申报',
-    text: '结合课题申报全生命周期流程，从启动诊断、选题政策、申报书撰写到评审优化和答辩准备，辅助教育科研课题申报推进。',
-    action: '进入启动诊断',
+    text: '辅助教育科研课题选题、政策查询、申报书撰写、评审优化与答辩准备。',
     section: 'grant-diagnosis',
     tone: 'green',
     icon: 'grant',
@@ -64,8 +59,7 @@ export const featureCards: Array<{ title: string; text: string; action: string; 
   },
   {
     title: '项目管理',
-    text: '围绕项目启动、需求 PRD、排期推进、风险问题、汇报回款、复盘沉淀和合规本土化建立项目管理工作台。',
-    action: '进入项目管理',
+    text: '管理项目启动、需求、排期和风险，支持进度汇报、回款跟踪与复盘。',
     section: 'project-management',
     tone: 'blue',
     icon: 'project',
@@ -74,7 +68,6 @@ export const featureCards: Array<{ title: string; text: string; action: string; 
   {
     title: '软件著作材料',
     text: '从项目代码和说明材料出发，辅助准备软著源码、申请表、手册和交付材料。',
-    action: '进入软著项目',
     section: 'software-copyright',
     tone: 'cyan',
     icon: 'code',
@@ -83,7 +76,6 @@ export const featureCards: Array<{ title: string; text: string; action: string; 
   {
     title: '专利生成',
     text: '从项目资料中挖掘可保护技术点，并生成交底书、查新分析和修订版本留档。',
-    action: '进入专利项目',
     section: 'patent-projects',
     tone: 'violet',
     icon: 'patent',
@@ -91,23 +83,14 @@ export const featureCards: Array<{ title: string; text: string; action: string; 
   },
 ];
 
-const workflowItems = [
-  '先在设置中确认文本模型、文件解析和导出偏好。',
-  '导入项目、招标、公文或论文材料后，按页面步骤生成、检查、编辑和导出。',
-  '长任务在 Electron Main 后台执行，页面切换不会中断任务。',
-  '关键结果保存在本机工作区，便于继续修订和留档。',
-];
+const heroSteps = ['读懂资料', '编写方案', '审阅交付'];
 
-const quickSignals = [
-  { label: '模型配置', value: '可切换', tone: 'blue' },
-  { label: '文件解析', value: '本地优先', tone: 'green' },
-  { label: '导出能力', value: 'Word', tone: 'violet' },
-];
-
-function HomePage({ featureModuleSettings, onNavigate }: HomePageProps) {
-  const visibleFeatureCards = featureCards.filter((item) => {
+function HomePage({ featureModuleSettings, onRevealModule }: HomePageProps) {
+  const visibleFeatureCards = featureCards.flatMap((item) => {
     const moduleId = getSectionModuleId(item.section);
-    return !moduleId || featureModuleSettings?.modules?.[moduleId]?.enabled !== false;
+    return moduleId && featureModuleSettings?.modules?.[moduleId]?.enabled !== false
+      ? [{ ...item, moduleId }]
+      : [];
   });
   const visibleOverviewStats = overviewStats.map((item) => (
     item.label === '核心工作区'
@@ -122,15 +105,14 @@ function HomePage({ featureModuleSettings, onNavigate }: HomePageProps) {
           <span className="section-kicker">首页</span>
           <h2>禹都 AI 解决方案助手</h2>
           <p>一个面向招投标、公文写作、论文辅导、软著材料和专利交底的本地 AI 工作台，把资料解析、生成、检查、修订、沉淀和导出收拢到同一套桌面流程里。</p>
-          <div className="home-signal-row" aria-label="工作台状态">
-            {quickSignals.map((item) => (
-              <span className={`home-signal is-${item.tone}`} key={item.label}>
-                <HomeIcon name="check" />
-                <strong>{item.label}</strong>
-                <small>{item.value}</small>
-              </span>
+          <ol className="home-hero-steps" aria-label="工作流程">
+            {heroSteps.map((label, index) => (
+              <li key={label}>
+                <span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                {label}
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
         <div className="home-stat-grid" aria-label="软件能力统计">
           {visibleOverviewStats.map((item) => (
@@ -154,41 +136,45 @@ function HomePage({ featureModuleSettings, onNavigate }: HomePageProps) {
             <span className="section-kicker">能力概览</span>
             <h3>常用功能</h3>
           </div>
+          <p className="home-feature-hint">点击卡片，在左侧选择功能</p>
         </div>
         <div className="home-feature-grid">
           {visibleFeatureCards.map((item) => (
             <article className={`is-${item.tone}`} key={item.title}>
-              <span className="home-feature-icon" aria-hidden="true">
-                <HomeIcon name={item.icon} />
-              </span>
-              <h4>{item.title}</h4>
+              <div className="home-feature-heading">
+                <span className="home-feature-icon" aria-hidden="true">
+                  <HomeIcon name={item.icon} />
+                </span>
+                <h4>{item.title}</h4>
+              </div>
               <p>{item.text}</p>
               <div className="home-tag-row">
                 {item.tags.map((tag) => <span key={tag}>{tag}</span>)}
               </div>
-              <button type="button" className="secondary-action" onClick={() => onNavigate(item.section)}>
-                {item.action}
+              <button
+                type="button"
+                className="home-feature-trigger"
+                aria-label={`查看${item.title}功能`}
+                onClick={() => onRevealModule(item.moduleId)}
+              >
+                <span className="home-feature-trigger-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2.75" y="4.25" width="14.5" height="11.5" rx="2" />
+                    <path d="M8 4.5v11" />
+                  </svg>
+                </span>
               </button>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="home-section home-workflow-card">
-        <div className="home-section-head">
-          <div>
-            <span className="section-kicker">使用节奏</span>
-            <h3>推荐从这里开始</h3>
-          </div>
+      <section className="home-promo-banner" aria-labelledby="home-promo-title">
+        <div>
+          <span>禹都 AI 解决方案助手</span>
+          <h3 id="home-promo-title">从一份资料，到一份可交付的成果</h3>
         </div>
-        <div className="home-workflow-list">
-          {workflowItems.map((item, index) => (
-            <article key={item}>
-              <span>{String(index + 1).padStart(2, '0')}</span>
-              <p>{item}</p>
-            </article>
-          ))}
-        </div>
+        <span className="home-promo-icon" aria-hidden="true"><HomeIcon name="spark" /></span>
       </section>
     </div>
   );

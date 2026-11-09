@@ -1,12 +1,12 @@
 import { getSectionModuleId } from '../../../app/menuConfig';
-import type { FeatureModuleSettings } from '../../../shared/types';
+import type { FeatureModuleId, FeatureModuleSettings } from '../../../shared/types';
 import type { SectionId } from '../../../shared/types/navigation';
 import { featureCards } from './HomePage';
 import { navigationIcons } from '../../../components/Sidebar';
 
 interface Props {
   featureModuleSettings?: FeatureModuleSettings | null;
-  onNavigate: (section: SectionId) => void;
+  onRevealModule: (moduleId: FeatureModuleId, opener: HTMLButtonElement) => void;
 }
 
 const cardDescriptions: Partial<Record<SectionId, string>> = {
@@ -20,14 +20,13 @@ const cardDescriptions: Partial<Record<SectionId, string>> = {
   'patent-projects': '技术挖掘、交底书、查新与修订',
 };
 
-export default function ModernHomePage({ featureModuleSettings, onNavigate }: Props) {
-  const cards = featureCards.filter((item) => {
+export default function ModernHomePage({ featureModuleSettings, onRevealModule }: Props) {
+  const cards = featureCards.flatMap((item) => {
     const moduleId = getSectionModuleId(item.section);
-    return !moduleId || featureModuleSettings?.modules?.[moduleId]?.enabled !== false;
+    return moduleId && featureModuleSettings?.modules?.[moduleId]?.enabled !== false
+      ? [{ ...item, moduleId }]
+      : [];
   });
-  const quickEntries = cards.filter((item) =>
-    ['presales-projects', 'technical-plan', 'official-document-drafting'].includes(item.section)
-  );
 
   return (
     <div className="modern-home">
@@ -35,17 +34,7 @@ export default function ModernHomePage({ featureModuleSettings, onNavigate }: Pr
         <div className="modern-hero-copy">
           <span className="modern-eyebrow">工作台首页 <span aria-hidden="true">/</span> {cards.length} 个业务空间</span>
           <h1>从这里开始，<br /><em>继续手头的工作。</em></h1>
-          <p>选择对应的业务入口，进入项目、处理资料或继续编写内容。</p>
-          {quickEntries.length > 0 && (
-            <div className="modern-hero-quick-entries" aria-label="常用入口">
-              <span>常用入口</span>
-              {quickEntries.map((item) => (
-                <button key={item.section} type="button" onClick={() => onNavigate(item.section)}>
-                  {item.title}<span aria-hidden="true">↗</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <p>选择业务空间，在左侧功能导航中继续操作。</p>
         </div>
         <div className="modern-hero-art" aria-hidden="true">
           <div className="modern-hero-flow">
@@ -64,19 +53,18 @@ export default function ModernHomePage({ featureModuleSettings, onNavigate }: Pr
           {cards.map((item) => {
             const Icon = navigationIcons[item.section];
             return (
-              <button className={`modern-workspace-card is-${item.tone} module-${item.section}`} type="button" key={item.title} onClick={() => onNavigate(item.section)}>
+              <button className={`modern-workspace-card is-${item.tone} module-${item.section}`} type="button" key={item.title} onClick={(event) => onRevealModule(item.moduleId, event.currentTarget)}>
                 <span className="modern-card-background" aria-hidden="true"><Icon /></span>
                 <span className="modern-card-icon" aria-hidden="true"><Icon /></span>
-                <span className="modern-card-arrow" aria-hidden="true">↗</span>
+                <span className="modern-card-arrow" aria-hidden="true">☷</span>
                 <strong>{item.title}</strong>
                 <small>{cardDescriptions[item.section] || item.text}</small>
-                <span className="modern-card-footer">{item.action}<span aria-hidden="true">→</span></span>
+                <span className="modern-card-footer">查看功能<span aria-hidden="true">‹</span></span>
               </button>
             );
           })}
         </div>
       </section>
-      <div className="modern-status-strip"><span><b />本地工作区已就绪</span></div>
     </div>
   );
 }

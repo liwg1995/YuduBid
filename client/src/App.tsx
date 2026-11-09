@@ -4,7 +4,7 @@ import StartupSplash from './app/StartupSplash';
 import ModernWelcomePage from './app/ModernWelcomePage';
 import { isSectionVisible } from './app/menuConfig';
 import AppShell from './components/AppShell';
-import type { FeatureModuleSettings } from './shared/types';
+import type { FeatureModuleId, FeatureModuleSettings } from './shared/types';
 import type { LatestReleaseInfo, UpdateSource } from './shared/types';
 import type { SectionId } from './shared/types/navigation';
 import type { PluginNavigationTarget } from './shared/types/plugin';
@@ -79,6 +79,7 @@ function App() {
     window.addEventListener(UI_APPEARANCE_CHANGE_EVENT, syncAppearance);
     return () => window.removeEventListener(UI_APPEARANCE_CHANGE_EVENT, syncAppearance);
   }, []);
+  const [moduleReveal, setModuleReveal] = useState<{ moduleId: FeatureModuleId; opener?: HTMLButtonElement } | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>(initialSectionFromUrl);
   const [developerMode, setDeveloperMode] = useState(false);
   const [featureModuleSettings, setFeatureModuleSettings] = useState<FeatureModuleSettings | null>(null);
@@ -297,6 +298,8 @@ function App() {
           developerMode={developerMode}
           featureModuleSettings={featureModuleSettings}
           assistantPluginEnabled={assistantPluginEnabled}
+          moduleReveal={activeSection === 'home' ? moduleReveal : null}
+          onModuleRevealHandled={() => setModuleReveal(null)}
           onSectionChange={changeSection}
         >
           <AppRouter
@@ -306,6 +309,7 @@ function App() {
             featureModuleSettings={featureModuleSettings}
             pluginNavigationTarget={pluginNavigationTarget?.sectionId === activeSection ? pluginNavigationTarget : null}
             onSectionChange={changeSection}
+            onRevealModule={(moduleId, opener) => setModuleReveal({ moduleId, opener })}
             onDeveloperModeChange={setDeveloperMode}
             onFeatureModuleSettingsChange={setFeatureModuleSettings}
             updateDialogRequest={updateDialogRequest}

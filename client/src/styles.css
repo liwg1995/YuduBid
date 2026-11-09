@@ -1244,12 +1244,11 @@ button {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1fr);
-  gap: 28px;
+  gap: 20px;
   align-items: center;
   overflow: hidden;
-  min-height: 310px;
-  padding: 34px;
-  border-radius: 28px;
+  padding: 20px 24px;
+  border-radius: 24px;
 }
 
 .home-hero-card::before {
@@ -1268,9 +1267,9 @@ button {
 
 .home-hero-card h2 {
   max-width: 720px;
-  margin: 12px 0 14px;
+  margin: 6px 0 8px;
   color: var(--yb-text);
-  font-size: 38px;
+  font-size: 28px;
   line-height: 1.18;
   letter-spacing: 0;
 }
@@ -1279,76 +1278,61 @@ button {
   max-width: 760px;
   margin: 0;
   color: var(--yb-text-soft);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.85;
+  line-height: 1.6;
 }
 
-.home-signal-row {
+.home-hero-steps {
   display: flex;
+  width: fit-content;
+  max-width: 100%;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 22px;
-}
-
-.home-signal {
-  display: inline-flex;
-  min-height: 38px;
   align-items: center;
-  gap: 7px;
-  padding: 8px 12px;
-  color: #1f3b61;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(220, 223, 230, 0.74);
-  border-radius: 999px;
-  box-shadow: 0 10px 28px rgba(33, 116, 253, 0.08);
+  gap: 8px 12px;
+  margin: 12px 0 0;
+  padding: 7px 10px;
+  list-style: none;
+  background: color-mix(in srgb, var(--yb-primary) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--yb-primary) 16%, transparent);
+  border-radius: 10px;
 }
 
-.home-signal svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.home-signal strong,
-.home-signal small {
+.home-hero-steps li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--yb-text);
   font-size: 12px;
-  font-weight: 900;
-  line-height: 1;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.home-signal small {
-  color: var(--yb-text-muted);
+.home-hero-steps li > span {
+  color: var(--yb-primary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
 }
 
-.home-signal.is-blue {
-  color: #1d4ed8;
-  background: rgba(219, 234, 254, 0.72);
-}
-
-.home-signal.is-green {
-  color: #0f766e;
-  background: rgba(204, 251, 241, 0.62);
-}
-
-.home-signal.is-violet {
-  color: #6d28d9;
-  background: rgba(237, 233, 254, 0.72);
+.home-hero-steps li:not(:last-child)::after {
+  width: 5px;
+  height: 5px;
+  margin: 0 1px 0 5px;
+  border-top: 1px solid var(--yb-text-muted);
+  border-right: 1px solid var(--yb-text-muted);
+  transform: rotate(45deg);
+  content: "";
 }
 
 .home-stat-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 .home-stat-grid article,
-.home-feature-grid article,
-.home-workflow-list article {
+.home-feature-grid article {
   border: 1px solid rgba(220, 223, 230, 0.78);
   background: rgba(255, 255, 255, 0.78);
 }
@@ -1356,10 +1340,10 @@ button {
 .home-stat-grid article {
   display: flex;
   min-width: 0;
-  gap: 12px;
+  gap: 8px;
   align-items: flex-start;
-  padding: 18px;
-  border-radius: 18px;
+  padding: 10px 12px;
+  border-radius: 14px;
   box-shadow: 0 12px 30px rgba(23, 32, 51, 0.05);
 }
 
@@ -1374,9 +1358,9 @@ button {
 }
 
 .home-stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 15px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
 }
 
 .home-stat-icon svg,
@@ -1424,9 +1408,9 @@ button {
 
 .home-stat-grid strong {
   display: block;
-  margin: 6px 0 5px;
+  margin: 2px 0;
   color: var(--yb-primary);
-  font-size: 26px;
+  font-size: 20px;
   line-height: 1.2;
 }
 
@@ -1460,12 +1444,11 @@ button {
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 228px;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
   overflow: hidden;
-  padding: 20px;
+  padding: 16px;
   border-radius: 18px;
   box-shadow: 0 14px 34px rgba(23, 32, 51, 0.05);
 }
@@ -1490,11 +1473,20 @@ button {
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), transparent 46%);
 }
 
+.home-feature-heading {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding-right: 36px;
+}
+
 .home-feature-icon {
   position: relative;
-  width: 50px;
-  height: 50px;
-  border-radius: 17px;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 12px;
 }
 
 .home-feature-grid h4 {
@@ -1505,10 +1497,14 @@ button {
   line-height: 1.35;
 }
 
-.home-feature-grid p,
-.home-workflow-list p {
+.home-feature-grid p {
   position: relative;
+  display: -webkit-box;
+  min-height: 2lh;
   margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--yb-text-soft);
   font-size: 13px;
   font-weight: 600;
@@ -1533,42 +1529,97 @@ button {
   border-radius: 999px;
 }
 
-.home-feature-grid .secondary-action {
-  position: relative;
-  margin-top: auto;
+.home-feature-hint {
+  align-self: flex-end;
+  margin: 0;
+  color: var(--yb-text-soft);
+  font-size: 12px;
+  text-align: right;
 }
 
-.home-workflow-card {
-  margin-bottom: 6px;
+.home-feature-trigger {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  color: var(--yb-text-soft);
+  background: transparent;
+  border: 0;
+  border-radius: inherit;
+  cursor: pointer;
 }
 
-.home-workflow-list {
+.home-feature-trigger-icon {
+  position: absolute;
+  top: 20px;
+  right: 16px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.home-workflow-list article {
-  display: flex;
-  min-width: 0;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 16px;
-}
-
-.home-workflow-list span {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
+  width: 28px;
+  height: 28px;
   place-items: center;
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 900;
-  background: var(--yb-active-gradient);
+  background: color-mix(in srgb, var(--yb-text) 5%, transparent);
+  border-radius: 10px;
+}
+
+.home-feature-trigger:is(:hover, :focus-visible) .home-feature-trigger-icon {
+  color: var(--yb-primary);
+  background: color-mix(in srgb, var(--yb-primary) 10%, transparent);
+}
+
+.home-feature-grid article:hover {
+  border-color: color-mix(in srgb, var(--yb-primary) 45%, transparent);
+}
+
+.home-feature-trigger:focus-visible {
+  outline: 2px solid var(--yb-primary);
+  outline-offset: -2px;
+}
+
+.home-promo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px clamp(16px, 3vw, 36px);
+  color: #fff;
+  background: linear-gradient(105deg, #18386d, #294c90 66%, #41458c);
+  border-radius: 18px;
+}
+
+.home-promo-banner h3 {
+  margin: 4px 0;
+  font-size: clamp(18px, 2vw, 24px);
+  line-height: 1.35;
+}
+
+.home-promo-banner > div > span {
+  margin: 0;
+  color: #dde8ff;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.home-promo-icon {
+  display: grid;
+  width: clamp(32px, 6vw, 64px);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #dde8ff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 14px;
 }
 
+.home-promo-icon svg {
+  width: 52%;
+  height: 52%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 .app-shell {
   position: relative;
@@ -1826,7 +1877,8 @@ button {
   -webkit-app-region: no-drag;
 }
 
-.nav-group-trigger:hover {
+.nav-group-trigger:hover,
+.nav-group-trigger:focus {
   color: var(--yb-primary);
   background: rgba(33, 116, 253, 0.06);
   border-color: rgba(33, 116, 253, 0.12);
@@ -10806,10 +10858,6 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .home-workflow-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .home-feature-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -11054,24 +11102,23 @@ button {
     padding-bottom: 26px;
   }
 
-  .home-hero-card,
   .home-section {
     padding: 22px 20px;
     border-radius: 22px;
   }
 
+  .home-hero-card {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
   .home-hero-card h2 {
-    font-size: 30px;
+    font-size: 24px;
   }
 
   .home-stat-grid,
-  .home-feature-grid,
-  .home-workflow-list {
+  .home-feature-grid {
     grid-template-columns: 1fr;
-  }
-
-  .home-feature-grid article {
-    min-height: 0;
   }
 
   .floating-toolbar {
@@ -11611,10 +11658,6 @@ button {
 }
 
 :root[data-ui-theme="dark"] .app-shell :where(
-  .home-signal,
-  .home-signal.is-blue,
-  .home-signal.is-green,
-  .home-signal.is-violet,
   .home-tag-row span
 ) {
   color: #b9d1ff;
