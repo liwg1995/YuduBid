@@ -910,7 +910,7 @@ function KnowledgeBasePage({ embedded = false, createRequestKey = 0 }: Knowledge
             <div className="modern-knowledge-folder-foot">{index.folders.length} 个文件夹 · 保存在本地</div>
           </aside>
           <main className="modern-knowledge-documents"><div className="modern-knowledge-document-head"><div><span>当前文件夹</span><h3>{activeFolder?.name || '请选择文件夹'}</h3></div><strong>{documents.length} 个文档</strong></div>
-            {listError ? <div className="modern-knowledge-empty" role="alert"><strong>读取知识库失败</strong><p>{listError}</p><button type="button" onClick={() => void loadInitialData()}>重新读取</button></div> : listLoading ? <div className="modern-knowledge-empty" role="status"><strong>正在读取知识库…</strong></div> : documents.length ? <KnowledgeDocumentList key={activeFolder?.id} documents={documents} disabled={migrationRunning} developerMode={developerMode} canOpenMarkdown={canOpenMarkdown} canOpenAnalysis={canOpenAnalysis} onOpen={(document, mode) => void openDocument(document, mode)} onDelete={(document) => void deleteDocument(document)} /> : <div className="modern-knowledge-empty"><strong>{activeFolder ? '当前文件夹还没有文档' : '先创建文件夹'}</strong><p>支持 Word、PDF、WPS 和 Markdown 文档。</p><button type="button" data-knowledge-upload={activeFolder ? true : undefined} onClick={activeFolder ? uploadDocuments : () => setShowCreateFolder(true)} disabled={loading || migrationRunning}>{activeFolder ? '上传文档' : '新建文件夹'}</button></div>}
+            {listError ? <div className="modern-knowledge-empty" role="alert"><strong>读取知识库失败</strong><p>{listError}</p><button className="secondary-action" type="button" onClick={() => void loadInitialData()}>重新读取</button></div> : listLoading ? <div className="modern-knowledge-empty" role="status"><strong>正在读取知识库…</strong></div> : documents.length ? <KnowledgeDocumentList key={activeFolder?.id} documents={documents} disabled={migrationRunning} developerMode={developerMode} canOpenMarkdown={canOpenMarkdown} canOpenAnalysis={canOpenAnalysis} onOpen={(document, mode) => void openDocument(document, mode)} onDelete={(document) => void deleteDocument(document)} /> : <div className="modern-knowledge-empty"><strong>{activeFolder ? '当前文件夹还没有文档' : '先创建文件夹'}</strong><p>支持 Word、PDF、WPS 和 Markdown 文档。</p><button className="primary-action" type="button" data-knowledge-upload={activeFolder ? true : undefined} onClick={activeFolder ? uploadDocuments : () => setShowCreateFolder(true)} disabled={loading || migrationRunning}>{activeFolder ? '上传文档' : '新建文件夹'}</button></div>}
 
           </main>
         </div>
@@ -1308,7 +1308,7 @@ function KnowledgeDocumentViewer({
     return <div className="modern-knowledge-viewer">
       <header className="modern-knowledge-viewer-header"><div><button type="button" onClick={onBack}>← 返回文档资料</button><h2 ref={headingRef} tabIndex={-1} title={document.file_name}>{document.file_name}</h2><p>{statusLabels[document.status]} · {document.item_count || 0} 条知识{developerMode ? ` · 文档 ID：${document.id}` : ''}</p></div>{developerMode && <button type="button" onClick={() => void copyDebugLogs()}>复制调试日志</button>}</header>
       <div className="modern-knowledge-viewer-modes" role="tablist" aria-label="文档查看模式"><button type="button" role="tab" aria-selected={mode === 'items'} className={mode === 'items' ? 'is-active' : ''} onClick={() => onModeChange('items')} disabled={document.status !== 'success'}>知识条目 <small>{document.item_count || 0}</small></button><button type="button" role="tab" aria-selected={mode === 'markdown'} className={mode === 'markdown' ? 'is-active' : ''} onClick={() => onModeChange('markdown')} disabled={!canOpenMarkdown(document)}>Markdown 原文</button>{developerMode && <button type="button" role="tab" aria-selected={mode === 'analysis'} className={mode === 'analysis' ? 'is-active' : ''} onClick={() => onModeChange('analysis')}>分析调试</button>}</div>
-      <section className="modern-knowledge-viewer-body" aria-label={mode === 'items' ? '知识条目' : mode === 'markdown' ? 'Markdown 原文' : '分析调试'}>{readerContent}</section>
+      <section key={mode} className="modern-knowledge-viewer-body" aria-label={mode === 'items' ? '知识条目' : mode === 'markdown' ? 'Markdown 原文' : '分析调试'}>{readerContent}</section>
       {sourceDialog}
     </div>;
   }
@@ -1331,7 +1331,7 @@ function KnowledgeDocumentViewer({
         </div>
       </section>
 
-      <section className="knowledge-viewer-panel">
+      <section key={mode} className="knowledge-viewer-panel">
         {readerContent}
       </section>
 

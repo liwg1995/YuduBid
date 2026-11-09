@@ -1,3 +1,4 @@
+const { bidScope } = require('./bidScopeWorkflow.cjs');
 const crypto = require('node:crypto');
 const { runBidAnalysisTask } = require('./bidAnalysisTask.cjs');
 const { runBidSectionExtractionTask } = require('./bidSectionExtractionTask.cjs');
@@ -121,6 +122,11 @@ function isActiveTaskStatus(status) {
   return status === 'running' || status === 'pausing' || status === 'stopping';
 }
 
+function isLiveTask(task) {
+  return isActiveTaskStatus(task.status)
+    || (['outline-generation', 'bid-analysis'].includes(task.type) && task.status === 'paused');
+}
+
 function hasOwn(value, field) {
   return Object.prototype.hasOwnProperty.call(value || {}, field);
 }
@@ -235,7 +241,7 @@ function createTask(type, payload) {
   };
 }
 
-function createTaskService({ app, aiService, technicalDiagramService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService, configStore, templateStore }) {
+function createTaskService({ app, aiService, technicalDiagramService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService, configStore, templateStore, credentialLibraryService }) {
   const subscribers = new Set();
   const activeTasks = new Map();
   const activeTaskControls = new Map();
@@ -398,7 +404,7 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
 
     const nextScopeId = getScopeId(payload);
     for (const task of activeTasks.values()) {
-      if (!(isActiveTaskStatus(task.status) || (task.type === 'outline-generation' && task.status === 'paused')) || task.type === type) {
+      if (!isLiveTask(task) || task.type === type) {
         continue;
       }
 
@@ -468,7 +474,7 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
 
   function startManagedTask(type, payload, runner, initialPartial = {}) {
     const existingTask = activeTasks.get(type);
-    if (existingTask && (isActiveTaskStatus(existingTask.status) || (type === 'outline-generation' && existingTask.status === 'paused'))) {
+    if (existingTask && isLiveTask(existingTask)) {
       const nextWorkflowKind = getWorkflowKind(payload);
       const nextProjectId = getProjectId(payload);
       if (existingTask.workflow_kind && existingTask.workflow_kind !== nextWorkflowKind) {
@@ -497,13 +503,14 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     activeTasks.set(type, task);
     const taskField = getTaskField(type);
     let currentTask = task;
-    const outlineAbortController = type === 'outline-generation' ? new AbortController() : null;
+    const canAbort = ['outline-generation', 'bid-analysis'].includes(type);
+    let abortController = canAbort ? new AbortController() : null;
     let releaseOutlinePause = null;
     let pendingAnswer = null;
     const taskControl = {
       pauseRequested: false,
       stopRequested: false,
-      signal: outlineAbortController?.signal,
+      get signal() { return abortController?.signal; },
       isPauseRequested() {
         return this.pauseRequested;
       },
@@ -513,23 +520,24 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
       requestPause() {
         if (this.pauseRequested) return currentTask;
         this.pauseRequested = true;
-        const pausedLogs = [...(currentTask.logs || []).slice(-199), '已请求暂停，正在等待当前 AI 请求完成。'];
+        const pausedLogs = [...(currentTask.logs || []).slice(-199), type === 'bid-analysis' ? '正在暂停解析并取消未完成的请求。' : '已请求暂停，正在等待当前 AI 请求完成。'];
         const pausingTask = updateTask({ status: 'pausing', pause_requested: true, logs: pausedLogs });
         const state = updateWorkspaceState(definition, { [taskField]: pausingTask }, taskWorkflowKind, taskProjectId);
         emit(pausingTask, buildSnapshot(definition, state, pausingTask));
+        if (type === 'bid-analysis') abortController.abort();
         return pausingTask;
       },
       requestStop() {
         if (this.stopRequested) return currentTask;
         this.stopRequested = true;
-        const stoppingMessage = outlineAbortController
+        const stoppingMessage = abortController
           ? '已请求停止，正在取消当前 AI 请求。'
           : '已请求停止，等待当前 AI 请求完成。';
         const stoppingLogs = [...(currentTask.logs || []).slice(-199), stoppingMessage];
         const stoppingTask = updateTask({ status: 'stopping', stop_requested: true, logs: stoppingLogs });
         const state = updateWorkspaceState(definition, { [taskField]: stoppingTask }, taskWorkflowKind, taskProjectId);
         emit(stoppingTask, buildSnapshot(definition, state, stoppingTask));
-        outlineAbortController?.abort();
+        abortController?.abort();
         pendingAnswer?.resolve(null);
         pendingAnswer = null;
         releaseOutlinePause?.();
@@ -567,24 +575,25 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
         return next;
       },
       async checkpoint() {
-        if (this.stopRequested) throw new Error('目录生成已停止');
-        if (type !== 'outline-generation' || !this.pauseRequested) return;
+        if (this.stopRequested) throw new Error(`${definition.label}已停止`);
+        if (!canAbort || !this.pauseRequested) return;
         const pausedTask = updateTask({
           status: 'paused',
-          logs: [...(currentTask.logs || []).slice(-199), '目录生成已暂停，点击继续后接着执行。'],
+          logs: [...(currentTask.logs || []).slice(-199), `${definition.label}已暂停，点击继续后接着执行。`],
         });
         const state = updateWorkspaceState(definition, { [taskField]: pausedTask }, taskWorkflowKind, taskProjectId);
         emit(pausedTask, buildSnapshot(definition, state, pausedTask));
         await new Promise((resolve) => { releaseOutlinePause = resolve; });
         releaseOutlinePause = null;
-        if (this.stopRequested) throw new Error('目录生成已停止');
+        if (this.stopRequested) throw new Error(`${definition.label}已停止`);
       },
       resume() {
+        if (type === 'bid-analysis') abortController = new AbortController();
         this.pauseRequested = false;
         const runningTask = updateTask({
           status: 'running',
           pause_requested: false,
-          logs: [...(currentTask.logs || []).slice(-199), '目录生成已继续。'],
+          logs: [...(currentTask.logs || []).slice(-199), `${definition.label}已继续。`],
         });
         const state = updateWorkspaceState(definition, { [taskField]: runningTask }, taskWorkflowKind, taskProjectId);
         emit(runningTask, buildSnapshot(definition, state, runningTask));
@@ -655,9 +664,9 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
         ? rejectionCheckStore
         : duplicateCheckStore;
     const runPromise = runWithAiRequestActivity(aiActivity, () => runner({ aiService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, updateTask, payload, taskControl, previousState })).catch((error) => {
-      const stopped = type === 'outline-generation' && taskControl.stopRequested;
+      const stopped = canAbort && taskControl.stopRequested;
       const finalTask = updateTask(stopped
-        ? { status: 'stopped', pause_requested: false, stop_requested: false, logs: [...(currentTask.logs || []).slice(-199), '目录生成已停止。'] }
+        ? { status: 'stopped', pause_requested: false, stop_requested: false, logs: [...(currentTask.logs || []).slice(-199), `${definition.label}已停止。`] }
         : { status: 'error', error: error.message || '任务执行失败' });
       const nextState = updateWorkspaceState(definition, { [taskField]: finalTask }, taskWorkflowKind, taskProjectId);
       emit(finalTask, buildSnapshot(definition, nextState, finalTask));
@@ -746,28 +755,37 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     emit(recoveredTask, buildSnapshot(getTaskDefinition('global-facts-generation'), state, recoveredTask));
   }
 
-  function recoverInterruptedOutlineTasks() {
+  function recoverInterruptedOutlineAndBidTasks() {
     for (const workflowKind of ['technical-plan', 'existing-plan-expansion']) {
       const projects = technicalPlanStore.listProjects?.(workflowKind)?.projects || [];
       const projectIds = new Set(['default', ...projects.map((project) => project.id)]);
       for (const projectId of projectIds) {
-        const active = activeTasks.get('outline-generation');
-        if (active && active.workflow_kind === workflowKind && (active.project_id || 'default') === projectId) continue;
         const plan = technicalPlanStore.loadTechnicalPlan({ workflowKind, projectId }) || {};
-        const task = plan.outlineGenerationTask;
-        if (!task || !['running', 'pausing', 'stopping', 'paused'].includes(task.status)) continue;
-        const message = '上次目录生成因应用关闭而中断，请重新生成目录。';
-        const recovered = {
-          ...task,
-          status: 'error',
-          error: message,
-          pause_requested: false,
-          stop_requested: false,
-          logs: [...(task.logs || []), message],
-          updated_at: now(),
-        };
-        const state = technicalPlanStore.updateTechnicalPlan({ workflowKind, projectId, outlineGenerationTask: recovered });
-        emit(recovered, buildSnapshot(getTaskDefinition('outline-generation'), state, recovered));
+        for (const type of ['outline-generation', 'bid-analysis']) {
+          const active = activeTasks.get(type);
+          if (active && active.workflow_kind === workflowKind && (active.project_id || 'default') === projectId) continue;
+          const definition = getTaskDefinition(type);
+          const task = plan[definition.field];
+          if (!task || !['running', 'pausing', 'stopping', 'paused'].includes(task.status)) continue;
+          const message = type === 'bid-analysis'
+            ? '上次招标文件解析因应用关闭而中断，可以继续解析未完成项。'
+            : '上次目录生成因应用关闭而中断，请重新生成目录。';
+          const recovered = {
+            ...task,
+            status: type === 'bid-analysis' ? 'stopped' : 'error',
+            error: type === 'bid-analysis' ? undefined : message,
+            pause_requested: false,
+            stop_requested: false,
+            logs: [...(task.logs || []), message],
+            updated_at: now(),
+          };
+          const bidItems = type === 'bid-analysis' ? {
+            bidAnalysisTasks: Object.fromEntries(Object.entries(plan.bidAnalysisTasks || {}).map(([id, item]) =>
+              [id, item.status === 'running' ? { ...item, status: 'idle' } : item])),
+          } : {};
+          const state = technicalPlanStore.updateTechnicalPlan({ workflowKind, projectId, ...bidItems, [definition.field]: recovered });
+          emit(recovered, buildSnapshot(definition, state, recovered));
+        }
       }
     }
   }
@@ -866,12 +884,12 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     emit(nextState.analysisTask || recoveredTask, { duplicateCheck: nextState });
   }
 
-  function getMatchingOutlineTask(payload) {
-    const task = activeTasks.get('outline-generation');
+  function getMatchingTask(type, payload) {
+    const task = activeTasks.get(type);
     if (!task) return null;
     const requested = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
     const requestedWorkflow = normalizeWorkflowKind(requested.workflowKind || getWorkflowKind(payload));
-    const requestedProjectId = requested.projectId || getProjectId(payload) || 'default';
+    const requestedProjectId = getProjectId(payload) || requested.projectId || 'default';
     return task.workflow_kind === requestedWorkflow && (task.project_id || 'default') === requestedProjectId ? task : null;
   }
 
@@ -890,16 +908,36 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     startBidAnalysis(payload) {
       return startManagedTask('bid-analysis', payload, runBidAnalysisTask);
     },
+    pauseBidAnalysis(payload) {
+      const task = getMatchingTask('bid-analysis', payload);
+      if (task?.status !== 'running') throw new Error('当前没有正在运行的招标文件解析任务');
+      return activeTaskControls.get('bid-analysis').requestPause();
+    },
+    resumeBidAnalysis(payload) {
+      const task = getMatchingTask('bid-analysis', payload);
+      if (task?.status !== 'paused') throw new Error('当前没有已暂停的招标文件解析任务');
+      return activeTaskControls.get('bid-analysis').resume();
+    },
+    stopBidAnalysis(payload) {
+      const task = getMatchingTask('bid-analysis', payload);
+      if (task?.status === 'stopping') return task;
+      if (!task || !['running', 'pausing', 'paused'].includes(task.status)) throw new Error('当前没有可停止的招标文件解析任务');
+      return activeTaskControls.get('bid-analysis').requestStop();
+    },
     startOutlineGeneration(payload) {
       const technicalPlan = technicalPlanStore.loadTechnicalPlan({ workflowKind: getWorkflowKind(payload), projectId: getProjectId(payload) }) || {};
       const scoreContent = technicalPlan.bidAnalysisTasks?.techRequirements?.content || technicalPlan.techRequirements;
-      const blockReason = getOutlineGenerationBlockReason(payload?.mode, scoreContent, payload?.responseFileRequirements || technicalPlan.responseFileRequirements);
+      const scope = bidScope(technicalPlan.contentGenerationOptions);
+      const responseRequirements = technicalPlan.responseFileRequirements || '';
+      const blockReason = scope === 'technical'
+        ? getOutlineGenerationBlockReason(payload?.mode, scoreContent, payload?.responseFileRequirements || responseRequirements)
+        : responseRequirements.trim() ? '' : '请先解析当前成册范围的响应文件要求';
       if (blockReason) {
         console.warn('[outline-generation] 当前生成方式缺少依据，已阻止启动', { projectId: getProjectId(payload), mode: payload?.mode });
         throw new Error(blockReason);
       }
       return startManagedTask('outline-generation', payload, runOutlineGenerationTask, {
-        outlineMode: payload?.mode,
+        outlineMode: scope === 'technical' ? payload?.mode : 'response-file',
         referenceKnowledgeDocumentIds: Array.isArray(payload?.reference_knowledge_document_ids) ? payload.reference_knowledge_document_ids : [],
         outlineData: null,
         globalFactsTask: undefined,
@@ -911,7 +949,7 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
       });
     },
     pauseOutlineGeneration(payload) {
-      const task = getMatchingOutlineTask(payload);
+      const task = getMatchingTask('outline-generation', payload);
       const control = activeTaskControls.get('outline-generation');
       if (task?.status === 'paused' || task?.status === 'pausing') return task;
       if (task?.status !== 'running' || !control) throw new Error('当前没有正在生成的目录任务。');
@@ -924,14 +962,14 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
       return control.answer(payload.questionId, payload.answer || {});
     },
     resumeOutlineGeneration(payload) {
-      const task = getMatchingOutlineTask(payload);
+      const task = getMatchingTask('outline-generation', payload);
       const control = activeTaskControls.get('outline-generation');
       if (task?.status === 'running') return task;
       if (!['paused', 'pausing'].includes(task?.status) || !control) throw new Error('当前没有已暂停的目录任务。');
       return control.resume();
     },
     stopOutlineGeneration(payload) {
-      const task = getMatchingOutlineTask(payload);
+      const task = getMatchingTask('outline-generation', payload);
       const control = activeTaskControls.get('outline-generation');
       if (task?.status === 'stopping') return task;
       if (!task || !['running', 'pausing', 'paused'].includes(task.status) || !control) throw new Error('当前没有可停止的目录任务。');
@@ -943,17 +981,16 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
       const requestedProjectId = requested.projectId || getProjectId(payload) || 'default';
       const matching = Array.from(activeTasks.values()).filter((task) => task.group === 'technical-plan'
         && task.workflow_kind === requestedWorkflow && (task.project_id || 'default') === requestedProjectId
-        && (isActiveTaskStatus(task.status) || (task.type === 'outline-generation' && task.status === 'paused')));
-      const unsupported = matching.find((task) => task.type !== 'outline-generation');
+        && isLiveTask(task));
+      const unsupported = matching.find((task) => !['outline-generation', 'bid-analysis'].includes(task.type));
       if (unsupported) throw new Error(`请先结束“${getTaskDefinition(unsupported.type).label}”后台任务，再重置项目。`);
-      const outline = matching.find((task) => task.type === 'outline-generation');
-      if (outline) {
-        activeTaskControls.get('outline-generation')?.requestStop();
-        await activeTaskRuns.get('outline-generation');
+      for (const task of matching) {
+        activeTaskControls.get(task.type)?.requestStop();
+        await activeTaskRuns.get(task.type);
       }
     },
     startGlobalFactsGeneration(payload) {
-      return startManagedTask('global-facts-generation', payload, runGlobalFactsTask, {
+      return startManagedTask('global-facts-generation', payload, (context) => runGlobalFactsTask({ ...context, credentialLibraryService }), {
         globalFacts: [],
         contentGenerationTask: undefined,
         contentGenerationSections: {},
@@ -1012,7 +1049,7 @@ function createTaskService({ app, aiService, technicalDiagramService, technicalP
     },
     getActiveTasks() {
       recoverInterruptedBidSectionExtractionTask();
-      recoverInterruptedOutlineTasks();
+      recoverInterruptedOutlineAndBidTasks();
       recoverInterruptedContentGenerationTask();
       recoverInterruptedGlobalFactsTask();
       recoverInterruptedRejectionCheckTasks();

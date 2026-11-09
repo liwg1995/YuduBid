@@ -155,6 +155,7 @@ module.exports = {
   getRejectionCheckDir,
   getRejectionCheckDocumentMarkdownPath,
   getTechnicalPlanDir,
+  getPreparedBusinessWordPath: app => path.join(getTechnicalPlanDir(app), 'business-volume.docx'),
   getTechnicalPlanOriginalPlanMarkdownPath,
   getTechnicalPlanOriginalPlanSourceDir,
   getTechnicalPlanTenderMarkdownPath,

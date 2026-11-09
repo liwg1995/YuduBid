@@ -714,6 +714,18 @@
   min-height: 0;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .knowledge-viewer-page,
+  .modern-knowledge-viewer {
+    animation: knowledge-viewer-enter 160ms ease-out;
+  }
+}
+
+@keyframes knowledge-viewer-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .knowledge-viewer-page {
   min-height: 0;
   gap: 12px;

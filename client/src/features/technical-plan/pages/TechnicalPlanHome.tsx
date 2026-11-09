@@ -1,8 +1,9 @@
+import { buildScoringResponse } from '../services/scoringResponse';
 import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import DocumentAnalysisPage from './DocumentAnalysisPage';
-import GenerationSettingsPage from './GenerationSettingsPage';
+import GenerationSettingsPage, { type GenerationSettingsNavigation } from './GenerationSettingsPage';
 import BidAnalysisPage from './BidAnalysisPage';
 import OutlineEditPage from './OutlineEditPage';
 import GlobalFactsPage from './GlobalFactsPage';
@@ -17,8 +18,9 @@ import './modernExpand.css';
 import BidWordExportDialog from '../../export-format/components/BidWordExportDialog';
 import { useTechnicalPlanWorkflow } from '../hooks/useTechnicalPlanWorkflow';
 import { getBidAnalysisTasks } from '../services/bidAnalysisWorkflow';
-import { AgentFloatingPanel, FloatingToolbar, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useAppDialog, useToast } from '../../../shared/ui';
+import { AgentFloatingPanel, FloatingToolbar, MarkdownRenderer, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, isLibreOfficeRequiredMessage, useAppDialog, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import { countReadableWords } from '../../../shared/utils/wordCount';
+import { technicalProjectKey } from '../../../shared/types/contracts/technicalPlan';
 import type { BackgroundTaskState, BidAnalysisTasks, ContentGenerationOptions, ContentTableRequirement, GlobalFactGroupState, TechnicalPlanProject, TechnicalPlanProjectList, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../types';
 import type { BidExportTemplateRecord, BidWordExportMode, OutlineData, OutlineItem, WordExportProgressEvent } from '../../../shared/types';
 import type { AgentHostStatus, AgentRunResult, WordLayoutAuditResult } from '../../../shared/types/ipc';
@@ -117,6 +119,7 @@ interface ExportProgressState {
   mermaidCount: number;
   filePath?: string;
   error?: string;
+  combinedBusiness?: boolean;
   layoutChecking?: boolean;
   layoutAudit?: WordLayoutAuditResult;
   layoutError?: string;
@@ -201,14 +204,6 @@ function hasWorkflowSpecificProgress(state: TechnicalPlanState) {
   );
 }
 
-function workflowSection(kind: TechnicalPlanWorkflowKind): SectionId {
-  return kind === 'existing-plan-expansion' ? 'existing-plan-expansion' : 'technical-plan';
-}
-
-function workflowLabel(kind: TechnicalPlanWorkflowKind) {
-  return kind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案';
-}
-
 const taskStatusLabels: Record<string, string> = {
   running: '运行中',
   pausing: '暂停中',
@@ -230,9 +225,11 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const { hydrated, state, setState } = useTechnicalPlanWorkflow(workflowKind, projectId);
   const { showToast } = useToast();
   const { confirm } = useAppDialog();
+  const { showDocumentParseNotice } = useDocumentParseNotice();
   const [draftDirty, setDraftDirty] = useState(false);
   const draftDirtyRef = useRef(false);
   const stepPromptPendingRef = useRef(false);
+  const [settingsNavigation, setSettingsNavigation] = useState<GenerationSettingsNavigation | null>(null);
   const generationSettingsSaveRef = useRef<(() => Promise<boolean>) | null>(null);
   const reportDraftDirty = useCallback((dirty: boolean) => {
     draftDirtyRef.current = dirty;
@@ -290,7 +287,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const agentContinuousLaunchingRef = useRef(false);
   const agentContinuousPersistenceReadyRef = useRef(false);
   const activeIndex = steps.indexOf(state.step);
-  const bidAnalysisReady = areRequiredBidAnalysisTasksReady(state.bidAnalysisTasks);
+  const bidAnalysisReady = areRequiredBidAnalysisTasksReady(state.bidAnalysisTasks) && ((state.contentGenerationOptions?.bidGenerationScope || 'technical') === 'technical' || state.bidAnalysisTasks.responseFileRequirements?.status === 'success');
   const generationSettingsStale = Boolean(state.generationSettingsSnapshot && (
     state.generationSettingsSnapshot.minimumWords !== (state.contentGenerationOptions?.minimumWords || 0)
     || (state.generationSettingsSnapshot.maximumWords || 0) !== (state.contentGenerationOptions?.maximumWords || 0)
@@ -305,7 +302,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const isContentGenerating = contentTaskStatus === 'running' || contentTaskStatus === 'pausing';
   const isContentPaused = contentTaskStatus === 'paused';
   const isExporting = exportProgress.running;
-  const requiresOriginalPlan = workflowKind === 'existing-plan-expansion';
+  const hasOriginalPlan = Boolean(state.originalPlanFile);
+  const [originalPlanBusy, setOriginalPlanBusy] = useState(false);
   const outlineLeaves = useMemo(() => state.outlineData?.outline ? collectLeafItems(state.outlineData.outline) : [], [state.outlineData]);
   const generatedLeaves = useMemo(
     () => outlineLeaves.filter((item) => getLeafContent(item, state.contentGenerationSections).trim()),
@@ -380,18 +378,14 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     ? '可返回上一步查看扩写后的正文。'
     : expandLatestLog || (expandTaskStatus === 'stopped' ? '扩写已停止，已保留当前已完成内容，可重新开始。' : '选择小节并设置扩写参数后即可开始。');
   const expandStatusClass = ['running', 'pausing', 'stopping', 'stopped', 'paused', 'success', 'error'].includes(expandTaskStatus) ? expandTaskStatus : 'idle';
+  const scope = state.contentGenerationOptions?.bidGenerationScope ?? 'technical';
   const isNextDisabled = activeIndex >= steps.length - 1
-    || (state.step === 'document-analysis' && (!state.tenderFile || (requiresOriginalPlan && !state.originalPlanFile)))
-    || (state.step === 'generation-settings' && !state.contentGenerationOptions)
+    || (state.step === 'document-analysis' && !state.tenderFile)
     || (state.step === 'bid-analysis' && !bidAnalysisReady)
     || (state.step === 'outline-generation' && (!state.outlineData || generationSettingsStale))
     || (state.step === 'global-facts' && !globalFactsReady);
   const nextTooltip = state.step === 'document-analysis' && !state.tenderFile
     ? '上传完招标文件后才能进入下一步'
-    : state.step === 'document-analysis' && requiresOriginalPlan && !state.originalPlanFile
-      ? '上传完原方案后才能进入下一步'
-      : state.step === 'generation-settings' && !state.contentGenerationOptions
-        ? '请先保存本次生成设置'
       : state.step === 'bid-analysis' && !bidAnalysisReady
       ? '招标文件解析完成后才能进入目录生成'
       : state.step === 'outline-generation' && (!state.outlineData || generationSettingsStale)
@@ -517,6 +511,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const switchStep = (step: TechnicalPlanStep) => {
     if (step === state.step || stepPromptPendingRef.current) return;
     if (state.step === 'generation-settings' && generationSettingsSaveRef.current) {
+      if (originalPlanBusy) return;
       stepPromptPendingRef.current = true;
       void generationSettingsSaveRef.current().then((saved) => { if (saved) applyStep(step); })
         .finally(() => { stepPromptPendingRef.current = false; });
@@ -622,9 +617,9 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
 
   const startBidAgentContinuousRun = async () => {
     if (!projectId) return;
-    if (!state.tenderFile || (requiresOriginalPlan && !state.originalPlanFile)) {
+    if (!state.tenderFile) {
       switchStep('document-analysis');
-      showToast(requiresOriginalPlan ? '请先上传招标文件和原方案' : '请先上传招标文件', 'info');
+      showToast('请先上传招标文件', 'info');
       return;
     }
     if (!state.contentGenerationOptions || generationSettingsStale) {
@@ -730,7 +725,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
             sectionWords: Math.max(0, savedOptions?.sectionWords ?? 0),
             contentConcurrency: Math.max(1, savedOptions?.contentConcurrency ?? 5),
             enableConsistencyAudit: savedOptions?.enableConsistencyAudit ?? true,
-            enableOriginalPlanCoverageAudit: requiresOriginalPlan && Boolean(savedOptions?.enableOriginalPlanCoverageAudit),
+            enableOriginalPlanCoverageAudit: hasOriginalPlan && scope === 'technical' && Boolean(savedOptions?.enableOriginalPlanCoverageAudit),
             missingFactPolicy: savedOptions?.missingFactPolicy,
           };
           await window.yibiao?.tasks.startContentGeneration({ workflowKind, projectId, generationOptions });
@@ -744,7 +739,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         agentContinuousLaunchingRef.current = false;
       }
     })();
-  }, [agentContinuousStatus, bidAnalysisReady, generatedLeaves.length, globalFactsReady, outlineLeaves.length, projectId, requiresOriginalPlan, state.bidAnalysisMode, state.bidAnalysisTask, state.contentGenerationOptions, state.contentGenerationTask, state.globalFactsTask, state.outlineData, state.outlineGenerationTask, state.outlineMode, state.referenceKnowledgeDocumentIds, state.responseFileRequirements, workflowKind]);
+  }, [agentContinuousStatus, bidAnalysisReady, generatedLeaves.length, globalFactsReady, outlineLeaves.length, projectId, hasOriginalPlan, scope, state.bidAnalysisMode, state.bidAnalysisTask, state.contentGenerationOptions, state.contentGenerationTask, state.globalFactsTask, state.outlineData, state.outlineGenerationTask, state.outlineMode, state.referenceKnowledgeDocumentIds, state.responseFileRequirements, workflowKind]);
 
   const startExpandOnly = async () => {
     if (!state.outlineData?.outline?.length) {
@@ -885,6 +880,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
             bidAnalysisProgress: technicalPlan.bidAnalysisProgress ?? prev.bidAnalysisProgress,
             projectOverview: technicalPlan.projectOverview ?? prev.projectOverview,
             techRequirements: technicalPlan.techRequirements ?? prev.techRequirements,
+            responseFileRequirements: technicalPlan.responseFileRequirements ?? prev.responseFileRequirements,
             outlineGenerationTask: outlineDataReset ? undefined : prev.outlineGenerationTask,
             globalFactsTask: outlineDataReset ? undefined : prev.globalFactsTask,
             globalFacts: outlineDataReset ? [] : prev.globalFacts,
@@ -997,10 +993,6 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   }, [projectId, showToast, state.step, state.tenderFile, workflowKind]);
 
   useEffect(() => {
-    if (!requiresOriginalPlan) {
-      setOriginalPlanMarkdown('');
-      return;
-    }
     if (!state.originalPlanFile) {
       setOriginalPlanMarkdown('');
       return;
@@ -1014,7 +1006,43 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     return () => {
       mounted = false;
     };
-  }, [projectId, requiresOriginalPlan, showToast, state.originalPlanFile, workflowKind]);
+  }, [projectId, showToast, state.originalPlanFile, workflowKind]);
+
+  const changeOriginalPlan = async (remove: boolean) => {
+    const api = window.yibiao?.technicalPlan;
+    if (!api || originalPlanBusy) return;
+    setOriginalPlanBusy(true);
+    try {
+      if ((state.outlineData || state.globalFacts.length || generatedLeaves.length) && !await confirm({
+        title: remove ? '移除原方案' : '更新原方案',
+        description: '修改原方案会清空已生成的目录、全局事实和正文，需要重新生成。是否继续？',
+        danger: true,
+      })) return;
+      const payload = { workflowKind, projectId };
+      if (remove) {
+        const next = await api.removeOriginalPlan(payload);
+        setState((prev) => ({ ...prev, ...next }));
+        setOriginalPlanMarkdown('');
+      } else {
+        const result = await api.importOriginalPlanDocument(payload);
+        if (!result.success) {
+          const message = result.message || '未导入原方案';
+          if (isLibreOfficeRequiredMessage(message)) showDocumentParseNotice(message);
+          else showToast(message, message === '已取消选择' ? 'info' : 'error');
+          return;
+        }
+        setState((prev) => ({ ...prev, ...result.state }));
+        setOriginalPlanMarkdown(result.markdown);
+      }
+      showToast(remove ? '已移除原方案' : '原方案已导入', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '修改原方案失败';
+      if (isLibreOfficeRequiredMessage(message)) showDocumentParseNotice(message);
+      else showToast(message, 'error');
+    } finally {
+      setOriginalPlanBusy(false);
+    }
+  };
 
   const openExportChoice = () => {
     if (!state.outlineData?.outline?.length) {
@@ -1040,7 +1068,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     }
   };
 
-  const exportWord = async (mode: Exclude<BidWordExportMode, 'original-template'> = 'word-optimization', template?: BidExportTemplateRecord, outlineOverride?: OutlineItem[]) => {
+  const exportWord = async (mode: Exclude<BidWordExportMode, 'original-template'> = 'word-optimization', template?: BidExportTemplateRecord, outlineOverride?: OutlineItem[], includeScoringResponse = false) => {
     if (!state.outlineData?.outline?.length) {
       showToast('请先生成目录', 'info');
       return;
@@ -1061,8 +1089,8 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         running: true,
         progress: 2,
         message: mermaidCount
-          ? `检测到 ${mermaidCount} 张 Mermaid 图，导出时会转换为 Word 图片，可能需要稍等。`
-          : '正在准备导出 Word。',
+            ? `检测到 ${mermaidCount} 张 Mermaid 图，导出时会转换为 Word 图片，可能需要稍等。`
+            : '正在准备导出 Word。',
         warnings: [],
         mermaidCount,
       });
@@ -1093,10 +1121,15 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
         projectId,
         project_name: `${state.outlineData.project_name || projectName || state.projectName || '技术方案'}${outlineOverride ? '-技术卷' : ''}`,
         outline: exportOutline,
+        ...(includeScoringResponse ? {
+          scoringResponse: buildScoringResponse(state.techRequirements, exportOutline).map(({ title, details, candidates }) => ({
+            title, details, chapterIds: candidates.map(({ id }) => id),
+          })),
+        } : {}),
       });
       if (result?.canceled) {
         setExportProgress(initialExportProgress);
-        showToast('已取消导出', 'info');
+        showToast(result.message || '已取消导出', 'info');
         return;
       }
       setExportProgress((prev) => ({
@@ -1241,7 +1274,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
   const resetTechnicalPlan = async () => {
     const confirmed = await confirm({
       title: '重置技术方案',
-      description: '这会清空当前项目的招标文件、分析结果、目录和正文生成进度，此操作无法撤销。',
+      description: '重置会先停止本项目正在进行或已暂停的招标文件解析，然后清空招标文件、解析结果、目录和正文进度。此操作无法撤销。',
       confirmLabel: '确认重置',
       danger: true,
     });
@@ -1427,7 +1460,34 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
     }
   };
 
-  const navigationActions = state.step === 'content-edit'
+  const settingsActions: WorkflowAction[] = [
+    {
+      id: 'previous-step',
+      label: settingsNavigation?.previous ? `上一项：${settingsNavigation.previous.label}` : '上一步',
+      icon: <ToolbarArrowLeftIcon />,
+      disabled: !settingsNavigation || settingsNavigation.busy,
+      onClick: settingsNavigation?.previous?.open || (() => goToOffset(-1)),
+    },
+  ];
+  if (settingsNavigation?.next) {
+    settingsActions.push({
+      id: 'skip-settings',
+      label: '跳过设置',
+      disabled: settingsNavigation.busy,
+      tooltip: '保存当前设置，直接进入招标文件解析',
+      onClick: () => goToOffset(1),
+    });
+  }
+  settingsActions.push({
+    id: 'next-step',
+    label: settingsNavigation?.next ? `下一项：${settingsNavigation.next.label}` : '完成设置',
+    icon: <ToolbarArrowRightIcon />,
+    variant: 'primary',
+    disabled: !settingsNavigation || settingsNavigation.busy,
+    onClick: settingsNavigation?.next?.open || (() => goToOffset(1)),
+  });
+
+  const navigationActions = state.step === 'generation-settings' ? settingsActions : state.step === 'content-edit'
     ? [
       {
         id: 'previous-step',
@@ -1483,7 +1543,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           id: 'reset',
           label: '重置',
           variant: 'danger' as const,
-          tooltip: '清空当前技术方案流程',
+          tooltip: '清空当前方案生成流程',
           onClick: resetTechnicalPlan,
         },
         {
@@ -1517,7 +1577,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
 
   return (
     <div className={`page-stack technical-workbench${modernAppearance ? ' modern-technical-workbench' : ''}`}>
-      {!modernAppearance && projectId && (
+      {!modernAppearance && projectId && state.step !== 'generation-settings' && (
         <section className="technical-project-context">
           <div>
             <span className="section-kicker">当前项目</span>
@@ -1573,8 +1633,6 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           bidSectionSource={state.bidSectionSource}
           bidSectionExtractionTask={state.bidSectionExtractionTask}
           hasDownstreamResults={Boolean(Object.keys(state.bidAnalysisTasks).length || state.outlineData || state.globalFacts.length || Object.keys(state.contentGenerationSections).length)}
-          originalPlanFile={state.originalPlanFile}
-          originalPlanMarkdown={originalPlanMarkdown}
           onFileImported={(nextState, markdown) => {
             setState((prev) => ({ ...prev, ...nextState }));
             setTenderMarkdown(markdown);
@@ -1590,7 +1648,12 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       {state.step === 'generation-settings' && (
         <GenerationSettingsPage
           options={state.contentGenerationOptions}
-          workflowKind={workflowKind}
+          projectName={projectName || state.projectName}
+          onBackToProjects={onBackToProjects ? () => void returnToProjects() : undefined}
+          originalPlanFile={state.originalPlanFile}
+          originalPlanMarkdown={originalPlanMarkdown}
+          originalPlanBusy={originalPlanBusy}
+          onChangeOriginalPlan={changeOriginalPlan}
           selectedBidSectionTitle={state.bidSections?.find((section) => section.id === state.selectedBidSectionId)?.title}
           referenceKnowledgeDocumentIds={state.referenceKnowledgeDocumentIds}
           stale={generationSettingsStale}
@@ -1600,6 +1663,9 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           onSave={async (options, referenceKnowledgeDocumentIds) => {
             const knowledgeChanged = JSON.stringify([...referenceKnowledgeDocumentIds].sort()) !== JSON.stringify([...state.referenceKnowledgeDocumentIds].sort());
             if (knowledgeChanged && state.outlineData && !await confirm({ title: '更改参考知识库', description: '更改参考文档会清空已生成目录、全局事实和正文，需要重新生成。是否继续？', danger: true })) return false;
+            if ((options.bidGenerationScope ?? 'technical') !== scope && state.outlineData && !await confirm({ title: '更改生成范围', description: '切换范围会清空现有目录、全局事实及正文，需要按新范围重新生成。', danger: true })) return false;
+            const bidderChanged = (options.bidderCompanyId || '') !== (state.contentGenerationOptions?.bidderCompanyId || '');
+            if (bidderChanged && (state.globalFacts.length || generatedLeaves.length) && !await confirm({ title: '更换投标企业', description: '更换后需要重新生成全局事实和正文，原有目录保留。', danger: true })) return false;
             await saveContentGenerationOptions(options);
             if (knowledgeChanged) {
               const saved = await window.yibiao?.technicalPlan.saveOutlineConfig({ workflowKind, projectId, outlineMode: state.outlineMode, referenceKnowledgeDocumentIds });
@@ -1610,12 +1676,14 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
             return true;
           }}
           onDraftDirtyChange={reportDraftDirty}
+          onNavigationChange={setSettingsNavigation}
           onRegisterAutoSave={(save) => { generationSettingsSaveRef.current = save; }}
         />
       )}
 
       {state.step === 'bid-analysis' && (
         <BidAnalysisPage
+          generationScope={scope}
           projectId={projectId}
           workflowKind={workflowKind}
           hasTenderFile={Boolean(state.tenderFile)}
@@ -1635,6 +1703,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       )}
       {state.step === 'outline-generation' && (
         <OutlineEditPage
+          generationScope={scope}
           projectId={projectId}
           workflowKind={workflowKind}
           projectOverview={state.projectOverview}
@@ -1675,6 +1744,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       )}
       {state.step === 'content-edit' && (
         <ContentEditPage
+          hasOriginalPlan={hasOriginalPlan && scope === 'technical'}
           projectId={projectId}
           workflowKind={workflowKind}
           originalPlanMarkdown={originalPlanMarkdown}
@@ -1685,13 +1755,33 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
           onDraftDirtyChange={reportDraftDirty}
           onSelectedItemChange={setContentEditSelectedItemId}
           onContentGenerationOptionsChange={saveContentGenerationOptions}
+          techRequirements={state.techRequirements}
+          onFillEmptyChapters={async (fillEmptyChapters) => {
+            const store = window.yibiao?.technicalPlan;
+            if (!store) throw new Error('请在桌面客户端中回填正文');
+            const saved = await store.saveChapterContent({ workflowKind, projectId, fillEmptyChapters });
+            setState((prev) => ({ ...prev, ...saved }));
+          }}
+          originalPlanMapping={state.bidAnalysisTasks.originalPlanMapping}
+          onSuggestOriginalMapping={async () => {
+            const tasks = window.yibiao?.tasks;
+            if (!tasks) throw new Error('请在桌面客户端中获取章节建议');
+            await tasks.startBidAnalysis({ workflowKind, projectId, mode: state.bidAnalysisMode, task_ids: ['originalPlanMapping'] });
+          }}
+          scoringCoverage={state.bidAnalysisTasks.scoringCoverage}
+          onCheckScoringCoverage={async () => {
+            const tasks = window.yibiao?.tasks;
+            if (!tasks) throw new Error('请在桌面客户端中检查评分覆盖');
+            await tasks.startBidAnalysis({ workflowKind, projectId, mode: state.bidAnalysisMode, task_ids: ['scoringCoverage'] });
+          }}
+          onExportScoringResponse={() => exportWord('basic', undefined, undefined, true)}
           onContentSaved={saveChapterContent}
         />
       )}
       {state.step === 'expand' && modernAppearance && (
         <section className="plan-step-body modern-expand-page">
           <header className="modern-expand-header">
-            <div><h2>扩写改写</h2><p>{requiresOriginalPlan ? '保留原方案事实与表达重点，为关键小节补充论证深度。' : '保留章节结构，为关键小节补充步骤、风险与交付内容。'}</p></div>
+            <div><h2>扩写改写</h2><p>{hasOriginalPlan ? '保留原方案事实与表达重点，为关键小节补充论证深度。' : '保留章节结构，为关键小节补充步骤、风险与交付内容。'}</p></div>
             <div className="modern-expand-controls">
               {expandRunning && !expandStopping && <><button type="button" onClick={pauseExpand}>暂停</button><button type="button" className="is-danger" onClick={stopExpand}>停止</button></>}
               {expandPaused && <button type="button" className="is-primary" onClick={resumeExpand}>继续扩写</button>}
@@ -1754,7 +1844,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
               <div className="analysis-result-head">
                 <div className="content-expand-title-block">
                   <strong>继续扩写</strong>
-                  <span>{requiresOriginalPlan ? '保留原方案事实和表达重点，只补深度。' : '保留当前章节结构，只补正文论证厚度。'}</span>
+                  <span>{hasOriginalPlan ? '保留原方案事实和表达重点，只补深度。' : '保留当前章节结构，只补正文论证厚度。'}</span>
                 </div>
                 <div className="content-expand-task-actions">
                   {expandRunning && !expandStopping && (
@@ -1983,7 +2073,7 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
       <BidWordExportDialog
         open={exportChoiceOpen}
         onOpenChange={setExportChoiceOpen}
-        allowOriginal={requiresOriginalPlan}
+        allowOriginal={hasOriginalPlan && scope === 'technical'}
         originalAvailable={state.originalPlanFile?.sourceExt === '.docx' && Boolean(state.originalPlanFile?.sourcePath)}
         preferredMode={state.contentGenerationOptions?.wordExportMode}
         preferredTemplateId={state.contentGenerationOptions?.wordExportTemplateId}
@@ -2035,7 +2125,10 @@ function TechnicalPlanWorkbench({ workflowKind = 'technical-plan', projectId, pr
                   </button>
                 </div>
               )}
-              {!exportProgress.running && exportProgress.filePath && (
+              {!exportProgress.running && exportProgress.filePath && exportProgress.combinedBusiness && (
+                <p role="status">请在 Word 或 WPS 中打开并另存合并文件，再全选正文并更新域，核对目录、评分页码、表格和图片。</p>
+              )}
+              {!exportProgress.running && exportProgress.filePath && !exportProgress.combinedBusiness && (
                 <div className="word-layout-audit">
                   <div className="word-layout-audit-toolbar">
                     <small>自动预检导出文档的分页和结构</small>
@@ -2139,7 +2232,7 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
   const [editingProjectName, setEditingProjectName] = useState('');
   const [projectKeyword, setProjectKeyword] = useState('');
   const [loadingProjects, setLoadingProjects] = useState(true);
-  const workflowTitle = workflowLabel(workflowKind);
+  const workflowTitle = '方案生成';
   const projects = projectList?.projects || [];
   const normalizedProjectKeyword = projectKeyword.trim().toLowerCase();
   const filteredProjects = useMemo(() => {
@@ -2160,7 +2253,7 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
     try {
       setLoadingProjects(true);
       setProjectsError('');
-      const nextList = await window.yibiao?.technicalPlan.listProjects(workflowKind);
+      const nextList = await window.yibiao?.technicalPlan.listProjects('all');
       setProjectList(nextList || null);
       return nextList || null;
     } catch (error) {
@@ -2176,11 +2269,11 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
   useEffect(() => {
     setActiveProject(null);
     void loadProjects().then(async (nextList) => {
-      if (!navigationTarget?.projectId || navigationTarget.workflowKind !== workflowKind) return;
-      const targetProject = nextList?.projects.find((project) => project.id === navigationTarget.projectId);
+      if (!navigationTarget?.projectId) return;
+      const targetProject = nextList?.projects.find((project) => project.id === navigationTarget.projectId && project.workflowKind === (navigationTarget.workflowKind || 'technical-plan'));
       if (!targetProject) return;
       try {
-        await window.yibiao?.technicalPlan.switchProject({ workflowKind, projectId: targetProject.id });
+        await window.yibiao?.technicalPlan.switchProject({ workflowKind: targetProject.workflowKind, projectId: targetProject.id });
         setActiveProject(targetProject);
       } catch (error) {
         showToast(error instanceof Error ? error.message : '进入项目失败', 'error');
@@ -2199,7 +2292,7 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
     setProjectAction('create');
     try {
       const result = await window.yibiao?.technicalPlan.createProject({ workflowKind, projectName });
-      if (result?.projects) setProjectList(result.projects);
+      if (result?.projects) void loadProjects();
       if (result?.project) setActiveProject(result.project);
       setNewProjectName('');
       setCreateDialogOpen(false);
@@ -2217,7 +2310,7 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
     projectActionRef.current = true;
     setProjectAction('enter');
     try {
-      await window.yibiao?.technicalPlan.switchProject({ workflowKind, projectId: project.id });
+      await window.yibiao?.technicalPlan.switchProject({ workflowKind: project.workflowKind, projectId: project.id });
       setActiveProject(project);
     } catch (error) {
       showToast(error instanceof Error ? error.message : '进入项目失败', 'error');
@@ -2228,7 +2321,7 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
   };
 
   const startRenameProject = (project: TechnicalPlanProject) => {
-    setEditingProjectId(project.id);
+    setEditingProjectId(technicalProjectKey(project));
     setEditingProjectName(project.name);
   };
 
@@ -2243,8 +2336,8 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
     projectActionRef.current = true;
     setProjectAction('rename');
     try {
-      const nextList = await window.yibiao?.technicalPlan.renameProject({ workflowKind, projectId: project.id, name: name.trim() });
-      if (nextList) setProjectList(nextList);
+      const nextList = await window.yibiao?.technicalPlan.renameProject({ workflowKind: project.workflowKind, projectId: project.id, name: name.trim() });
+      if (nextList) await loadProjects();
       if (activeProject?.id === project.id) setActiveProject({ ...project, name: name.trim() });
       setEditingProjectId('');
       setEditingProjectName('');
@@ -2269,8 +2362,8 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
         danger: true,
       });
       if (!accepted) return;
-      const nextList = await window.yibiao?.technicalPlan.deleteProject({ workflowKind, projectId: project.id });
-      if (nextList) setProjectList(nextList);
+      const nextList = await window.yibiao?.technicalPlan.deleteProject({ workflowKind: project.workflowKind, projectId: project.id });
+      if (nextList) await loadProjects();
       if (activeProject?.id === project.id) setActiveProject(null);
       showToast('项目已删除', 'success');
     } catch (error) {
@@ -2283,7 +2376,8 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
   if (activeProject) {
     return (
       <TechnicalPlanWorkbench
-        workflowKind={workflowKind}
+        key={technicalProjectKey(activeProject)}
+        workflowKind={activeProject.workflowKind}
         projectId={activeProject.id}
         projectName={activeProject.name}
         navigationTarget={navigationTarget}
@@ -2354,9 +2448,9 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
         {!loadingProjects && !projects.length && <div className="markdown-empty-state">暂无项目，先创建一个项目。</div>}
         {!loadingProjects && projects.length > 0 && !filteredProjects.length && <div className="markdown-empty-state">没有匹配的项目，换个关键词试试。</div>}
         {filteredProjects.map((project) => (
-          <article className="technical-project-card" key={project.id}>
+          <article className="technical-project-card" key={technicalProjectKey(project)}>
             <div>
-              {editingProjectId === project.id ? (
+              {editingProjectId === technicalProjectKey(project) ? (
                 <input
                   className="technical-project-name-input"
                   value={editingProjectName}
@@ -2364,12 +2458,12 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
                   aria-label="编辑项目名称"
                 />
               ) : (
-                <strong>{project.name}</strong>
+                <button type="button" className="project-open-name" disabled={Boolean(projectAction)} onClick={() => void enterProject(project)}>{project.name}</button>
               )}
-              <p>{project.id === 'default' ? '历史项目，承接旧版单项目数据' : `创建时间：${new Date(project.created_at).toLocaleString('zh-CN', { hour12: false })}`}</p>
+              <p>{project.workflowKind === 'existing-plan-expansion' && '历史扩写 · '}{project.id === 'default' ? '历史项目，承接旧版单项目数据' : `创建时间：${new Date(project.created_at).toLocaleString('zh-CN', { hour12: false })}`}</p>
             </div>
             <div className="technical-project-actions">
-              {editingProjectId === project.id ? (
+              {editingProjectId === technicalProjectKey(project) ? (
                 <>
                   <button type="button" className="secondary-action" onClick={() => renameProject(project)}>
                     保存
@@ -2410,7 +2504,7 @@ function TechnicalPlanHome({ workflowKind = 'technical-plan', navigationTarget, 
                 <span className="section-kicker">{workflowTitle}</span>
                 <Dialog.Title>创建项目</Dialog.Title>
                 <Dialog.Description>
-                  填写项目名称后进入技术方案工作流，后续上传文件、解析结果、目录和正文都会保存在该项目中。
+                  填写项目名称后进入方案生成工作流，后续上传文件、解析结果、目录和正文都会保存在该项目中。
                 </Dialog.Description>
               </div>
               <label className="technical-project-create-field">

@@ -12,7 +12,6 @@ import { getStoredUiAppearance } from '../shared/uiAppearance';
 
 const BidOpportunityPage = lazy(() => import('../features/bid-opportunity/pages/BidOpportunityPage'));
 const BidTemplateManagementPage = lazy(() => import('../features/export-format/pages/BidTemplateManagementPage'));
-const BusinessBidPage = lazy(() => import('../features/business-bid/pages/BusinessBidPage'));
 const CodeGenerationPage = lazy(() => import('../features/code-generation/pages/CodeGenerationPage'));
 const DeveloperTestPage = lazy(() => import('../features/developer/pages/DeveloperTestPage'));
 const DuplicateCheckPage = lazy(() => import('../features/duplicate-check/pages/DuplicateCheckPage'));
@@ -61,16 +60,13 @@ function AppRouteContent({ activeSection, developerMode, featureModuleSettings, 
       return <PresalesProjectsPage onNavigate={onSectionChange} />;
     case 'presales-workbench':
       return <PresalesWorkbenchPage onNavigate={onSectionChange} />;
-    case 'technical-plan':
-      return <TechnicalPlanHome workflowKind="technical-plan" navigationTarget={pluginNavigationTarget} onSectionChange={onSectionChange} />;
     case 'existing-plan-expansion':
-      return <TechnicalPlanHome workflowKind="existing-plan-expansion" navigationTarget={pluginNavigationTarget} onSectionChange={onSectionChange} />;
+    case 'technical-plan':
+      return <TechnicalPlanHome key="technical-plan" workflowKind="technical-plan" navigationTarget={pluginNavigationTarget} onSectionChange={onSectionChange} />;
     case 'feasibility-report':
       return <FeasibilityReportHome />;
     case 'bid-template-management':
       return <BidTemplateManagementPage />;
-    case 'business-bid':
-      return <BusinessBidPage />;
     case 'project-management':
       return <ProjectManagementPage />;
     case 'project-types':

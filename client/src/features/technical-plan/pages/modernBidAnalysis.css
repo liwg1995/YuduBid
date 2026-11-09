@@ -32,6 +32,14 @@
 .modern-bid-analysis-tasks button strong { font-size: 11px; }
 .modern-bid-analysis-tasks button small { overflow: hidden; color: #8da0b7; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .modern-bid-analysis-tasks button em { flex: 0 0 auto; color: #9ba9bf; font-size: 10px; font-style: normal; }
+.modern-bid-analysis-tasks button.is-running em,
+.modern-bid-analysis-status.is-running {
+  color: #c4b8ff;
+  background: rgba(160, 137, 255, .16);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-weight: 600;
+}
 .modern-bid-analysis-tasks button.is-success em { color: #8ed9c0; }
 .modern-bid-analysis-tasks button.is-error em { color: #f0a9ae; }
 .modern-bid-analysis-result { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid #38485e; border-radius: 8px; background: #1b293b; }
@@ -42,7 +50,6 @@
 .modern-bid-analysis-result > header button { min-height: 32px; border: 1px solid #4b5a74; border-radius: 5px; padding: 0 9px; color: #dce3f2; background: #2b3b51; font-size: 10px; cursor: pointer; }
 .modern-bid-analysis-result > header button:disabled { opacity: .5; cursor: not-allowed; }
 .modern-bid-analysis-status { color: #a3b3c7; font-size: 10px; white-space: nowrap; }
-.modern-bid-analysis-status.is-running { color: #c4b8ff; }
 .modern-bid-analysis-status.is-success { color: #85d7bc; }
 .modern-bid-analysis-status.is-error { color: #eba9ac; }
 .modern-bid-analysis-result-body { min-height: 0; flex: 1; overflow: auto; padding: 19px; animation: modern-bid-result-in .18s ease-out both; }
@@ -105,3 +112,6 @@
   .modern-bid-analysis-modes { grid-template-columns: 1fr; }
   .modern-bid-analysis-result { min-height: 360px; }
 }
+
+.bid-analysis-run-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+.bid-analysis-run-actions button { white-space: nowrap; }

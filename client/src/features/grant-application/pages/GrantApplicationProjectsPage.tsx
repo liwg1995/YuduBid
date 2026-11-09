@@ -1,4 +1,3 @@
-import ProjectDetailsDrawer from '../../../shared/ui/ProjectDetailsDrawer';
 import ProjectDeleteDialog from '../../../shared/ui/ProjectDeleteDialog';
 import type { InputRef } from 'antd';
 import { ProjectListEmpty, ProjectListHeader, ProjectListToolbar, ProjectListTable, ProjectListActions, formatProjectListTime } from '../../../shared/ui/ProjectList';
@@ -35,8 +34,6 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const projectSearchRef = useRef<InputRef>(null);
   const [keyword, setKeyword] = useState('');
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const detail = projectList.projects.find(project => project.id === detailId);
   const [listPage, setListPage] = useState(1);
   useEffect(() => setListPage(1), [keyword]);
   const [editingProjectId, setEditingProjectId] = useState('');
@@ -110,7 +107,6 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
     try {
       setOperationError(''); setBusy(true);
       await window.yibiao?.grantApplication.switchProject(project.id);
-      setDetailId(null);
       onNavigate?.('grant-diagnosis');
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : String(error));
@@ -176,7 +172,7 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
         <ProjectListHeader title="课题项目" description="让不同课题的档案、材料和申报成果各自归位。" actions={<button type="button" className="primary-action" onClick={() => setCreateDialogOpen(true)} disabled={busy}>新建项目</button>} />
         <ProjectListToolbar inputRef={projectSearchRef} query={keyword} onQueryChange={setKeyword} placeholder="搜索项目名称、历史项目或创建时间" count={`${filteredProjects.length} / ${projectList.projects.length} 个项目`} />
         <section className="modern-grant-list" aria-label="课题项目列表"><ProjectListTable<GrantApplicationProject> loading={loading} dataSource={pageItems} pagination={false} columns={[
-          { title: '项目名称', render: (_, project) => <div className="yb-project-list-name">{editingProjectId === project.id ? <input disabled={busy} autoFocus value={editingProjectName} onChange={event => setEditingProjectName(event.target.value)} aria-label="编辑课题项目名称" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void renameProject(project); } else if (event.key === 'Escape' && !busy) setEditingProjectId(''); }} /> : <button type="button" onClick={() => { setOperationError(''); setDetailId(project.id); }}>{project.name}</button>}<small>{project.isLegacy ? '历史项目 · 承接旧版数据' : '独立项目'}</small></div> },
+          { title: '项目名称', render: (_, project) => <div className="yb-project-list-name">{editingProjectId === project.id ? <input disabled={busy} autoFocus value={editingProjectName} onChange={event => setEditingProjectName(event.target.value)} aria-label="编辑课题项目名称" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void renameProject(project); } else if (event.key === 'Escape' && !busy) setEditingProjectId(''); }} /> : <button type="button" disabled={busy} onClick={() => void enterProject(project)}>{project.name}</button>}<small>{project.isLegacy ? '历史项目 · 承接旧版数据' : '独立项目'}</small></div> },
           { title: '创建时间', dataIndex: 'created_at', width: 180, render: formatProjectListTime },
           { title: '最近更新', dataIndex: 'updated_at', width: 180, render: formatProjectListTime },
           { title: '操作', width: 180, fixed: 'right', render: (_, project) => editingProjectId === project.id ? <div className="yb-project-list-actions"><button type="button" disabled={busy} onClick={() => void renameProject(project)}>保存</button><button type="button" disabled={busy} onClick={() => setEditingProjectId('')}>取消</button></div> : <ProjectListActions name={project.name} disabled={busy} onEnter={() => void enterProject(project)} items={[{ key: 'rename', label: '重命名', onClick: () => { setEditingProjectId(project.id); setEditingProjectName(project.name); } }, ...(projectList.projects.length > 1 ? [{ key: 'delete', label: '删除项目', danger: true, onClick: () => void deleteProject(project) }] : [])]} /> },
@@ -216,7 +212,7 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
               {editingProjectId === project.id ? (
                 <input disabled={busy} className="technical-project-name-input" value={editingProjectName} onChange={(event) => setEditingProjectName(event.target.value)} aria-label="编辑课题项目名称" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void renameProject(project); } else if (event.key === 'Escape' && !busy) setEditingProjectId(''); }} />
               ) : (
-                <strong>{project.name}</strong>
+                <button type="button" className="project-open-name" disabled={busy} onClick={() => void enterProject(project)}>{project.name}</button>
               )}
               <p>{project.isLegacy ? '历史项目，承接旧版单项目数据' : `创建时间：${new Date(project.created_at).toLocaleString('zh-CN', { hour12: false })}`}</p>
             </div>
@@ -313,15 +309,6 @@ function GrantApplicationProjectsPage({ onNavigate }: GrantApplicationProjectsPa
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <ProjectDetailsDrawer open={Boolean(detail)} onClose={() => setDetailId(null)}
-        onEnter={detail ? () => void enterProject(detail) : undefined} enterDisabled={busy} entering={busy} error={operationError}
-        items={detail ? [
-          { key: 'name', label: '项目名称', children: detail.name },
-          { key: 'kind', label: '项目类型', children: detail.isLegacy ? '历史项目' : '独立项目' },
-          { key: 'active', label: '工作区', children: detail.id === projectList.activeProjectId ? '当前项目' : '其他项目' },
-          { key: 'created', label: '创建时间', children: formatProjectListTime(detail.created_at) },
-          { key: 'updated', label: '更新时间', children: formatProjectListTime(detail.updated_at) },
-        ] : []} />
 
     </div>
   );

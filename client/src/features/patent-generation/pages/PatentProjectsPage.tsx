@@ -1,4 +1,3 @@
-import ProjectDetailsDrawer from '../../../shared/ui/ProjectDetailsDrawer';
 import useDialogReturnFocus from '../../../shared/ui/useDialogReturnFocus';
 import type { InputRef } from 'antd';
 import { ProjectListEmpty, ProjectListHeader, ProjectListToolbar, ProjectListTable, ProjectListActions, formatProjectListTime } from '../../../shared/ui/ProjectList';
@@ -37,8 +36,6 @@ function PatentProjectsPage({ onNavigate }: Props) {
   const [topic, setTopic] = useState('');
   const [applicationType, setApplicationType] = useState<PatentApplicationType>('invention');
   const [deleteTarget, setDeleteTarget] = useState<PatentWorkspaceProject | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const detail = data.projects.find((project) => project.id === detailId);
   const [busy, setBusy] = useState('');
   const [operationError, setOperationError] = useState('');
   const loadErrorShown = useRef(false);
@@ -74,7 +71,6 @@ function PatentProjectsPage({ onNavigate }: Props) {
     setBusy(project.id);
     try {
       await window.yibiao?.patentGeneration.switchProject(project.id);
-      setDetailId(null);
       onNavigate('patent-mining');
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : String(error)); showToast(error instanceof Error ? error.message : '进入专利项目失败', 'error'); }
@@ -147,29 +143,18 @@ function PatentProjectsPage({ onNavigate }: Props) {
             pagination={{ hideOnSinglePage: true, defaultPageSize: 20, showSizeChanger: false, showTotal: (total) => `共 ${total} 个项目` }}
             scroll={{ x: 1000 }} locale={{ emptyText: <ProjectListEmpty subject="专利项目" filtered={Boolean(keyword.trim())} disabled={Boolean(busy)} onReset={() => { setKeyword(''); requestAnimationFrame(() => projectSearchRef.current?.focus()); }} onCreate={() => { setOperationError(''); setName(''); setTopic(''); setApplicationType('invention'); dialogFocus.rememberTrigger(); setEditor({ mode: 'create' }); }} /> }}
             columns={[
-              { title: '项目名称', dataIndex: 'name', key: 'name', sorter: (a, b) => a.name.localeCompare(b.name, 'zh-CN'), render: (_, project) => <div className="yb-project-list-name"><button type="button" onClick={() => { setOperationError(''); setDetailId(project.id); }}>{project.name}</button></div> },
+              { title: '项目名称', dataIndex: 'name', key: 'name', sorter: (a, b) => a.name.localeCompare(b.name, 'zh-CN'), render: (_, project) => <div className="yb-project-list-name">{project.archived ? <strong>{project.name}</strong> : <button type="button" disabled={Boolean(busy)} onClick={() => void enter(project)}>{project.name}</button>}</div> },
               { title: '类型', width: 100, dataIndex: 'applicationType', filters: Object.entries(typeLabel).map(([value, text]) => ({ value, text })), onFilter: (value, project) => project.applicationType === value, render: (value: PatentApplicationType) => typeLabel[value] },
               { title: '阶段', width: 120, dataIndex: 'stage', filters: Object.entries(stageLabel).map(([value, text]) => ({ value, text })), onFilter: (value, project) => project.stage === value, render: (_, project) => project.archived ? '已归档' : stageLabel[project.stage] },
               { title: '交底书', width: 100, dataIndex: 'draftCount', align: 'right', sorter: (a, b) => a.draftCount - b.draftCount },
               { title: '更新时间', width: 180, dataIndex: 'updated_at', defaultSortOrder: 'descend', sorter: (a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at), render: formatProjectListTime },
               { title: '操作', key: 'actions', width: 180, fixed: 'right', render: (_, project) => <ProjectListActions name={project.name} disabled={Boolean(busy)} onEnter={project.archived ? undefined : () => void enter(project)} items={[
-                { key: 'detail', label: '查看详情', onClick: () => setDetailId(project.id) },
                 { key: 'rename', label: '重命名', onClick: () => { setOperationError(''); setName(project.name); dialogFocus.rememberTrigger(); setEditor({ mode: 'rename', project }); } },
                 { key: 'archive', label: project.archived ? '恢复项目' : '归档项目', onClick: () => void toggleArchive(project) },
                 { key: 'delete', label: '删除项目', danger: true, onClick: () => setDeleteTarget(project) },
               ]} /> },
             ]} />
         </div>
-        <ProjectDetailsDrawer open={Boolean(detail)} onClose={() => setDetailId(null)} enterDisabled={Boolean(busy) || detail?.archived} entering={Boolean(busy)} error={operationError}
-          onEnter={detail ? () => void enter(detail) : undefined} items={detail ? [
-            { key: 'name', label: '项目名称', children: detail.name },
-            { key: 'topic', label: '技术主题', children: detail.topic || detail.selectedPatentTitle || '待填写' },
-            { key: 'type', label: '申请类型', children: typeLabel[detail.applicationType] },
-            { key: 'stage', label: '当前阶段', children: stageLabel[detail.stage] },
-            { key: 'state', label: '项目状态', children: detail.archived ? '已归档' : '进行中' },
-            { key: 'count', label: '候选专利点 / 交底书', children: `${detail.candidateCount} / ${detail.draftCount}` },
-            { key: 'updated', label: '更新时间', children: new Date(detail.updated_at).toLocaleString('zh-CN') },
-          ] : []} />
       </EnterpriseUiProvider>
     </> : <>
     <header className="patent-projects-header">
@@ -184,7 +169,7 @@ function PatentProjectsPage({ onNavigate }: Props) {
     <section className="patent-projects-grid">
       {loading ? <div className="patent-projects-empty">正在读取专利项目…</div> : visible.map((project) => <article className={`patent-project-card${project.id === data.activeProjectId ? ' is-active' : ''}${project.archived ? ' is-archived' : ''}`} key={project.id}>
         <div className="patent-project-card-top"><span>{typeLabel[project.applicationType]}</span><small>{stageLabel[project.stage]}</small></div>
-        <h2>{project.name}</h2>
+        <h2>{project.archived ? project.name : <button type="button" className="project-open-name" disabled={Boolean(busy)} onClick={() => void enter(project)}>{project.name}</button>}</h2>
         <p>{project.topic || project.selectedPatentTitle || '尚未填写技术主题，进入项目后即可完善。'}</p>
         <div className="patent-project-card-metrics"><span><strong>{project.candidateCount}</strong> 候选专利点</span><span><strong>{project.draftCount}</strong> 交底书版本</span></div>
         <time>更新于 {new Date(project.updated_at).toLocaleString('zh-CN', { hour12: false })}</time>

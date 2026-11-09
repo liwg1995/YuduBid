@@ -308,6 +308,7 @@
 .modern-shell .settings-page .about-project-card > strong { color: #f1efff; font-size: 17px; }
 .modern-shell .settings-page .about-brand-producer { right: 14px; border-color: #555a83; border-radius: 7px; padding: 6px 9px; background: #292e4f; box-shadow: none; }
 .modern-shell .settings-page .about-brand-producer img { width: 110px; }
+.modern-shell .settings-page .about-brand-copyright { top: -4px; right: -6px; }
 .modern-shell .settings-page .privacy-statement { gap: 11px; margin: 0 18px 18px; border-radius: 9px; padding: 16px; background: #182638; }
 .modern-shell .settings-page .privacy-statement-head { gap: 4px; }
 .modern-shell .settings-page .privacy-statement-head span { width: fit-content; border: 0; border-radius: 0; padding: 0; color: #a99cf5; background: transparent; font-size: 9px; }

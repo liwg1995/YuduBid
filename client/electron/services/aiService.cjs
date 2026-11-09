@@ -1009,6 +1009,9 @@ async function chatWithConfig(app, config, request, usageStatsStore) {
     if (request.reject_truncated_output && result.finishReason === 'length') {
       throw new Error('模型输出达到 Token 上限被截断，本次结果未保存。请提高输出上限后重试。');
     }
+    if (typeof content !== 'string' || !content.trim()) {
+      throw new Error('模型未返回可用正文，可能只返回了推理过程。请检查模型输出设置后重试。');
+    }
     try {
       usageStatsStore?.record({
         provider: config.text_model_provider,
@@ -1430,7 +1433,7 @@ function createComfyUiWorkflow(modelName, prompt) {
     6: { class_type: 'CLIPTextEncode', inputs: { text: prompt, clip: ['4', 1] } },
     7: { class_type: 'CLIPTextEncode', inputs: { text: 'low quality, blurry, watermark, text artifacts', clip: ['4', 1] } },
     8: { class_type: 'VAEDecode', inputs: { samples: ['3', 0], vae: ['4', 2] } },
-    9: { class_type: 'SaveImage', inputs: { filename_prefix: 'Yibiao', images: ['8', 0] } },
+    9: { class_type: 'SaveImage', inputs: { filename_prefix: 'generated-image', images: ['8', 0] } },
   };
 }
 

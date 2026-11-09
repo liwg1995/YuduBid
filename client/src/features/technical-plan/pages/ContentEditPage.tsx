@@ -1,3 +1,5 @@
+import { buildScoringResponse } from '../services/scoringResponse';
+import { findOriginalPlanSection, getOriginalPlanSections, mappingFingerprint } from '../services/originalPlanSections';
 import TaskProgressSummary from '../../../shared/ui/TaskProgressSummary';
 import { Splitter } from 'antd';
 import EnterpriseUiProvider from '../../../shared/ui/EnterpriseUiProvider';
@@ -20,9 +22,17 @@ import './modernContentEdit.css';
 const ContentWordPreview = lazy(() => import('../components/ContentWordPreview'));
 
 interface ContentEditPageProps {
+  hasOriginalPlan?: boolean;
   projectId?: string;
   workflowKind?: TechnicalPlanWorkflowKind;
   originalPlanMarkdown?: string;
+  techRequirements: string;
+  originalPlanMapping?: { status: string; content: string; error?: string };
+  onSuggestOriginalMapping: () => Promise<void>;
+  scoringCoverage?: { status: string; content: string; error?: string };
+  onCheckScoringCoverage: () => Promise<void>;
+  onExportScoringResponse: () => Promise<void>;
+  onFillEmptyChapters: (chapters: Array<{ nodeId: string; content: string }>) => Promise<void>;
   outlineData: OutlineData | null;
   task?: BackgroundTaskState;
   contentGenerationOptions?: ContentGenerationOptions;
@@ -160,6 +170,8 @@ function normalizeGenerationOptions(options: ContentGenerationOptions | undefine
   const tableRequirement = options?.tableRequirement;
 
   return {
+    bidGenerationScope: options?.bidGenerationScope,
+    bidderCompanyId: options?.bidderCompanyId,
     useAiImages: Boolean(options?.useAiImages ?? fallback.useAiImages) && imageModelAvailable,
     aiImageStyle: options?.aiImageStyle ?? 'auto',
     maxAiImages: Math.max(0, Math.min(Number.isFinite(requestedMaxAiImages) ? Math.round(requestedMaxAiImages) : fallback.maxAiImages, maxAiImagesLimit)),
@@ -402,9 +414,17 @@ const MarkdownContent = memo(function MarkdownContent({ content, onPreviewImage 
 });
 
 function ContentEditPage({
+  hasOriginalPlan,
   projectId,
   workflowKind = 'technical-plan',
   originalPlanMarkdown = '',
+  techRequirements,
+  originalPlanMapping,
+  onSuggestOriginalMapping,
+  scoringCoverage,
+  onCheckScoringCoverage,
+  onExportScoringResponse,
+  onFillEmptyChapters,
   outlineData,
   task,
   contentGenerationOptions,
@@ -416,7 +436,7 @@ function ContentEditPage({
 }: ContentEditPageProps) {
   const { showToast } = useToast();
   const { confirm } = useAppDialog();
-  const isExpansionWorkflow = workflowKind === 'existing-plan-expansion';
+  const isExpansionWorkflow = Boolean(hasOriginalPlan);
   const leaves = useMemo(() => outlineData?.outline ? collectLeafItems(outlineData.outline) : [], [outlineData]);
   const [selectedItemId, setSelectedItemId] = useState('');
   const [focused, setFocused] = useState(false);
@@ -924,6 +944,34 @@ function ContentEditPage({
     setDraftContent(selectedContent);
   };
 
+  const originalSections = useMemo(
+    () => isExpansionWorkflow ? getOriginalPlanSections(originalPlanMarkdown) : [],
+    [isExpansionWorkflow, originalPlanMarkdown],
+  );
+
+  const suggestedOriginalSection = selectedItem
+    ? findOriginalPlanSection(originalSections, selectedItem.title)
+    : -1;
+
+  const renderOriginalSectionPicker = () => originalSections.length > 0 && (
+    <label className="generation-settings-row">
+      <span>从原方案回填到当前草稿</span>
+      <select disabled={taskInFlight || savingContent} value="" onChange={(event) => {
+        if (!event.target.value) return;
+        const section = originalSections[Number(event.target.value)];
+        if (!section) return;
+        setDraftContent((draft) => [draft, section.content].filter((part) => part.trim()).join('\n\n'));
+        setIsPreviewing(false);
+        showToast('已追加原方案内容，请复核后保存', 'info');
+      }}>
+        <option value="">选择原方案小节</option>
+        {originalSections.map((section, index) => (
+          <option key={index} value={index}>{index === suggestedOriginalSection ? '建议 · ' : ''}{index + 1}. {section.title}</option>
+        ))}
+      </select>
+    </label>
+  );
+
   const togglePreview = () => {
     setIsPreviewing((prev) => !prev);
   };
@@ -1013,8 +1061,175 @@ function ContentEditPage({
     );
   });
 
+  const [reviewDialog, setReviewDialog] = useState<'restore' | 'scoring' | null>(null);
+  const [coverageReport, setCoverageReport] = useState<{ status: string; content: string; outline: OutlineData | null; requirements: string; raw: string } | null>(null);
+  const [coverageReportError, setCoverageReportError] = useState('');
+  useEffect(() => {
+    let active = true;
+    setCoverageReportError('');
+    if (scoringCoverage?.status !== 'success') { setCoverageReport(null); return; }
+    void window.yibiao?.export.getScoringCoverageReport({ workflowKind, projectId }).then((report) => {
+      if (active) setCoverageReport({ ...report, outline: outlineData, requirements: techRequirements, raw: scoringCoverage.content });
+    }).catch(() => { if (active) setCoverageReportError('无法核对评分报告版本，请重新打开清单后重试'); });
+    return () => { active = false; };
+  }, [scoringCoverage?.status, scoringCoverage?.content, outlineData, techRequirements, workflowKind, projectId, reviewDialog]);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreSources, setRestoreSources] = useState<Record<string, number[]>>({});
+  const [restoreEdits, setRestoreEdits] = useState<Record<string, string>>({});
+  const mappingSuggestions = useMemo(() => {
+    if (originalPlanMapping?.status !== 'success') return null;
+    try {
+      const result = JSON.parse(originalPlanMapping.content) as { fingerprint: string; suggestions: Array<{ nodeId: string; index: number; quote: string; reason: string }> };
+      if (result.fingerprint !== mappingFingerprint(originalPlanMarkdown, leaves) || !Array.isArray(result.suggestions)) return null;
+      return result.suggestions.filter((entry) => originalSections[entry.index]?.content.includes(entry.quote));
+    } catch { return null; }
+  }, [originalPlanMapping, originalPlanMarkdown, leaves, originalSections]);
+  const restoreRows = useMemo(() => {
+    if (!originalSections.length) return [];
+    const matches = leaves.map((item) => ({ item, index: findOriginalPlanSection(originalSections, item.title) }));
+    const usage = new Map<number, number>();
+    for (const { index } of matches) usage.set(index, (usage.get(index) ?? 0) + 1);
+    return matches.map(({ item, index }) => ({
+      item,
+      indices: restoreSources[item.id] ?? (index >= 0 && usage.get(index) === 1 ? [index] : []),
+      filled: Boolean(item.content?.trim()),
+    }));
+  }, [leaves, originalSections, restoreSources]);
+  function restoreContent(id: string, indices: number[]) {
+    return restoreEdits[id] ?? indices.map((index) => originalSections[index])
+      .filter(Boolean).map((section) => indices.length > 1 ? `### ${section.title}\n\n${section.content}` : section.content).join('\n\n');
+  }
+  const fillableRows = restoreRows.flatMap(({ item, indices, filled }) => {
+    const content = restoreContent(item.id, indices);
+    return indices.length && content.trim() && !filled ? [{ nodeId: item.id, content }] : [];
+  });
+  function changeRestoreSources(id: string, indices: number[]) {
+    setRestoreSources((current) => ({ ...current, [id]: indices }));
+    setRestoreEdits((current) => { const next = { ...current }; delete next[id]; return next; });
+  }
+  const scoringRows = useMemo(() => buildScoringResponse(techRequirements, outlineData?.outline ?? []), [techRequirements, outlineData]);
+  const restoreDisabled = taskInFlight || paused || editing || restoring;
+  const reviewActions = (
+    <>
+      {restoreRows.length > 0 && <button type="button" className="secondary-action" disabled={restoreDisabled}
+        onClick={() => { setRestoreSources({}); setRestoreEdits({}); setReviewDialog('restore'); }}>批量回填预览</button>}
+      {techRequirements.trim() && <button type="button" className="secondary-action"
+        onClick={() => setReviewDialog('scoring')}>评分应答清单</button>}
+    </>
+  );
+
+  async function fillMatchedChapters() {
+    if (restoreDisabled || !fillableRows.length) return;
+    setRestoring(true);
+    try {
+      await onFillEmptyChapters(fillableRows);
+      setReviewDialog(null);
+      showToast(`已回填 ${fillableRows.length} 个空白小节`, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '批量回填失败', 'error');
+    } finally {
+      setRestoring(false);
+    }
+  }
+
   const dialogs = (
     <>
+      <Dialog.Root open={reviewDialog !== null} onOpenChange={(open) => { if (!open && !restoring) setReviewDialog(null); }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="content-regenerate-modal" />
+          <Dialog.Content className="content-generation-config-card">
+            <div className="content-regenerate-card-head">
+              <Dialog.Title>{reviewDialog === 'restore' ? '批量回填预览' : '评分应答清单'}</Dialog.Title>
+              <Dialog.Description>{reviewDialog === 'restore'
+                ? '默认匹配唯一同名章节。改名章节可手动选择来源；合并可选多个来源，拆分可重复选择来源并裁剪内容。仅回填空白小节。'
+                : '按评分项名称查找候选章节。请逐项核对正文和评分规则。'}</Dialog.Description>
+            </div>
+            <div className="content-review-list">
+              {reviewDialog === 'restore' && <section>
+                <button type="button" className="secondary-action" disabled={restoreDisabled || originalPlanMapping?.status === 'running'}
+                  onClick={() => void onSuggestOriginalMapping().catch((error) => showToast(error instanceof Error ? error.message : '启动章节映射失败', 'error'))}>
+                  {originalPlanMapping?.status === 'running' ? '正在分析章节来源…' : '获取章节语义匹配建议'}
+                </button>
+                <p>建议根据来源正文片段生成。请核对范围后逐项采用；原方案按整章分段分析，重复来源会合并；拆分章节仍需裁剪。</p>
+                {originalPlanMapping?.error && <p role="alert">{originalPlanMapping.error}</p>}
+                {originalPlanMapping?.status === 'success' && !mappingSuggestions && <p>原方案或目标目录已变化，请重新获取建议。</p>}
+                {mappingSuggestions?.length === 0 && <p>未找到可核对的来源建议，请手动指定。</p>}
+              </section>}
+              {reviewDialog === 'scoring' && <section>
+                <button type="button" className="secondary-action" disabled={taskInFlight || editing || scoringCoverage?.status === 'running'}
+                  onClick={() => void onCheckScoringCoverage().catch((error) => showToast(error instanceof Error ? error.message : '启动检查失败', 'error'))}>
+                  {scoringCoverage?.status === 'running' ? '正在检查正文证据…' : '检查正文语义覆盖'}
+                </button>
+                <p>检查已保存正文，按评分含义查找证据。修改正文后请重新检查。</p>
+                {scoringCoverage?.error && <p role="alert">{scoringCoverage.error}</p>}
+                {coverageReportError && <p role="alert">{coverageReportError}</p>}
+                {scoringCoverage?.status === 'success' && coverageReport?.outline === outlineData && coverageReport.requirements === techRequirements && coverageReport.raw === scoringCoverage.content && (
+                  coverageReport.status === 'current'
+                    ? <MarkdownRenderer allowRawHtml={false}>{coverageReport.content}</MarkdownRenderer>
+                    : <p role="status">正文、目录或评分要求已变化，历史报告已停用，请重新检查。</p>
+                )}
+              </section>}
+              {reviewDialog === 'restore' ? (
+                <ul>{restoreRows.map(({ item, indices, filled }) => <li key={item.id}>
+                  <strong>{displayOutlineTitle(item)}</strong>
+                  <p>{filled ? '已有正文，跳过' : indices.length ? `已选 ${indices.length} 个来源章节` : '未选择来源，跳过'}</p>
+                  {!filled && <>
+                    {mappingSuggestions?.filter((entry) => entry.nodeId === item.id).map((entry) => <details key={entry.index}>
+                      <summary>建议来源：{originalSections[entry.index].title}</summary>
+                      <blockquote>{entry.quote}</blockquote><p>{entry.reason}</p>
+                      <button type="button" className="secondary-action" disabled={restoring || indices.includes(entry.index) || restoreEdits[item.id] !== undefined}
+                        onClick={() => changeRestoreSources(item.id, [...indices, entry.index])}>{indices.includes(entry.index) ? '已选来源' : '采用此来源'}</button>
+                      {restoreEdits[item.id] !== undefined && <p>本小节已有裁剪内容，请通过来源选择器手动调整。</p>}
+                    </details>)}
+                    <label className="content-restore-source-picker">添加来源章节
+                      <select value="" disabled={restoring} onChange={(event) => {
+                        if (event.target.value === '') return;
+                        const index = Number(event.target.value);
+                        if (!indices.includes(index)) changeRestoreSources(item.id, [...indices, index]);
+                      }}>
+                        <option value="">请选择原方案章节</option>
+                        {originalSections.map((section, index) => <option key={index} value={index} disabled={indices.includes(index)}>{index + 1}. {section.title}</option>)}
+                      </select>
+                    </label>
+                    {indices.map((index) => <div className="content-restore-source" key={index}>
+                      <span>{originalSections[index]?.title}</span>
+                      <button type="button" className="secondary-action" disabled={restoring} onClick={() => changeRestoreSources(item.id, indices.filter((value) => value !== index))}>移除来源</button>
+                    </div>)}
+                    {indices.length > 0 && <details>
+                      <summary>核对和裁剪回填内容</summary>
+                      <p>拆分章节时，请为各目标小节保留对应段落。更换来源会重新组装本小节的回填内容。</p>
+                      <textarea className="content-restore-editor" aria-label={`${item.title}的回填内容`} disabled={restoring}
+                        value={restoreContent(item.id, indices)} onChange={(event) => setRestoreEdits((current) => ({ ...current, [item.id]: event.target.value }))} />
+                      <details><summary>查看渲染预览</summary><MarkdownRenderer allowRawHtml={false}>{restoreContent(item.id, indices)}</MarkdownRenderer></details>
+                    </details>}
+                  </>}
+                </li>)}</ul>
+              ) : scoringRows.length ? (
+                <ul>{scoringRows.map(({ title, details, candidates }, index) => <li key={index}>
+                  <strong>{title}</strong>
+                  <MarkdownRenderer allowRawHtml={false}>{details}</MarkdownRenderer>
+                  {candidates.length ? <p>候选章节：{candidates.map(displayOutlineTitle).join('、')}</p> : <p>未找到同名候选章节，待人工核对覆盖情况。</p>}
+                  {candidates.map((chapter) => <button key={chapter.id} type="button" className="secondary-action"
+                    onClick={() => { setReviewDialog(null); void requestSelectItem(chapter.id); }}>{displayOutlineTitle(chapter)}</button>)}
+                </li>)}</ul>
+              ) : <MarkdownRenderer allowRawHtml={false}>{techRequirements}</MarkdownRenderer>}
+            </div>
+            <div className="content-regenerate-actions">
+              <Dialog.Close asChild><button type="button" className="secondary-action" disabled={restoring}>关闭</button></Dialog.Close>
+              {reviewDialog === 'scoring' && scoringRows.length > 0 && (
+                <button type="button" className="primary-action" disabled={taskInFlight || editing}
+                  onClick={() => { setReviewDialog(null); void onExportScoringResponse(); }}>
+                  导出技术方案、评分表与证据报告
+                </button>
+              )}
+              {reviewDialog === 'restore' && <button type="button" className="primary-action"
+                disabled={restoreDisabled || !fillableRows.length} onClick={() => void fillMatchedChapters()}>
+                {restoring ? '回填中…' : `回填 ${fillableRows.length} 个空白小节`}
+              </button>}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       <Dialog.Root
         open={generationDialogOpen}
         onOpenChange={setGenerationDialogOpen}
@@ -1318,6 +1533,7 @@ function ContentEditPage({
 
           </div>
           <div className="modern-content-top-actions">
+            {reviewActions}
             <button type="button" className="modern-content-quiet" aria-pressed={focused} onClick={() => setFocused((value) => !value)}>{focused ? '退出专注' : '专注阅读'}</button>
             <button type="button" className="modern-content-quiet" onClick={openGenerationDialog} disabled={taskInFlight || !leaves.length}>生成配置</button>
             <button type="button" className="modern-content-primary" onClick={() => void handleGenerationButtonClick()} disabled={pausing || !leaves.length || editing} title={editing ? '请先保存或取消当前编辑' : undefined}>{generationButtonLabel}</button>
@@ -1330,7 +1546,7 @@ function ContentEditPage({
               <div><span>已生成小节</span><strong>{completedCount.toLocaleString('zh-CN')}<small> / {leaves.length.toLocaleString('zh-CN')}</small></strong></div>
               <div><span>当前字数</span><strong>{totalWords.toLocaleString('zh-CN')}</strong></div>
               <div><span>生成状态</span><strong className={`is-${taskFailed ? 'error' : taskInFlight ? 'running' : paused ? 'partial' : 'idle'}`}>{taskFailed ? '任务失败' : taskInFlight ? '进行中' : paused ? '已暂停' : completedCount === leaves.length && leaves.length > 0 ? '已完成' : completedCount ? '部分完成' : '待开始'}</strong></div>
-              {phaseVisible && <div className="modern-content-stage-progress"><TaskProgressSummary label={progressPhaseLabel} detail={displayProgressCount} percent={displayProgress} status={taskFailed ? 'exception' : taskInFlight ? 'active' : 'normal'} /></div>}
+              {phaseVisible && <div className="modern-content-stage-progress"><TaskProgressSummary label={progressPhaseLabel} detail={progressPhaseLabel === '正文生成' ? undefined : displayProgressCount} percent={displayProgress} showInterruptedProgress status={taskFailed ? 'exception' : taskInFlight ? 'active' : 'normal'} /></div>}
             </section>
             <Splitter className="modern-content-workspace" orientation={compactStudio ? 'vertical' : 'horizontal'}>
               <Splitter.Panel defaultSize={compactStudio ? 220 : 320} min={compactStudio ? 120 : 280} max="45%">
@@ -1352,6 +1568,7 @@ function ContentEditPage({
 <button type="button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen ? '收起详情' : '章节详情'}</button>
                   </div>}
                 {editing && <p className="modern-content-draft-state" role="status">{savingContent ? '正在保存…' : contentDirty ? '有未保存的正文修改' : '编辑模式 · 尚无修改'}</p>}
+                {editing && renderOriginalSectionPicker()}
                 {detailsOpen && <section className="chapter-inline-details"><strong>当前小节</strong><span>{selectedWaitingInQueue ? '排队中' : statusLabels[selectedStatus]} · {countReadableWords(editing ? draftContent : selectedContent).toLocaleString('zh-CN')} 字</span><p>{selectedItem?.description || '此小节暂无补充说明'}</p></section>}
                 <div className="modern-content-editor-body">
                   {selectedItem && selectedIsLeaf && editing && !isPreviewing ? (
@@ -1407,6 +1624,7 @@ function ContentEditPage({
           <span><strong>{totalWords}</strong> 字</span>
         </div>
         <div className="content-generation-actions">
+          {reviewActions}
           <button
             type="button"
             className="outline-config-action"
@@ -1489,6 +1707,7 @@ function ContentEditPage({
             </div>
           </div>
 
+          {editing && renderOriginalSectionPicker()}
           {isExpansionWorkflow && originalPlanMarkdown.trim() && !(editing && !isPreviewing) && (
             <section className="content-original-reference" aria-label="原方案参考">
               <div className="content-original-reference-head">

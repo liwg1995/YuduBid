@@ -13,6 +13,7 @@ export function toChineseErrorMessage(value: unknown, fallback = '操作失败�
   if (/\b403\b|forbidden/i.test(message)) return '当前服务拒绝访问，请检查账号权限';
   if (/\b404\b|not found/i.test(message)) return '请求的服务或资源不存在，请检查服务地址';
   if (/\b429\b|rate.?limit|too many requests/i.test(message)) return '请求过于频繁，请稍后重试';
+  if (/request queue is full|queue.{0,20}(?:full|capacity)|overloaded|请求队列.{0,10}(?:满|已满)/i.test(message)) return '模型服务繁忙，请稍后重试';
   if (/\b5\d\d\b|bad gateway|service unavailable/i.test(message)) return '服务暂时不可用，请稍后重试';
   if (/failed to fetch|fetch failed|network(?: request)? failed|econnreset|enotfound|econnrefused/i.test(message)) return '网络请求失败，请检查网络和服务配置';
   if (/enoent|no such file or directory/i.test(message)) return '文件或目录不存在，请重新选择';
@@ -20,5 +21,6 @@ export function toChineseErrorMessage(value: unknown, fallback = '操作失败�
   if (/is not defined|cannot read propert|undefined is not|not a function/i.test(message)) return '程序内部发生异常，请重启应用后重试';
   if (/unexpected token|json.*(?:parse|invalid)|invalid json/i.test(message)) return '返回数据格式错误，请重新生成';
 
+  if (/^[{\[]/.test(message)) return fallback;
   return /[\u3400-\u9fff]/.test(message) ? message : fallback;
 }

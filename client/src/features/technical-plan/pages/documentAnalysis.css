@@ -39,3 +39,9 @@
   .bid-section-selection > button { align-self: flex-start; }
   .bid-section-selection select { width: 100%; flex-basis: auto; }
 }
+
+.bid-section-selection { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.bid-section-error { min-width: 0; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; display: grid; gap: 6px; }
+.bid-section-error > strong { margin: 0; font-size: 14px; }
+.bid-section-error > p { margin: 0; }
+.bid-section-error > small { font-size: 12px; line-height: 1.6; }

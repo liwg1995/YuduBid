@@ -20,7 +20,6 @@ export const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGEle
   'existing-plan-expansion': PlanExpansionIcon,
   'feasibility-report': DraftingIcon,
   'bid-template-management': TemplateIcon,
-  'business-bid': BriefcaseIcon,
   'project-management': ProjectManagementIcon,
   'project-types': TemplateIcon,
   'project-history': ArchiveIcon,

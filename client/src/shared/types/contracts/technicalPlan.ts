@@ -12,6 +12,8 @@ export type MissingFactPolicy = 'infer' | 'placeholder' | 'generic';
 export type ContentAiImageStyle = 'auto' | 'engineering_diagram' | 'realistic_photo' | 'product_shot' | 'architectural_render' | '3d_render' | 'isometric_illustration' | 'cutaway_illustration' | 'exploded_view' | 'line_drawing' | 'flat_illustration';
 
 export interface ContentGenerationOptions {
+  bidGenerationScope?: 'technical' | 'complete' | 'business';
+  bidderCompanyId?: string;
   useAiImages: boolean;
   aiImageStyle?: ContentAiImageStyle;
   maxAiImages: number;
@@ -228,7 +230,7 @@ export interface TechnicalPlanState {
   globalFacts: GlobalFactGroupState[];
   contentGenerationTask?: BackgroundTaskState;
   contentGenerationOptions?: ContentGenerationOptions;
-  generationSettingsSnapshot?: { minimumWords: number; maximumWords?: number; sectionWords?: number };
+  generationSettingsSnapshot?: { bidGenerationScope?: 'technical' | 'business' | 'complete'; minimumWords: number; maximumWords?: number; sectionWords?: number };
   contentGenerationSections: ContentGenerationSections;
   contentGenerationPlans: ContentGenerationPlans;
   contentGenerationRuntime?: ContentGenerationRuntimeState;
@@ -248,6 +250,10 @@ export interface TechnicalPlanProject {
   created_at: string;
   updated_at: string;
   isActive?: boolean;
+}
+
+export function technicalProjectKey(project: TechnicalPlanProject) {
+  return `${project.workflowKind}:${project.id}`;
 }
 
 export interface TechnicalPlanProjectList {

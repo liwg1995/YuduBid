@@ -1972,7 +1972,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
                     ) : (
                       <>
                         <span className="appearance-modern-rail"><b>禹</b><i>⌂</i><i className="is-active">▤</i><i>▦</i><i>⚙</i></span>
-                        <span className="appearance-modern-nav"><b>AI 解决方案助手</b><small>招投标</small><i className="is-active">技术方案　›</i><i>已有方案扩写　›</i><i>知识库　›</i></span>
+                        <span className="appearance-modern-nav"><b>AI 解决方案助手</b><small>招投标</small><i className="is-active">方案生成　›</i><i>知识库　›</i></span>
                         <span className="appearance-modern-workspace">
                           <span className="appearance-modern-breadcrumb">工作空间　›　招投标　›　技术方案</span>
                           <span className="appearance-modern-hero"><small>PROJECT WORKSPACE</small><b>项目工作区</b><i>继续处理文件、目录和正文</i></span>

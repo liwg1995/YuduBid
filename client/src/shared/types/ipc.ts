@@ -8,7 +8,7 @@ import type { CodeGenerationSelectResult, CodeGenerationState } from './contract
 import type { GrantApplicationPanel, GrantApplicationProfile, GrantApplicationProject, GrantApplicationProjectList, GrantApplicationState, GrantFormFieldMapping, GrantProposalModuleKey, GrantProposalTemplateMapping, GrantProposalVisualSettings, GrantTemplateFillReport } from './contracts/grantApplication';
 import type { FeasibilityBackgroundTaskState, FeasibilityContentGenerationOptions, FeasibilityOutlineTemplate, FeasibilityProjectInfo, FeasibilityProjectList, FeasibilityProjectPayload, FeasibilityProjectRecord, FeasibilityReportState, FeasibilityReportStep, FeasibilityTaskEvent } from './contracts/feasibilityReport';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseMigrationResult, KnowledgeBaseMigrationStatus, KnowledgeBaseMutationResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeImage, KnowledgeImageDeleteResult, KnowledgeImageFolder, KnowledgeImageReferenceResult, KnowledgeImageUploadResult, KnowledgeItem } from './contracts/knowledgeBase';
-import type { CredentialCertificate, CredentialCompany, CredentialEmployee, CredentialImageFieldKey, CredentialLibraryImportResult, CredentialLibraryMutationResult, CredentialLibraryProfile, CredentialLibrarySnapshot, CredentialOtherMaterial, CredentialProject, CredentialRecordSavePayload } from './contracts/credentialLibrary';
+import type { BusinessAttachmentSlots, BusinessCredentialSelection, CredentialCertificate, CredentialCompany, CredentialEmployee, CredentialImageFieldKey, CredentialLibraryImportResult, CredentialLibraryMutationResult, CredentialLibraryProfile, CredentialLibrarySnapshot, CredentialOtherMaterial, CredentialProject, CredentialRecordSavePayload } from './contracts/credentialLibrary';
 import type { OfficialDocumentPromptInput } from '../prompts/officialDocument';
 import type { OfficialDocumentImportResult, OfficialDocumentState } from './contracts/officialDocument';
 import type { PatentCaseInfo, PatentDisclosureDraftFile, PatentGenerationSelectProjectResult, PatentGenerationState, PatentPoint, PatentRevisionResult, PatentWorkspaceProjectList } from './contracts/patentGeneration';
@@ -619,13 +619,14 @@ export interface YuDuBidBridge {
     getThumbnailDataUrl: (imageId: string) => Promise<string>;
   };
   technicalPlan: {
-    listProjects: (workflowKind?: TechnicalPlanWorkflowKind) => Promise<TechnicalPlanProjectList>;
+    listProjects: (workflowKind?: TechnicalPlanWorkflowKind | 'all') => Promise<TechnicalPlanProjectList>;
     createProject: (payload?: { workflowKind?: TechnicalPlanWorkflowKind; projectName?: string; name?: string }) => Promise<{ project: TechnicalPlanProject; projects: TechnicalPlanProjectList }>;
     renameProject: (payload: TechnicalPlanProjectPayload & { name: string; projectName?: string }) => Promise<TechnicalPlanProjectList>;
     deleteProject: (payload: TechnicalPlanProjectPayload) => Promise<TechnicalPlanProjectList>;
     switchProject: (payload: TechnicalPlanProjectPayload) => Promise<TechnicalPlanState>;
     loadState: (payload?: TechnicalPlanWorkflowKind | (TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind })) => Promise<TechnicalPlanState>;
     importTenderDocument: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
+    removeOriginalPlan: (payload: TechnicalPlanProjectPayload) => Promise<TechnicalPlanState>;
     importOriginalPlanDocument: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string }>;
     importGeneratedOriginalPlan: (payload?: TechnicalPlanProjectPayload & { sourceProjectId?: string; source_project_id?: string }) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState; markdown: string; tenderMarkdown?: string }>;
     readTenderMarkdown: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<string>;
@@ -638,7 +639,8 @@ export interface YuDuBidBridge {
     saveTechnicalVolume: (payload: TechnicalPlanProjectPayload & { technicalVolume: TechnicalVolumeConfig }) => Promise<TechnicalPlanState>;
     saveGlobalFacts: (payload: GlobalFactGroupState[] | (TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; globalFacts: GlobalFactGroupState[] })) => Promise<TechnicalPlanState>;
     saveContentGenerationOptions: (payload: ContentGenerationOptions | (TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; contentGenerationOptions: ContentGenerationOptions })) => Promise<TechnicalPlanState>;
-    saveChapterContent: (payload: TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; nodeId: string; content: string }) => Promise<TechnicalPlanState>;
+    saveBusinessDraft: (payload: TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind; content: string; expectedContent: string }) => Promise<TechnicalPlanState['bidAnalysisTasks'][string]>;
+    saveChapterContent: (payload: TechnicalPlanProjectPayload & { workflowKind?: TechnicalPlanWorkflowKind } & ({ nodeId: string; content: string } | { fillEmptyChapters: Array<{ nodeId: string; content: string }> })) => Promise<TechnicalPlanState>;
     clear: (payload?: TechnicalPlanWorkflowKind | TechnicalPlanProjectPayload) => Promise<{ success: boolean; message?: string; state: TechnicalPlanState }>;
   };
   feasibilityReport: {
@@ -775,6 +777,9 @@ export interface YuDuBidBridge {
   tasks: {
     startBidSectionExtraction: (payload: unknown) => Promise<unknown>;
     startBidAnalysis: (payload: unknown) => Promise<unknown>;
+    pauseBidAnalysis: (payload: TechnicalPlanProjectPayload) => Promise<unknown>;
+    resumeBidAnalysis: (payload: TechnicalPlanProjectPayload) => Promise<unknown>;
+    stopBidAnalysis: (payload: TechnicalPlanProjectPayload) => Promise<unknown>;
     startBlindCheck: (payload: { aiReview: boolean }) => Promise<Blind.BlindCheckTaskState>;
     startBlindCheckFix: (payload: { ai: boolean }) => Promise<Blind.BlindCheckTaskState>;
     startBlindCheckPresetExtraction: (payload: { source: string; filePath?: string }) => Promise<Blind.BlindCheckTaskState>;
@@ -810,6 +815,17 @@ export interface YuDuBidBridge {
     list: () => Promise<string[]>;
   };
   export: {
+    getPreparedBusinessStatus: (key: string) => Promise<boolean>;
+    saveBusinessDraftWord: (payload: { content: string; prepareKey?: string }) => Promise<string | null>;
+    getScoringCoverageReport: (payload: { workflowKind: TechnicalPlanWorkflowKind; projectId?: string }) => Promise<{ status: 'current' | 'stale' | 'missing'; content: string }>;
+    resetBusinessSession: (key: string) => Promise<unknown>;
+    loadBusinessSession: (key: string) => Promise<{ template: Awaited<ReturnType<YuDuBidBridge['export']['selectBusinessTemplate']>>; formSource: Awaited<ReturnType<YuDuBidBridge['export']['inspectTenderForms']>>; values: Record<string, string>; companyId: string; attachmentIds: Omit<BusinessCredentialSelection, 'companyId'>; selectedForms: string[]; formDraft: string | null } | null>;
+    saveBusinessSession: (key: string, payload: { values: Record<string, string>; companyId: string; attachmentIds: Omit<BusinessCredentialSelection, 'companyId'>; selectedForms: string[]; formDraft: string | null; formSourceActive: boolean }) => Promise<boolean>;
+    inspectTenderForms: (projectKey?: string) => Promise<{ name: string; sourceKind?: 'original-word' | 'reconstructed'; candidates: Array<{ id: string; title: string; tableCount: number; preview: string }> } | null>;
+    readTenderFormDraft: (ids: string[]) => Promise<string>;
+    useTenderForms: (ids: string[], editedMarkdown?: string) => Promise<{ name: string; fields: string[]; profileBindings: Partial<Record<string, keyof CredentialLibraryProfile>>; attachmentSlots: BusinessAttachmentSlots } | null>;
+    selectBusinessTemplate: () => Promise<{ name: string; fields: string[]; profileBindings: Partial<Record<string, keyof CredentialLibraryProfile>>; attachmentSlots: BusinessAttachmentSlots } | null>;
+    fillBusinessTemplate: (values: Record<string, string>, attachments?: BusinessCredentialSelection, prepareKey?: string) => Promise<string | null>;
     previewWord: (payload: { project_name?: string; documentProfile?: 'feasibility-report'; outline: OutlineItem[] }) => Promise<string>;
     exportWord: (payload: unknown) => Promise<WordExportResult>;
     showExportFile: (filePath: string) => Promise<{ success: boolean; path: string }>;

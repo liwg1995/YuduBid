@@ -1,4 +1,3 @@
-import ProjectDetailsDrawer from '../../../shared/ui/ProjectDetailsDrawer';
 import useDialogReturnFocus from '../../../shared/ui/useDialogReturnFocus';
 import { AsyncDialogRoot, AsyncDialogContent, AsyncDialogClose } from '../../../shared/ui/AsyncDialog';
 import '../components/softwareProjectDialogs.css';
@@ -39,8 +38,6 @@ function SoftwareCopyrightProjectsPage({ onEnterProject }: SoftwareCopyrightProj
   const [projectList, setProjectList] = useState<SoftwareCopyrightCaseList>({ activeCaseId: '', cases: [] });
   const projectSearchRef = useRef<InputRef>(null);
   const [keyword, setKeyword] = useState('');
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const detail = projectList.cases.find(project => project.id === detailId);
   const [listPage, setListPage] = useState(1);
   const [includeArchived, setIncludeArchived] = useState(false);
   useEffect(() => setListPage(1), [keyword, includeArchived]);
@@ -163,7 +160,6 @@ function SoftwareCopyrightProjectsPage({ onEnterProject }: SoftwareCopyrightProj
         const result = await bridge.switchCase(project.id);
         if (!result) throw new Error('项目切换未返回结果，请重试');
       }
-      setDetailId(null);
       onEnterProject();
       console.info('[soft-project-enter] workbench requested');
     } catch (error) {
@@ -255,7 +251,7 @@ function SoftwareCopyrightProjectsPage({ onEnterProject }: SoftwareCopyrightProj
 
         <div className="software-copyright-project-grid">
           {getStoredUiAppearance() === 'modern' ? <ProjectListTable<SoftwareCopyrightCase> scroll={{ x: 1160 }} loading={loading} dataSource={pageItems} pagination={false} columns={[
-            { title: '项目名称', render: (_, project) => <div className="yb-project-list-name"><button type="button" onClick={() => { setOperationError(''); setDetailId(project.id); }}>{project.name}</button><small>{project.softwareName || '尚未填写软件全称'} · {project.version || 'V1.0'}{project.id === projectList.activeCaseId ? ' · 当前项目' : ''}</small></div> },
+            { title: '项目名称', render: (_, project) => <div className="yb-project-list-name">{project.archived ? <strong>{project.name}</strong> : <button type="button" disabled={Boolean(busyId)} onClick={() => void enterProject(project)}>{project.name}</button>}<small>{project.softwareName || '尚未填写软件全称'} · {project.version || 'V1.0'}{project.id === projectList.activeCaseId ? ' · 当前项目' : ''}</small></div> },
             { title: '当前阶段', width: 130, render: (_, project) => project.archived ? '已归档' : project.draftConfirmed ? '材料已确认' : stepLabels[project.step] },
             { title: '最近更新', dataIndex: 'updatedAt', width: 180, render: formatProjectListTime },
             { title: '创建时间', dataIndex: 'createdAt', width: 180, render: formatProjectListTime },
@@ -278,7 +274,7 @@ function SoftwareCopyrightProjectsPage({ onEnterProject }: SoftwareCopyrightProj
               <article className={`software-copyright-project-card ${isActive ? 'is-active' : ''} ${project.archived ? 'is-archived' : ''}`} key={project.id}>
                 <div className="software-copyright-project-card-head">
                   <div>
-                    <strong>{project.name}</strong>
+                    {project.archived ? <strong>{project.name}</strong> : <button type="button" className="project-open-name" disabled={Boolean(busyId)} onClick={() => void enterProject(project)}>{project.name}</button>}
                     <span>{project.softwareName || '尚未填写软件全称'} / {project.version || 'V1.0'}</span>
                   </div>
                   <em>{statusLabel}</em>
@@ -424,18 +420,6 @@ function SoftwareCopyrightProjectsPage({ onEnterProject }: SoftwareCopyrightProj
           </AsyncDialogContent>
         </Dialog.Portal>
       </AsyncDialogRoot>
-      <ProjectDetailsDrawer open={Boolean(detail)} onClose={() => setDetailId(null)}
-        onEnter={detail ? () => void enterProject(detail) : undefined} enterDisabled={Boolean(busyId) || detail?.archived} entering={Boolean(busyId)} error={operationError}
-        items={detail ? [
-          { key: 'name', label: '项目名称', children: detail.name },
-          { key: 'software', label: '软件全称', children: detail.softwareName || '待填写' },
-          { key: 'version', label: '软件版本', children: detail.version || 'V1.0' },
-          { key: 'stage', label: '当前阶段', children: detail.draftConfirmed ? '材料已确认' : stepLabels[detail.step] },
-          { key: 'state', label: '项目状态', children: detail.archived ? '已归档' : '进行中' },
-          { key: 'path', label: '源码目录', children: detail.projectPath || '尚未关联源码' },
-          { key: 'created', label: '创建时间', children: formatProjectListTime(detail.createdAt) },
-          { key: 'updated', label: '更新时间', children: formatProjectListTime(detail.updatedAt) },
-        ] : []} />
 
     </div>
   );

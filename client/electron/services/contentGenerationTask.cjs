@@ -1,3 +1,4 @@
+const { BIDDER_FACT_GROUP_ID, bidScope, scopedAi, readGenerationOriginalPlan, usesOriginalPlanForChapter } = require('./bidScopeWorkflow.cjs');
 const { enabledIllustrationTypes } = require('./contentImagePolicy.cjs');
 const { countReadableWords } = require('../utils/wordCount.cjs');
 const fs = require('node:fs');
@@ -42,6 +43,7 @@ const TABLE_REQUIREMENT_LABELS = {
 
 function assertGenerationSettingsMatch(snapshot, options = {}) {
   if (!snapshot) return;
+  if ((snapshot.bidGenerationScope || 'technical') !== bidScope(options)) throw new Error('生成范围与当前目录不一致，请重新生成目录后再生成正文');
   const current = {
     minimumWords: normalizeWordCount(options.minimumWords ?? options.minimum_words),
     maximumWords: normalizeWordCount(options.maximumWords ?? options.maximum_words),
@@ -657,7 +659,7 @@ function formatKnowledgeContentsForPrompt(contents) {
     .join('\n\n');
 }
 
-function buildChapterContentMessages({ chapter, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown, sectionWordTarget }) {
+function buildChapterContentMessages({ generationScope, chapter, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown, sectionWordTarget }) {
   const chapterId = chapter.id || 'unknown';
   const chapterTitle = chapter.title || '未命名章节';
   const chapterDescription = chapter.description || '';
@@ -665,12 +667,12 @@ function buildChapterContentMessages({ chapter, parentChapters, siblingChapters,
   const messages = [
     {
       role: 'system',
-      content: `你是一个专业的标书编写专家，负责为投标文件的技术标部分生成具体内容。
+      content: `你是一个专业的标书编写专家，负责按当前成册范围和章节要求编写投标文件。
 ${hasOriginalPlan ? '当前是“已有方案扩写”模式。原方案是用户已经写好的核心草稿，必须尽量保留其中已有的事实、承诺、技术路线、实施方法、设备参数、人员安排和表达重点；同时要按本次招标文件、目录和全局事实补齐缺失响应点，优化结构和专业表达。' : ''}
 
 要求：
 1. 内容要专业、准确，与章节标题和描述保持一致。
-2. 这是技术方案，不是宣传报告，注意朴实无华，不要假大空。
+2. 用具体的响应内容说明本章要求，避免宣传性措辞。
 3. 语言要正式、规范，符合标书写作要求，但不要使用奇怪的连接词，不要让人觉得内容像是 AI 生成的。
 4. 内容要详细具体，避免空泛的描述。
 5. 注意避免与同级章节内容重复，保持内容的独特性和互补性。
@@ -681,7 +683,7 @@ ${hasOriginalPlan ? '当前是“已有方案扩写”模式。原方案是用�
 10. 严禁使用 Markdown 标题语法（#、##、###、####、#####、######），也不要生成与当前章节同级或下级的伪目录标题。
 11. 如需在正文中分层表达，只能使用普通段落、列表、表格或加粗引导语，例如 **实施要点：**。
 12. 直接返回章节内容，不生成标题，不要任何额外说明。
-13. 如果本章节需要使用的全局事实变量中包含相关内容，必须优先使用变量值，不得前后矛盾。人员配置按岗位、人数、职责描述，不生成姓名字段，不得杜撰姓名；仅用户资料明确提供且需引用真实人员时才可使用其姓名。
+13. 如果本章节需要使用的全局事实变量中包含相关内容，必须优先使用变量值，不得前后矛盾。${generationScope === 'technical' ? '人员配置按岗位、人数和职责描述，仅在需要引用且用户已提供时使用真实姓名。' : '按规定保留人员及企业表单字段，只有明确来源时才能填值，缺失信息标注【待填写】。'}
 ${hasOriginalPlan ? '14. 不要把原方案整体照搬到每个章节；只吸收与当前章节相关的内容。原方案与招标文件冲突时，以招标文件和全局事实为准，并用更稳妥的投标表达改写。' : ''}`,
     },
   ];
@@ -2412,6 +2414,7 @@ function withSection(sections, item, partial) {
 async function runContentGenerationTask({ app, aiService, technicalDiagramService, workspaceStore, knowledgeBaseService, configStore, templateStore, updateTask, payload, taskControl, previousState }) {
   const resume = Boolean(payload.resume);
   const storedPlan = previousState || workspaceStore.loadTechnicalPlan() || {};
+  const scope = bidScope(storedPlan.contentGenerationOptions);
   let outlineData = storedPlan.outlineData;
 
   if (!outlineData?.outline?.length) {
@@ -2423,21 +2426,17 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
   if (!globalFactsText || storedPlan.globalFactsTask?.status !== 'success') {
     throw new Error('请先完成全局事实设定，再生成正文');
   }
+  const bidderFacts = scope !== 'technical' && storedPlan.contentGenerationOptions?.bidderCompanyId
+    ? globalFacts.find((group) => group.id === BIDDER_FACT_GROUP_ID)
+    : undefined;
+  if (scope !== 'technical' && storedPlan.contentGenerationOptions?.bidderCompanyId && !bidderFacts) {
+    throw new Error('当前全局事实缺少投标企业资料，请重新生成全局事实');
+  }
+  aiService = scopedAi(aiService, scope, bidderFacts);
   const globalFactTitlesText = formatGlobalFactTitlesForPrompt(globalFacts);
   const allowedFactTitles = new Set(globalFacts.map((group) => singleLine(group?.title)).filter(Boolean));
   const bidAnalysisFactsText = formatBidAnalysisFactsForPrompt(storedPlan);
-  const isExpansionWorkflow = storedPlan.workflowKind === 'existing-plan-expansion';
-  const originalPlanMarkdown = isExpansionWorkflow && workspaceStore.readOriginalPlanMarkdown
-    ? workspaceStore.readOriginalPlanMarkdown()
-    : '';
-  if (isExpansionWorkflow) {
-    if (!storedPlan.originalPlanFile) {
-      throw new Error('请先上传原方案，再生成正文');
-    }
-    if (!String(originalPlanMarkdown || '').trim()) {
-      throw new Error('原方案正文为空，无法执行已有方案扩写');
-    }
-  }
+  const originalPlanMarkdown = readGenerationOriginalPlan(storedPlan, workspaceStore);
 
   const projectOverview = outlineData.project_overview || storedPlan.projectOverview || '';
   const techRequirements = storedPlan.techRequirements || '';
@@ -2696,7 +2695,7 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
       ? '全文一致性审计已启用，继续扩写完成后将检查并修复事实冲突。'
       : '全文一致性审计已启用，正文扩写完成后将在配图前检查并修复事实冲突。'
     : '全文一致性审计未启用，本次正文生成将直接进入配图阶段。'];
-  if (isExpansionWorkflow) {
+  if (originalPlanMarkdown) {
     logs = [...logs, `已有方案扩写模式：已读取原方案，约 ${countContentWords(originalPlanMarkdown)} 字，将作为正文扩写核心草稿。`];
   }
 
@@ -3200,7 +3199,11 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
       const knowledgeContents = resolveKnowledgeContents(contentPlan.knowledge?.item_ids, knowledgeContentMap);
       const selectedFactsText = resolveSelectedFactsText(contentPlan, globalFacts);
 
-      const messages = buildChapterContentMessages({ chapter: item, parentChapters, siblingChapters, projectOverview, selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, originalPlanMarkdown, sectionWordTarget });
+      const messages = buildChapterContentMessages({
+        generationScope: scope, chapter: item, parentChapters, siblingChapters, projectOverview,
+        selectedFactsText, regenerateRequirement, contentPlan, knowledgeContents, sectionWordTarget,
+        originalPlanMarkdown: usesOriginalPlanForChapter(scope, item, parentChapters) ? originalPlanMarkdown : '',
+      });
       let generatedContent = '';
       for (let attempt = 0; attempt < 3; attempt += 1) {
         generatedContent = await aiService.chat({
@@ -3214,7 +3217,11 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
       if (hasUnexpectedGeneratedIllustration(generatedContent)) {
         throw new Error('模型连续返回未经校验的图片或图表，请重试本小节');
       }
-      rawContent += generatedContent || '';
+      const generatedBody = normalizeLeafContentForSave(generatedContent, item);
+      if (!generatedBody.trim()) {
+        throw new Error('模型未返回可用的小节正文，请重试本小节');
+      }
+      rawContent += generatedContent;
 
       content = stripRepeatedChapterTitle(normalizeGeneratedMarkdown(rawContent), item);
       logs = [...logs, `生成完成：${item.id} ${item.title || '未命名章节'}`];
@@ -3222,12 +3229,12 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
       saveSection(item, { status: 'success', content, error: undefined }, content, { logs });
     } catch (error) {
       const message = error.message || '正文生成失败';
-      logs = [...logs, `生成失败：${item.id} ${item.title || '未命名章节'}，${message}${isSingleSectionRegeneration ? '。已保留原正文。' : ''}`];
+      logs = [...logs, `生成失败：${item.id} ${item.title || '未命名章节'}，${message}${previousContent.trim() ? '。已保留原正文。' : ''}`];
       saveSection(item, {
         status: 'error',
-        content: isSingleSectionRegeneration ? previousContent : content,
+        content: previousContent,
         error: message,
-      }, isSingleSectionRegeneration ? previousContent : content, { logs });
+      }, previousContent, { logs });
     }
   }
 
@@ -3852,7 +3859,9 @@ async function runContentGenerationTask({ app, aiService, technicalDiagramServic
         await fsPromises.writeFile(file, result.buffer);
         return inspectWordLayout(await readWordLayout(file));
       } finally {
-        await fsPromises.rm(directory, { recursive: true, force: true });
+        await fsPromises.rm(directory, { recursive: true, force: true }).catch((error) => {
+          console.warn('[content-layout] 清理格式自检临时目录失败', error);
+        });
       }
     };
 

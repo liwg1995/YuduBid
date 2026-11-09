@@ -2,6 +2,7 @@ export interface OutlineItem {
   id: string;
   title: string;
   description: string;
+  section_purpose?: 'technical' | 'business' | 'pricing' | 'general';
   source_requirement_id?: string;
   source_requirement_title?: string;
   knowledge_item_ids?: string[];

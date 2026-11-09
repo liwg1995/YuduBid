@@ -21,10 +21,8 @@ const sectionIds = new Set<SectionId>([
   'presales-projects',
   'presales-workbench',
   'technical-plan',
-  'existing-plan-expansion',
   'feasibility-report',
   'bid-template-management',
-  'business-bid',
   'project-types',
   'project-management',
   'project-history',
@@ -61,9 +59,14 @@ const sectionIds = new Set<SectionId>([
   'settings',
 ]);
 
+function resolveSection(section: SectionId): SectionId {
+  return section === 'existing-plan-expansion' ? 'technical-plan' : section;
+}
+
 function initialSectionFromUrl(): SectionId {
   const section = new URLSearchParams(window.location.search).get('section') as SectionId | null;
-  return section && sectionIds.has(section) ? section : 'home';
+  const destination = section && resolveSection(section);
+  return destination && sectionIds.has(destination) ? destination : 'home';
 }
 
 function App() {
@@ -204,7 +207,7 @@ function App() {
     void refreshPluginState();
     const unsubscribe = window.yibiao?.plugins.onEvent((event) => {
       if (event.type === 'navigation-requested' && event.sectionId) {
-        const section = event.sectionId as SectionId;
+        const section = resolveSection(event.sectionId as SectionId);
         const visibility = sectionVisibilityRef.current;
         if (sectionIds.has(section) && isSectionVisible(section, visibility.developerMode, visibility.featureModuleSettings)) {
           void canNavigateToSection(section).then((allowed) => {
@@ -212,7 +215,7 @@ function App() {
             setPluginNavigationTarget({
               requestId: Date.now(),
               sectionId: section,
-              ...(event.workflowKind ? { workflowKind: event.workflowKind } : {}),
+              workflowKind: event.workflowKind || (event.sectionId === 'existing-plan-expansion' ? 'existing-plan-expansion' : undefined),
               ...(event.projectId ? { projectId: event.projectId } : {}),
               ...(event.viewId ? { viewId: event.viewId } : {}),
               ...(event.panelId ? { panelId: event.panelId } : {}),
@@ -223,7 +226,7 @@ function App() {
         return;
       }
       if (event.type === 'workspace-changed' && event.sectionId) {
-        const section = event.sectionId as SectionId;
+        const section = resolveSection(event.sectionId as SectionId);
         if (sectionIds.has(section)) {
           setSectionRefreshKeys((current) => ({ ...current, [section]: (current[section] || 0) + 1 }));
         }
@@ -238,7 +241,8 @@ function App() {
   }, []);
 
   const changeSection = useCallback((section: SectionId) => {
-    const destination = isSectionVisible(section, developerMode, featureModuleSettings) ? section : 'home';
+    const resolved = resolveSection(section);
+    const destination = isSectionVisible(resolved, developerMode, featureModuleSettings) ? resolved : 'home';
     void canNavigateToSection(destination).then((allowed) => {
       if (allowed) setActiveSection(destination);
     });

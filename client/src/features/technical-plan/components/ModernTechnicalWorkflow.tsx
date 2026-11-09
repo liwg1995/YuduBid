@@ -26,6 +26,7 @@ export default function ModernTechnicalWorkflow({ modern, projectName, activeSte
   if (!modern) return <>{children}</>;
   const activeIndex = steps.findIndex((step) => step.id === activeStep);
   const current = steps[activeIndex];
+  const navigationIds = new Set(['previous-step', 'next-step', 'skip-settings', 'export-word', 'continue-expand']);
   const renderAction = (action: WorkflowAction) => <button key={action.id} type="button" className={`modern-workflow-command${action.variant === 'primary' ? ' is-primary' : ''}${action.variant === 'danger' ? ' is-danger' : ''}`}
     disabled={action.disabled} title={action.tooltip} onClick={action.onClick}>{action.icon && <span aria-hidden="true">{action.icon}</span>}{action.label}</button>;
   return (
@@ -58,9 +59,9 @@ export default function ModernTechnicalWorkflow({ modern, projectName, activeSte
         </header>
         <div className="modern-workflow-stage" key={activeStep}>{children}</div>
         {nextDisabled && nextHint && <p className="modern-workflow-next-hint" role="status">下一步：{nextHint}</p>}
-        <div className="modern-workflow-commandbar" aria-label="技术方案操作">
-          <div>{actions.filter((action) => !['previous-step', 'next-step', 'export-word', 'continue-expand'].includes(action.id)).map(renderAction)}</div>
-          <div>{actions.filter((action) => ['previous-step', 'next-step', 'export-word', 'continue-expand'].includes(action.id)).map(renderAction)}</div>
+        <div className="modern-workflow-commandbar" aria-label="方案生成操作">
+          <div>{actions.filter((action) => !navigationIds.has(action.id)).map(renderAction)}</div>
+          <div>{actions.filter((action) => navigationIds.has(action.id)).map(renderAction)}</div>
         </div>
       </div>
     </div>

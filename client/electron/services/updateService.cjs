@@ -24,7 +24,7 @@ function normalizeVersion(value) {
 function sanitizeInstallerName(value, fallbackName) {
   const rawName = path.basename(String(value || fallbackName || '').replace(/\\/g, '/'));
   const normalized = rawName.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
-  return normalized || 'Yibiao-update-installer.exe';
+  return normalized || 'client-update-installer.exe';
 }
 
 function getManualUpdateDir(app, version) {
@@ -68,7 +68,7 @@ async function downloadReleaseInstaller(options = {}) {
   const app = options.app;
   const url = String(options.url || '').trim();
   const version = normalizeVersion(options.version || '');
-  const installerName = sanitizeInstallerName(options.fileName, `Yibiao-${version || 'latest'}-${process.platform}-${process.arch}.exe`);
+  const installerName = sanitizeInstallerName(options.fileName, `client-update-${version || 'latest'}-${process.platform}-${process.arch}.exe`);
   const expectedSize = Number(options.size || 0);
   const expectedDigest = parseSha256Digest(options.digest);
 

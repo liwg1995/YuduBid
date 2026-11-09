@@ -1,6 +1,0 @@
-/* Drawer 通过 Portal 渲染在 body 下，不在 .app-shell.is-mac 的 no-drag
-   选择器内。其顶部操作必须显式排除 Electron 窗口拖拽命中区域。 */
-.yb-project-details-drawer,
-.yb-project-details-drawer * {
-  -webkit-app-region: no-drag;
-}

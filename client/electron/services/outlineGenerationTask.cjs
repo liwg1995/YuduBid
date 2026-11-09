@@ -1,3 +1,4 @@
+const { bidScope, scopeInstruction, readGenerationOriginalPlan, normalizeSectionPurpose } = require('./bidScopeWorkflow.cjs');
 const { getBidAnalysisTasks } = require('./bidAnalysisTask.cjs');
 const { wordBudgetGuidance } = require('./generationWordBudget.cjs');
 
@@ -419,6 +420,9 @@ function normalizeOutlineItem(item, path = 'outline[]', allowedKnowledgeIds) {
     description: String(raw.description || title),
   };
 
+  const sectionPurpose = normalizeSectionPurpose(raw.section_purpose);
+  if (sectionPurpose) normalized.section_purpose = sectionPurpose;
+
   if (raw.source_requirement_id !== undefined && raw.source_requirement_id !== null) {
     normalized.source_requirement_id = String(raw.source_requirement_id);
   }
@@ -784,7 +788,7 @@ async function collectJson(aiService, options) {
 async function generateFull(aiService, payload, suggestions, log, progress = 20) {
   log('正在一次性生成完整目录。', progress);
   return collectJson(aiService, {
-    messages: generateOutlineMessages({ ...payload, suggestions }),
+    messages: generateOutlineMessages({ ...payload, suggestions }).concat(payload.originalPlanContext ? [{ role: 'user', content: payload.originalPlanContext.trim() }] : []),
     temperature: 0.7,
     max_retries: 0,
     fail_on_truncated_output: true,
@@ -799,7 +803,7 @@ async function generateFull(aiService, payload, suggestions, log, progress = 20)
 
 async function generateTopLevel(aiService, payload, suggestions, log) {
   return collectJson(aiService, {
-    messages: generateTopLevelOutlineMessages({ ...payload, suggestions }),
+    messages: generateTopLevelOutlineMessages({ ...payload, suggestions }).concat(payload.originalPlanContext ? [{ role: 'user', content: payload.originalPlanContext.trim() }] : []),
     temperature: 0.7,
     normalizer: (value) => normalizeOutlineResponse(value, new Set()),
     validator: validateTopLevelOutline,
@@ -811,7 +815,7 @@ async function generateTopLevel(aiService, payload, suggestions, log) {
 
 async function generateChildren(aiService, payload, parentItem, suggestions, log, progress) {
   const response = await collectJson(aiService, {
-    messages: generateChildrenMessages({ ...payload, parentItem, suggestions }),
+    messages: generateChildrenMessages({ ...payload, parentItem, suggestions }).concat(payload.originalPlanContext ? [{ role: 'user', content: payload.originalPlanContext.trim() }] : []),
     temperature: 0.7,
     normalizer: (value) => normalizeChildrenResponse(value, new Set(), parentItem.id),
     validator: validateChildrenOutline,
@@ -944,7 +948,7 @@ async function extractRequirementGroups(aiService, requirements, suggestions, lo
 
 async function generateAlignedChildrenForGroup(aiService, payload, parentItem, group, suggestions, log, progress) {
   const response = await collectJson(aiService, {
-    messages: generateAlignedChildrenMessages({ ...payload, parentItem, group, suggestions }),
+    messages: generateAlignedChildrenMessages({ ...payload, parentItem, group, suggestions }).concat(payload.originalPlanContext ? [{ role: 'user', content: payload.originalPlanContext.trim() }] : []),
     temperature: 0.7,
     normalizer: (value) => normalizeChildrenResponse(value, new Set(), parentItem.id),
     validator: validateChildrenOutline,
@@ -1064,6 +1068,24 @@ async function enhanceOutlineWithKnowledgeAdditions(aiService, payload, outline,
   return enhanced;
 }
 
+async function generateScopedOutline(aiService, scope, storedPlan, workspaceStore, taskControl, log, originalPlanContext) {
+  const requirements = storedPlan.responseFileRequirements || storedPlan.bidAnalysisTasks?.responseFileRequirements?.content;
+  if (!requirements?.trim()) throw new Error('请先重新运行招标文件解析，提取当前范围的响应文件要求');
+  log('按所选成册范围生成响应文件目录。', 20);
+  const result = await collectJson(aiService, {
+    messages: [{ role: 'system', content: `${scopeInstruction(scope)}\n生成完整三级目录，只返回 JSON：{"outline":[{"id":"1","title":"章节名","description":"本章响应内容和应填资料","children":[{"id":"1.1","title":"子章节","description":"内容要求","children":[{"id":"1.1.1","title":"具体表单或内容","description":"填写或编制说明"}]}]}]}。尊重招标原表名称；每个一级章节都有具体子章节，避免重复和混入不属于本册的内容。${scope === 'complete' ? '\n为每级节点填写 section_purpose，只能取 technical（技术方案正文，包括施工组织设计、部署实施等）、business（商务、资信、业绩和投标表单）、pricing（报价）、general（封面、目录和混合容器）。按招标文件中实际用途分类，不能只看标题；技术节点的正文可参考原技术方案，商务和报价节点禁止沿用原方案。' : ''}` },
+      { role: 'user', content: `项目概述：${storedPlan.projectOverview || '未提供'}\n本次响应文件要求：\n${requirements}${originalPlanContext}` }],
+    temperature: 0.2, signal: taskControl?.signal,
+    normalizer: (value) => normalizeOutlineResponse(value, new Set()), validator: validateCompleteOutline,
+    progressLabel: '响应文件目录', failureMessage: '响应文件目录结构无效，请重试',
+  });
+  await taskControl?.checkpoint?.();
+  const plan = workspaceStore.updateTechnicalPlan({ outlineMode: 'response-file', outlineData: { ...result, project_overview: storedPlan.projectOverview || '' },
+    generationSettingsSnapshot: { minimumWords: Number(storedPlan.contentGenerationOptions?.minimumWords || 0), maximumWords: Number(storedPlan.contentGenerationOptions?.maximumWords || 0), sectionWords: Number(storedPlan.contentGenerationOptions?.sectionWords || 0), bidGenerationScope: scope },
+    globalFactsTask: undefined, globalFacts: [], contentGenerationTask: undefined, contentGenerationSections: {}, contentGenerationPlans: {}, contentGenerationRuntime: undefined });
+  return plan;
+}
+
 async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBaseService, updateTask, payload, taskControl }) {
   const requestJson = aiService.collectJsonResponse || aiService.requestJson;
   const controlledAiService = {
@@ -1087,6 +1109,18 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
 
   const referenceKnowledgeDocumentIds = normalizeReferenceDocumentIds(payload);
   const storedPlan = workspaceStore.loadTechnicalPlan() || {};
+  const scope = bidScope(storedPlan.contentGenerationOptions);
+  const originalPlan = readGenerationOriginalPlan(storedPlan, workspaceStore);
+  const originalPlanHeadings = originalPlan.split(/\r?\n/).filter((line) => /^\s*#{1,6}\s+\S/.test(line)).join('\n');
+  const originalPlanContext = originalPlan ? '\n\n原技术方案（仅供技术章节组织参考，保留相关内容并补齐缺项。招标规定目录、表单和评分项优先。不要把原方案内容当作招标要求或纳入商务、资信、报价章节）：\n'
+    + (originalPlanHeadings || originalPlan).slice(0, 12000) : '';
+  if (scope !== 'technical') {
+    const plan = await generateScopedOutline(controlledAiService, scope, storedPlan, workspaceStore, taskControl, log, originalPlanContext);
+    const done = updateTask({ status: 'success', progress: 100, logs: ['响应文件目录生成完成。'] });
+    const saved = workspaceStore.updateTechnicalPlan({ outlineGenerationTask: done });
+    updateTask(done, saved || plan);
+    return;
+  }
   const overview = storedPlan.projectOverview || '';
   const responseFileRequirements = String(payload.responseFileRequirements || storedPlan.responseFileRequirements || '').trim();
   const responseFileAvailable = hasResponseFileOutline(responseFileRequirements);
@@ -1123,6 +1157,7 @@ async function runOutlineGenerationTask({ aiService, workspaceStore, knowledgeBa
     if (tenderContent) taskPayload.requirements += '\n\n招标文件中的技术要求（只使用明确要求，不得编造评分项）：\n' + tenderContent;
   }
   if (payload.mode === 'response-file' && responseFileAvailable) taskPayload.requirements = responseFileRequirements;
+  taskPayload.originalPlanContext = originalPlanContext;
   if (taskControl?.ask) {
     let confirmedRoots = null;
     taskPayload.confirmRoots = async (items) => {

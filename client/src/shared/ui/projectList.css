@@ -56,3 +56,18 @@
 .yb-project-list-name > :is(button,strong,small) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .yb-project-list-header > div:first-child { min-width: 0; overflow-wrap: anywhere; }
 .yb-project-list-actions button { white-space: nowrap; }
+
+.project-open-name {
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--yb-text);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.project-open-name:hover:not(:disabled) { color: var(--yb-primary); }
+.project-open-name:disabled { cursor: default; }

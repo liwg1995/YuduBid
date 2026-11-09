@@ -205,3 +205,14 @@ export const emptyCredentialProfile: CredentialLibraryProfile = {
   createdAt: '',
   updatedAt: '',
 };
+
+export interface BusinessCredentialSelection {
+  companyId: string;
+  employeeIds: string[];
+  projectIds: string[];
+  certificateIds: string[];
+  imageIds: string[];
+}
+
+export type BusinessAttachmentSlots = Partial<Record<Exclude<keyof BusinessCredentialSelection, 'companyId'>,
+  'positioned' | 'invalid'>>;

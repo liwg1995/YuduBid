@@ -260,8 +260,9 @@ export const bidAnalysisTasks: BidAnalysisTaskDefinition[] = [
   },
 ];
 
-export function getBidAnalysisTasks(mode: BidAnalysisMode) {
-  return mode === 'key' ? bidAnalysisTasks.filter((task) => task.required) : bidAnalysisTasks;
+export function getBidAnalysisTasks(mode: BidAnalysisMode, scope: 'technical' | 'business' | 'complete' = 'technical') {
+  const tasks = scope === 'technical' ? bidAnalysisTasks : bidAnalysisTasks.map((task) => task.id === 'responseFileRequirements' ? { ...task, required: true, description: '提取当前成册范围的文件组成、规定表单及响应要求。' } : task);
+  return mode === 'key' ? tasks.filter((task) => task.required) : tasks;
 }
 
 export function getBidAnalysisTaskById(taskId: string) {

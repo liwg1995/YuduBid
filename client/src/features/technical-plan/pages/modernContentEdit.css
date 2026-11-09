@@ -112,9 +112,9 @@
 
 /* Ant Design 列表-阅读器模式：固定工具区，可调目录，正文优先。 */
 .modern-content-page { gap: 8px; container: content-studio / inline-size; }
-.modern-content-top { min-height: 40px; }
+.modern-content-top { min-height: 40px; flex-wrap: wrap; }
 .modern-content-top h2 { margin: 0; font-size: 20px; font-weight: 500; }
-.modern-content-top-actions { flex-wrap: wrap; justify-content: flex-end; }
+.modern-content-top-actions { max-width: 100%; flex-wrap: wrap; justify-content: flex-end; }
 .modern-content-overview { display: flex; flex-wrap: wrap; gap: 16px; border: 0; border-radius: 0; padding: 0 0 8px; background: transparent; }
 .modern-content-overview > div:not(.modern-content-stage-progress) { flex-direction: row; align-items: baseline; gap: 8px; min-height: 22px; padding: 0; background: transparent; }
 .modern-content-overview span, .modern-content-overview strong small { font-size: 12px; color: var(--yb-text-soft); }
@@ -163,9 +163,62 @@
 .chapter-navigation-search input { box-sizing: border-box; width: 100%; height: 32px; min-height: 32px; border: 1px solid var(--yb-control-border); border-radius: 6px; padding: 4px 8px; color: var(--yb-text); background: var(--yb-control-bg); font-size: 14px; }
 .modern-content-page .ant-splitter-bar { flex: 0 0 12px; }
 
-.modern-content-overview { align-items: center; }
+.modern-content-overview { align-items: center; row-gap: 6px; }
 .modern-content-overview > .modern-content-stage-progress { display: block; flex: 0 1 320px; min-width: 220px; min-height: 0; margin-left: auto; padding: 0; background: transparent; }
-.modern-content-overview .yb-task-progress-summary { display: grid; gap: 2px; }
 @container content-studio (max-width: 720px) { .modern-content-overview > .modern-content-stage-progress { flex-basis: 100%; max-width: none; margin-left: 0; } }
 
 .modern-content-wait-summary { width: min(100%, 320px); margin-top: 16px; text-align: left; }
+
+.content-review-list {
+  max-height: 48vh;
+  min-height: 0;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.content-review-list > ul {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.content-review-list > ul > li {
+  padding: 10px;
+  border: 1px solid var(--yb-border);
+  border-radius: var(--yb-radius-control);
+}
+
+.content-restore-source-picker {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.content-restore-source-picker select,
+.content-restore-editor {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  color: var(--yb-text);
+  background: var(--yb-control-bg);
+  border: 1px solid var(--yb-control-border);
+  border-radius: var(--yb-radius-control);
+}
+
+.content-restore-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.content-restore-editor {
+  min-height: 200px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.6;
+}

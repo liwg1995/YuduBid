@@ -739,6 +739,15 @@ function createCredentialLibraryService({ app, db }) {
     createCompany,
     deleteCompany,
     load,
+    async readAttachmentImage(image) {
+      const root = await fs.promises.realpath(imagesDir);
+      const file = await fs.promises.realpath(resolveStoredPath(image.relativePath));
+      const relative = path.relative(root, file);
+      if (!relative || relative.startsWith('..' + path.sep) || path.isAbsolute(relative) || relative === '..') {
+        throw new Error('资信图片路径无效');
+      }
+      return fs.promises.readFile(file);
+    },
     importTestData,
     saveProfile,
     addProfileImages,

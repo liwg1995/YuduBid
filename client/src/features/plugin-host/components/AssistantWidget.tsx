@@ -455,7 +455,7 @@ function getQuickActions(sectionId: string): AssistantQuickAction[] {
     return [
       { label: '查看当前进度', message: '查看当前进度' },
       { label: '下一步建议', message: '下一步建议' },
-      { label: '打开已有方案扩写', message: '打开已有方案扩写' },
+      { label: '如何使用原方案', message: '如何在方案生成的生成设置中上传原方案进行扩写？' },
     ];
   }
   if (sectionId === 'existing-plan-expansion') {

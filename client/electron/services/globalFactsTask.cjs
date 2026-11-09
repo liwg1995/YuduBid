@@ -1,3 +1,4 @@
+const { BIDDER_FACT_GROUP_ID, readBidderFacts, bidScope, scopedAi, readGenerationOriginalPlan } = require('./bidScopeWorkflow.cjs');
 function singleLine(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
@@ -317,7 +318,7 @@ async function collectJson(aiService, options) {
   return aiService.collectJsonResponse ? aiService.collectJsonResponse(options) : aiService.requestJson(options);
 }
 
-async function runGlobalFactsTask({ aiService, workspaceStore, knowledgeBaseService, updateTask }) {
+async function runGlobalFactsTask({ aiService, workspaceStore, knowledgeBaseService, credentialLibraryService, updateTask }) {
   let logs = ['开始生成全局事实变量。'];
   let currentProgress = 5;
   function log(message, progress = currentProgress) {
@@ -328,6 +329,9 @@ async function runGlobalFactsTask({ aiService, workspaceStore, knowledgeBaseServ
   }
 
   const storedPlan = workspaceStore.loadTechnicalPlan() || {};
+  const bidderFacts = readBidderFacts(storedPlan.contentGenerationOptions, credentialLibraryService);
+  const scope = bidScope(storedPlan.contentGenerationOptions);
+  aiService = scopedAi(aiService, scope, bidderFacts);
   const tenderMarkdown = workspaceStore.readTenderMarkdownForGeneration();
   if (!String(tenderMarkdown || '').trim()) {
     throw new Error('请先上传招标文件，再生成全局事实');
@@ -336,13 +340,7 @@ async function runGlobalFactsTask({ aiService, workspaceStore, knowledgeBaseServ
   if (!outlineData?.outline?.length) {
     throw new Error('请先生成目录，再生成全局事实');
   }
-  const isExpansionWorkflow = storedPlan.workflowKind === 'existing-plan-expansion';
-  const originalPlanMarkdown = isExpansionWorkflow && workspaceStore.readOriginalPlanMarkdown
-    ? workspaceStore.readOriginalPlanMarkdown()
-    : '';
-  if (isExpansionWorkflow && !String(originalPlanMarkdown || '').trim()) {
-    throw new Error('请先上传原方案，再生成全局事实');
-  }
+  const originalPlanMarkdown = scope === 'technical' ? readGenerationOriginalPlan(storedPlan, workspaceStore) : '';
 
   let technicalPlan = workspaceStore.updateTechnicalPlan({
     globalFacts: [],
@@ -387,7 +385,8 @@ async function runGlobalFactsTask({ aiService, workspaceStore, knowledgeBaseServ
     progressCallback: (message) => log(message, 74),
   });
 
-  groups = mergeGlobalFactPatches(groups, secondRound.patches || []);
+  groups = mergeGlobalFactPatches(groups, secondRound.patches || []).filter((group) => group.id !== BIDDER_FACT_GROUP_ID);
+  if (bidderFacts) groups.push(bidderFacts);
   log(`全局事实变量合并完成：${groups.length} 个大项，补充 ${secondRound.patches?.length || 0} 条。`, 92);
   technicalPlan = workspaceStore.updateTechnicalPlan({
     globalFacts: groups,

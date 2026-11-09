@@ -1,0 +1,202 @@
+.business-bid-page {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.business-bid-panel {
+  padding: clamp(12px, 3vw, 20px);
+  border: 1px solid var(--yb-border);
+  border-radius: var(--yb-radius-control);
+  background: var(--yb-surface);
+  overflow-wrap: anywhere;
+}
+
+.business-bid-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.business-bid-field {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 6px;
+}
+
+.business-bid-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  color: var(--yb-text);
+  background: var(--yb-control-bg);
+  border: 1px solid var(--yb-control-border);
+  border-radius: var(--yb-radius-control);
+}
+
+.business-bid-credentials {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.business-bid-credentials select {
+  max-width: 100%;
+  min-height: 32px;
+  color: var(--yb-text);
+  background: var(--yb-control-bg);
+  border: 1px solid var(--yb-control-border);
+  border-radius: var(--yb-radius-control);
+}
+
+.business-bid-attachments {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  border: 0;
+}
+
+.business-bid-attachments legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+.business-bid-attachments p {
+  margin: 6px 0;
+  color: var(--yb-text-soft);
+}
+
+.business-bid-attachments summary {
+  cursor: pointer;
+}
+
+.business-bid-attachments details {
+  padding: 6px 0;
+}
+
+.business-bid-attachments label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.business-bid-attachments label > span {
+  min-width: 0;
+}
+
+.business-bid-attachment-preview {
+  display: block;
+  max-width: min(240px, 100%);
+  max-height: 160px;
+  margin-top: 6px;
+  object-fit: contain;
+}
+
+.business-bid-heading,
+.business-bid-footer {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  background: var(--yb-surface);
+}
+
+.business-bid-heading {
+  border-bottom: 1px solid var(--yb-border);
+}
+
+.business-bid-footer {
+  border-top: 1px solid var(--yb-border);
+}
+
+.business-bid-heading > div,
+.business-bid-footer > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.business-bid-heading h2,
+.business-bid-panel h3 {
+  margin: 0 0 4px;
+}
+
+.business-bid-heading p,
+.business-bid-footer p {
+  margin: 0;
+  color: var(--yb-text-soft);
+}
+
+.business-bid-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: visible;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.business-bid-help {
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.business-bid-help summary {
+  cursor: pointer;
+}
+
+.business-bid-template-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.business-bid-form-option {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--yb-border);
+}
+
+.business-bid-form-option label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.business-bid-form-option details {
+  margin: 8px 0 0 24px;
+}
+
+.business-bid-form-option pre {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  color: var(--yb-text-soft);
+}
+
+.business-bid-form-selection > p {
+  color: var(--yb-text-soft);
+}
+
+.business-bid-draft-editor { display: grid; gap: 8px; margin-top: 16px; }
+.business-bid-draft-editor span { color: var(--yb-text-soft); }
+.business-bid-draft-editor textarea {
+  width: 100%; min-height: 280px; resize: vertical; padding: 12px;
+  color: var(--yb-text); background: var(--yb-control-bg);
+  border: 1px solid var(--yb-control-border); border-radius: var(--yb-radius-control);
+  font: inherit; line-height: 1.6;
+}
+
+.business-bid-session-content { border: 0; padding: 0; margin: 0; min-width: 0; }
+.business-bid-session-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; color: var(--yb-text-soft); }

@@ -29,7 +29,7 @@ export const featureCards: Array<{ title: string; text: string; action: string; 
   {
     title: '招投标工作流',
     text: '围绕招标文件解析、目录生成、正文编排、查重和废标项检查形成完整投标辅助链路。',
-    action: '进入技术方案',
+    action: '进入方案生成',
     section: 'technical-plan',
     tone: 'blue',
     icon: 'flow',

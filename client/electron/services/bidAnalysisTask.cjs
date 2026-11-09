@@ -1,3 +1,6 @@
+const { bidScope, responseRequirementsPrompt } = require('./bidScopeWorkflow.cjs');
+const { suggestOriginalPlanMapping } = require('./originalPlanMapping.cjs');
+const { checkScoringCoverage } = require('./scoringCoverage.cjs');
 const { splitUserTextByContextLimit } = require('../utils/userTextSplitter.cjs');
 
 const stableSystemPrompt = `你是专业的招标文件分析助手。请严格基于用户提供的招标文件原文完成提取和总结。
@@ -102,11 +105,24 @@ const tasks = [
   { id: 'complianceCheck', label: '符合性检查', required: false, output: 'markdown', description: '文件完整性、有效性、规范和偏差处理要求。', prompt: () => '任务：总结招标文件中关于符合性检查的信息，包括文件完整性、文件有效性、文件规范、偏差处理等。整理成 Markdown，不要使用表格。仅输出整理结果。' },
   { id: 'openBid', label: '开标要求', required: false, output: 'json', description: '开标时间地点、参与要求、无效标和流程。', prompt: () => jsonTask('提取开标信息', '提取时间地点、参与要求、无效标认定、异议处理、开标流程。', `{"time_place":"时间地点","part_req":"参与要求","invalid_bid":"无效标认定","objection":"异议处理","bid_process":"开标流程"}`) },
   { id: 'evaluationBid', label: '评标要求', required: false, output: 'json', description: '评标委员会、评分构成、方法和原则。', prompt: () => jsonTask('提取评标信息', '提取评标委员会组成、职责、评分构成、评标方法类型、评标原则和方法细节、其他评标相关说明。', `{"committee":"评标委员会组成","duties":"评标委员会职责","scoring":"评分构成","method":"评标方法类型","principles":"评标原则和方法细节","others":"其他和评标相关的说明"}`) },
+  {
+    id: 'businessVolumeRequirements', label: '商务卷编制要求', required: false, output: 'markdown',
+    description: '提取商务卷目录、表单及证明材料要求。',
+    prompt: () => `从招标文件提取商务卷编制要求，按「商务卷目录」「规定表单」「证明材料与附件」「签署和排版」四部分输出 Markdown 列表。
+保留招标文件顺序、表单原名、必填字段、适用条件和原文位置。注明资料来自商务卷、报价卷或资格卷，独立成册的内容不得混入商务卷。
+区分明确要求和原文未明确的内容。没有证据时写「原文未明确」。不要生成投标人名称、报价、人员、证书、签章或业绩，不要把技术正文要求归入商务卷。`,
+  },
   { id: 'businessScoring', label: '商务评分要求', required: false, output: 'markdown', description: '商务评分因素，为商务方案准备。', prompt: () => '任务：提取招标文件中的商务评分因素，为编写投标文件中的商务方案做准备。整理成 Markdown，不要使用表格。仅输出整理结果。' },
   { id: 'discardedBids', label: '无效标与废标项', required: false, output: 'markdown', description: '投标无效、废标相关风险项。', prompt: buildInvalidBidAndRejectionItemsPrompt },
   { id: 'signingProcess', label: '合同授予与签订', required: false, output: 'json', description: '中标公示、合同签订、履约保证金和合同文本。', prompt: () => jsonTask('提取合同授予和签订流程', '提取中标公示、合同签订、履约保证金、合同文本等信息。', `{"bid_notice":"中标公示","contract_sign":"合同签订","performance_bond":"履约保证金","contract_text":"合同文本"}`) },
   { id: 'terminationCondition', label: '合同解除和终止', required: false, output: 'json', description: '违约解除、不可抗力、合同终止和争议解决。', prompt: () => jsonTask('提取合同解除和终止条件', '提取违约解除、不可抗力、合同终止、争议解决等信息。', `{"breach_termination":"违约解除","force_majeure":"不可抗力","contract_termination":"合同终止","dispute_resolution":"争议解决"}`) },
 ];
+
+const businessDraftTask = {
+  id: 'businessVolumeDraft', label: '商务卷草稿', output: 'markdown',
+  prompt: () => `根据已提取的商务卷编制要求起草可编辑的商务卷。按照要求的章节及表单顺序输出 Markdown 正文。
+仅根据已知要求拟写可复核的章节和表单草稿。投标人信息、报价、证书、人员、业绩、签署及承诺等缺少依据时保留【待填写】。不得编造或代签。明确必须沿用原表的地方，提示按招标原表复核。不要输出内部分析过程。`,
+};
 
 function getBidAnalysisTasks(mode) {
   return mode === 'key' ? tasks.filter((task) => task.required) : tasks;
@@ -202,9 +218,11 @@ function runInvalidBidAndRejectionItemsExtraction({ aiService, fileContent }) {
   return runSingleBidAnalysisPromptTask({ aiService, fileContent, task });
 }
 
-async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, payload }) {
+async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, payload, taskControl }) {
   const mode = payload.mode || 'key';
-  const selectedTasks = getBidAnalysisTasks(mode);
+  const scope = bidScope(workspaceStore.loadTechnicalPlan()?.contentGenerationOptions);
+  const defaultTasks = getBidAnalysisTasks(mode);
+  if (scope !== 'technical' && !defaultTasks.some((task) => task.id === 'responseFileRequirements')) defaultTasks.push(getBidAnalysisTaskById('responseFileRequirements'));
   const fileContent = workspaceStore.readTenderMarkdownForGeneration();
   if (!String(fileContent || '').trim()) {
     throw new Error('请先上传招标文件，再开始解析');
@@ -213,6 +231,22 @@ async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, paylo
   const requestedTaskIds = Array.isArray(payload.task_ids)
     ? new Set(payload.task_ids.filter((taskId) => typeof taskId === 'string'))
     : null;
+  const mappingOriginal = requestedTaskIds?.has('originalPlanMapping');
+  if (mappingOriginal && requestedTaskIds.size !== 1) throw new Error('请单独运行章节映射');
+  const mappingState = mappingOriginal ? workspaceStore.loadTechnicalPlan() : null;
+  const mappingMarkdown = mappingOriginal ? workspaceStore.readOriginalPlanMarkdown() : '';
+  const checkingCoverage = requestedTaskIds?.has('scoringCoverage');
+  if (checkingCoverage && requestedTaskIds.size !== 1) throw new Error('请单独运行评分覆盖检查');
+  const coverageSnapshot = checkingCoverage ? workspaceStore.loadTechnicalPlan() : null;
+  const draftingBusiness = requestedTaskIds?.has(businessDraftTask.id);
+  const requirements = draftingBusiness ? workspaceStore.loadTechnicalPlan()?.bidAnalysisTasks?.businessVolumeRequirements : null;
+  if (draftingBusiness && (requestedTaskIds.size !== 1 || requirements?.status !== 'success' || !requirements.content.trim())) {
+    throw new Error('请先提取商务卷要求，再单独生成商务卷草稿');
+  }
+  const selectedTasks = mappingOriginal ? [{ id: 'originalPlanMapping', label: '原方案章节映射' }] : checkingCoverage ? [{ id: 'scoringCoverage', label: '评分正文覆盖检查' }] : draftingBusiness ? [businessDraftTask]
+    : mode === 'key' && requestedTaskIds?.has('businessVolumeRequirements')
+      ? [...defaultTasks, getBidAnalysisTaskById('businessVolumeRequirements')]
+      : defaultTasks;
   const scopedTasks = requestedTaskIds
     ? selectedTasks.filter((task) => requestedTaskIds.has(task.id))
     : selectedTasks;
@@ -255,38 +289,71 @@ async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, paylo
   }
   let technicalPlan = workspaceStore.updateTechnicalPlan(initialPartial);
   const currentTasks = technicalPlan.bidAnalysisTasks || {};
-  const tasksToRun = requestedTaskIds || forceRerun ? scopedTasks : scopedTasks.filter((task) => currentTasks[task.id]?.status !== 'success');
+  let tasksToRun = requestedTaskIds || forceRerun ? scopedTasks : scopedTasks.filter((task) => currentTasks[task.id]?.status !== 'success');
 
-  async function runOne(task) {
+  async function runOne(task, taskAiService, signal) {
+    signal?.throwIfAborted();
     const runningPrev = workspaceStore.loadTechnicalPlan() || {};
-    const runningTasks = { ...(runningPrev.bidAnalysisTasks || {}), [task.id]: { id: task.id, label: task.label, status: 'running', content: '' } };
+    const runningTasks = { ...(runningPrev.bidAnalysisTasks || {}), [task.id]: { id: task.id, label: task.label, status: 'running', content: runningPrev.bidAnalysisTasks?.[task.id]?.content || '' } };
     technicalPlan = workspaceStore.updateTechnicalPlan({ bidAnalysisTasks: runningTasks, bidAnalysisProgress: doneProgress(runningTasks) });
     updateTask({ status: 'running', progress: technicalPlan.bidAnalysisProgress || 0 }, technicalPlan);
 
-    const content = await runSingleBidAnalysisPromptTask({
-      aiService,
-      fileContent,
-      task,
+    const content = mappingOriginal ? await suggestOriginalPlanMapping(taskAiService, mappingState, mappingMarkdown, ({ completed, total, title }) => {
+      updateTask({ status: 'running', progress: Math.round(completed / total * 95), logs: [`章节映射 ${completed}/${total}：${title}`] }, workspaceStore.loadTechnicalPlan());
+    }) : checkingCoverage ? await checkScoringCoverage(taskAiService, coverageSnapshot, ({ completed, total, title }) => {
+      updateTask({ status: 'running', progress: Math.round(completed / total * 95), logs: [`评分检查 ${completed}/${total}：${title}`] }, workspaceStore.loadTechnicalPlan());
+    }) : await runSingleBidAnalysisPromptTask({
+      aiService: taskAiService,
+      fileContent: draftingBusiness ? requirements.content : fileContent,
+      task: scope !== 'technical' && task.id === 'responseFileRequirements' ? { ...task, prompt: () => responseRequirementsPrompt(scope) } : task,
     });
 
+    signal?.throwIfAborted();
+    if (task.id === 'businessVolumeDraft') workspaceStore.invalidatePreparedBusiness?.();
     const prev = workspaceStore.loadTechnicalPlan() || {};
     const nextTasks = { ...(prev.bidAnalysisTasks || {}), [task.id]: { id: task.id, label: task.label, status: 'success', content } };
     const partial = { bidAnalysisTasks: nextTasks, bidAnalysisProgress: doneProgress(nextTasks) };
     if (task.id === 'projectOverview') partial.projectOverview = content;
     if (task.id === 'techRequirements') partial.techRequirements = content;
+    if (task.id === 'responseFileRequirements') partial.responseFileRequirements = content;
     technicalPlan = workspaceStore.updateTechnicalPlan(partial);
     updateTask({ status: 'running', progress: technicalPlan.bidAnalysisProgress || 0 }, technicalPlan);
   }
 
-  await Promise.all(tasksToRun.map((task) => runOne(task).catch((error) => {
-    const prev = workspaceStore.loadTechnicalPlan() || {};
-    const nextTasks = { ...(prev.bidAnalysisTasks || {}), [task.id]: { id: task.id, label: task.label, status: 'error', content: prev.bidAnalysisTasks?.[task.id]?.content || '', error: error.message || '解析失败' } };
-    technicalPlan = workspaceStore.updateTechnicalPlan({ bidAnalysisTasks: nextTasks, bidAnalysisProgress: doneProgress(nextTasks) });
-    updateTask({ status: 'running', progress: technicalPlan.bidAnalysisProgress || 0, logs: [`${task.label}解析失败：${error.message || '未知错误'}`] }, technicalPlan);
-  })));
+  while (tasksToRun.length) {
+    const signal = taskControl?.signal;
+    const taskAiService = signal ? {
+      ...aiService,
+      chat: (request) => aiService.chat({ ...request, signal }),
+      ...(aiService.collectJsonResponse && {
+        collectJsonResponse: (request) => aiService.collectJsonResponse({ ...request, signal }),
+      }),
+    } : aiService;
+    const interrupted = [];
+    await Promise.all(tasksToRun.map((task) => runOne(task, taskAiService, signal).catch((error) => {
+      if (signal?.aborted) {
+        interrupted.push(task);
+        return;
+      }
+      const prev = workspaceStore.loadTechnicalPlan() || {};
+      const nextTasks = { ...(prev.bidAnalysisTasks || {}), [task.id]: { id: task.id, label: task.label, status: 'error', content: prev.bidAnalysisTasks?.[task.id]?.content || '', error: error.message || '解析失败' } };
+      technicalPlan = workspaceStore.updateTechnicalPlan({ bidAnalysisTasks: nextTasks, bidAnalysisProgress: doneProgress(nextTasks) });
+      updateTask({ status: 'running', progress: technicalPlan.bidAnalysisProgress || 0, logs: [`${task.label}解析失败：${error.message || '未知错误'}`] }, technicalPlan);
+    })));
+    if (interrupted.length) {
+      const nextTasks = { ...workspaceStore.loadTechnicalPlan()?.bidAnalysisTasks };
+      for (const task of interrupted) {
+        nextTasks[task.id] = { id: task.id, label: task.label, status: 'idle', content: nextTasks[task.id]?.content || '' };
+      }
+      technicalPlan = workspaceStore.updateTechnicalPlan({ bidAnalysisTasks: nextTasks, bidAnalysisProgress: doneProgress(nextTasks) });
+      updateTask({ status: 'running', progress: technicalPlan.bidAnalysisProgress || 0 }, technicalPlan);
+    }
+    await taskControl?.checkpoint?.();
+    tasksToRun = interrupted;
+  }
 
   const finalTasks = workspaceStore.loadTechnicalPlan()?.bidAnalysisTasks || {};
-  const failedCount = selectedTasks.filter((task) => finalTasks[task.id]?.status === 'error').length;
+  const failedCount = scopedTasks.filter((task) => finalTasks[task.id]?.status === 'error').length;
   const finalStatus = failedCount ? 'error' : 'success';
   const finalMessage = failedCount ? `${failedCount} 项招标文件解析失败，请查看各项错误后重试。` : '招标文件解析完成。';
   technicalPlan = workspaceStore.updateTechnicalPlan({ bidAnalysisTask: updateTask({ status: finalStatus, progress: 100, logs: [finalMessage], error: failedCount ? finalMessage : undefined }) });

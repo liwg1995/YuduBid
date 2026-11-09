@@ -4,6 +4,8 @@ const zlib = require('node:zlib');
 const { fileURLToPath } = require('node:url');
 const { app, dialog, nativeImage, shell } = require('electron');
 const AdmZip = require('adm-zip');
+const { neutralWordText, neutralizeWordBuffer, neutralizeWordPackage } = require('./wordNeutralText.cjs');
+const { combineBidWord, openBusinessWord } = require('./combinedBidWord.cjs');
 const cheerio = require('cheerio');
 const mammoth = require('mammoth');
 const { getSafeImageDimensions } = require('../utils/safeImageDimensions.cjs');
@@ -16,6 +18,7 @@ const localImageRenderService = createLocalImageRenderService();
 const {
   AlignmentType,
   BorderStyle,
+  Bookmark,
   Document,
   ExternalHyperlink,
   Footer,
@@ -29,6 +32,7 @@ const {
   Packer,
   Paragraph,
   PageNumber,
+  PageReference,
   PageOrientation,
   NumberFormat,
   ShadingType,
@@ -294,7 +298,7 @@ function countOutlineStats(items = []) {
 }
 
 function sanitizeFilename(value) {
-  return String(value || '标书文档')
+  return neutralWordText(value || '标书文档')
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
     .replace(/\s+/g, ' ')
     .trim()
@@ -2443,7 +2447,7 @@ async function imageRunFromNode(node, context, options = {}) {
     transformation: { width, height },
     altText: {
       title: cleanText(node.alt || '图片'),
-      description: cleanText(node.alt || node.url || 'Markdown 图片'),
+      description: cleanText(node.alt || '文档图片'),
       name: cleanText(node.alt || 'image'),
     },
   });
@@ -3355,13 +3359,16 @@ async function addOutlineItems(children, items, context, level = 1) {
       : `${item.id || ''} ${rawTitle}`.trim();
     const shouldRenderTitle = !((officialDocument || patentDisclosureDocument) && item.hideTitle);
     if (shouldRenderTitle) {
-      children.push(paragraph([textRun(title, {
+      const titleRun = textRun(title, {
         bold: customHeading ? customHeading.bold : true,
         font: customHeading?.font || (projectManagementDocument ? '楷体_GB2312' : optimized || officialDocument || presalesProposalDocument || patentDisclosureDocument ? '黑体' : undefined),
         color: customHeading ? colorWithoutHash(customHeading.text_color) : optimized || formalDocument ? '000000' : undefined,
         size: customHeading ? pointsToHalfPoints(chineseSizeToPoints(customHeading.size)) : projectManagementDocument ? (level === 1 ? 32 : 30) : presalesProposalDocument ? (level === 1 ? 30 : 28) : officialDocument ? 32 : undefined,
         cleanMarkdown: structuredDocument,
-      })], {
+      });
+      const reference = context.scoringReferences?.get(item.id);
+      if (reference) reference.title = title;
+      children.push(paragraph(reference ? [new Bookmark({ id: reference.bookmark, children: [titleRun] })] : [titleRun], {
         ...customHeadingDecoration(context, level),
         heading: headingLevel(level),
         outlineLevel: headingNumberingLevel(level),
@@ -3499,6 +3506,17 @@ async function buildDocxResult(payload, options = {}) {
     lastParagraphText: '',
     recentParagraphTexts: [],
   };
+  const scoringRows = documentScope === 'bid' && Array.isArray(payload.scoringResponse) ? payload.scoringResponse : [];
+  if (scoringRows.length) {
+    context.scoringReferences = new Map();
+    for (const row of scoringRows) {
+      for (const id of Array.isArray(row?.chapterIds) ? row.chapterIds : []) {
+        if (!context.scoringReferences.has(id)) {
+          context.scoringReferences.set(id, { bookmark: `ScoringChapter_${context.scoringReferences.size + 1}` });
+        }
+      }
+    }
+  }
   const structuredCoverChildren = projectManagementDocumentEnabled
     ? createProjectManagementCover(payload)
     : presalesProposalDocumentEnabled
@@ -3556,6 +3574,42 @@ async function buildDocxResult(payload, options = {}) {
     ? `准备导出正文，并转换 ${stats.mermaidCount} 张 Mermaid 图。`
     : '准备导出正文。');
   await addOutlineItems(children, payload.outline || [], context);
+  if (scoringRows.length) {
+    const cell = (paragraphs) => new TableCell({ children: paragraphs });
+    const headings = ['评分项', '评分依据', '候选应答章节及起始页'];
+    const rows = [new TableRow({
+      tableHeader: true,
+      children: headings.map((heading) => cell([paragraph([textRun(heading, { bold: true })])])),
+    })];
+    for (const row of scoringRows) {
+      const references = (Array.isArray(row?.chapterIds) ? row.chapterIds : [])
+        .map((id) => context.scoringReferences.get(id)).filter((reference) => reference?.title);
+      const details = String(row?.details || '').split(/\r?\n/).filter((line) => line.trim());
+      rows.push(new TableRow({ children: [
+        cell([paragraph([textRun(String(row?.title || '未命名评分项'))])]),
+        cell((details.length ? details : ['—']).map((line) => paragraph([textRun(line)]))),
+        cell(references.length ? references.map(({ title, bookmark }) => paragraph([
+          textRun(`${title}（第 `), new PageReference(bookmark, { hyperlink: true }), textRun(' 页）'),
+        ])) : [paragraph([textRun('待人工核对')])]),
+      ] }));
+    }
+    children.push(
+      paragraph([textRun('技术评分应答表', { bold: true, size: 30 })], { pageBreakBefore: true, keepNext: true }),
+      paragraph([textRun('请核对候选章节与评分规则，并在 Word 中更新域以取得排版后的页码。')]),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows }),
+    );
+  }
+  if (scoringRows.length) {
+    const report = payload.scoringCoverageReport;
+    children.push(paragraph([textRun('评分正文证据与复核提示', { bold: true, size: 28 })], { pageBreakBefore: true, keepNext: true }));
+    if (report?.status === 'current' && typeof report.content === 'string' && report.content.trim()) {
+      children.push(...await markdownToDocxBlocks(report.content, context));
+    } else {
+      children.push(paragraph([textRun(report?.status === 'stale'
+        ? '正文或评分要求已变化，历史语义检查结果未纳入本次导出。请重新运行评分覆盖检查后再导出。'
+        : '尚无针对当前正文的成功语义检查结果，请在评分应答清单中运行检查。')]));
+    }
+  }
   if (feasibilityOptions?.includeAppendixTables) {
     const info = feasibilityOptions.project_info || {};
     const rows = [
@@ -3916,6 +3970,7 @@ async function exportOriginalTemplateWord(payload = {}, onProgress) {
 
   zip.updateFile('word/document.xml', Buffer.from(injection.xml, 'utf-8'));
   reportProgress(progressContext, 88, '正在写入原格式 Word 文件。');
+  neutralizeWordPackage(zip);
   zip.writeZip(result.filePath);
 
   const message = injection.matchedCount
@@ -4008,7 +4063,7 @@ function createExportService({ configStore, getTemplateStore } = {}) {
       shell.showItemInFolder(target);
       return { success: true, path: target };
     },
-    async exportWord(payload = {}, onProgress) {
+    async exportWord(payload = {}, onProgress, preparedBusinessBuffer) {
       if (payload.exportMode === 'original-template') {
         return exportOriginalTemplateWord(payload, onProgress);
       }
@@ -4031,6 +4086,23 @@ function createExportService({ configStore, getTemplateStore } = {}) {
         throw new Error('请先到 设置 > 技能管理 启用 word-optimization');
       }
 
+      const combineBusiness = documentScope === 'bid' && payload.includeBusinessWord === true;
+      let businessFile;
+      let businessBuffer = combineBusiness ? preparedBusinessBuffer : undefined;
+      if (combineBusiness && !businessBuffer) {
+        const selection = await dialog.showOpenDialog({
+          title: '选择已填写的商务标 Word',
+          properties: ['openFile'],
+          filters: [{ name: 'Word 文档', extensions: ['docx'] }],
+        });
+        if (selection.canceled || !selection.filePaths[0]) {
+          return { success: false, canceled: true, message: '已取消选择商务标' };
+        }
+        businessFile = fs.realpathSync(selection.filePaths[0]);
+        businessBuffer = fs.readFileSync(businessFile);
+        openBusinessWord(businessBuffer);
+      }
+
       const stats = countOutlineStats(payload.outline || []);
       const progressContext = { onProgress, warnings: [], stats };
       const feasibilityReport = payload.document_profile === 'feasibility-report' || payload.documentProfile === 'feasibility-report';
@@ -4048,7 +4120,7 @@ function createExportService({ configStore, getTemplateStore } = {}) {
       const defaultDir = app?.getPath ? app.getPath('documents') : process.env.USERPROFILE || process.cwd();
       const result = await dialog.showSaveDialog({
         title: '导出 Word 文档',
-        defaultPath: path.join(defaultDir, defaultFilename),
+        defaultPath: path.join(defaultDir, combineBusiness ? `${sanitizeFilename(payload.project_name || '标书文档')}-技术标与商务标.docx` : defaultFilename),
         filters: [{ name: 'Word 文档', extensions: ['docx'] }],
       });
 
@@ -4070,8 +4142,20 @@ function createExportService({ configStore, getTemplateStore } = {}) {
         throw new Error(`${message}\n${imageWarnings.slice(0, 5).join('\n')}`);
       }
       reportProgress({ onProgress, warnings: buildResult.warnings, stats: buildResult.stats }, 96, '正在写入 Word 文件。');
-      fs.writeFileSync(result.filePath, buildResult.buffer);
-      const message = buildResult.warnings.length
+      const technicalBuffer = neutralizeWordBuffer(buildResult.buffer);
+      const output = businessBuffer ? combineBidWord(technicalBuffer, neutralizeWordBuffer(businessBuffer)) : technicalBuffer;
+      if (businessFile && fs.existsSync(result.filePath)) {
+        const source = fs.statSync(businessFile);
+        const target = fs.statSync(result.filePath);
+        if (source.dev === target.dev && source.ino === target.ino) {
+          throw new Error('请选择其他位置，避免覆盖商务标原件');
+        }
+      }
+
+      fs.writeFileSync(result.filePath, output);
+      const message = combineBusiness
+        ? '合并文档已导出，请用 Microsoft Word 打开并另存，再复核商务标和页码。'
+        : buildResult.warnings.length
         ? `Word 已导出，但有 ${buildResult.warnings.length} 条导出提示，请打开文档核对。`
         : 'Word 已导出，请打开文档核对图片、表格和版式。';
       reportProgress({ onProgress, warnings: buildResult.warnings, stats: buildResult.stats }, 100, message, { phase: 'success' });

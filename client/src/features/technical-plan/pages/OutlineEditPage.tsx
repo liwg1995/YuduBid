@@ -20,6 +20,7 @@ import { OutlineQuestionDialog } from '../components/OutlineQuestionDialog';
 interface OutlineEditPageProps {
   projectId?: string;
   workflowKind: TechnicalPlanWorkflowKind;
+  generationScope?: 'technical' | 'business' | 'complete';
   projectOverview: string;
   techRequirements: string;
   responseFileRequirements: string;
@@ -132,6 +133,7 @@ function OutlineEditPage({
   projectId,
   mutationLocked = false,
   workflowKind,
+  generationScope = 'technical',
   projectOverview,
   techRequirements,
   responseFileRequirements,
@@ -155,11 +157,13 @@ function OutlineEditPage({
   const [taskActionPending, setTaskActionPending] = useState(false);
   const [progressCollapsed, setProgressCollapsed] = useState(true);
   const [generationDialogOpen, setGenerationDialogOpen] = useState(false);
-  const [draftOutlineMode, setDraftOutlineMode] = useState<OutlineMode>(outlineMode);
-  const noTechnicalScoreMode = isMissingTechnicalScoreItems(techRequirements);
+  const [draftOutlineMode, setDraftOutlineMode] = useState<OutlineMode>(generationScope === 'technical' ? outlineMode : 'response-file');
+  const noTechnicalScoreMode = generationScope === 'technical' && isMissingTechnicalScoreItems(techRequirements);
   const responseFileAvailable = hasResponseFileOutline(responseFileRequirements);
-  const initialOutlineMode = outlineMode;
-  const generationBlockReason = draftOutlineMode === 'aligned' && noTechnicalScoreMode
+  const initialOutlineMode = generationScope === 'technical' ? outlineMode : 'response-file';
+  const generationBlockReason = generationScope !== 'technical'
+    ? (responseFileRequirements.trim() ? '' : '请先重新解析招标文件，提取当前范围的响应文件要求。')
+    : draftOutlineMode === 'aligned' && noTechnicalScoreMode
     ? '未检测到技术评分内容，无法按评分项对齐。请补充包含评分标准的招标文件并重新解析，或选择自由生成。'
     : draftOutlineMode === 'response-file' && !responseFileAvailable
       ? '未检测到明确的响应文件技术目录，无法按响应文件目录生成。请补充相应文件并重新解析，或选择自由生成。'
@@ -683,6 +687,7 @@ function OutlineEditPage({
                 <button
                   type="button"
                   className={`outline-generation-mode-card${draftOutlineMode === 'free' ? ' is-active' : ''}`}
+                  style={generationScope !== 'technical' ? { display: 'none' } : undefined}
                   onClick={() => setDraftOutlineMode('free')}
                   disabled={mutationBlocked}
                 >
@@ -692,6 +697,7 @@ function OutlineEditPage({
                 <button
                   type="button"
                   className={`outline-generation-mode-card${draftOutlineMode === 'aligned' ? ' is-active' : ''}`}
+                  style={generationScope !== 'technical' ? { display: 'none' } : undefined}
                   onClick={() => setDraftOutlineMode('aligned')}
                   disabled={mutationBlocked}
                 >
@@ -705,7 +711,7 @@ function OutlineEditPage({
                   disabled={mutationBlocked}
                 >
                   <strong>按响应文件目录</strong>
-                  <span>优先按招标文件中的技术文件组成和编制要求组织一级目录，二三级目录由 AI 生成。</span>
+                  <span>{generationScope === 'technical' ? '按技术文件组成和编制要求生成目录。' : generationScope === 'business' ? '按招标文件的商务部分组成、规定表单和附件要求生成目录。' : '按招标文件规定的完整文件组成和顺序生成目录。'}</span>
                 </button>
               </div>
               {generationBlockReason && (
@@ -773,7 +779,7 @@ function OutlineEditPage({
       {taskControls}
       <div className="modern-outline-workspace"><section className="modern-outline-tree"><header><div><h3>目录结构 <small>{outlineData?.outline?.length || 0} 个一级目录</small></h3></div><div><button type="button" onClick={addRootItem} disabled={!outlineData || mutationBlocked}>新增一级目录</button><Popover.Root open={toolsOpen} onOpenChange={setToolsOpen}><Popover.Trigger asChild><button type="button" disabled={!outlineData?.outline?.length}>更多操作 ▾</button></Popover.Trigger><Popover.Portal><Popover.Content className="outline-structure-tools" align="end" sideOffset={8} aria-label="目录操作">
 <button type="button" disabled={mutationBlocked} onClick={() => { setToolsOpen(false); void confirmDiscardOutline().then((accepted) => { if (accepted) { setEditingItemId(null); setSortOpen(true); } }); }}>调整目录顺序</button><button type="button" onClick={() => { expandAllItems(); setToolsOpen(false); }}>展开全部目录</button><button type="button" onClick={() => { collapseAllItems(); setToolsOpen(false); }}>收起全部目录</button>
-</Popover.Content></Popover.Portal></Popover.Root></div></header><div className="outline-structure-search"><input type="search" aria-label="搜索目录标题和描述" placeholder="搜索标题、编号或描述" value={outlineSearch} onChange={(event) => setOutlineSearch(event.target.value)} /></div><div className="modern-outline-tree-body">{outlineData?.outline?.length ? modernTree.length ? <Tree blockNode virtual={false} treeData={modernTree} selectedKeys={selectedItemId ? [selectedItemId] : []} expandedKeys={outlineSearch.trim() ? searchExpanded : [...expandedItems]} autoExpandParent={false} onExpand={(keys) => { if (!outlineSearch.trim()) setExpandedItems(new Set(keys.map(String))); }} onSelect={(keys) => { if (keys.length) void selectOutlineItem(String(keys[0])); }} /> : <div className="modern-outline-empty"><strong>没有匹配的目录项</strong><button type="button" onClick={() => setOutlineSearch('')}>清除搜索</button></div> : generating ? <ActivityWaiting title="正在生成目录" description={statusMessage || "正在组织技术方案章节，生成后将在这里显示目录结构。"} progress={progress} /> : <div className="modern-outline-empty"><strong>尚未生成目录</strong><p>完成招标文件解析后，点击“生成目录”。</p></div>}</div></section>
+</Popover.Content></Popover.Portal></Popover.Root></div></header><div className="outline-structure-search"><input type="search" aria-label="搜索目录标题和描述" placeholder="搜索标题、编号或描述" value={outlineSearch} onChange={(event) => setOutlineSearch(event.target.value)} /></div><div className="modern-outline-tree-body">{outlineData?.outline?.length ? modernTree.length ? <Tree blockNode virtual={false} treeData={modernTree} selectedKeys={selectedItemId ? [selectedItemId] : []} expandedKeys={outlineSearch.trim() ? searchExpanded : [...expandedItems]} autoExpandParent={false} onExpand={(keys) => { if (!outlineSearch.trim()) setExpandedItems(new Set(keys.map(String))); }} onSelect={(keys) => { if (keys.length) void selectOutlineItem(String(keys[0])); }} /> : <div className="modern-outline-empty"><strong>没有匹配的目录项</strong><button className="secondary-action" type="button" onClick={() => setOutlineSearch('')}>清除搜索</button></div> : generating ? <ActivityWaiting title="正在生成目录" description={statusMessage || "正在组织技术方案章节，生成后将在这里显示目录结构。"} progress={progress} /> : <div className="modern-outline-empty"><strong>尚未生成目录</strong><p>完成招标文件解析后，点击“生成目录”。</p></div>}</div></section>
         <aside className="modern-outline-detail"><header><h3>目录项详情</h3><small>{selectedItem?.id || '未选择'}</small></header>{selectedItem ? <div className="modern-outline-detail-body"><p className="outline-change-notice">修改目录会清空旧正文和生成缓存。</p>{generating && <p className="modern-outline-lock">目录生成中，暂不可编辑，以免覆盖后台结果。</p>}{editingItemId === selectedItem.id ? <><label>标题<input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} disabled={mutationBlocked} /></label><label>描述<textarea value={editDescription} onChange={(event) => setEditDescription(event.target.value)} disabled={mutationBlocked} /></label><div><button type="button" className="is-primary" onClick={saveEditing} disabled={mutationBlocked}>保存</button><button type="button" disabled={savingOutline} onClick={() => void confirmDiscardOutline().then((accepted) => { if (accepted) setEditingItemId(null); })}>取消编辑</button></div></> : <><h4>{selectedItem.title}</h4><p>{selectedItem.description || '无描述'}</p>{selectedItem.source_requirement_title && <small>来源评分项：{selectedItem.source_requirement_title}</small>}<div><button type="button" className="is-primary" onClick={() => startEditing(selectedItem)} disabled={mutationBlocked}>编辑</button><button type="button" onClick={() => addChildItem(selectedItem.id)} disabled={mutationBlocked}>添加子目录</button><button type="button" className="is-danger" onClick={() => removeItem(selectedItem.id)} disabled={mutationBlocked}>删除</button></div></>}</div> : <div className="modern-outline-empty"><strong>选择目录项</strong><p>选择左侧章节后，可以查看和编辑标题与描述。</p></div>}</aside>
       </div>
       {mutationLocked && <p role="status">全局事实或正文任务尚未结束，请先结束任务再修改目录。</p>}

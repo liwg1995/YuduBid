@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { toChineseErrorMessage } from '../../../shared/utils/userFacingError';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { isLibreOfficeRequiredMessage, MarkdownRenderer, useAppDialog, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FileParserProvider, OutlineItem } from '../../../shared/types';
-import type { BackgroundTaskState, TechnicalPlanOriginalPlanFile, TechnicalPlanState, TechnicalPlanTenderFile, TechnicalPlanWorkflowKind } from '../types';
+import type { BackgroundTaskState, TechnicalPlanState, TechnicalPlanTenderFile, TechnicalPlanWorkflowKind } from '../types';
 import TaskProgressSummary from '../../../shared/ui/TaskProgressSummary';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
-import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
 import './documentAnalysis.css';
 import './modernDocumentAnalysis.css';
 
@@ -28,8 +28,6 @@ interface DocumentAnalysisPageProps {
   bidSectionSource?: TechnicalPlanState['bidSectionSource'];
   bidSectionExtractionTask?: BackgroundTaskState;
   hasDownstreamResults?: boolean;
-  originalPlanFile: TechnicalPlanOriginalPlanFile | null;
-  originalPlanMarkdown: string;
   onFileImported: (state: TechnicalPlanState, markdown: string) => void;
   onOriginalPlanImported: (state: TechnicalPlanState, markdown: string) => void;
   onSectionSelected: (state: TechnicalPlanState) => void;
@@ -45,16 +43,14 @@ function DocumentAnalysisPage({
   bidSectionSource = 'heading',
   bidSectionExtractionTask,
   hasDownstreamResults = false,
-  originalPlanFile,
-  originalPlanMarkdown,
   onFileImported,
   onOriginalPlanImported,
   onSectionSelected,
 }: DocumentAnalysisPageProps) {
   const [parserLabel, setParserLabel] = useState(parserLabels.local);
   const [busy, setBusy] = useState(false);
-  const [busyAction, setBusyAction] = useState<'tender' | 'original' | 'generated' | 'sections' | 'selection' | null>(null);
-  const [activeDocument, setActiveDocument] = useState<'tender' | 'original'>('tender');
+  const [busyAction, setBusyAction] = useState<'tender' | 'generated' | 'sections' | 'selection' | null>(null);
+  const previewRef = useRef<HTMLElement>(null);
   const [showExpansionBidSection, setShowExpansionBidSection] = useState(false);
   const [canImportGeneratedPlan, setCanImportGeneratedPlan] = useState(false);
   const { showToast } = useToast();
@@ -72,7 +68,7 @@ function DocumentAnalysisPage({
       await window.yibiao?.tasks.startBidSectionExtraction({ workflowKind, projectId, confirmClearDownstream: hasDownstreamResults });
       showToast('多标段识别已在后台启动', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '启动多标段识别失败', 'error');
+      showToast(toChineseErrorMessage(error, '启动标段识别失败，请稍后重试'), 'error');
     } finally {
       setBusy(false);
       setBusyAction(null);
@@ -183,38 +179,6 @@ function DocumentAnalysisPage({
     }
   };
 
-  const importOriginalPlan = async () => {
-    try {
-      setBusy(true);
-      setBusyAction('original');
-      const result = await window.yibiao?.technicalPlan.importOriginalPlanDocument({ workflowKind, projectId });
-
-      if (!result?.success || !result.markdown) {
-        const message = result?.message || '未导入文件';
-        if (isLibreOfficeRequiredMessage(message)) {
-          showDocumentParseNotice(message);
-          return;
-        }
-        showToast(message, message === '已取消选择' ? 'info' : 'error');
-        return;
-      }
-
-      onOriginalPlanImported(result.state, result.markdown);
-      setActiveDocument('original');
-      showToast(result.message || '原方案已导入', 'success');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '文件解析失败';
-      if (isLibreOfficeRequiredMessage(message)) {
-        showDocumentParseNotice(message);
-        return;
-      }
-      showToast(message, 'error');
-    } finally {
-      setBusy(false);
-      setBusyAction(null);
-    }
-  };
-
   const importGeneratedOriginalPlan = async () => {
     try {
       setBusy(true);
@@ -222,7 +186,7 @@ function DocumentAnalysisPage({
       const result = await window.yibiao?.technicalPlan.importGeneratedOriginalPlan({ workflowKind, projectId, sourceProjectId: projectId });
 
       if (!result?.success || !result.markdown) {
-        showToast(result?.message || '技术方案模块暂无可导入的内容', 'info');
+        showToast(result?.message || '方案生成项目暂无可导入的内容', 'info');
         return;
       }
 
@@ -230,8 +194,7 @@ function DocumentAnalysisPage({
       const importedOriginalMarkdown = result.markdown || await window.yibiao?.technicalPlan.readOriginalPlanMarkdown({ workflowKind: 'existing-plan-expansion', projectId }) || '';
       onFileImported(result.state, importedTenderMarkdown);
       onOriginalPlanImported(result.state, importedOriginalMarkdown);
-      setActiveDocument(importedTenderMarkdown ? 'tender' : 'original');
-      showToast(result.message || '已导入技术方案生成内容', 'success');
+      showToast(result.message || '已导入方案生成内容', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '导入技术方案生成内容失败', 'error');
     } finally {
@@ -240,43 +203,16 @@ function DocumentAnalysisPage({
     }
   };
 
-  const activeFile = activeDocument === 'original' ? originalPlanFile : tenderFile;
-  const activeMarkdown = activeDocument === 'original' ? originalPlanMarkdown : tenderMarkdown;
-  const activeLabel = activeDocument === 'original' ? '原方案' : '招标文件';
-  const renderUploadTile = (
-    kind: 'tender' | 'original',
-    title: string,
-    description: string,
-    file: TechnicalPlanTenderFile | TechnicalPlanOriginalPlanFile | null,
-    onImport: () => void,
-  ) => (
-    <section className={`analysis-upload-tile${activeDocument === kind ? ' is-active' : ''}`}>
-      <div>
-        <span className="section-kicker">{kind === 'tender' ? '招标文件技术部分' : '已有技术方案'}</span>
-        <strong>{file ? file.fileName : title}</strong>
-        <p>{file ? `${file.parserLabel || parserLabel} · ${file.markdownChars} 字` : description}</p>
-      </div>
-      <div className="analysis-upload-actions">
-        <button type="button" className="secondary-action" onClick={() => setActiveDocument(kind)} disabled={!file}>
-          查看内容
-        </button>
-        <button type="button" className="primary-action" onClick={onImport} disabled={busy}>
-          {busy ? '解析中...' : file ? (kind === 'tender' ? '替换招标文件' : '替换原方案') : (kind === 'tender' ? '上传招标文件' : '上传原方案')}
-        </button>
-      </div>
-    </section>
-  );
-
   const renderBidSection = () => tenderFile && (!isExpansionWorkflow || bidSections.length > 1 || showExpansionBidSection) ? (
     <section className="analysis-upload-tile bid-section-selection">
-          <div className="bid-section-copy"><div className="bid-section-heading"><span className="section-kicker">投标范围</span><strong>选择本次投标标段</strong>{isExpansionWorkflow && bidSections.length < 2 && !sectionExtractionRunning && <button type="button" className="analysis-section-collapse" onClick={() => setShowExpansionBidSection(false)}>收起</button>}</div><p>{bidSectionSource === 'evidence' ? '核对识别证据与原文范围后再选择。未明确归属其他标段的通用条款会保留。' : '当前为标题粗识别，连续范围可能包含通用条款或漏掉跨章节要求；建议先按原文证据重新识别。'}</p></div>
+          <div className="bid-section-copy"><div className="bid-section-heading"><span className="section-kicker">投标范围</span><strong>选择本次投标标段</strong>{isExpansionWorkflow && bidSections.length < 2 && !sectionExtractionRunning && <button type="button" className="analysis-section-collapse" onClick={() => setShowExpansionBidSection(false)}>收起</button>}</div><p>{bidSectionSource === 'evidence' ? '核对识别证据与原文范围后再选择。未明确归属其他标段的通用条款会保留。' : '多标段项目可识别后选择；不区分标段时，默认使用整份招标文件。'}</p></div>
           <button type="button" className="secondary-action modern-inline-operation is-accent" disabled={busy || sectionExtractionRunning} onClick={() => void extractBidSections()}>{sectionExtractionRunning ? '正在识别标段…' : '按原文证据重新识别'}</button>
           {bidSections.length > 1 && <select aria-label="本次投标标段" value={selectedBidSectionId} disabled={busy || sectionExtractionRunning} onChange={(event) => void selectBidSection(event.target.value)}>
             <option value="">整份招标文件</option>
             {bidSections.map((section) => <option value={section.id} key={section.id}>{section.title}（{section.includeRanges?.length || 1} 处原文）</option>)}
           </select>}
           {sectionExtractionRunning && getStoredUiAppearance() === 'modern' && <TaskProgressSummary label="标段识别" percent={bidSectionExtractionTask?.progress || 0} status="active" />}
-          {bidSectionExtractionTask?.status === 'error' && <p className="bid-section-error" role="alert">{bidSectionExtractionTask.error || '标段识别失败，可使用标题识别结果'}</p>}
+          {bidSectionExtractionTask?.status === 'error' && <div className="bid-section-error" role="alert"><strong>标段识别未完成</strong><p>{toChineseErrorMessage(bidSectionExtractionTask.error, '识别失败，请稍后重试')}</p><small>招标文件已保留。可稍后重试；如无需区分标段，可按整份招标文件继续。</small></div>}
           {bidSections.length > 1 && <div className="bid-section-evidence">
             {bidSections.map((section) => <details key={section.id} open={section.id === selectedBidSectionId}>
               <summary>{section.title} · {section.includeRanges?.length || 1} 处原文</summary>
@@ -290,29 +226,22 @@ function DocumentAnalysisPage({
   if (getStoredUiAppearance() === 'modern') {
     return <div className="modern-document-workspace">
       <div className="modern-document-controls">
-        <header><h2>{isExpansionWorkflow ? '准备招标文件与原方案' : '准备招标文件'}</h2><p>{isExpansionWorkflow ? '分别导入招标文件和已有技术方案，确认内容后进入下一阶段。' : '导入招标文件技术部分，确认解析后的正文和投标范围。'}</p></header>
+        <header><h2>准备招标文件</h2><p>导入完整招标文件，核对解析内容和投标范围；如有原方案，可在下一步上传。</p></header>
         <section className={`modern-document-source${tenderFile ? ' is-imported' : ''}`} aria-label="招标文件">
           <div className="modern-document-source-top"><span>招标文件</span><strong>{tenderFile ? '已导入' : '待导入'}</strong></div>
-          <h3>{tenderFile?.fileName || '选择招标文件技术部分'}</h3>
+          <h3>{tenderFile?.fileName || '选择招标文件'}</h3>
           <p>{tenderFile ? `${tenderFile.parserLabel || parserLabel} · ${tenderFile.markdownChars} 字` : `当前解析方案：${parserLabel}`}</p>
-          <div><button type="button" onClick={() => setActiveDocument('tender')} disabled={!tenderFile}>查看内容</button><button type="button" className="is-primary" onClick={importDocument} disabled={busy}>{busyAction === 'tender' ? '正在导入…' : tenderFile ? '替换文件' : '选择文件'}</button></div>
+          <div><button type="button" onClick={() => previewRef.current?.focus()} disabled={!tenderFile}>查看内容</button><button type="button" className="is-primary" onClick={importDocument} disabled={busy}>{busyAction === 'tender' ? '正在导入…' : tenderFile ? '替换文件' : '选择文件'}</button></div>
         </section>
-        {isExpansionWorkflow && <section className={`modern-document-source${originalPlanFile ? ' is-imported' : ''}`} aria-label="已有技术方案">
-          <div className="modern-document-source-top"><span>已有技术方案</span><strong>{originalPlanFile ? '已导入' : '待导入'}</strong></div>
-          <h3>{originalPlanFile?.fileName || '选择已有技术方案'}</h3>
-          <p>{originalPlanFile ? `${originalPlanFile.parserLabel || parserLabel} · ${originalPlanFile.markdownChars} 字` : '作为扩写的基础草稿'}</p>
-          <div><button type="button" onClick={() => setActiveDocument('original')} disabled={!originalPlanFile}>查看内容</button><button type="button" className="is-primary" onClick={importOriginalPlan} disabled={busy}>{busyAction === 'original' ? '正在导入…' : originalPlanFile ? '替换原方案' : '上传原方案'}</button></div>
-        </section>}
-        {isExpansionWorkflow && canImportGeneratedPlan && <button type="button" className="modern-document-import-existing" onClick={importGeneratedOriginalPlan} disabled={busy}>{busyAction === 'generated' ? '正在导入…' : '从技术方案项目导入已有内容'}</button>}
+        {isExpansionWorkflow && canImportGeneratedPlan && <button type="button" className="modern-document-import-existing" onClick={importGeneratedOriginalPlan} disabled={busy}>{busyAction === 'generated' ? '正在导入…' : '从方案生成项目导入已有内容'}</button>}
         {isExpansionWorkflow && tenderFile && bidSections.length < 2 && !showExpansionBidSection && <button type="button" className="modern-document-bid-trigger" onClick={() => setShowExpansionBidSection(true)}>包含多个标段？识别本次投标范围 <span aria-hidden="true">→</span></button>}
         {hasDownstreamResults && <p className="modern-document-replace-hint">替换文件或切换投标范围会清空后续解析、目录和正文结果。</p>}
         {renderBidSection()}
       </div>
-      <section className="modern-document-preview" aria-label="文档内容预览">
-        <header><div><h2>{activeLabel}内容</h2></div><small>{activeFile ? `${activeFile.markdownChars} 字` : '等待导入'}</small></header>
-        {busy && <p className="modern-document-import-status" role="status">{busyAction === 'selection' ? '正在保存投标范围…' : busyAction === 'sections' ? '正在启动标段识别…' : `正在导入${busyAction === 'tender' ? '招标文件' : busyAction === 'original' ? '原方案' : '已有内容'}，请稍候。`}</p>}
-        {isExpansionWorkflow && <div className="modern-document-preview-tabs" role="tablist" aria-label="预览文档" onKeyDown={handleTabListKeyDown}><button type="button" role="tab" id="modern-document-tab-tender" aria-controls="modern-document-preview-panel" aria-selected={activeDocument === 'tender'} tabIndex={activeDocument === 'tender' ? 0 : -1} className={activeDocument === 'tender' ? 'is-active' : ''} onClick={() => setActiveDocument('tender')}>招标文件</button><button type="button" role="tab" id="modern-document-tab-original" aria-controls="modern-document-preview-panel" aria-selected={activeDocument === 'original'} tabIndex={activeDocument === 'original' ? 0 : -1} className={activeDocument === 'original' ? 'is-active' : ''} onClick={() => setActiveDocument('original')}>已有方案</button></div>}
-        <div className="modern-document-preview-body" id={isExpansionWorkflow ? 'modern-document-preview-panel' : undefined} role={isExpansionWorkflow ? 'tabpanel' : undefined} aria-labelledby={isExpansionWorkflow ? `modern-document-tab-${activeDocument}` : undefined} key={activeDocument}>{activeMarkdown ? <div className="markdown-viewer"><MarkdownRenderer allowRawHtml={false}>{activeMarkdown}</MarkdownRenderer></div> : <div className="modern-document-empty"><strong>尚未导入{activeLabel}</strong><p>{activeDocument === 'original' ? '导入已有技术方案后，可在这里核对解析结果。' : '选择招标文件后，解析内容会显示在这里。'}</p></div>}</div>
+      <section className="modern-document-preview" ref={previewRef} tabIndex={-1} aria-label="招标文件内容预览">
+        <header><div><h2>招标文件内容</h2></div><small>{tenderFile ? `${tenderFile.markdownChars} 字` : '等待导入'}</small></header>
+        {busy && <p className="modern-document-import-status" role="status">{busyAction === 'selection' ? '正在保存投标范围…' : busyAction === 'sections' ? '正在启动标段识别…' : busyAction === 'tender' ? '正在导入招标文件…' : '正在导入已有内容…'}</p>}
+        <div className="modern-document-preview-body">{tenderMarkdown ? <div className="markdown-viewer"><MarkdownRenderer allowRawHtml={false}>{tenderMarkdown}</MarkdownRenderer></div> : <div className="modern-document-empty"><strong>尚未导入招标文件</strong><p>选择招标文件后，解析内容会显示在这里。</p></div>}</div>
       </section>
     </div>;
   }
@@ -322,32 +251,20 @@ function DocumentAnalysisPage({
       <section className="analysis-import-card">
         <div>
           <span className="section-kicker">STEP 01</span>
-          <strong>{isExpansionWorkflow ? '上传招标文件与原方案' : '上传招标文件'}</strong>
-          <p>{isExpansionWorkflow ? '原方案会作为扩写核心草稿，招标文件用于约束目录、评分点和响应要求。' : `当前解析方案：${parserLabel}`}</p>
+          <strong>上传招标文件</strong>
+          <p>当前解析方案：{parserLabel}。如有原方案，可在下一步上传。</p>
         </div>
-        {isExpansionWorkflow ? (
-          <div className="analysis-actions">
-            {canImportGeneratedPlan && (
-              <button type="button" className="secondary-action" onClick={importGeneratedOriginalPlan} disabled={busy}>
-                {busy ? '导入中...' : '导入技术方案模块内容'}
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="analysis-actions">
-            <button type="button" className="primary-action" onClick={importDocument} disabled={busy}>
-              {busy ? '解析中...' : tenderFile ? '重新选择文件' : '选择文件'}
+        <div className="analysis-actions">
+          {isExpansionWorkflow && canImportGeneratedPlan && (
+            <button type="button" className="secondary-action" onClick={importGeneratedOriginalPlan} disabled={busy}>
+              {busyAction === 'generated' ? '导入中…' : '导入方案生成项目内容'}
             </button>
-          </div>
-        )}
-      </section>
-
-      {isExpansionWorkflow && (
-        <div className="analysis-upload-grid">
-          {renderUploadTile('tender', '上传招标文件技术部分', `当前解析方案：${parserLabel}`, tenderFile, importDocument)}
-          {renderUploadTile('original', '上传已有技术方案', `当前解析方案：${parserLabel}`, originalPlanFile, importOriginalPlan)}
+          )}
+          <button type="button" className="primary-action" onClick={importDocument} disabled={busy}>
+            {busyAction === 'tender' ? '解析中…' : tenderFile ? '重新选择文件' : '选择文件'}
+          </button>
         </div>
-      )}
+      </section>
 
       {isExpansionWorkflow && tenderFile && bidSections.length < 2 && !showExpansionBidSection && (
         <button type="button" className="analysis-section-trigger" onClick={() => setShowExpansionBidSection(true)}>
@@ -363,20 +280,20 @@ function DocumentAnalysisPage({
 
       <section className="analysis-markdown-card">
         <div className="analysis-result-head">
-          <strong>{activeLabel}内容</strong>
-          <span>{activeFile ? `${activeFile.fileName} · ${activeFile.markdownChars} 字` : '等待上传'}</span>
+          <strong>招标文件内容</strong>
+          <span>{tenderFile ? `${tenderFile.fileName} · ${tenderFile.markdownChars} 字` : '等待上传'}</span>
         </div>
 
-        {activeMarkdown ? (
+        {tenderMarkdown ? (
           <div className="markdown-viewer">
             <MarkdownRenderer>
-              {activeMarkdown}
+              {tenderMarkdown}
             </MarkdownRenderer>
           </div>
         ) : (
           <div className="markdown-empty-state">
-            <strong>尚未导入{activeLabel}</strong>
-            <p>{activeDocument === 'original' ? '请上传已经写好的技术方案，后续正文生成会在此基础上保留、优化和扩充。' : '当前步骤只负责把招标文件解析成 Markdown。下一步再基于这里的 Markdown 内容进行 AI 标书理解。'}</p>
+            <strong>尚未导入招标文件</strong>
+            <p>招标文件导入后，可在这里核对解析结果。</p>
           </div>
         )}
       </section>

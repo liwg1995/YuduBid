@@ -1,19 +1,20 @@
+import type { CredentialCompany } from '../../../shared/types/contracts/credentialLibrary';
 import EnterpriseSearchInput from '../../../shared/ui/EnterpriseSearchInput';
 import EnterpriseUiProvider from '../../../shared/ui/EnterpriseUiProvider';
 import { BufferedNumberInput } from '../../../shared/ui/BufferedNumberInput';
 import { useEffect, useRef, useState } from 'react';
 import type { FocusEvent } from 'react';
-import { AppSwitch, useToast } from '../../../shared/ui';
+import { AppSwitch, MarkdownRenderer, useToast } from '../../../shared/ui';
 import type { KnowledgeBaseIndex } from '../../knowledge-base/types';
 import type { ImageModelStatus } from '../../../shared/types';
 import type { BidExportTemplateRecord } from '../../../shared/types/exportFormat';
-import type { ContentGenerationOptions, ContentTableRequirement, MissingFactPolicy, TechnicalPlanWorkflowKind } from '../types';
+import type { ContentGenerationOptions, ContentTableRequirement, MissingFactPolicy, TechnicalPlanOriginalPlanFile } from '../types';
 import { getStoredUiAppearance } from '../../../shared/uiAppearance';
 import { handleTabListKeyDown } from '../../../shared/utils/keyboardTabs';
 import './generationSettings.css';
 import './modernGenerationSettings.css';
 
-type SettingsTab = 'content' | 'knowledge' | 'length' | 'illustration' | 'writing' | 'appearance';
+type SettingsTab = 'content' | 'original' | 'knowledge' | 'length' | 'illustration' | 'writing' | 'appearance';
 type WordCountKey = 'minimumWords' | 'maximumWords' | 'sectionWords';
 
 const wordCountInputsFromOptions = (options?: ContentGenerationOptions): Record<WordCountKey, string> => ({
@@ -22,8 +23,9 @@ const wordCountInputsFromOptions = (options?: ContentGenerationOptions): Record<
   sectionWords: String((options?.sectionWords || 0) / 10000),
 });
 
-const tabs: Array<{ id: SettingsTab; label: string }> = [
+const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'content', label: '写什么' },
+  { id: 'original', label: '原方案' },
   { id: 'knowledge', label: '知识库' },
   { id: 'length', label: '写多少' },
   { id: 'illustration', label: '插图吗' },
@@ -31,11 +33,22 @@ const tabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'appearance', label: '导出样式' },
 ];
 
-const modernTabLabels: Record<SettingsTab, string> = { content: '内容范围', knowledge: '参考资料', length: '篇幅目标', illustration: '配图设置', writing: '写作策略', appearance: '导出样式' };
+const modernTabLabels: Record<SettingsTab, string> = { content: '内容范围', original: '原方案', knowledge: '参考资料', length: '篇幅目标', illustration: '配图设置', writing: '写作策略', appearance: '导出样式' };
+
+export interface GenerationSettingsNavigation {
+  previous?: { label: string; open: () => void };
+  next?: { label: string; open: () => void };
+  busy: boolean;
+}
 
 interface GenerationSettingsPageProps {
   options?: ContentGenerationOptions;
-  workflowKind: TechnicalPlanWorkflowKind;
+  projectName?: string;
+  onBackToProjects?: () => void;
+  originalPlanFile: TechnicalPlanOriginalPlanFile | null;
+  originalPlanMarkdown: string;
+  originalPlanBusy: boolean;
+  onChangeOriginalPlan: (remove: boolean) => Promise<void>;
   selectedBidSectionTitle?: string;
   referenceKnowledgeDocumentIds: string[];
   stale: boolean;
@@ -44,6 +57,7 @@ interface GenerationSettingsPageProps {
   onOpenExportTemplates?: () => void;
   onSave: (options: ContentGenerationOptions, referenceKnowledgeDocumentIds: string[]) => Promise<boolean>;
   onDraftDirtyChange?: (dirty: boolean) => void;
+  onNavigationChange?: (navigation: GenerationSettingsNavigation | null) => void;
   onRegisterAutoSave?: (save: (() => Promise<boolean>) | null) => void;
 }
 
@@ -55,11 +69,15 @@ const defaults: ContentGenerationOptions = {
   missingFactPolicy: 'infer',
 };
 
-export default function GenerationSettingsPage({ options, workflowKind, selectedBidSectionTitle, referenceKnowledgeDocumentIds, stale, generationRunning = false, onOpenDocuments, onOpenExportTemplates, onSave, onDraftDirtyChange, onRegisterAutoSave }: GenerationSettingsPageProps) {
+export default function GenerationSettingsPage({ options, projectName, onBackToProjects, originalPlanFile, originalPlanMarkdown, originalPlanBusy, onChangeOriginalPlan, selectedBidSectionTitle, referenceKnowledgeDocumentIds, stale, generationRunning = false, onOpenDocuments, onOpenExportTemplates, onSave, onDraftDirtyChange, onNavigationChange, onRegisterAutoSave }: GenerationSettingsPageProps) {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<SettingsTab>('content');
   const pageRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<ContentGenerationOptions>({ ...defaults, ...options, illustrateEverySection: options?.illustrateEverySection ?? Boolean(options) });
+  const tabs = settingsTabs.filter((tab) => tab.id !== 'original' || draft.bidGenerationScope !== 'business');
+  useEffect(() => {
+    if (draft.bidGenerationScope === 'business' && activeTab === 'original') setActiveTab('content');
+  }, [activeTab, draft.bidGenerationScope]);
   const [wordCountInputs, setWordCountInputs] = useState(() => wordCountInputsFromOptions(options));
   const [draftKnowledgeIds, setDraftKnowledgeIds] = useState<string[]>(referenceKnowledgeDocumentIds);
   const [knowledgeIndex, setKnowledgeIndex] = useState<KnowledgeBaseIndex | null>(null);
@@ -82,7 +100,7 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
   const draftSignature = JSON.stringify({ draft, draftKnowledgeIds });
   const changed = JSON.stringify({ ...defaults, ...options, illustrateEverySection: options?.illustrateEverySection ?? Boolean(options) }) !== JSON.stringify(draft)
     || JSON.stringify(referenceKnowledgeDocumentIds) !== JSON.stringify(draftKnowledgeIds);
-  useEffect(() => { onDraftDirtyChange?.(changed); }, [changed, onDraftDirtyChange]);
+
   useEffect(() => () => { onDraftDirtyChange?.(false); }, [onDraftDirtyChange]);
   useEffect(() => {
     setDraft({ ...defaults, ...options, illustrateEverySection: options?.illustrateEverySection ?? Boolean(options) });
@@ -124,7 +142,7 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
 
   const save = async (force = false) => {
     if (savePromiseRef.current) return savePromiseRef.current;
-    if (!force && !stale && (!changed || draftSignature === savedSignatureRef.current)) return true;
+    if (!force && !stale && ((options && !changed) || draftSignature === savedSignatureRef.current)) return true;
     const pending = persistDraft();
     savePromiseRef.current = pending;
     try {
@@ -162,8 +180,8 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
     setSaveError('');
     try {
       const saved = await onSave({ ...draft, wordExportMode, wordExportTemplateId }, draftKnowledgeIds);
-      if (saved) onDraftDirtyChange?.(false);
-      else setSaveError('设置未保存，请检查提示后重试。');
+
+      if (!saved) setSaveError('设置未保存，请检查提示后重试。');
       return saved;
     }
     catch (error) {
@@ -184,7 +202,9 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
   };
 
   useEffect(() => {
-    onRegisterAutoSave?.(save);
+    onRegisterAutoSave?.(async () => {
+      return save();
+    });
     return () => onRegisterAutoSave?.(null);
   });
 
@@ -231,24 +251,130 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
   const selectFolder = (documentIds: string[]) => setDraftKnowledgeIds((current) => [...new Set([...current, ...documentIds])]);
   const clearFolder = (documentIds: string[]) => setDraftKnowledgeIds((current) => current.filter((id) => !documentIds.includes(id)));
 
+  useEffect(() => { onDraftDirtyChange?.(changed); }, [changed, onDraftDirtyChange]);
+  const switchSettingsTab = (tab: SettingsTab) => setActiveTab(tab);
+  const tabIndex = tabs.findIndex((tab) => tab.id === activeTab);
+  const previousTab = tabs[tabIndex - 1]?.id;
+  const nextTab = tabs[tabIndex + 1]?.id;
+  useEffect(() => {
+    const toAction = (id?: SettingsTab) => id ? {
+      label: modern ? modernTabLabels[id] : settingsTabs.find((tab) => tab.id === id)!.label,
+      open: () => setActiveTab(id),
+    } : undefined;
+    onNavigationChange?.({ previous: toAction(previousTab), next: toAction(nextTab), busy: busy || originalPlanBusy });
+  }, [busy, modern, nextTab, onNavigationChange, originalPlanBusy, previousTab]);
+  useEffect(() => () => onNavigationChange?.(null), [onNavigationChange]);
+  const tabProgress = `第 ${Math.max(0, tabIndex) + 1} 项，共 ${tabs.length} 项`;
+
+
+  const scope = draft.bidGenerationScope ?? 'technical';
+  const [bidderCompanies, setBidderCompanies] = useState<CredentialCompany[]>([]);
+  const [bidderCompaniesStatus, setBidderCompaniesStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [bidderCompaniesRevision, setBidderCompaniesRevision] = useState(0);
+  useEffect(() => {
+    if (scope === 'technical') return;
+    let active = true;
+    setBidderCompaniesStatus('loading');
+    const library = window.yibiao?.credentialLibrary;
+    if (!library) {
+      setBidderCompaniesStatus('error');
+      return;
+    }
+    void library.listCompanies().then((companies) => {
+      if (active) {
+        setBidderCompanies(companies);
+        setBidderCompaniesStatus('ready');
+      }
+    }).catch(() => { if (active) setBidderCompaniesStatus('error'); });
+    return () => { active = false; };
+  }, [scope, bidderCompaniesRevision]);
+  const savedBidderMissing = Boolean(draft.bidderCompanyId && !bidderCompanies.some((company) => company.companyId === draft.bidderCompanyId));
+
+  const scopeSettings = (
+    <>
+      <fieldset className="generation-settings-option-grid" disabled={generationRunning} aria-label="生成范围">
+        {([
+          ['complete', '完整投标文件', '按照招标文件响应要求完整生成。'],
+          ['technical', '技术文件独立成册', '一级目录从技术评分大项开始。'],
+          ['business', '商务标独立成册', '按照招标文件响应要求仅生成商务部分。'],
+        ] as const).map(([value, label, description], index) => (
+          <label key={value} className={`generation-settings-option${scope === value ? ' is-selected' : ''}`}>
+            <span>0{index + 1}</span>
+            <input type="radio" name="bid-generation-scope" checked={scope === value}
+              onChange={() => setDraft((current) => ({ ...current, bidGenerationScope: value }))} />
+            <strong>{label}</strong>
+            <small>{description}</small>
+          </label>
+        ))}
+      </fieldset>
+      {scope !== 'technical' && (
+        <div className="generation-settings-row generation-settings-bidder">
+          <span>
+            <strong>投标企业</strong>
+            <small>选择后，企业名称、统一社会信用代码、注册地址和法定代表人姓名会提供给当前配置的文本模型，用于编写商务响应。</small>
+            {bidderCompaniesStatus === 'ready' && bidderCompanies.length === 0 && <small>资信库暂无企业，可先添加企业资料。</small>}
+            {bidderCompaniesStatus === 'error' && <small role="alert">企业列表读取失败。<button type="button" className="secondary-action" onClick={() => setBidderCompaniesRevision((value) => value + 1)}>重试</button></small>}
+          </span>
+          <select aria-label="投标企业" value={draft.bidderCompanyId || ''} disabled={generationRunning || bidderCompaniesStatus !== 'ready'}
+            onChange={(event) => setDraft((current) => ({ ...current, bidderCompanyId: event.target.value || undefined }))}>
+            <option value="">{bidderCompaniesStatus === 'loading' ? '正在读取企业…' : '不引用企业资料（待填写）'}</option>
+            {savedBidderMissing && <option value={draft.bidderCompanyId} disabled>{bidderCompaniesStatus === 'ready' ? '原企业已不可用，请重新选择' : '已保存企业，等待读取'}</option>}
+            {bidderCompanies.map((company) => <option key={company.companyId} value={company.companyId}>{company.companyName.replace(/易标|yibiao/gi, '投标工具')}</option>)}
+          </select>
+        </div>
+      )}
+    </>
+  );
+
+  const changeOriginalPlan = async (remove: boolean) => {
+    if (changed && !await save()) return;
+    await onChangeOriginalPlan(remove);
+  };
+  const originalPlanStatus = originalPlanBusy ? '处理中…' : originalPlanFile ? '已上传' : '未上传';
+  const originalPlanDisabled = busy || generationRunning || originalPlanBusy;
+  const originalPlanSettings = <section className="generation-original-plan" aria-label="原方案">
+    <div className="generation-original-row">
+      <div className="generation-original-intro">
+        <h3>基于已有方案扩写</h3>
+        <p>可选 · 用于技术目录和正文</p>
+      </div>
+      <div className="generation-original-file">
+        <strong title={originalPlanFile?.fileName}>{originalPlanFile?.fileName || '未上传原方案'}</strong>
+        <small>{originalPlanFile
+          ? [originalPlanFile.parserLabel, `${originalPlanFile.markdownChars} 字`].filter(Boolean).join(' · ')
+          : '上传已有技术方案，结合招标要求保留并扩充相关内容。'}</small>
+      </div>
+      <div className="generation-original-actions">
+        {originalPlanFile && <button type="button" className="secondary-action" disabled={originalPlanDisabled} onClick={() => void changeOriginalPlan(true)}>移除</button>}
+        <button type="button" className="primary-action" disabled={originalPlanDisabled} onClick={() => void changeOriginalPlan(false)}>
+          {originalPlanBusy ? '处理中…' : originalPlanFile ? '替换原方案' : '上传原方案'}
+        </button>
+      </div>
+    </div>
+    {originalPlanMarkdown && <details className="generation-original-preview"><summary>预览原方案</summary><div className="markdown-viewer"><MarkdownRenderer allowRawHtml={false}>{originalPlanMarkdown}</MarkdownRenderer></div></details>}
+  </section>;
+
   if (getStoredUiAppearance() === 'modern') {
     const currentTab = tabs.find((tab) => tab.id === activeTab);
     return <div className="modern-generation-page" onBlurCapture={saveOnBlur}>
       <aside className="modern-generation-index" aria-label="生成设置分类">
 
-        <nav role="tablist" aria-label="生成设置分类" onKeyDown={handleTabListKeyDown}>{tabs.map((tab) => <button key={tab.id} type="button" role="tab" id={`modern-generation-tab-${tab.id}`} aria-controls="modern-generation-panel" aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'is-active' : ''} onClick={() => setActiveTab(tab.id)}><strong>{modernTabLabels[tab.id]}</strong></button>)}</nav>
+        <nav role="tablist" aria-label="生成设置分类" onKeyDown={handleTabListKeyDown}>{tabs.map((tab) => <button key={tab.id} type="button" role="tab" id={`modern-generation-tab-${tab.id}`} aria-controls="modern-generation-panel" aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'is-active' : ''} onClick={() => void switchSettingsTab(tab.id)}><strong>{modernTabLabels[tab.id]}</strong>{tab.id === 'original' && <small className="generation-original-tab-status">{originalPlanStatus}</small>}</button>)}</nav>
 
       </aside>
       <div className="modern-generation-main">
-        <header className="modern-generation-header"><div><h2>生成设置</h2><p>{currentTab ? modernTabLabels[currentTab.id] : '本项目配置'} · 设置仅作用于当前项目</p></div><div className={`modern-generation-change${changed ? ' is-dirty' : ''}`} role="status" aria-live="polite">{busy ? '正在保存' : saveError ? '保存失败' : changed ? '有未保存的修改' : !options || stale ? '待保存配置' : '当前配置已同步'}</div></header>
+        <header className="modern-generation-header"><div><h2>生成设置</h2><p>{tabProgress} · {currentTab ? modernTabLabels[currentTab.id] : '本项目配置'}</p></div><div className={`modern-generation-change${changed ? ' is-dirty' : ''}`} role="status" aria-live="polite">{busy ? '正在保存' : saveError ? '保存失败' : changed ? '有未保存的修改' : !options || stale ? '待保存配置' : '当前配置已同步'}</div></header>
         {saveError && <p className="modern-generation-alert" role="alert">{saveError} 修改仍保留在本页，请重新保存。</p>}
         {stale && <p className="modern-generation-alert">篇幅目标尚未同步，保存生成设置后即可继续。</p>}
         <div ref={pageRef} className="modern-generation-content" key={activeTab} role="tabpanel" id="modern-generation-panel" aria-labelledby={`modern-generation-tab-${activeTab}`}>
           {activeTab === 'content' && <div className="modern-generation-stack">
-            <section className="modern-generation-scope"><span>当前项目类型</span><strong>{workflowKind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案'}</strong><p>{workflowKind === 'existing-plan-expansion' ? '基于已上传的原方案保留内容并扩写。' : '围绕招标要求生成技术方案正文。'}</p></section>
-            <section className="modern-generation-block"><h3>投标范围</h3><p>{selectedBidSectionTitle || '整份招标文件'}</p><button type="button" onClick={() => void openRelatedStep(onOpenDocuments)} disabled={busy}>查看招标文件与标段</button></section>
-            <div className="modern-generation-unavailable"><span>完整投标文件</span><span>商务标独立成册</span><small>以上范围暂未支持</small></div>
+            <div className="generation-settings-content-foot">
+              <span>适用标段 · {selectedBidSectionTitle || '整份招标文件'}</span>
+              <button type="button" className="secondary-action" disabled={busy} onClick={() => void openRelatedStep(onOpenDocuments)}>查看招标文件与标段</button>
+            </div>
+            {scopeSettings}
           </div>}
+          {activeTab === 'original' && originalPlanSettings}
           {activeTab === 'knowledge' && <div className="modern-generation-stack">
             <div className="modern-generation-summary"><div><span>可用文档</span><strong>{availableDocuments.length}</strong></div><div><span>本次已选</span><strong>{draftKnowledgeIds.length}</strong></div></div>
             {knowledgeLoading ? <p className="modern-generation-empty">正在读取知识库...</p> : !availableDocuments.length ? <p className="modern-generation-empty">暂无处理完成的文档，请先到知识库导入并处理。</p> : <>
@@ -277,7 +403,7 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
             <div className="modern-generation-field"><div><strong>正文并发数</strong><small>受所配置模型服务的速率限制影响。</small></div><BufferedNumberInput type="number" min="1" step="1" aria-label="正文并发数" value={draft.contentConcurrency} onChange={(event) => setDraft((current) => ({ ...current, contentConcurrency: Math.max(1, Math.round(Number(event.target.value) || 1)) }))} /></div>
             </details>
           </div>}
-          {activeTab === 'appearance' && <div className="modern-generation-stack"><section className="modern-generation-block"><h3>Word 导出方式</h3><p>选择当前项目默认排版，正式导出时仍可临时调整。</p>{exportSettingsError && <div className="modern-generation-alert">技能和模板信息读取失败。<button type="button" onClick={() => setExportSettingsRevision((value) => value + 1)}>重新读取</button></div>}
+          {activeTab === 'appearance' && <div className="modern-generation-stack"><section className="modern-generation-block"><h3>Word 导出方式</h3><p>选择当前项目默认排版，正式导出时仍可临时调整。</p>{exportSettingsError && <div className="modern-generation-alert">技能和模板信息读取失败。<button className="secondary-action" type="button" onClick={() => setExportSettingsRevision((value) => value + 1)}>重新读取</button></div>}
             <div className="modern-generation-export-options" role="radiogroup" aria-label="Word 导出方式"><label className={selectedWordExportMode === 'word-optimization' ? 'is-selected' : ''}><input type="radio" name="modern-generation-word-mode" checked={selectedWordExportMode === 'word-optimization'} disabled={!wordOptimizationEnabled || exportSettingsError} onChange={() => setDraft((current) => ({ ...current, wordExportMode: 'word-optimization' }))} /><strong>优化排版</strong><small>{wordOptimizationEnabled ? '内置优化排版' : '请先在技能管理中启用'}</small></label><label className={selectedWordExportMode === 'custom-template' ? 'is-selected' : ''}><input type="radio" name="modern-generation-word-mode" checked={selectedWordExportMode === 'custom-template'} disabled={!exportTemplates.length || exportSettingsError} onChange={() => setDraft((current) => ({ ...current, wordExportMode: 'custom-template', wordExportTemplateId: selectedWordExportTemplateId }))} /><strong>模板管理中的模板</strong><small>{exportTemplates.length ? '按已保存的招投标模板排版' : '暂无可用模板'}</small></label><label className={selectedWordExportMode === 'basic' ? 'is-selected' : ''}><input type="radio" name="modern-generation-word-mode" checked={selectedWordExportMode === 'basic'} onChange={() => setDraft((current) => ({ ...current, wordExportMode: 'basic' }))} /><strong>基础格式</strong><small>使用兼容排版</small></label></div></section>
             <section className="modern-generation-block"><h3>导出模板</h3><p>模板管理中的配置决定纸张、字体、标题、表格与图片样式。</p><div className="modern-generation-template"><select aria-label="选择 Word 导出模板" value={selectedWordExportMode === 'custom-template' ? selectedWordExportTemplateId : ''} disabled={selectedWordExportMode !== 'custom-template' || !exportTemplates.length || exportSettingsError} onChange={(event) => setDraft((current) => ({ ...current, wordExportTemplateId: event.target.value }))}><option value="" disabled>{selectedWordExportTemplateMissing ? '原选模板已删除，请重新选择' : '请选择导出模板'}</option>{exportTemplates.map((template) => <option value={template.templateId} key={template.templateId}>{template.templateName}</option>)}</select><button type="button" disabled={busy || !onOpenExportTemplates} onClick={() => onOpenExportTemplates && void openRelatedStep(onOpenExportTemplates)}>打开模板管理</button></div>{selectedWordExportTemplateMissing && <p>原选模板已删除，请重新选择。</p>}</section>
             <div className="modern-generation-field"><div><strong>格式自检及修复</strong><small>正文完成后试导出 Word，检查分页留白并复查。</small></div><AppSwitch checked={Boolean(draft.layoutCheck)} disabled={generationRunning} onCheckedChange={(checked) => setDraft((current) => ({ ...current, layoutCheck: checked }))} aria-label="格式自检及修复" /></div>
@@ -292,12 +418,15 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
     <section className="generation-settings-shell">
       <header className="bid-analysis-command-bar generation-settings-command-bar">
         <div className="generation-settings-header-copy">
-          <span className="section-kicker">STEP 02 · 生成设置</span>
-          <strong>确定本次生成目标</strong>
-          <p>确认生成范围、参考资料与正文要求，保存后用于当前项目。</p>
+          <span className="section-kicker">STEP 02{projectName && <> · {projectName}</>}</span>
+          <strong>生成设置</strong>
+          <p>{tabProgress} · 可逐项配置，也可使用当前设置继续。</p>
           {stale && <small className="generation-settings-warning">篇幅目标尚未同步，保存生成设置后即可继续。</small>}
         </div>
+        <div className="generation-settings-header-actions">
+          {onBackToProjects && <button type="button" className="secondary-action" onClick={onBackToProjects}>返回项目列表</button>}
         <button type="button" className="primary-action generation-settings-save" disabled={busy} onClick={() => void save(true)}>{busy ? '保存中...' : '保存生成设置'}</button>
+        </div>
       </header>
 
       <div className="generation-settings-tabs" role="tablist" aria-label="生成设置分类">
@@ -310,36 +439,28 @@ export default function GenerationSettingsPage({ options, workflowKind, selected
           aria-selected={activeTab === tab.id}
           tabIndex={activeTab === tab.id ? 0 : -1}
           className={activeTab === tab.id ? 'is-active' : ''}
-          onClick={() => setActiveTab(tab.id)}
+          onClick={() => void switchSettingsTab(tab.id)}
           onKeyDown={(event) => {
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
             event.preventDefault();
             const target = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-            setActiveTab(tabs[target].id);
+            void switchSettingsTab(tabs[target].id);
             document.getElementById('generation-settings-tab-' + tabs[target].id)?.focus();
           }}
-        >{tab.label}</button>)}
+        ><span>{tab.label}</span>{tab.id === 'original' && <small className="generation-original-tab-status">{originalPlanStatus}</small>}</button>)}
       </div>
 
-      <div ref={pageRef} className="generation-settings-panel" role="tabpanel" id="generation-settings-panel" aria-labelledby={'generation-settings-tab-' + activeTab}>
+      <div ref={pageRef} key={activeTab} className="generation-settings-panel" role="tabpanel" id="generation-settings-panel" aria-labelledby={'generation-settings-tab-' + activeTab}>
         {activeTab === 'content' && <>
-          <div className="generation-settings-option-grid">
-            <div className="generation-settings-option is-selected">
-              <span>01</span>
-              <strong>{workflowKind === 'existing-plan-expansion' ? '已有方案扩写' : '技术方案'}</strong>
-              <small>{workflowKind === 'existing-plan-expansion' ? '基于已上传方案保留内容并扩写' : '围绕招标要求生成技术方案正文'}</small>
-              <em>当前项目</em>
-            </div>
-            <div className="generation-settings-option is-locked"><span>02</span><strong>完整投标文件</strong><small>覆盖完整商务与技术响应</small><em>尚未支持</em></div>
-            <div className="generation-settings-option is-locked"><span>03</span><strong>商务标独立成册</strong><small>仅生成商务部分</small><em>尚未支持</em></div>
-          </div>
+          {scopeSettings}
           <div className="generation-settings-content-foot">
             <strong>投标范围：{selectedBidSectionTitle || '整份招标文件'}</strong>
             <button type="button" className="secondary-action" disabled={busy} onClick={() => void openRelatedStep(onOpenDocuments)}>查看招标文件与标段</button>
           </div>
         </>}
 
-        {activeTab === 'knowledge' && <section className="generation-settings-section generation-settings-knowledge">
+        {activeTab === 'original' && originalPlanSettings}
+          {activeTab === 'knowledge' && <section className="generation-settings-section generation-settings-knowledge">
           <div className="generation-settings-section-head"><strong>参考知识库</strong><span>已选择 {draftKnowledgeIds.length} 个文档</span></div>
           {knowledgeLoading ? <div className="outline-knowledge-empty">正在读取知识库...</div> : !availableDocuments.length ? <div className="outline-knowledge-empty">暂无已处理完成的文档，请先到知识库导入并处理。</div> : <>
             <div className="generation-settings-search-row">

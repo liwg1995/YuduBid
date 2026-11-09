@@ -1,10 +1,11 @@
+const { normalizeSectionPurpose } = require('./bidScopeWorkflow.cjs');
 const { assertOutlineEditable } = require('./outlineEditPolicy.cjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { getBidAnalysisTasks } = require('./bidAnalysisTask.cjs');
 const { detectBidSections, normalizeBidSections, selectBidSectionMarkdown } = require('./bidSectionSelection.cjs');
-const { getTechnicalPlanOriginalPlanMarkdownPath, getTechnicalPlanOriginalPlanSourceDir, getTechnicalPlanTenderMarkdownPath } = require('../utils/paths.cjs');
+const { getPreparedBusinessWordPath, getTechnicalPlanOriginalPlanMarkdownPath, getTechnicalPlanOriginalPlanSourceDir, getTechnicalPlanTenderMarkdownPath } = require('../utils/paths.cjs');
 const { deleteImportedImageBatches } = require('../utils/importedImages.cjs');
 const { safeRemoveSync } = require('../utils/safeRemove.cjs');
 
@@ -127,6 +128,7 @@ function flattenOutlineItems(items, parentNodeId = null, level = 1, rows = []) {
       level,
       title: String(item?.title || '未命名章节').trim() || '未命名章节',
       description: String(item?.description || '').trim(),
+      section_purpose: normalizeSectionPurpose(item?.section_purpose) || null,
       source_requirement_id: item?.source_requirement_id ? String(item.source_requirement_id) : null,
       source_requirement_title: item?.source_requirement_title ? String(item.source_requirement_title) : null,
       knowledge_item_ids_json: Array.isArray(item?.knowledge_item_ids) && item.knowledge_item_ids.length ? JSON.stringify(item.knowledge_item_ids) : null,
@@ -414,6 +416,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
         id: row.node_id,
         title: row.title,
         description: row.description || '',
+        section_purpose: normalizeSectionPurpose(row.section_purpose),
         source_requirement_id: row.source_requirement_id || undefined,
         source_requirement_title: row.source_requirement_title || undefined,
         knowledge_item_ids: safeJsonParse(row.knowledge_item_ids_json, undefined),
@@ -462,10 +465,10 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     const nextIds = new Set(rows.map((row) => row.node_id));
     const upsert = db.prepare(`
       INSERT INTO technical_plan_outline_nodes (
-        node_id, parent_node_id, sort_order, level, title, description, source_requirement_id,
+        node_id, parent_node_id, sort_order, level, title, description, section_purpose, source_requirement_id,
         source_requirement_title, knowledge_item_ids_json, content, created_at, updated_at
       ) VALUES (
-        @node_id, @parent_node_id, @sort_order, @level, @title, @description, @source_requirement_id,
+        @node_id, @parent_node_id, @sort_order, @level, @title, @description, @section_purpose, @source_requirement_id,
         @source_requirement_title, @knowledge_item_ids_json, @content, @created_at, @updated_at
       ) ON CONFLICT(node_id) DO UPDATE SET
         parent_node_id = excluded.parent_node_id,
@@ -473,6 +476,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
         level = excluded.level,
         title = excluded.title,
         description = excluded.description,
+        section_purpose = excluded.section_purpose,
         source_requirement_id = excluded.source_requirement_id,
         source_requirement_title = excluded.source_requirement_title,
         knowledge_item_ids_json = excluded.knowledge_item_ids_json,
@@ -663,6 +667,8 @@ function createTechnicalPlanStore({ app, db, fileService }) {
   }
 
   function clearDownstreamFromTender({ preserveBidSections = false } = {}) {
+    safeRemoveSync(path.join(path.dirname(getPreparedBusinessWordPath(app)), 'business-session.zip'), { message: '无法清理商务工作草稿，请重试' });
+    safeRemoveSync(getPreparedBusinessWordPath(app), { message: '无法清理旧商务部分，请关闭相关文档后重试' });
     db.prepare('DELETE FROM technical_plan_tasks').run();
     db.prepare('DELETE FROM technical_plan_bid_items').run();
     db.prepare('DELETE FROM technical_plan_reference_docs').run();
@@ -905,6 +911,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       saveOutlineData(clearOutlineDataContent(outlineData));
       clearGlobalFactsAndContentState();
       updateMeta({ generation_settings_snapshot_json: JSON.stringify({
+        bidGenerationScope: options.bidGenerationScope || 'technical',
         minimumWords: Math.max(0, Math.round(Number(options.minimumWords) || 0)),
         maximumWords: Math.max(0, Math.round(Number(options.maximumWords) || 0)),
         sectionWords: Math.max(0, Math.round(Number(options.sectionWords) || 0)),
@@ -958,6 +965,12 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     };
     const contentSettingsChanged = Boolean(current.contentGenerationOptions)
       && JSON.stringify(contentSettings(current.contentGenerationOptions)) !== JSON.stringify(contentSettings(contentGenerationOptions));
+    const scopeChanged = (current.contentGenerationOptions?.bidGenerationScope || 'technical') !== (contentGenerationOptions?.bidGenerationScope || 'technical');
+    if (scopeChanged && Object.values(loadTasks()).some((task) => ['running', 'pausing', 'paused', 'stopping'].includes(task?.status))) throw new Error('请先结束当前后台任务，再切换生成范围');
+    const bidderChanged = (current.contentGenerationOptions?.bidderCompanyId || '') !== (contentGenerationOptions?.bidderCompanyId || '');
+    if (bidderChanged && Object.values(loadTasks()).some((task) => ['running', 'pausing', 'paused', 'stopping'].includes(task?.status))) {
+      throw new Error('请先结束当前后台任务，再更换投标企业');
+    }
     const policyChanged = (current.contentGenerationOptions?.missingFactPolicy || 'infer') !== (contentGenerationOptions?.missingFactPolicy || 'infer');
     const factsPolicyStale = Boolean(current.globalFactsTask?.stats?.globalFactsPolicy
       && current.globalFactsTask.stats.globalFactsPolicy !== (contentGenerationOptions?.missingFactPolicy || 'infer'));
@@ -966,30 +979,103 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     }
     const transaction = db.transaction(() => {
       if (contentSettingsChanged || policyChanged || (factsPolicyStale && current.contentGenerationTask?.status === 'paused')) clearContentGenerationState();
+      if (bidderChanged && !scopeChanged) clearGlobalFactsAndContentState();
+      if (scopeChanged) {
+        saveOutlineData(null); clearGlobalFactsAndContentState();
+        db.prepare("DELETE FROM technical_plan_bid_items WHERE item_id = 'responseFileRequirements'").run();
+        db.prepare("DELETE FROM technical_plan_tasks WHERE type = 'outline-generation'").run();
+        updateMeta({ generation_settings_snapshot_json: null });
+      }
       applyPartial({
         contentGenerationOptions,
-        ...(current.outlineData?.outline?.length ? { generationSettingsSnapshot: { minimumWords, maximumWords, sectionWords } } : {}),
+        ...(!scopeChanged && current.outlineData?.outline?.length ? { generationSettingsSnapshot: { minimumWords, maximumWords, sectionWords, bidGenerationScope: contentGenerationOptions?.bidGenerationScope || 'technical' } } : {}),
       });
     });
     transaction();
     return loadTechnicalPlan();
   }
 
-  function saveChapterContent({ nodeId, content }) {
+  function invalidatePreparedBusiness() {
+    safeRemoveSync(getPreparedBusinessWordPath(app), { message: '无法更新商务部分，请关闭相关文档后重试' });
+  }
+
+  function saveBusinessDraft({ content, expectedContent }) {
+    if (typeof content !== 'string' || !content.trim() || content.length > 300000 || typeof expectedContent !== 'string') {
+      throw new Error('商务卷草稿为空或过长');
+    }
+    return db.transaction(() => {
+    const result = db.prepare(`
+      UPDATE technical_plan_bid_items SET content = ?, status = 'success', error = NULL, updated_at = ?
+      WHERE item_id = 'businessVolumeDraft' AND status IN ('success', 'error') AND content = ?
+    `).run(content, now(), expectedContent);
+    if (!result.changes) throw new Error('商务卷草稿已变化，请重新打开生成设置后复核');
+    invalidatePreparedBusiness();
+    return loadBidItems().businessVolumeDraft;
+    })();
+  }
+
+  function saveChapterContent({ nodeId, content, fillEmptyChapters }) {
     const transaction = db.transaction(() => {
       const timestamp = now();
-      const node = db.prepare('SELECT node_id, title FROM technical_plan_outline_nodes WHERE node_id = ?').get(nodeId);
-      if (!node) throw new Error('当前目录中未找到该章节');
-      const nextContent = String(content || '');
-      db.prepare('UPDATE technical_plan_outline_nodes SET content = ?, updated_at = ? WHERE node_id = ?').run(nextContent, timestamp, nodeId);
-      db.prepare(`
-        INSERT INTO technical_plan_content_sections (node_id, status, error, updated_at)
-        VALUES (?, ?, NULL, ?)
-        ON CONFLICT(node_id) DO UPDATE SET status = excluded.status, error = NULL, updated_at = excluded.updated_at
-      `).run(nodeId, nextContent.trim() ? 'success' : 'idle', timestamp);
+      const batch = fillEmptyChapters !== undefined;
+      if (batch && (!Array.isArray(fillEmptyChapters) || !fillEmptyChapters.length)) {
+        throw new Error('请选择需要回填的小节');
+      }
+      const readNode = db.prepare('SELECT content FROM technical_plan_outline_nodes WHERE node_id = ?');
+      const hasChildren = db.prepare('SELECT 1 FROM technical_plan_outline_nodes WHERE parent_node_id = ? LIMIT 1');
+      const updates = batch ? fillEmptyChapters : [{ nodeId, content }];
+      for (const { nodeId, content } of updates) {
+        const node = readNode.get(nodeId);
+        if (!node) throw new Error('当前目录中未找到该章节');
+        if (batch && (node.content?.trim() || hasChildren.get(nodeId) || !String(content || '').trim())) {
+          throw new Error('目录或正文已变化，请重新预览批量回填');
+        }
+        const nextContent = String(content || '');
+        db.prepare('UPDATE technical_plan_outline_nodes SET content = ?, updated_at = ? WHERE node_id = ?').run(nextContent, timestamp, nodeId);
+        db.prepare(`
+          INSERT INTO technical_plan_content_sections (node_id, status, error, updated_at)
+          VALUES (?, ?, NULL, ?)
+          ON CONFLICT(node_id) DO UPDATE SET status = excluded.status, error = NULL, updated_at = excluded.updated_at
+        `).run(nodeId, nextContent.trim() ? 'success' : 'idle', timestamp);
+      }
     });
     transaction();
     return loadTechnicalPlan();
+  }
+
+  function getTenderSource() {
+    const meta = ensureMetaRow();
+    const hash = meta.tender_markdown_hash;
+    if (path.extname(meta.tender_file_name || '').toLowerCase() !== '.docx') return null;
+    if (!/^[a-f0-9]+$/i.test(hash || '')) return null;
+    const source = path.join(path.dirname(tenderMarkdownPath), 'tender-source', `${hash}.docx`);
+    return fs.existsSync(source) ? source : null;
+  }
+
+  function cacheTenderSource(sourcePath, markdown) {
+    if (!sourcePath || path.extname(sourcePath).toLowerCase() !== '.docx') return;
+    const buffer = fs.readFileSync(sourcePath);
+    const dir = path.join(path.dirname(tenderMarkdownPath), 'tender-source');
+    fs.mkdirSync(dir, { recursive: true });
+    const target = path.join(dir, `${stableHash(markdown)}.docx`);
+    const temporary = target + '.' + crypto.randomUUID() + '.tmp';
+    try {
+      fs.writeFileSync(temporary, buffer, { flag: 'wx' });
+      fs.renameSync(temporary, target);
+    } finally { fs.rmSync(temporary, { force: true }); }
+  }
+
+  function pruneTenderSources() {
+    const dir = path.join(path.dirname(tenderMarkdownPath), 'tender-source');
+    const keep = getTenderSource();
+    // Source copies are optional caches; cleanup failure must not turn a committed import into an error.
+    try {
+      if (!fs.existsSync(dir)) return;
+      for (const name of fs.readdirSync(dir)) {
+        const file = path.join(dir, name);
+        if (file !== keep) fs.rmSync(file, { recursive: true, force: true });
+      }
+    } catch { /* A later import or project reset retries cleanup. */ }
   }
 
   async function importTenderDocument() {
@@ -1014,6 +1100,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     fs.writeFileSync(tempPath, `${markdown}\n`, 'utf-8');
 
     try {
+      cacheTenderSource(result.file_path, markdown);
       safeRemoveSync(tenderMarkdownPath, { message: '旧招标文件缓存正在被占用，请关闭 Word/WPS 后重试' });
       fs.renameSync(tempPath, tenderMarkdownPath);
       const timestamp = now();
@@ -1029,6 +1116,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
         });
       });
       transaction();
+      pruneTenderSources();
       return {
         success: true,
         message: result.message || '招标文件已导入',
@@ -1041,7 +1129,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     }
   }
 
-  function importTenderMarkdown({ fileName, markdown, parserLabel } = {}) {
+  function importTenderMarkdown({ fileName, markdown, parserLabel, sourcePath } = {}) {
     const content = String(markdown || '').trim();
     if (!content) {
       throw new Error('可导入的招标文件内容为空');
@@ -1053,6 +1141,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     fs.writeFileSync(tempPath, `${content}\n`, 'utf-8');
 
     try {
+      cacheTenderSource(sourcePath, content);
       fs.renameSync(tempPath, tenderMarkdownPath);
       const timestamp = now();
       const transaction = db.transaction(() => {
@@ -1067,6 +1156,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
         });
       });
       transaction();
+      pruneTenderSources();
       return {
         success: true,
         message: '招标文件已导入',
@@ -1079,7 +1169,45 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     }
   }
 
+  function assertOriginalPlanEditable() {
+    const state = loadTechnicalPlan();
+    const tasks = [state.bidAnalysisTask, state.outlineGenerationTask, state.globalFactsTask, state.contentGenerationTask];
+    if (tasks.some((task) => ['running', 'pausing', 'paused', 'stopping'].includes(task?.status))) {
+      throw new Error('请先结束当前项目任务，再修改原方案');
+    }
+  }
+
+  function invalidateOriginalPlanResults() {
+    saveOutlineData(null);
+    clearGlobalFactsAndContentState();
+    db.prepare("DELETE FROM technical_plan_tasks WHERE type = 'outline-generation'").run();
+    db.prepare("DELETE FROM technical_plan_bid_items WHERE item_id IN ('originalPlanMapping', 'scoringCoverage')").run();
+    updateMeta({ generation_settings_snapshot_json: null, technical_volume_json: null });
+  }
+
+  function removeOriginalPlan() {
+    assertOriginalPlanEditable();
+    if (!ensureMetaRow().original_plan_markdown_path) return loadTechnicalPlan();
+    db.transaction(() => {
+      invalidateOriginalPlanResults();
+      updateMeta({
+        original_plan_file_name: null, original_plan_markdown_path: null, original_plan_markdown_hash: null,
+        original_plan_markdown_chars: 0, original_plan_source_path: null, original_plan_source_ext: null,
+        original_plan_parser_label: null, original_plan_imported_at: null,
+      });
+    })();
+    for (const file of [originalPlanMarkdownPath, originalPlanSourceDir]) {
+      try {
+        fs.rmSync(file, { recursive: true, force: true });
+      } catch (error) {
+        console.warn('[technical-plan] 清理原方案文件失败', error);
+      }
+    }
+    return loadTechnicalPlan();
+  }
+
   async function importOriginalPlanDocument() {
+    assertOriginalPlanEditable();
     if (!fileService?.importDocument) {
       throw new Error('文件导入服务尚未初始化');
     }
@@ -1094,7 +1222,9 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       };
     }
 
+    assertOriginalPlanEditable();
     const markdown = String(result.file_content || '').trim();
+    if (!markdown) throw new Error('原方案正文为空');
     const targetDir = path.dirname(originalPlanMarkdownPath);
     const tempPath = path.join(targetDir, `original-plan-${Date.now()}.tmp.md`);
     const sourceExt = String(result.file_ext || path.extname(result.file_path || result.file_name || '') || '').toLowerCase();
@@ -1113,9 +1243,8 @@ function createTechnicalPlanStore({ app, db, fileService }) {
       fs.renameSync(tempPath, originalPlanMarkdownPath);
       const timestamp = now();
       const transaction = db.transaction(() => {
-        clearGlobalFactsAndContentState();
+        invalidateOriginalPlanResults();
         updateMeta({
-          workflow_kind: 'existing-plan-expansion',
           original_plan_file_name: result.file_name || '未命名文件',
           original_plan_markdown_path: originalPlanMarkdownRelativePath,
           original_plan_markdown_hash: stableHash(markdown),
@@ -1124,7 +1253,6 @@ function createTechnicalPlanStore({ app, db, fileService }) {
           original_plan_source_ext: sourceTargetPath ? sourceExt : null,
           original_plan_parser_label: result.parser_label || null,
           original_plan_imported_at: timestamp,
-          step: 'document-analysis',
         });
       });
       transaction();
@@ -1186,6 +1314,9 @@ function createTechnicalPlanStore({ app, db, fileService }) {
   }
 
   function clearTechnicalPlan() {
+    fs.rmSync(path.join(path.dirname(tenderMarkdownPath), 'tender-source'), { recursive: true, force: true });
+    safeRemoveSync(path.join(path.dirname(getPreparedBusinessWordPath(app)), 'business-session.zip'), { message: '无法清理商务工作草稿，请重试' });
+    safeRemoveSync(getPreparedBusinessWordPath(app), { message: '无法清理旧商务部分，请关闭相关文档后重试' });
     const workflowKind = normalizeWorkflowKind(ensureMetaRow().workflow_kind);
     safeRemoveSync(tenderMarkdownPath, { message: '招标文件缓存正在被占用，请关闭 Word/WPS 后重试' });
     safeRemoveSync(originalPlanMarkdownPath, { message: '原方案缓存正在被占用，请关闭 Word/WPS 后重试' });
@@ -1209,9 +1340,12 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     loadTechnicalPlan,
     updateTechnicalPlan,
     clearTechnicalPlan,
+    invalidatePreparedBusiness,
+    getTenderSource,
     importTenderDocument,
     importTenderMarkdown,
     importOriginalPlanDocument,
+    removeOriginalPlan,
     importOriginalPlanMarkdown,
     readTenderMarkdown,
     readTenderMarkdownForGeneration,
@@ -1225,6 +1359,7 @@ function createTechnicalPlanStore({ app, db, fileService }) {
     saveTechnicalVolume,
     saveGlobalFacts,
     saveContentGenerationOptions,
+    saveBusinessDraft,
     saveChapterContent,
   };
 }

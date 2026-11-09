@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import ProjectDetailsDrawer from '../../../shared/ui/ProjectDetailsDrawer';
 import { ProjectListHeader, ProjectListToolbar, ProjectListTable, ProjectListActions, formatProjectListTime } from '../../../shared/ui/ProjectList';
 import BusinessTaskProgress from '../../../shared/ui/BusinessTaskProgress';
 import type {
@@ -43,8 +41,6 @@ export function ProjectManagementListView({
   onDeleteProject,
   onEnterProject,
 }: ProjectManagementListViewProps) {
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const detail = projects.find(project => project.id === detailId);
   const allVisibleSelected = projects.length > 0 && selectedProjectIds.length === projects.length;
   const hasKeyword = Boolean(keyword.trim());
 
@@ -55,21 +51,11 @@ export function ProjectManagementListView({
       <div className="modern-pm-list-toolbar"><label><input type="checkbox" checked={allVisibleSelected} onChange={(event) => onToggleAll(event.target.checked)} />选择当前列表</label><span>显示 {projects.length} 个 · 已选择 {selectedProjectIds.length} 个</span><button type="button" onClick={() => void onDeleteSelected()} disabled={!selectedProjectIds.length || isRunning}>删除所选</button></div>
       <div className="yb-project-index-body"><ProjectListTable<ProjectManagementProjectRecord> dataSource={projects} columns={[
         { title: '选择', width: 60, render: (_, project) => <input type="checkbox" aria-label={`选择${project.name}`} checked={selectedProjectIds.includes(project.id)} onChange={() => onToggleProject(project.id)} /> },
-        { title: '项目名称', render: (_, project) => <div className="yb-project-list-name"><button type="button" disabled={isRunning} onClick={() => setDetailId(project.id)}>{project.name}</button><small>{project.clientName || '客户待确认'} · {project.projectType || '类型待确认'}{project.isActive ? ' · 当前项目' : ''}</small><small>{project.projectGroup || '未分组'} · 交付方：{project.vendorName || '待确认'}</small></div> },
+        { title: '项目名称', render: (_, project) => <div className="yb-project-list-name"><button type="button" disabled={isRunning} onClick={() => void onEnterProject(project.id)}>{project.name}</button><small>{project.clientName || '客户待确认'} · {project.projectType || '类型待确认'}{project.isActive ? ' · 当前项目' : ''}</small><small>{project.projectGroup || '未分组'} · 交付方：{project.vendorName || '待确认'}</small></div> },
         { title: '阶段完成', width: 100, render: (_, project) => `${project.completedCount} / 10` },
         { title: '最近更新', dataIndex: 'updated_at', width: 180, defaultSortOrder: 'descend', sorter: (a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at), render: formatProjectListTime },
         { title: '操作', width: 180, fixed: 'right', render: (_, project) => <ProjectListActions name={project.name} disabled={isRunning} onEnter={() => void onEnterProject(project.id)} items={[{ key: 'delete', label: '删除项目', danger: true, onClick: () => void onDeleteProject(project.id) }]} /> },
-      ]} locale={{ emptyText: <div className="modern-pm-list-empty"><strong>{hasKeyword ? '没有找到匹配项目' : '暂无可管理项目'}</strong><button type="button" onClick={hasKeyword ? () => setKeyword('') : onCreateProject}>{hasKeyword ? '清空搜索' : '新建项目'}</button></div> }} /></div>
-      <ProjectDetailsDrawer open={Boolean(detail)} onClose={() => setDetailId(null)} enterDisabled={isRunning}
-        onEnter={detail ? () => { setDetailId(null); void onEnterProject(detail.id); } : undefined} items={detail ? [
-          { key: 'name', label: '项目名称', children: detail.name },
-          { key: 'client', label: '客户', children: detail.clientName || '待确认' },
-          { key: 'vendor', label: '交付方', children: detail.vendorName || '待确认' },
-          { key: 'type', label: '项目类型', children: detail.projectType || '待确认' },
-          { key: 'stage', label: '当前阶段', children: detail.currentStage || '待确认' },
-          { key: 'count', label: '阶段完成', children: `${detail.completedCount} / 10` },
-          { key: 'updated', label: '更新时间', children: formatProjectListTime(detail.updated_at) },
-        ] : []} />
+      ]} locale={{ emptyText: <div className="modern-pm-list-empty"><strong>{hasKeyword ? '没有找到匹配项目' : '暂无可管理项目'}</strong><button className={hasKeyword ? 'secondary-action' : 'primary-action'} type="button" onClick={hasKeyword ? () => setKeyword('') : onCreateProject}>{hasKeyword ? '清空搜索' : '新建项目'}</button></div> }} /></div>
     </section>;
   }
 

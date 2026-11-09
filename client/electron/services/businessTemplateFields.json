@@ -1,0 +1,15 @@
+{
+  "companyName": ["投标人名称", "投标单位名称", "供应商名称", "单位名称", "公司名称", "企业名称", "投标人", "投标单位"],
+  "unifiedSocialCreditCode": ["统一社会信用代码", "社会信用代码"],
+  "legalRepresentative": ["法定代表人", "法定代表人姓名", "法人代表"],
+  "address": ["注册地址", "企业地址", "公司地址", "单位地址", "投标人地址", "住所"],
+  "phone": ["企业电话", "公司电话", "单位电话", "联系电话"],
+  "email": ["企业邮箱", "公司邮箱", "电子邮箱"],
+  "registeredCapital": ["注册资本", "注册资金"],
+  "companyType": ["企业类型", "公司类型"],
+  "businessScope": ["经营范围"],
+  "bankAccountName": ["账户名称", "开户名称"],
+  "bankName": ["开户银行", "开户行"],
+  "bankAccountNumber": ["银行账号", "开户账号"],
+  "bankRoutingNumber": ["银行联行号", "联行号"]
+}

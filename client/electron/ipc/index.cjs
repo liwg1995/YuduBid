@@ -217,6 +217,7 @@ function createTechnicalPlanStoreRouter({ app, fileService, technicalPlanStore, 
     const registry = ensureRegistry();
     const requested = typeof value === 'object' && value ? value.projectId || value.project_id : undefined;
     const projectId = normalizeProjectId(requested || registry.activeProjectIds?.[workflowKind] || registry.projects.find((item) => item.workflowKind === workflowKind)?.id);
+    if (requested && projectId !== 'default' && !registry.projects.some((item) => item.workflowKind === workflowKind && item.id === projectId)) throw new Error('项目不存在或已删除，请重新选择项目');
     const project = registry.projects.find((item) => item.workflowKind === workflowKind && item.id === projectId)
       || registry.projects.find((item) => item.workflowKind === workflowKind && item.id === 'default')
       || { id: 'default', workflowKind, name: legacyProjectNames[workflowKind] };
@@ -294,8 +295,8 @@ function createTechnicalPlanStoreRouter({ app, fileService, technicalPlanStore, 
       return {
         activeProjectId,
         projects: registry.projects
-          .filter((project) => project.workflowKind === workflowKind)
-          .map((project) => ({ ...project, isActive: project.id === activeProjectId }))
+          .filter((project) => workflowKindValue === 'all' || project.workflowKind === workflowKind)
+          .map((project) => ({ ...project, isActive: project.id === (registry.activeProjectIds?.[project.workflowKind] || 'default') }))
           .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || ''))),
       };
     },
@@ -383,6 +384,17 @@ function createTechnicalPlanStoreRouter({ app, fileService, technicalPlanStore, 
       const result = pickStore(payload).clearTechnicalPlan();
       return { ...result, state: withProjectMeta(result.state, payload) };
     },
+    getTenderParsedSource(payload) {
+      const store = pickStore(payload);
+      return { markdown: store.readTenderMarkdownForGeneration(), name: store.loadTechnicalPlan().tenderFile?.fileName };
+    },
+    getScoringCoverage(payload) {
+      const { getCurrentCoverageReport } = require('../services/scoringCoverage.cjs');
+      return getCurrentCoverageReport(pickStore(payload).loadTechnicalPlan());
+    },
+    getTenderSource(payload) {
+      return pickStore(payload).getTenderSource();
+    },
     importTenderDocument(payload) {
       const result = pickStore(payload).importTenderDocument();
       return Promise.resolve(result).then((value) => ({ ...value, state: withProjectMeta(value.state, payload) }));
@@ -390,6 +402,9 @@ function createTechnicalPlanStoreRouter({ app, fileService, technicalPlanStore, 
     importOriginalPlanDocument(payload) {
       const result = pickStore(payload).importOriginalPlanDocument();
       return Promise.resolve(result).then((value) => ({ ...value, state: withProjectMeta(value.state, payload) }));
+    },
+    removeOriginalPlan(payload) {
+      return withProjectMeta(pickStore(payload).removeOriginalPlan(), payload);
     },
     importGeneratedOriginalPlan(payload = {}) {
       const { projectId } = getProjectFromPayload(payload);
@@ -436,6 +451,7 @@ function createTechnicalPlanStoreRouter({ app, fileService, technicalPlanStore, 
         fileName: sourceState.tenderFile.fileName || '技术方案招标文件',
         markdown: tenderMarkdown,
         parserLabel: sourceState.tenderFile.parserLabel || '技术方案模块',
+        sourcePath: sourceStore.getTenderSource(),
       });
       const result = targetStore.importOriginalPlanMarkdown({
         fileName: outlineData.project_name ? `${outlineData.project_name} - 技术方案生成内容` : '技术方案生成内容',
@@ -486,6 +502,9 @@ function createTechnicalPlanStoreRouter({ app, fileService, technicalPlanStore, 
     saveContentGenerationOptions(payload) {
       const contentGenerationOptions = payload?.contentGenerationOptions || payload?.options || payload;
       return withProjectMeta(pickStore(payload).saveContentGenerationOptions(contentGenerationOptions), payload);
+    },
+    saveBusinessDraft(payload = {}) {
+      return pickStore(payload).saveBusinessDraft(withoutWorkflowKind(payload));
     },
     saveChapterContent(payload = {}) {
       return withProjectMeta(pickStore(payload).saveChapterContent(withoutWorkflowKind(payload)), payload);
@@ -898,7 +917,8 @@ function registerIpcHandlers({ app, mainWindow, appLogger = createAppLogger(app)
   registerUsageStatsIpc({ usageStatsStore });
   registerAiIpc({ aiService });
   registerFileIpc({ fileService });
-  registerExportIpc({ exportService });
+  let credentialLibraryService;
+  registerExportIpc({ exportService, getCredentialLibraryService: () => credentialLibraryService, getTenderSource: (payload) => agentServices?.technicalPlanStore?.getTenderSource(payload), getTenderParsedSource: (payload) => agentServices?.technicalPlanStore?.getTenderParsedSource(payload), getScoringCoverage: (payload) => agentServices?.technicalPlanStore?.getScoringCoverage(payload) });
   registerCodeGenerationIpc({ codeGenerationService });
   registerOfficialDocumentIpc({ officialDocumentService });
   registerGrantApplicationIpc({ grantApplicationService });
@@ -915,7 +935,7 @@ function registerIpcHandlers({ app, mainWindow, appLogger = createAppLogger(app)
     const existingPlanExpansionApp = createScopedApp(app, 'existing-plan-expansion');
     const existingPlanExpansionDatabase = createSqliteDatabase(existingPlanExpansionApp);
     const knowledgeBaseStore = createKnowledgeBaseStore({ app, db: sqliteDatabase.db });
-    const credentialLibraryService = createCredentialLibraryService({ app, db: sqliteDatabase.db });
+    credentialLibraryService = createCredentialLibraryService({ app, db: sqliteDatabase.db });
     templateStore = createTemplateStore({ app, db: sqliteDatabase.db });
     const knowledgeBaseService = createKnowledgeBaseService({ app, aiService, configStore, knowledgeBaseStore });
     const knowledgeImageService = createKnowledgeImageService({ app, db: sqliteDatabase.db });
@@ -947,7 +967,7 @@ function registerIpcHandlers({ app, mainWindow, appLogger = createAppLogger(app)
       onWorkspaceChanged: (sectionId, plugin) => pluginManager.notifyWorkspaceChanged(sectionId, plugin),
     });
     const duplicateCheckService = createDuplicateCheckService({ app, configStore, workspaceStore: duplicateCheckStore });
-    const taskService = createTaskService({ app, aiService, technicalDiagramService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService, configStore, templateStore });
+    const taskService = createTaskService({ app, aiService, technicalDiagramService, technicalPlanStore: technicalPlanStoreRouter, rejectionCheckStore, duplicateCheckStore, knowledgeBaseService, duplicateCheckService, configStore, templateStore, credentialLibraryService });
     agentServices = { technicalPlanStore: technicalPlanStoreRouter, taskService, knowledgeBaseService, presalesWorkbenchService, officialDocumentService, grantApplicationService, projectManagementService, thesisTutorService, softwareCopyrightService, patentGenerationService };
     refreshAgentHost(configStore.load());
     registerBidReviewCapabilities(pluginManager.capabilityRegistry, {

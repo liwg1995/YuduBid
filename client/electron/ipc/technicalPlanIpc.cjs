@@ -8,6 +8,7 @@ function registerTechnicalPlanIpc({ technicalPlanStore, taskService }) {
   ipcMain.handle('technical-plan:switch-project', (_event, payload) => technicalPlanStore.switchProject(payload));
   ipcMain.handle('technical-plan:load-state', (_event, workflowKind) => technicalPlanStore.loadTechnicalPlan(workflowKind));
   ipcMain.handle('technical-plan:import-tender-document', (_event, workflowKind) => technicalPlanStore.importTenderDocument(workflowKind));
+  ipcMain.handle('technical-plan:remove-original-plan', (_event, payload) => technicalPlanStore.removeOriginalPlan(payload));
   ipcMain.handle('technical-plan:import-original-plan-document', (_event, workflowKind) => technicalPlanStore.importOriginalPlanDocument(workflowKind));
   ipcMain.handle('technical-plan:import-generated-original-plan', () => technicalPlanStore.importGeneratedOriginalPlan());
   ipcMain.handle('technical-plan:read-tender-markdown', (_event, workflowKind) => technicalPlanStore.readTenderMarkdown(workflowKind));
@@ -20,7 +21,13 @@ function registerTechnicalPlanIpc({ technicalPlanStore, taskService }) {
   ipcMain.handle('technical-plan:save-technical-volume', (_event, payload) => technicalPlanStore.saveTechnicalVolume(payload));
   ipcMain.handle('technical-plan:save-global-facts', (_event, globalFacts) => technicalPlanStore.saveGlobalFacts(globalFacts));
   ipcMain.handle('technical-plan:save-content-generation-options', (_event, options) => technicalPlanStore.saveContentGenerationOptions(options));
-  ipcMain.handle('technical-plan:save-chapter-content', (_event, payload) => technicalPlanStore.saveChapterContent(payload));
+  ipcMain.handle('technical-plan:save-business-draft', (_event, payload) => technicalPlanStore.saveBusinessDraft(payload));
+  ipcMain.handle('technical-plan:save-chapter-content', (_event, payload) => {
+    if (payload?.fillEmptyChapters && taskService?.peekActiveTasks().some((task) => task.group === 'technical-plan')) {
+      throw new Error('请等待技术方案后台任务结束后再回填');
+    }
+    return technicalPlanStore.saveChapterContent(payload);
+  });
   ipcMain.handle('technical-plan:clear', async (_event, workflowKind) => {
     await taskService?.prepareTechnicalPlanReset(workflowKind);
     return technicalPlanStore.clearTechnicalPlan(workflowKind);

@@ -6,7 +6,6 @@ export type SectionId =
   | 'existing-plan-expansion'
   | 'feasibility-report'
   | 'bid-template-management'
-  | 'business-bid'
   | 'project-management'
   | 'project-types'
   | 'project-history'

@@ -8158,11 +8158,6 @@ button {
     linear-gradient(135deg, rgba(255, 255, 255, 0.97), rgba(248, 250, 253, 0.92));
 }
 
-.business-bid-demo .demo-hero-card {
-  background:
-    radial-gradient(circle at 88% 16%, rgba(91, 84, 211, 0.18), transparent 34%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.94));
-}
 
 .opportunity-hero-card {
   background:
@@ -10535,8 +10530,6 @@ button {
   .global-facts-editor,
   .global-facts-group-list,
   .global-facts-reader,
-  .business-bid-demo,
-  .business-bid-demo .demo-hero-card,
   .demo-metric-stack article,
   .demo-signal-grid article,
   .demo-step-list article,
@@ -10659,7 +10652,6 @@ button {
 }
 
 :root[data-ui-theme="dark"] .app-shell :where(
-  .business-bid-demo .demo-hero-card,
   .opportunity-hero-card
 ) {
   background:

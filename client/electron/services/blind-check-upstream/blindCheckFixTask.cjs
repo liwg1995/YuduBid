@@ -8,6 +8,13 @@ const { mapReport } = require('./blindCheckTask.cjs');
 
 const FIXABLE_RULES = new Set(FIX_RULE_IDS);
 
+function copyWritable(sourcePath, outputPath) {
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.copyFileSync(sourcePath, outputPath);
+  const mode = fs.statSync(outputPath).mode & 0o777;
+  if (!(mode & 0o200)) fs.chmodSync(outputPath, mode | 0o200);
+}
+
 function now() {
   return new Date().toISOString();
 }
@@ -117,8 +124,7 @@ async function runBlindCheckFixTask({ agentService, aiService, workspaceStore, o
       mapped = mapFixReport(report);
     } else {
       // 副本目录平时由助手写出副本时创建，首次使用或重置后还不存在。
-      fs.mkdirSync(path.dirname(input.outputPath), { recursive: true });
-      fs.copyFileSync(input.sourcePath, input.outputPath);
+      copyWritable(input.sourcePath, input.outputPath);
       const after = mapReport(await openXmlHelperService.runBlindCheck({
         source: input.output, profile: input.profile, sensitive_words: input.sensitiveWords, image_facts: imageFacts,
       }, { signal: taskControl.signal }));
@@ -245,7 +251,11 @@ async function runBlindCheckFixTask({ agentService, aiService, workspaceStore, o
       { fixResult: { ...runningResult, status: 'error', error: message, updatedAt: now() } },
     );
   } finally {
-    fs.rmSync(grayPath, { force: true });
+    try {
+      fs.rmSync(grayPath, { force: true });
+    } catch (error) {
+      console.warn('[blind-check] 清理暗标修复临时副本失败', error);
+    }
   }
 }
 

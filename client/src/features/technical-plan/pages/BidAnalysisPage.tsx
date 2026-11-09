@@ -10,6 +10,7 @@ import './modernBidAnalysis.css';
 interface BidAnalysisPageProps {
   projectId?: string;
   workflowKind: TechnicalPlanWorkflowKind;
+  generationScope?: 'technical' | 'business' | 'complete';
   hasTenderFile: boolean;
   mode: BidAnalysisMode;
   tasks: BidAnalysisTasks;
@@ -39,7 +40,7 @@ const modeOptions: Array<{ id: BidAnalysisMode; title: string; desc: string; bad
 const taskGroups = [
   { title: '关键项', ids: ['projectOverview', 'techRequirements', 'projectInfo', 'partAInfo', 'deliveryAndServiceRequirements'] },
   { title: '投标流程', ids: ['keyInfo', 'marginInfo', 'openBid'] },
-  { title: '评审要求', ids: ['qualificationReview', 'complianceCheck', 'evaluationBid', 'businessScoring'] },
+  { title: '评审要求', ids: ['qualificationReview', 'complianceCheck', 'evaluationBid', 'businessScoring', 'businessVolumeRequirements'] },
   { title: '主体与合同', ids: ['agentInfo', 'discardedBids', 'signingProcess', 'terminationCondition'] },
 ];
 
@@ -162,6 +163,7 @@ function JsonResultTable({ content }: { content: string }) {
 function BidAnalysisPage({
   projectId,
   workflowKind,
+  generationScope = 'technical',
   hasTenderFile,
   mode,
   tasks,
@@ -178,8 +180,8 @@ function BidAnalysisPage({
   const [selectedTaskId, setSelectedTaskId] = useState('projectOverview');
   const [progressCollapsed, setProgressCollapsed] = useState(false);
   const { showToast } = useToast();
-  const selectedTasks = useMemo(() => getBidAnalysisTasks(mode), [mode]);
-  const requiredTasks = useMemo(() => getBidAnalysisTasks('key'), []);
+  const selectedTasks = useMemo(() => getBidAnalysisTasks(mode, generationScope), [mode, generationScope]);
+  const requiredTasks = useMemo(() => getBidAnalysisTasks('key', generationScope), [generationScope]);
   const visibleSelectedTaskId = selectedTasks.some((task) => task.id === selectedTaskId)
     ? selectedTaskId
     : selectedTasks[0]?.id || 'projectOverview';
@@ -194,11 +196,14 @@ function BidAnalysisPage({
     const status = tasks[task.id]?.status;
     return status === 'success' || status === 'error';
   }).length;
-  const taskRunning = running || fullRerunLocked || task?.status === 'running';
+  const status = task?.status;
+  const taskActive = status === 'running' || status === 'pausing' || status === 'paused' || status === 'stopping';
+  const taskRunning = running || fullRerunLocked || taskActive;
+  const [controlPending, setControlPending] = useState(false);
   const requiredDone = requiredTasks.every((task) => tasks[task.id]?.status === 'success' && tasks[task.id]?.content);
 
   const syncProgressForMode = (nextMode: BidAnalysisMode) => {
-    const nextTasks = getBidAnalysisTasks(nextMode);
+    const nextTasks = getBidAnalysisTasks(nextMode, generationScope);
     const nextDoneCount = nextTasks.filter((task) => {
       const status = tasks[task.id]?.status;
       return status === 'success' || status === 'error';
@@ -273,17 +278,41 @@ function BidAnalysisPage({
     }
   };
 
+  const controlAnalysis = async (action: 'pause' | 'resume' | 'stop') => {
+    const api = window.yibiao?.tasks;
+    if (!api || controlPending) return;
+    setControlPending(true);
+    try {
+      const payload = { workflowKind, projectId };
+      if (action === 'pause') await api.pauseBidAnalysis(payload);
+      if (action === 'resume') await api.resumeBidAnalysis(payload);
+      if (action === 'stop') await api.stopBidAnalysis(payload);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '控制解析任务失败', 'error');
+    } finally {
+      setControlPending(false);
+    }
+  };
+  const controls = taskActive ? <div className="bid-analysis-run-actions">
+    {status !== 'stopping' && <button type="button" className="primary-action" disabled={controlPending || status === 'pausing'} onClick={() => void controlAnalysis(status === 'paused' ? 'resume' : 'pause')}>
+      {status === 'pausing' ? '正在暂停…' : status === 'paused' ? '继续解析' : '暂停解析'}
+    </button>}
+    <button type="button" className="secondary-action" disabled={controlPending || status === 'stopping'} onClick={() => void controlAnalysis('stop')}>
+      {status === 'stopping' ? '正在停止…' : '停止解析'}
+    </button>
+  </div> : null;
+
   if (getStoredUiAppearance() === 'modern') {
     return <div className="modern-bid-analysis">
       <section className="modern-bid-analysis-start">
-        <div className="modern-bid-analysis-heading"><div><h2>招标文件解析</h2><p>选择解析范围，关键项成功后即可进入目录生成。</p></div><button type="button" className="modern-bid-analysis-run modern-inline-operation is-accent" onClick={() => startAnalysis()} disabled={taskRunning || !hasTenderFile}>{taskRunning ? '解析中…' : failedTaskCount > 0 ? `重试未完成项（${selectedTasks.length - successTaskCount}）` : allSelectedTasksSucceeded ? '重新解析全部' : '开始解析'}</button></div>
-        <div className="modern-bid-analysis-modes" role="radiogroup" aria-label="解析模式">{modeOptions.map((option) => <label key={option.id} className={mode === option.id ? 'is-active' : ''}><input type="radio" name="modern-bid-analysis-mode" value={option.id} checked={mode === option.id} disabled={taskRunning} onChange={() => { onModeChange(option.id); syncProgressForMode(option.id); setSelectedTaskId(getBidAnalysisTasks(option.id)[0]?.id || 'projectOverview'); }} /><strong>{option.title}</strong><em>{option.badge}</em><small>{option.desc}</small></label>)}</div>
+        <div className="modern-bid-analysis-heading"><div><h2>招标文件解析</h2><p>选择解析范围，关键项成功后即可进入目录生成。</p></div>{controls || <button type="button" className="modern-bid-analysis-run modern-inline-operation is-accent" onClick={() => startAnalysis()} disabled={taskRunning || !hasTenderFile}>{taskRunning ? '解析中…' : status === 'stopped' && !allSelectedTasksSucceeded ? '解析未完成项' : failedTaskCount > 0 ? `重试未完成项（${selectedTasks.length - successTaskCount}）` : allSelectedTasksSucceeded ? '重新解析全部' : '开始解析'}</button>}</div>
+        <div className="modern-bid-analysis-modes" role="radiogroup" aria-label="解析模式">{modeOptions.map((option) => <label key={option.id} className={mode === option.id ? 'is-active' : ''}><input type="radio" name="modern-bid-analysis-mode" value={option.id} checked={mode === option.id} disabled={taskRunning} onChange={() => { onModeChange(option.id); syncProgressForMode(option.id); setSelectedTaskId(getBidAnalysisTasks(option.id, generationScope)[0]?.id || 'projectOverview'); }} /><strong>{option.title}</strong><em>{option.badge}</em><small>{option.desc}</small></label>)}</div>
         {!hasTenderFile && <p className="modern-bid-analysis-notice">请先在“上传招标文件”阶段导入文件。</p>}
       </section>
       <div className="modern-bid-analysis-controls">
         <section className="modern-bid-analysis-progress" aria-label="解析进度">
           <div className="modern-bid-analysis-counts" role="status"><span>已成功 <b>{successTaskCount}</b></span><span className={failedTaskCount ? 'has-errors' : ''}>失败 <b>{failedTaskCount}</b></span><span>未结束 <b>{selectedTasks.length - doneCount}</b></span></div>
-          {(taskRunning || failedTaskCount > 0) && <TaskProgressSummary label="解析任务进度" detail={`${doneCount}/${selectedTasks.length}`} percent={progress} status={taskRunning ? 'active' : 'exception'} />}
+          {(taskRunning || failedTaskCount > 0) && <TaskProgressSummary label="解析任务进度" detail={`${doneCount}/${selectedTasks.length}${status === 'paused' ? ' · 已暂停' : ''}`} percent={progress} status={status === 'paused' ? 'normal' : taskRunning ? 'active' : 'exception'} />}
           <p>{requiredDone ? '关键项已完成，可以进入下一步。' : '项目概述、技术评分、项目信息、甲方信息和交货服务要求均成功后可继续。'}</p>
         </section>
         <nav className="modern-bid-analysis-tasks" aria-label="解析任务列表">{taskGroups.map((group) => { const groupTasks = selectedTasks.filter((item) => group.ids.includes(item.id)); return groupTasks.length ? <div key={group.title}><h3>{group.title}</h3>{groupTasks.map((item) => { const status = tasks[item.id]?.status || 'idle'; return <button key={item.id} type="button" className={`${visibleSelectedTaskId === item.id ? 'is-active ' : ''}is-${status}`} aria-current={visibleSelectedTaskId === item.id ? 'true' : undefined} title={item.description} onClick={() => setSelectedTaskId(item.id)} disabled={fullRerunLocked}><span><strong>{item.label}</strong><small>{tasks[item.id]?.content ? `${tasks[item.id]?.content.length} 字` : item.description}</small></span><em>{statusLabel[status]}</em></button>; })}</div> : null; })}</nav>
@@ -309,7 +338,7 @@ function BidAnalysisPage({
               onClick={() => {
                 onModeChange(option.id);
                 syncProgressForMode(option.id);
-                setSelectedTaskId(getBidAnalysisTasks(option.id)[0]?.id || 'projectOverview');
+                setSelectedTaskId(getBidAnalysisTasks(option.id, generationScope)[0]?.id || 'projectOverview');
               }}
               disabled={taskRunning}
             >
@@ -318,9 +347,9 @@ function BidAnalysisPage({
             </button>
           ))}
         </div>
-        <button type="button" className="primary-action" onClick={() => startAnalysis()} disabled={taskRunning || !hasTenderFile}>
-          {taskRunning ? '解析中...' : failedTaskCount > 0 ? `重试失败项(${failedTaskCount})` : progress > 0 ? '重新解析' : '开始解析'}
-        </button>
+        {controls || <button type="button" className="primary-action" onClick={() => startAnalysis()} disabled={taskRunning || !hasTenderFile}>
+          {taskRunning ? '解析中…' : status === 'stopped' && !allSelectedTasksSucceeded ? '解析未完成项' : failedTaskCount > 0 ? `重试失败项(${failedTaskCount})` : progress > 0 ? '重新解析' : '开始解析'}
+        </button>}
       </section>
 
       <section className="bid-analysis-workspace">

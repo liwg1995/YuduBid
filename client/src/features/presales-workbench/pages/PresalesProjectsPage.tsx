@@ -1,4 +1,3 @@
-import ProjectDetailsDrawer from '../../../shared/ui/ProjectDetailsDrawer';
 import ProjectDeleteDialog from '../../../shared/ui/ProjectDeleteDialog';
 import type { InputRef } from 'antd';
 import { ProjectListEmpty, ProjectListHeader, ProjectListToolbar, ProjectListTable, ProjectListActions, formatProjectListTime } from '../../../shared/ui/ProjectList';
@@ -47,8 +46,6 @@ function PresalesProjectsPage({ onNavigate }: PresalesProjectsPageProps) {
   const [profileDraft, setProfileDraft] = useState<PresalesProjectProfile>(emptyProfile);
   const projectSearchRef = useRef<InputRef>(null);
   const [keyword, setKeyword] = useState('');
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const detail = projectList.projects.find(project => project.id === detailId);
   const [listPage, setListPage] = useState(1);
   useEffect(() => setListPage(1), [keyword]);
   const [isLoading, setIsLoading] = useState(true);
@@ -150,7 +147,6 @@ function PresalesProjectsPage({ onNavigate }: PresalesProjectsPageProps) {
       } else {
         await getPresalesBridge().switchProject(projectId);
       }
-      setDetailId(null);
       onNavigate('presales-workbench');
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : String(error));
@@ -218,20 +214,12 @@ function PresalesProjectsPage({ onNavigate }: PresalesProjectsPageProps) {
     {operationError && <div className="yb-operation-error" role="alert">{operationError}</div>}<ProjectListHeader title="售前项目" description="选择项目，整理客户背景并进入售前工作台。" actions={<button type="button" className="primary-action" onClick={() => void createProject()} disabled={isSaving}>新建项目</button>} />
     <ProjectListToolbar inputRef={projectSearchRef} query={keyword} onQueryChange={setKeyword} placeholder="搜索项目、客户或行业" count={`${filteredProjects.length} / ${projectList.projects.length} 个项目`} />
     <div className="modern-presales-projects-layout"><section className="modern-presales-project-list" aria-label="售前项目列表"><div className="modern-presales-project-list-body"><ProjectListTable<PresalesProjectListItem> loading={isLoading} dataSource={pageItems} pagination={false} scroll={{ x: 600 }} columns={[
-      { title: '项目名称', render: (_, project) => <div className="yb-project-list-name"><button type="button" disabled={isSaving} onClick={() => { setOperationError(''); setDetailId(project.id); }}>{project.name || '未命名售前项目'}</button><small>{project.customerName || '客户待填写'} · {project.currentStage || '阶段待填写'}</small><small>{project.industry || '行业待填写'} · {project.materialCount} 份材料 · {project.generatedCount}/5 输出{project.id === selectedProject?.projectId ? ' · 当前编辑' : ''}</small></div> },
+      { title: '项目名称', render: (_, project) => <div className="yb-project-list-name"><button type="button" disabled={isSaving} onClick={() => void enterWorkbench(project.id)}>{project.name || '未命名售前项目'}</button><small>{project.customerName || '客户待填写'} · {project.currentStage || '阶段待填写'}</small><small>{project.industry || '行业待填写'} · {project.materialCount} 份材料 · {project.generatedCount}/5 输出{project.id === selectedProject?.projectId ? ' · 当前编辑' : ''}</small></div> },
       { title: '最近更新', dataIndex: 'updated_at', width: 180, render: formatProjectListTime },
       { title: '操作', width: 180, fixed: 'right', render: (_, project) => <ProjectListActions name={project.name} disabled={isSaving} onEnter={() => void enterWorkbench(project.id)} items={[{ key: 'edit', label: '编辑资料', onClick: () => void selectProject(project.id) }, { key: 'delete', label: '删除项目', danger: true, onClick: () => void deleteProject(project.id) }]} /> },
     ]} locale={{ emptyText: <ProjectListEmpty subject="售前项目" filtered={Boolean(keyword.trim())} disabled={isSaving} onReset={() => { setKeyword(''); requestAnimationFrame(() => projectSearchRef.current?.focus()); }} onCreate={() => void createProject()} /> }} /></div></section>
     <main className="modern-presales-project-editor"><div className="modern-presales-editor-head"><span>项目资料</span><strong>{selectedProject?.profile.projectName || '选择一个项目'}</strong>{selectedProject && <small>{selectedProject.materials.length} 份材料 · 更新于 {formatDateTime(selectedProject.updated_at)}</small>}</div>{selectedProject ? <><div className="modern-presales-editor-fields">{([{ key:'projectName', label:'项目名称', placeholder:'项目名称' }, { key:'customerName', label:'客户名称', placeholder:'客户单位或集团名称' }, { key:'industry', label:'行业领域', placeholder:'政企、制造、医疗等' }, { key:'currentStage', label:'当前阶段', placeholder:'线索识别 / 需求调研' }, { key:'opportunitySource', label:'机会来源', placeholder:'客户拜访、伙伴推荐等' }, { key:'owner', label:'负责人', placeholder:'售前负责人' }, { key:'expectedValue', label:'预估价值', placeholder:'预算或合作价值' }, { key:'decisionDate', label:'决策时间', placeholder:'' }] as const).map((field) => <label key={field.key}><span>{field.label}</span><input disabled={isSaving} type={field.key === 'decisionDate' ? 'date' : 'text'} value={profileDraft[field.key]} onChange={(event) => setProfileDraft({ ...profileDraft, [field.key]: event.target.value })} placeholder={field.placeholder} /></label>)}<label className="is-wide"><span>背景摘要</span><textarea disabled={isSaving} value={profileDraft.keyBackground} onChange={(event) => setProfileDraft({ ...profileDraft, keyBackground: event.target.value })} placeholder="记录客户背景、沟通结论和关键上下文" /></label></div><div className="modern-presales-editor-actions"><button type="button" onClick={() => void saveProject()} disabled={isSaving}>{isSaving ? '保存中…' : '保存修改'}</button><button type="button" onClick={() => void enterWorkbench(selectedProject.projectId)} disabled={isSaving}>进入售前工作台 →</button></div></> : <div className="modern-presales-empty"><strong>还没有选中项目</strong><p>从项目列表选择，或创建一个项目。</p></div>}</main></div>
-  <ProjectDeleteDialog name={projectList.projects.find(project => project.id === deleteCandidateId)?.name} description="项目资料、材料与已生成的售前成果将被删除，此操作无法撤销。" busy={isSaving} error={operationError} onCancel={() => setDeleteCandidateId('')} onConfirm={() => void deleteProject(deleteCandidateId)} /><CollectionPagination page={currentPage} total={filteredProjects.length} onChange={setListPage} /><ProjectDetailsDrawer open={Boolean(detail)} onClose={() => setDetailId(null)} enterDisabled={isSaving} entering={isSaving} error={operationError}
-      onEnter={detail ? () => void enterWorkbench(detail.id) : undefined} items={detail ? [
-        { key: 'name', label: '项目名称', children: detail.name },
-        { key: 'client', label: '客户', children: detail.customerName || '待填写' },
-        { key: 'industry', label: '行业领域', children: detail.industry || '待填写' },
-        { key: 'stage', label: '当前阶段', children: detail.currentStage || '待填写' },
-        { key: 'materials', label: '资料与输出', children: `${detail.materialCount} 份材料 · ${detail.generatedCount} 份输出` },
-        { key: 'updated', label: '更新时间', children: formatProjectListTime(detail.updated_at) },
-      ] : []} /></div>;
+  <ProjectDeleteDialog name={projectList.projects.find(project => project.id === deleteCandidateId)?.name} description="项目资料、材料与已生成的售前成果将被删除，此操作无法撤销。" busy={isSaving} error={operationError} onCancel={() => setDeleteCandidateId('')} onConfirm={() => void deleteProject(deleteCandidateId)} /><CollectionPagination page={currentPage} total={filteredProjects.length} onChange={setListPage} /></div>;
 
   return (
     <div className="presales-projects-page">{operationError && <div className="yb-operation-error" role="alert">{operationError}</div>}

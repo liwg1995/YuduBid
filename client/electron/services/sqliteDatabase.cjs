@@ -3,7 +3,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const { getWorkspaceDatabasePath } = require('../utils/paths.cjs');
 
-const schemaVersion = 34;
+const schemaVersion = 35;
 
 function createInitialSchema(db) {
   db.exec(`
@@ -1356,6 +1356,9 @@ const migrations = [
   } },
   { version: 33, description: '集成完整暗标检查、复核和修复状态', up(db) { require('./blind-check-upstream/schema.cjs').migrateBlindCheck(db); } },
   { version: 34, description: '暗标敏感词适配多企业资信库', up(db) { require('./blind-check-upstream/schema.cjs').migrateBlindCheck(db); } },
+  { version: 35, description: '记录投标目录章节用途', up(db) {
+    addColumnIfMissing(db, 'technical_plan_outline_nodes', 'section_purpose', 'TEXT');
+  } },
 ];
 
 function timestampForFileName() {

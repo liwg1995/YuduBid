@@ -9,6 +9,18 @@ function registerTaskIpc({ taskService }) {
     taskService.subscribe(event.sender);
     return taskService.startBidAnalysis(payload);
   });
+  ipcMain.handle('tasks:pause-bid-analysis', (event, payload) => {
+    taskService.subscribe(event.sender);
+    return taskService.pauseBidAnalysis(payload);
+  });
+  ipcMain.handle('tasks:resume-bid-analysis', (event, payload) => {
+    taskService.subscribe(event.sender);
+    return taskService.resumeBidAnalysis(payload);
+  });
+  ipcMain.handle('tasks:stop-bid-analysis', (event, payload) => {
+    taskService.subscribe(event.sender);
+    return taskService.stopBidAnalysis(payload);
+  });
   ipcMain.handle('tasks:answer-outline-question', (event, payload) => {
     taskService.subscribe(event.sender);
     return taskService.answerOutlineQuestion(payload);
