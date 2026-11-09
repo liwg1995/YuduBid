@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -13,6 +13,7 @@ const directory = process.argv[2];
 const githubRepository = process.env.GITHUB_REPOSITORY;
 const githubToken = process.env.GITHUB_TOKEN;
 const notesOnly = directory === '--notes-only';
+const checksumsOnly = process.env.GITCODE_CHECKSUMS_ONLY === 'true';
 const replaceExisting = process.env.REPLACE_EXISTING_RELEASE === 'true';
 
 if (![token, owner, repo, tag, githubRepository, githubToken].every(Boolean) || (!notesOnly && !directory)) {
@@ -115,22 +116,38 @@ async function main() {
     return asset;
   });
   const localNames = new Set(await readdir(directory));
+  const syncAssets = checksumsOnly ? checksums : assets.values();
   const files = [];
-  for (const [name, asset] of assets) {
+  for (const asset of syncAssets) {
+    const { name } = asset;
     const file = join(directory, name);
     if (!localNames.has(name)) throw new Error(`GitCode sync input is missing GitHub attachment: ${name}`);
     if ((await stat(file)).size !== asset.size) throw new Error(`GitCode sync input has the wrong size: ${name}`);
+    if (checksums.includes(asset)) {
+      const digest = `sha256:${createHash('sha256').update(await readFile(file)).digest('hex')}`;
+      if (digest !== asset.digest.toLowerCase()) throw new Error(`GitCode sync input has the wrong checksum: ${name}`);
+    }
     files.push(file);
   }
 
   await runGit(['push', `https://gitcode.com/${repoPath}.git`, `${replaceExisting ? '+' : ''}refs/tags/${tag}:refs/tags/${tag}`]);
   let release = await request(releasePath, { allow404: true });
   if (!release) {
+    if (checksumsOnly) throw new Error('Cannot repair checksums before the GitCode Release exists');
     await request('/releases', { method: 'POST', body: JSON.stringify({ tag_name: tag, ...releaseInfo, release_status: 'pre' }) });
     release = await request(releasePath);
   }
 
   const existing = new Map((release.assets || []).filter((asset) => asset.type !== 'source').map((asset) => [asset.name, asset]));
+  if (checksumsOnly) {
+    for (const [name, asset] of assets) {
+      if (checksums.includes(asset)) continue;
+      const mirror = existing.get(name);
+      if (!mirror || (knownAssetSize(mirror) !== null && knownAssetSize(mirror) !== asset.size)) {
+        throw new Error(`Cannot repair checksums while a GitCode attachment is missing or has the wrong size: ${name}`);
+      }
+    }
+  }
   if ([...existing.values()].some((asset) => knownAssetSize(asset) === null)) {
     console.warn('GitCode did not return asset sizes; existing attachments will be checked by name');
   }

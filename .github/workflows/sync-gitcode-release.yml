@@ -7,6 +7,10 @@ on:
         description: 'Published GitHub release tag to mirror'
         required: true
         type: string
+      checksums_only:
+        description: Repair only the checksum files when installers are already mirrored
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -26,9 +30,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ inputs.tag_name }}
+          CHECKSUMS_ONLY: ${{ inputs.checksums_only }}
         run: |
-          gh release download "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --dir release-assets
-          (cd release-assets && shasum -a 256 -c *-sha256.txt)
+          if [ "$CHECKSUMS_ONLY" = "true" ]; then
+            gh release download "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --dir release-assets --clobber --pattern '*-sha256.txt'
+          else
+            gh release download "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --dir release-assets
+            (cd release-assets && shasum -a 256 -c *-sha256.txt)
+          fi
       - name: Sync GitCode Release
         env:
           ATOMGIT_ACCESS_TOKEN: ${{ secrets.ATOMGIT_ACCESS_TOKEN }}
@@ -36,6 +45,7 @@ jobs:
           ATOMGIT_REPO: ${{ vars.ATOMGIT_REPO }}
           TAG_NAME: ${{ inputs.tag_name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITCODE_CHECKSUMS_ONLY: ${{ inputs.checksums_only }}
         run: node .github/scripts/sync-gitcode-release.mjs release-assets
       - name: Remove downloaded release assets
         if: always()
