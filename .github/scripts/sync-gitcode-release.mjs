@@ -1,6 +1,8 @@
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const apiBase = 'https://api.gitcode.com/api/v5';
 const token = process.env.ATOMGIT_ACCESS_TOKEN;
@@ -102,8 +104,24 @@ async function main() {
     return;
   }
 
-  const files = (await readdir(directory)).sort().map((name) => join(directory, name));
-  if (!files.length) throw new Error('No release assets found');
+  const assets = new Map((githubRelease.assets || []).map((asset) => [asset.name, asset]));
+  const version = tag.replace(/^[vV]/, '');
+  const checksums = ['Windows', 'macOS'].map((platform) => {
+    const name = `YuDuBid-${version}-${platform}-sha256.txt`;
+    const asset = assets.get(name);
+    if (!asset || !/^sha256:[a-f0-9]{64}$/i.test(asset.digest || '')) {
+      throw new Error(`Published GitHub Release is missing a verified checksum asset: ${name}`);
+    }
+    return asset;
+  });
+  const localNames = new Set(await readdir(directory));
+  const files = [];
+  for (const [name, asset] of assets) {
+    const file = join(directory, name);
+    if (!localNames.has(name)) throw new Error(`GitCode sync input is missing GitHub attachment: ${name}`);
+    if ((await stat(file)).size !== asset.size) throw new Error(`GitCode sync input has the wrong size: ${name}`);
+    files.push(file);
+  }
 
   await runGit(['push', `https://gitcode.com/${repoPath}.git`, `${replaceExisting ? '+' : ''}refs/tags/${tag}:refs/tags/${tag}`]);
   let release = await request(releasePath, { allow404: true });
@@ -138,6 +156,23 @@ async function main() {
     }
   }
   await request(releasePath, { method: 'PATCH', body: JSON.stringify({ ...releaseInfo, release_status: 'latest' }) });
+  for (const asset of checksums) {
+    const url = `https://gitcode.com/${repoPath}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(asset.name)}`;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const bytes = Buffer.from(await response.arrayBuffer());
+        const digest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+        if (digest !== asset.digest.toLowerCase()) throw new Error('SHA-256 differs from GitHub');
+        console.log(`Verified public GitCode checksum: ${asset.name}`);
+        break;
+      } catch (error) {
+        if (attempt === 5) throw new Error(`GitCode checksum unavailable or invalid: ${asset.name}: ${error.message}`);
+        await delay(attempt * 3000);
+      }
+    }
+  }
   console.log(`GitCode Release published: https://gitcode.com/${repoPath}/releases/${encodeURIComponent(tag)}`);
 }
 
