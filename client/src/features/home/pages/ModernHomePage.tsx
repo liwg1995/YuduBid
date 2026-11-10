@@ -10,8 +10,8 @@ interface Props {
 }
 
 const cardDescriptions: Partial<Record<SectionId, string>> = {
-  'presales-projects': '客户需求分析、售前方案与架构草稿',
-  'technical-plan': '方案生成、可研报告、查重与废标检查',
+  'presales-projects': '客户需求分析、售前方案与可研报告',
+  'technical-plan': '方案生成、查重与废标检查',
   'thesis-diagnosis': '选题开题、研究设计与论文写作',
   'official-document-drafting': '智能起草、格式检查与润色改写',
   'grant-diagnosis': '选题政策、申报书与评审优化',
@@ -55,10 +55,15 @@ export default function ModernHomePage({ featureModuleSettings, onRevealModule }
             return (
               <button className={`modern-workspace-card is-${item.tone} module-${item.section}`} type="button" key={item.title} onClick={(event) => onRevealModule(item.moduleId, event.currentTarget)}>
                 <span className="modern-card-background" aria-hidden="true"><Icon /></span>
-                <span className="modern-card-icon" aria-hidden="true"><Icon /></span>
                 <span className="modern-card-arrow" aria-hidden="true">☷</span>
-                <strong>{item.title}</strong>
-                <small>{cardDescriptions[item.section] || item.text}</small>
+                <span className="modern-card-copy">
+                  <span className="modern-card-icon" aria-hidden="true"><Icon /></span>
+                  <strong>{item.title}</strong>
+                  <small>{cardDescriptions[item.section] || item.text}</small>
+                </span>
+                <span className="modern-card-tags">
+                  {item.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                </span>
                 <span className="modern-card-footer">查看功能<span aria-hidden="true">‹</span></span>
               </button>
             );

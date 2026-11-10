@@ -2,8 +2,8 @@ import type { AppMenuGroup, AppMenuItem, SectionId } from '../shared/types/navig
 import type { FeatureModuleId, FeatureModuleSettings } from '../shared/types';
 
 export const configurableFeatureModules: Array<{ id: FeatureModuleId; label: string; description: string }> = [
-  { id: 'presales', label: '售前工作台', description: '客户材料分析、调研准备、方案架构、图表和汇报材料' },
-  { id: 'bid', label: '招投标', description: '方案生成、可研报告、知识库、查重、暗标检查、废标项检查和投标机会' },
+  { id: 'presales', label: '售前工作台', description: '客户材料分析、调研准备、方案架构、可研报告、图表和汇报材料' },
+  { id: 'bid', label: '招投标', description: '方案生成、知识库、查重、暗标检查、废标项检查和投标机会' },
   { id: 'official-document', label: '公文写作', description: '智能起草、格式检查、润色改写和模板库' },
   { id: 'grant-application', label: '课题申报', description: '启动诊断、选题政策、申报书撰写、评审优化和答辩' },
   { id: 'project-management', label: '项目协作', description: '项目类型、项目管理和项目历史' },
@@ -17,11 +17,6 @@ export const appMenuItems: AppMenuItem[] = [
     id: 'technical-plan',
     label: '方案生成',
     description: '完整投标文件、技术文件与商务文件编制',
-  },
-  {
-    id: 'feasibility-report',
-    label: '可研报告',
-    description: '项目论证与报告编制',
   },
   {
     id: 'bid-template-management',
@@ -66,6 +61,11 @@ const presalesMenuItems: AppMenuItem[] = [
     id: 'presales-workbench',
     label: '售前工作台',
     description: '进入项目后的分析与交付',
+  },
+  {
+    id: 'feasibility-report',
+    label: '可研报告',
+    description: '项目前期论证与可行性研究报告编制',
   },
 ];
 

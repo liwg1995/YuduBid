@@ -148,8 +148,8 @@
 .modern-section-heading span { color: #9d91ef; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
 .modern-section-heading h2 { margin: 6px 0 0; font-size: 20px; }
 .modern-section-heading p { margin: 0; color: #8290a8; font-size: 11px; }
-.modern-card-grid { display: grid; flex: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(154px, 1fr); gap: 13px; }
-.modern-workspace-card { --card-accent: #aa9dfb; --card-glow: #7669df25; display: flex; position: relative; min-height: 154px; flex-direction: column; align-items: flex-start; overflow: hidden; padding: 17px; border: 1px solid #33435a; border-radius: 15px; color: #e9edf7; background: radial-gradient(circle at 92% 12%, var(--card-glow), transparent 48%), linear-gradient(145deg, #1a2638, #151e2d 74%); text-align: left; cursor: pointer; transition: border-color .18s, transform .18s, box-shadow .18s; }
+.modern-card-grid { display: grid; flex: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(min-content, 1fr); gap: 13px; }
+.modern-workspace-card { --card-accent: #aa9dfb; --card-glow: #7669df25; display: flex; position: relative; min-height: 154px; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 10px; overflow: hidden; padding: 17px; border: 1px solid #33435a; border-radius: 15px; color: #e9edf7; background: radial-gradient(circle at 92% 12%, var(--card-glow), transparent 48%), linear-gradient(145deg, #1a2638, #151e2d 74%); text-align: left; cursor: pointer; transition: border-color .18s, transform .18s, box-shadow .18s; }
 .modern-workspace-card:hover { border-color: var(--card-accent); transform: translateY(-2px); box-shadow: 0 10px 24px #050b1680; }
 .modern-workspace-card > :not(.modern-card-background) { z-index: 1; }
 .modern-workspace-card > :not(.modern-card-background):not(.modern-card-arrow) { position: relative; }
@@ -168,9 +168,12 @@
 .modern-card-icon { display: grid; width: 36px; height: 36px; place-items: center; margin-bottom: 14px; border-radius: 9px; color: var(--card-accent); background: var(--card-glow); font-size: 12px; font-weight: 800; }
 .modern-card-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .modern-card-arrow { position: absolute; top: 17px; right: 17px; color: #7788a3; }
-.modern-workspace-card strong { font-size: 14px; }
-.modern-workspace-card small { display: -webkit-box; min-height: 34px; margin-top: 7px; overflow: hidden; color: #8f9db4; font-size: 11px; line-height: 1.55; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.modern-card-footer { display: flex; width: 100%; justify-content: space-between; margin-top: auto; padding-top: 11px; border-top: 1px solid #253246; color: #b7c1d5; font-size: 10px; }
+.modern-card-copy { width: 100%; }
+.modern-workspace-card strong { font-size: 15px; }
+.modern-workspace-card small { display: -webkit-box; margin-top: 5px; overflow: hidden; color: #8f9db4; font-size: 11px; line-height: 1.55; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.modern-card-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.modern-card-tags > span { padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--card-accent) 22%, transparent); border-radius: 6px; color: var(--card-accent); background: var(--card-glow); font-size: 10px; }
+.modern-card-footer { display: flex; width: 100%; justify-content: space-between; padding-top: 9px; border-top: 1px solid #253246; color: #b7c1d5; font-size: 10px; }
 
 /* 业务页使用现代工作台自己的页头、面板和操作条。 */
 .modern-shell .knowledge-library-shell { gap: 18px; }
