@@ -237,19 +237,31 @@
 
 /* 关于：独立品牌横幅、版本状态和简洁的隐私条目。 */
 .modern-shell .settings-page .about-section { overflow: hidden; }
-.modern-shell .settings-page .modern-about-hero { position: relative; display: grid; grid-template-columns: minmax(0,1fr) 280px; min-height: 194px; margin: 14px 18px 11px; overflow: hidden; border: 1px solid #514c88; border-radius: 11px; background: radial-gradient(circle at 76% 15%, #51488777, transparent 43%), linear-gradient(115deg, #202d4e, #29294e 80%); }
-.modern-shell .settings-page .modern-about-hero-copy { position: relative; z-index: 1; align-self: center; padding: 20px 30px; }
-.modern-shell .settings-page .modern-about-hero-copy > span { color: #ada6eb; font-size: 9px; font-weight: 750; letter-spacing: .16em; }
-.modern-shell .settings-page .modern-about-hero-copy h2 { margin: 12px 0 8px; color: #f7f5ff; font-size: clamp(22px, 2.4vw, 31px); line-height: 1.24; letter-spacing: -.04em; }
-.modern-shell .settings-page .modern-about-hero-copy h2 em { color: #b4a9ff; font-style: normal; }
-.modern-shell .settings-page .modern-about-hero-copy p { margin: 0; color: #aebbd4; font-size: 11px; }
-.modern-shell .settings-page .modern-about-hero-art { position: relative; display: grid; align-content: center; justify-items: center; gap: 4px; color: #e8e5ff; isolation: isolate; }
-.modern-shell .settings-page .modern-about-hero-art::before { position: absolute; z-index: -1; width: 155px; height: 155px; border: 1px solid #a49aef66; border-radius: 32px; background: #8880de24; box-shadow: 0 0 40px #8176da20, inset 0 0 50px #aaa0ff17; content: ''; transform: rotate(-14deg); }
-.modern-shell .settings-page .modern-about-hero-art b { font-size: 27px; letter-spacing: .16em; }
-.modern-shell .settings-page .modern-about-hero-art > span { color: #b6adeb; font-size: 8px; letter-spacing: .13em; }
-.modern-shell .settings-page .modern-about-orbit { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #b9adff; box-shadow: 0 0 0 5px #b9adff20; }
-.modern-shell .settings-page .modern-about-orbit-one { top: 25%; left: 19%; }
-.modern-shell .settings-page .modern-about-orbit-two { right: 19%; bottom: 24%; }
+.modern-shell .settings-page .modern-about-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 18px 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--yb-control-border);
+  border-radius: 9px;
+  background: var(--yb-control-bg);
+}
+
+.modern-about-brand img {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+}
+
+.modern-about-brand h2 {
+  margin: 0;
+  color: var(--yb-text);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
 .modern-shell .settings-page .about-grid { gap: 10px; padding: 0 18px 12px; }
 .modern-shell .settings-page .about-grid > div { min-height: 82px; gap: 5px; border-radius: 9px; padding: 13px 16px; background: #1a293c; }
 .modern-shell .settings-page .about-grid > div > span:first-of-type { color: #8fa1ba; font-size: 10px; }
@@ -321,4 +333,4 @@
 .modern-shell .settings-page .privacy-item p { color: #9daec5; font-size: 10px; line-height: 1.52; }
 @container (max-width: 1050px) { .modern-shell .settings-page .parser-compare { grid-template-columns: 1fr; } .modern-shell .settings-page .parser-card { gap: 7px; } .modern-shell .settings-page .parser-metrics { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 0 10px; } .modern-shell .settings-page .parser-metrics div { grid-template-columns: 65px minmax(0,1fr); } .modern-shell .settings-page .usage-detail-layout { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .modern-shell .settings-page .usage-kpi-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .modern-shell .settings-page .privacy-list { grid-template-columns: 1fr; } }
-@media (max-width: 650px) { .modern-shell .settings-page .modern-about-hero { grid-template-columns: minmax(0,1fr); } .modern-shell .settings-page .modern-about-hero-art { display: none; } .modern-shell .settings-page .about-grid { grid-template-columns: 1fr; } .modern-shell .settings-page .parser-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 650px) { .modern-shell .settings-page .about-grid { grid-template-columns: 1fr; } .modern-shell .settings-page .parser-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }

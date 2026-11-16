@@ -119,7 +119,11 @@ function PatentHintIcon({ label, hint }: { label: string; hint: string }) {
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
       >
-        !
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25" />
+          <circle cx="8" cy="5.25" r=".75" fill="currentColor" />
+          <path d="M8 7.5v3.25" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+        </svg>
       </button>
       {open && createPortal(
         <span
@@ -403,103 +407,103 @@ export function PatentCasePanel({
   return (
     <section className="demo-panel patent-case-panel">
       <div className="demo-panel-head">
-        <div>
+        <div className="patent-case-heading">
           <span className="section-kicker">案件信息</span>
           <h3 className="patent-case-title">
             <span>专利基本信息</span>
             <PatentHintIcon
               label="专利基本信息"
-                hint="这些信息用于专利挖掘、交底书生成和 Word 导出。专利名称可以直接采用主专利点名称，也可以在生成前人工调整。"
+              hint="这些信息用于专利挖掘、交底书生成和 Word 导出。专利名称可以直接采用主专利点名称，也可以在生成前人工调整。"
             />
           </h3>
         </div>
         <span className="demo-soft-pill">{patentTypeLabels[caseInfo.applicationType]}</span>
       </div>
       <div className="patent-case-form">
-        <WorkspaceFormSection title="技术信息" description="明确案件名称与技术主题。">
-        <label className="patent-case-name-field">
-          <PatentFieldLabel label="专利名称" hint="用于交底书标题和导出文件名。可以直接采用主专利点名称，也可以人工调整。" />
-          <span className="patent-case-name-control">
-            <input
-              value={caseInfo.caseName}
-              onChange={(event) => onCaseInfoChange({ caseName: event.target.value })}
-            />
-            {selectedPatentPoint && caseInfo.caseName !== selectedPatentPoint.title && (
-              <button type="button" onClick={onUseSelectedPatentName} disabled={saving}>
-                使用主专利点名称
+        <WorkspaceFormSection title="技术信息">
+          <label className="patent-case-name-field">
+            <PatentFieldLabel label="专利名称" hint="用于交底书标题和导出文件名。可以直接采用主专利点名称，也可以人工调整。" />
+            <span className="patent-case-name-control">
+              <input
+                value={caseInfo.caseName}
+                onChange={(event) => onCaseInfoChange({ caseName: event.target.value })}
+              />
+              {selectedPatentPoint && caseInfo.caseName !== selectedPatentPoint.title && (
+                <button type="button" onClick={onUseSelectedPatentName} disabled={saving}>
+                  使用主专利点名称
+                </button>
+              )}
+            </span>
+            <small>主专利点决定技术内容，专利名称用于成稿标题，两者可保持一致。</small>
+          </label>
+          <label className="is-wide">
+            <PatentFieldLabel label="技术主题" hint="例如：投标文件合规性自动检查" />
+            <span className="patent-case-name-control patent-topic-control">
+              <input value={caseInfo.topic} onChange={(event) => onCaseInfoChange({ topic: event.target.value })} />
+              <button type="button" onClick={onGenerateTopic} disabled={generatingTopic || loading}>
+                {generatingTopic ? '生成中…' : 'AI 生成'}
               </button>
-            )}
-          </span>
-          <small>主专利点决定技术内容，专利名称用于成稿标题，两者可保持一致。</small>
-        </label>
-        <label>
-          <PatentFieldLabel label="技术主题" hint="例如：投标文件合规性自动检查" />
-          <span className="patent-case-name-control patent-topic-control">
-            <input value={caseInfo.topic} onChange={(event) => onCaseInfoChange({ topic: event.target.value })} />
-            <button type="button" onClick={onGenerateTopic} disabled={generatingTopic || loading}>
-              {generatingTopic ? '生成中…' : 'AI 生成'}
-            </button>
-          </span>
-        </label>
+            </span>
+          </label>
         </WorkspaceFormSection>
-        <WorkspaceFormSection title="申请与保护形式" description="申请类型与权利要求形态分别选择。">
-        <label>
-          <PatentFieldLabel label="申请类型" hint="发明、实用新型和外观设计是申请类型；方法、系统、装置属于权利要求保护形态。" />
-          <select
-            value={caseInfo.applicationType}
-            onChange={(event) => onCaseInfoChange({ applicationType: event.target.value as PatentApplicationType })}
-          >
-            <option value="invention">发明</option>
-            <option value="utility-model">实用新型</option>
-            <option value="design">外观设计</option>
-            <option value="unknown">暂不确定（按发明分析）</option>
-          </select>
-        </label>
-        <fieldset className="patent-claim-form-field">
-          <legend><PatentFieldLabel label="权利要求形态" hint="可多选。发明通常可组合方法、系统和存储介质；实用新型通常选择装置。" /></legend>
-          <div className="patent-claim-options">
-            {claimFormOptions.map((option) => {
-              const checked = caseInfo.claimForms.includes(option.value);
-              return (
-                <label key={option.value} className={checked ? 'is-checked' : ''}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => onCaseInfoChange({
-                      claimForms: checked
-                        ? caseInfo.claimForms.filter((item) => item !== option.value)
-                        : [...caseInfo.claimForms, option.value],
-                    })}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
+        <WorkspaceFormSection title="申请与保护形式" className="patent-protection-section">
+          <label>
+            <PatentFieldLabel label="申请类型" hint="发明、实用新型和外观设计是申请类型；方法、系统、装置属于权利要求保护形态。" />
+            <select
+              value={caseInfo.applicationType}
+              onChange={(event) => onCaseInfoChange({ applicationType: event.target.value as PatentApplicationType })}
+            >
+              <option value="invention">发明</option>
+              <option value="utility-model">实用新型</option>
+              <option value="design">外观设计</option>
+              <option value="unknown">暂不确定（按发明分析）</option>
+            </select>
+          </label>
+          <fieldset className="patent-claim-form-field">
+            <legend><PatentFieldLabel label="权利要求形态" hint="可多选。发明通常可组合方法、系统和存储介质；实用新型通常选择装置。" /></legend>
+            <div className="patent-claim-options">
+              {claimFormOptions.map((option) => {
+                const checked = caseInfo.claimForms.includes(option.value);
+                return (
+                  <label key={option.value} className={checked ? 'is-checked' : ''}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onCaseInfoChange({
+                        claimForms: checked
+                          ? caseInfo.claimForms.filter((item) => item !== option.value)
+                          : [...caseInfo.claimForms, option.value],
+                      })}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
         </WorkspaceFormSection>
-        <WorkspaceFormSection title="联系信息" description="用于交底材料联系信息，保存在本机案件中。">
-        <label>
-          <PatentFieldLabel label="联系人" hint="填写技术联系人姓名，便于导出的交底书保留案件联系信息。" />
-          <input
-            value={caseInfo.contact.name}
-            onChange={(event) => onCaseInfoChange({ contact: { name: event.target.value } })}
-          />
-        </label>
-        <label>
-          <PatentFieldLabel label="联系电话" hint="填写技术联系人的电话；仅保存到本机专利案件状态中。" />
-          <input
-            value={caseInfo.contact.phone}
-            onChange={(event) => onCaseInfoChange({ contact: { phone: event.target.value } })}
-          />
-        </label>
-        <label>
-          <PatentFieldLabel label="联系邮箱" hint="填写技术联系人邮箱；生成交底书时会作为联系人信息引用。" />
-          <input
-            value={caseInfo.contact.email}
-            onChange={(event) => onCaseInfoChange({ contact: { email: event.target.value } })}
-          />
-        </label>
+        <WorkspaceFormSection title="联系信息" className="patent-contact-section" description="用于交底材料，保存在本机案件中。">
+          <label>
+            <PatentFieldLabel label="联系人" hint="填写技术联系人姓名，便于导出的交底书保留案件联系信息。" />
+            <input
+              value={caseInfo.contact.name}
+              onChange={(event) => onCaseInfoChange({ contact: { name: event.target.value } })}
+            />
+          </label>
+          <label>
+            <PatentFieldLabel label="联系电话" hint="填写技术联系人的电话；仅保存到本机专利案件状态中。" />
+            <input
+              value={caseInfo.contact.phone}
+              onChange={(event) => onCaseInfoChange({ contact: { phone: event.target.value } })}
+            />
+          </label>
+          <label>
+            <PatentFieldLabel label="联系邮箱" hint="填写技术联系人邮箱；生成交底书时会作为联系人信息引用。" />
+            <input
+              value={caseInfo.contact.email}
+              onChange={(event) => onCaseInfoChange({ contact: { email: event.target.value } })}
+            />
+          </label>
         </WorkspaceFormSection>
         <div className="patent-case-actions">
           <div className="patent-case-actions-left">

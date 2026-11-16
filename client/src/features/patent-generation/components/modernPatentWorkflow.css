@@ -542,11 +542,7 @@
 @container (max-width: 560px) {
   .modern-patent-flow button::after { display: none !important; }
 }
-.patent-case-form > .yb-workspace-form-section { grid-column: 1 / -1; margin: 0; }
-.patent-case-form .yb-workspace-form-fields > .patent-claim-form-field { min-width: 0; margin: 0; }
-:root[data-ui-appearance='modern'] .modern-shell .patent-case-form { gap: 24px; }
 :root[data-ui-appearance='modern'] .modern-shell .patent-draft-actions { flex-wrap: wrap; gap: 8px; }
 :root[data-ui-appearance='modern'] .modern-shell .patent-case-form .patent-field-label,
 :root[data-ui-appearance='modern'] .modern-shell .patent-case-form .patent-field-label > span { color: var(--yb-text); font-size: 14px; line-height: 22px; }
-:root[data-ui-appearance='modern'] .modern-shell .patent-case-form .patent-field-hint { color: var(--yb-text-soft); border-color: var(--yb-control-border); background: transparent; }
 :root[data-ui-appearance='modern'] .modern-shell .patent-case-form small { color: var(--yb-text-soft); font-size: 12px; line-height: 20px; }

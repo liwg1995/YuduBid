@@ -2,6 +2,7 @@ import SettingsDisclosure from '../components/SettingsDisclosure';
 import StorageSpaceDialog from '../components/StorageSpaceDialog';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState } from 'react';
+import appIcon from '../../../../assets/icon_256.png';
 import brandProducerLogo from '../../../assets/brand-producer-logo.svg';
 import { configurableFeatureModules } from '../../../app/menuConfig';
 import { FloatingToolbar, InputWithAction, MarkdownRenderer, useToast } from '../../../shared/ui';
@@ -2636,7 +2637,6 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
             <strong>本地用量统计</strong>
             <button type="button" className="inline-action usage-clear-action" onClick={() => void clearUsageStats()} disabled={!usageStats?.totals.requests}>清空本地统计</button>
           </div>
-          <div className="feature-manager-note">仅统计本机通过客户端完成的文本模型请求，不上传到任何远程统计服务；服务商未返回 Token 时不会估算。</div>
           <div className="usage-kpi-grid">
             {[
               ['请求次数', '已完成文本请求', usageStats?.totals.requests || 0],
@@ -2680,18 +2680,9 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
             <strong>关于</strong>
           </div>
           {uiAppearance === 'modern' && (
-            <div className="modern-about-hero">
-              <div className="modern-about-hero-copy">
-                <span>YUDU · DESKTOP WORKSPACE</span>
-                <h2>让复杂工作，<br /><em>变得更从容。</em></h2>
-                <p>从资料整理到成果交付，在一个本地工作空间里完成。</p>
-              </div>
-              <div className="modern-about-hero-art" aria-hidden="true">
-                <i className="modern-about-orbit modern-about-orbit-one" />
-                <i className="modern-about-orbit modern-about-orbit-two" />
-                <b>禹都</b>
-                <span>AI SOLUTION WORKSPACE</span>
-              </div>
+            <div className="modern-about-brand">
+              <img src={appIcon} alt="" />
+              <h2>禹都 AI 解决方案助手</h2>
             </div>
           )}
           <div className="about-update-source">
@@ -2709,7 +2700,7 @@ function SettingsPage({ onDeveloperModeChange, onFeatureModuleSettingsChange, up
               }}
             >
               <option value="auto">自动</option>
-              <option value="gitcode">GitCode（AtomGit）</option>
+              <option value="gitcode">GitCode</option>
               <option value="github">GitHub</option>
             </select>
           </div>
